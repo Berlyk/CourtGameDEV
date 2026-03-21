@@ -90,6 +90,11 @@ interface AddTestPlayersResult {
   activeCount: number;
 }
 
+interface TestActionResult {
+  ok: boolean;
+  reason?: string;
+}
+
 export interface TestRoleView {
   playerId: string;
   playerName: string;
@@ -181,6 +186,28 @@ function findConnection(
   socket: Socket,
 ): TestPlayerConnection | null {
   const existing = getConnections(roomCode).find((entry) => entry.socket === socket);
+  return existing ?? null;
+}
+
+function findConnectionByName(
+  roomCode: string,
+  playerName: string,
+): TestPlayerConnection | null {
+  const normalizedName = playerName.trim().toLowerCase();
+  const existing = getConnections(roomCode).find(
+    (entry) => entry.name.trim().toLowerCase() === normalizedName,
+  );
+  return existing ?? null;
+}
+
+function findGameConnectionByPlayerId(
+  roomCode: string,
+  playerId: string,
+): TestPlayerConnection | null {
+  const existing = getConnections(roomCode).find(
+    (entry) =>
+      entry.latestState?.type === "game" && entry.latestState.me?.id === playerId,
+  );
   return existing ?? null;
 }
 
@@ -467,4 +494,93 @@ export function disconnectTestPlayersFromRoom(roomCode: string): number {
   }
   roomConnections.delete(code);
   return current.length;
+}
+
+export function disconnectTestPlayerByName(
+  roomCode: string,
+  playerName: string,
+): boolean {
+  if (!isTestToolsEnabled()) return false;
+  const code = normalizeRoomCode(roomCode);
+  const entry = findConnectionByName(code, playerName);
+  if (!entry) return false;
+
+  entry.socket.emit("leave_room");
+  entry.socket.disconnect();
+  removeConnection(code, entry.socket);
+  return true;
+}
+
+export function triggerTestPlayerRevealNextFact(
+  roomCode: string,
+  playerId: string,
+): TestActionResult {
+  if (!isTestToolsEnabled()) {
+    return { ok: false, reason: "Test tools are disabled" };
+  }
+  const code = normalizeRoomCode(roomCode);
+  const entry = findGameConnectionByPlayerId(code, playerId);
+  if (!entry || !entry.latestState || entry.latestState.type !== "game" || !entry.latestState.me) {
+    return { ok: false, reason: "Player connection not found" };
+  }
+
+  const nextFact = entry.latestState.me.facts.find((fact) => !fact.revealed);
+  if (!nextFact) {
+    return { ok: false, reason: "No unrevealed facts left" };
+  }
+
+  entry.socket.emit("reveal_fact", {
+    code,
+    playerId,
+    factId: nextFact.id,
+  });
+
+  entry.latestState = {
+    ...entry.latestState,
+    me: {
+      ...entry.latestState.me,
+      facts: entry.latestState.me.facts.map((fact) =>
+        fact.id === nextFact.id ? { ...fact, revealed: true } : fact,
+      ),
+    },
+  };
+
+  return { ok: true };
+}
+
+export function triggerTestPlayerUseNextCard(
+  roomCode: string,
+  playerId: string,
+): TestActionResult {
+  if (!isTestToolsEnabled()) {
+    return { ok: false, reason: "Test tools are disabled" };
+  }
+  const code = normalizeRoomCode(roomCode);
+  const entry = findGameConnectionByPlayerId(code, playerId);
+  if (!entry || !entry.latestState || entry.latestState.type !== "game" || !entry.latestState.me) {
+    return { ok: false, reason: "Player connection not found" };
+  }
+
+  const nextCard = entry.latestState.me.cards.find((card) => !card.used);
+  if (!nextCard) {
+    return { ok: false, reason: "No unused cards left" };
+  }
+
+  entry.socket.emit("use_card", {
+    code,
+    playerId,
+    cardId: nextCard.id,
+  });
+
+  entry.latestState = {
+    ...entry.latestState,
+    me: {
+      ...entry.latestState.me,
+      cards: entry.latestState.me.cards.map((card) =>
+        card.id === nextCard.id ? { ...card, used: true } : card,
+      ),
+    },
+  };
+
+  return { ok: true };
 }

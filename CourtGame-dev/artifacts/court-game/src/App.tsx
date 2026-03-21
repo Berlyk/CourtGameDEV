@@ -1512,6 +1512,23 @@ export default function App() {
     }
   }, [socket]);
 
+  const takeOverPlayer = useCallback(
+    (nextName: string) => {
+      const name = nextName.trim();
+      if (!name) return;
+      const code = room?.code ?? game?.code ?? localStorage.getItem("court_session");
+      if (!code) return;
+
+      localStorage.setItem("court_nickname", name);
+      setPlayerName(name);
+      socket.emit("rejoin_room", {
+        code,
+        playerName: name,
+      });
+    },
+    [socket, room, game],
+  );
+
   const startGame = useCallback(() => {
     if (!room || !myId) return;
     setStartGameLoading(true);
@@ -2153,6 +2170,13 @@ export default function App() {
                     currentPlayers={room.players.length}
                     isHost={myId === room.hostId}
                     mode="room"
+                    players={room.players.map((p) => ({
+                      id: p.id,
+                      name: p.name,
+                      isHost: p.id === room.hostId,
+                    }))}
+                    currentPlayerId={myId}
+                    onTakeOverPlayer={takeOverPlayer}
                     onStartGame={startGame}
                     canStartGame={
                       !startGameLoading &&
@@ -2566,9 +2590,18 @@ export default function App() {
                       currentPlayers={game.players.length}
                       isHost={isHost}
                       mode="game"
+                      players={game.players.map((p) => ({
+                        id: p.id,
+                        name: p.name,
+                        roleTitle: p.roleTitle,
+                        isHost: p.id === game.hostId,
+                      }))}
+                      currentPlayerId={myId}
+                      onTakeOverPlayer={takeOverPlayer}
                       stages={gameStages}
                       currentStageIndex={game.stageIndex}
                       onJumpToStage={jumpToStage}
+                      canControlStages={isHost || isJudge}
                       selfRoleView={selfRoleView}
                     />
                     {(isHost || isJudge) && (
