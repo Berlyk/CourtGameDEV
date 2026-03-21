@@ -45,12 +45,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import TestPlayersPanel from "@/components/test/TestPlayersPanel";
-import {
-  disconnectTestPlayersFromRoom,
-  getTestPlayerSessionToken,
-  type TestRoleView,
-} from "@/lib/testPlayersHarness";
 
 const DEFAULT_GAME_STAGES = [
   "Подготовка",
@@ -2007,55 +2001,6 @@ export default function App() {
     }
   }, [socket]);
 
-  const takeOverPlayer = useCallback(
-    (nextName: string) => {
-      const name = nextName.trim();
-      if (!name) return;
-      const code = room?.code ?? game?.code ?? localStorage.getItem("court_session");
-      if (!code) return;
-      const normalizedName = name.toLowerCase();
-      const hostName =
-        room?.players.find((player) => player.id === room.hostId)?.name ??
-        game?.players.find((player) => player.id === game.hostId)?.name ??
-        null;
-
-      let targetSessionToken: string | null = null;
-      const currentPlayerName =
-        game?.me?.name ??
-        room?.players.find((player) => player.id === myId)?.name ??
-        null;
-      if (currentPlayerName?.trim().toLowerCase() === normalizedName) {
-        targetSessionToken = mySessionToken;
-      }
-      if (
-        !targetSessionToken &&
-        hostName?.trim().toLowerCase() === normalizedName
-      ) {
-        targetSessionToken = adminHostSessionToken;
-      }
-      if (!targetSessionToken) {
-        targetSessionToken = getTestPlayerSessionToken(code, name);
-      }
-      if (!targetSessionToken) {
-        setError(
-          "Безопасное переключение возможно только для хоста этого браузера и управляемых тест-игроков.",
-        );
-        return;
-      }
-      setError("");
-
-      localStorage.setItem("court_nickname", name);
-      localStorage.setItem("court_session_token", targetSessionToken);
-      setPlayerName(name);
-      setMySessionToken(targetSessionToken);
-      socket.emit("rejoin_room", {
-        code,
-        sessionToken: targetSessionToken,
-      });
-    },
-    [socket, room, game, myId, mySessionToken, adminHostSessionToken],
-  );
-
   const roomControlPlayerId =
     room && adminHostId === room.hostId ? adminHostId : myId;
   const gameControlPlayerId =
@@ -2140,25 +2085,6 @@ export default function App() {
     });
   }, [socket, game, gameControlSessionToken]);
 
-  const jumpToStage = useCallback(
-    (targetIndex: number) => {
-      if (!game || !gameControlSessionToken) return;
-      const maxIndex = Math.max(0, game.stages.length - 1);
-      const clampedTarget = Math.max(0, Math.min(targetIndex, maxIndex));
-      if (clampedTarget === game.stageIndex) return;
-
-      const steps = Math.abs(clampedTarget - game.stageIndex);
-      const eventName = clampedTarget > game.stageIndex ? "next_stage" : "prev_stage";
-      for (let i = 0; i < steps; i += 1) {
-        socket.emit(eventName, {
-          code: game.code,
-          sessionToken: gameControlSessionToken,
-        });
-      }
-    },
-    [socket, game, gameControlSessionToken],
-  );
-
   const submitVerdict = useCallback(
     (verdict: string) => {
       if (!game || !mySessionToken) return;
@@ -2172,9 +2098,6 @@ export default function App() {
   );
 
   const resetAll = useCallback(() => {
-    if (activeRoomCode) {
-      disconnectTestPlayersFromRoom(activeRoomCode);
-    }
     socket.emit("leave_room");
     setScreen("home");
     setRoom(null);
@@ -2202,12 +2125,9 @@ export default function App() {
     setLobbyChatMessages([]);
     setProfileMenuOpen(false);
     setCreateMatchDialogOpen(false);
-  }, [socket, activeRoomCode]);
+  }, [socket]);
 
   const finalExit = useCallback(() => {
-    if (activeRoomCode) {
-      disconnectTestPlayersFromRoom(activeRoomCode);
-    }
     socket.emit("leave_room");
     localStorage.removeItem("court_session");
     localStorage.removeItem("court_session_token");
@@ -2235,7 +2155,7 @@ export default function App() {
     setLobbyChatMessages([]);
     setProfileMenuOpen(false);
     setCreateMatchDialogOpen(false);
-  }, [socket, activeRoomCode]);
+  }, [socket]);
 
   const setupNickname = useCallback(() => {
     const name = playerName.trim();
@@ -3321,23 +3241,6 @@ export default function App() {
                     <Copy className="w-4 h-4" />
                     {copiedRoomCode ? "Скопировано" : "Скопировать"}
                   </Button>
-                  <TestPlayersPanel
-                    roomCode={room.code}
-                    currentPlayers={room.players.length}
-                    isHost={roomControlPlayerId === room.hostId}
-                    mode="room"
-                    players={room.players.map((p) => ({
-                      id: p.id,
-                      name: p.name,
-                      isHost: p.id === room.hostId,
-                    }))}
-                    currentPlayerId={myId}
-                    onTakeOverPlayer={takeOverPlayer}
-                    onStartGame={startGame}
-                    canStartGame={
-                      !startGameLoading && canStartRoomNow
-                    }
-                  />
                   <Button
                     variant="outline"
                     className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
@@ -3544,19 +3447,6 @@ export default function App() {
         : null;
     const isPreparationStage = isPreparationStageName(currentStage);
     const canRevealFactsAtCurrentStage = game.me.canRevealFactsNow === true;
-    const selfRoleView: TestRoleView = {
-      playerId: game.me.id,
-      playerName: game.me.name,
-      roleKey: game.me.roleKey,
-      roleTitle: game.me.roleTitle,
-      goal: game.me.goal,
-      facts: game.me.facts,
-      cards: game.me.cards,
-      canRevealFactsNow: game.me.canRevealFactsNow === true,
-      stageIndex: game.stageIndex,
-      stages: gameStages,
-    };
-
     return (
       <motion.div
         key="game"
@@ -3809,25 +3699,6 @@ export default function App() {
                     className="h-3 bg-zinc-800 [&>div]:bg-red-600 [&>div]:transition-all [&>div]:duration-500"
                   />
                   <div className="flex flex-wrap gap-3">
-                    <TestPlayersPanel
-                      roomCode={game.code}
-                      currentPlayers={game.players.length}
-                      isHost={hasGameAdminAccess}
-                      mode="game"
-                      players={game.players.map((p) => ({
-                        id: p.id,
-                        name: p.name,
-                        roleTitle: p.roleTitle,
-                        isHost: p.id === game.hostId,
-                      }))}
-                      currentPlayerId={myId}
-                      onTakeOverPlayer={takeOverPlayer}
-                      stages={gameStages}
-                      currentStageIndex={game.stageIndex}
-                      onJumpToStage={jumpToStage}
-                      canControlStages={hasGameAdminAccess || isJudge}
-                      selfRoleView={selfRoleView}
-                    />
                     {(isHost || isJudge) && (
                       <>
                         <Button
