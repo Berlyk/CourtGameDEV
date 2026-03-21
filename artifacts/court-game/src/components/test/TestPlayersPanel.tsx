@@ -120,7 +120,6 @@ export default function TestPlayersPanel({
   }, [enabled, open, mode, roomCode, selfRoleView]);
 
   if (!canRenderTestToolsUI()) return null;
-  if (!isHost && !toolsEnabled) return null;
 
   const handleAdd = async (count: number) => {
     if (!isHost) {

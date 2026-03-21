@@ -132,19 +132,12 @@ function isTestToolsAllowedHost(): boolean {
   if (typeof window === "undefined") return true;
   const host = window.location.hostname.toLowerCase();
 
-  if (
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host.endsWith(".local")
-  ) {
-    return true;
+  // Disable test UI only on the main production domain.
+  if (host === "courtgame.site" || host === "www.courtgame.site") {
+    return false;
   }
 
-  return (
-    host.includes("-dev") ||
-    host.startsWith("dev-") ||
-    host.includes("test-")
-  );
+  return true;
 }
 
 function readStoredFlag(): boolean {
