@@ -7,6 +7,7 @@ import {
   disconnectTestPlayersFromRoom,
   isTestToolsEnabled,
   listTestPlayers,
+  setTestToolsEnabledForBrowser,
 } from "@/lib/testPlayersHarness";
 
 interface TestPlayersPanelProps {
@@ -25,8 +26,14 @@ export default function TestPlayersPanel({
   const [managedPlayers, setManagedPlayers] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const [toolsEnabled, setToolsEnabled] = useState(isTestToolsEnabled());
 
-  const enabled = isHost && isTestToolsEnabled();
+  const enabled = isHost && toolsEnabled;
+
+  useEffect(() => {
+    if (!isHost) return;
+    setToolsEnabled(isTestToolsEnabled());
+  }, [isHost, roomCode]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -39,7 +46,31 @@ export default function TestPlayersPanel({
     [currentPlayers],
   );
 
-  if (!enabled) return null;
+  if (!isHost) return null;
+
+  if (!toolsEnabled) {
+    return (
+      <div className="mt-4 rounded-2xl border border-amber-500/40 bg-amber-950/15 p-4 space-y-3">
+        <div className="flex items-center gap-2 text-amber-200">
+          <Wrench className="w-4 h-4" />
+          <span className="text-sm font-semibold">Test Tools</span>
+        </div>
+        <div className="text-xs text-amber-100/80">
+          Test helpers are disabled for this browser session.
+        </div>
+        <Button
+          size="sm"
+          className="rounded-xl bg-amber-500 text-zinc-950 hover:bg-amber-400 border-0"
+          onClick={() => {
+            setTestToolsEnabledForBrowser(true);
+            setToolsEnabled(true);
+          }}
+        >
+          Enable Test Tools
+        </Button>
+      </div>
+    );
+  }
 
   const handleAdd = async (count: number) => {
     if (busy || availableSlots <= 0) return;

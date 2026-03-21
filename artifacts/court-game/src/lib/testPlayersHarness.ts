@@ -180,8 +180,12 @@ export function isTestToolsEnabled(): boolean {
   return TEST_TOOLS_ENABLED || resolveBrowserFlag();
 }
 
+export function setTestToolsEnabledForBrowser(enabled: boolean): void {
+  persistFlag(enabled);
+}
+
 export function listTestPlayers(roomCode: string): string[] {
-  if (!TEST_TOOLS_ENABLED) return [];
+  if (!isTestToolsEnabled()) return [];
   const code = normalizeRoomCode(roomCode);
   return getConnections(code).map((entry) => entry.name);
 }
@@ -190,7 +194,7 @@ export async function addTestPlayers(
   roomCode: string,
   count: number,
 ): Promise<AddTestPlayersResult> {
-  if (!TEST_TOOLS_ENABLED) {
+  if (!isTestToolsEnabled()) {
     return {
       added: [],
       failed: [{ name: "-", reason: "Test tools are disabled" }],
@@ -224,7 +228,7 @@ export async function addTestPlayers(
 }
 
 export function disconnectTestPlayersFromRoom(roomCode: string): number {
-  if (!TEST_TOOLS_ENABLED) return 0;
+  if (!isTestToolsEnabled()) return 0;
   const code = normalizeRoomCode(roomCode);
   const current = getConnections(code);
   if (current.length === 0) return 0;
