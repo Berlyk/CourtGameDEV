@@ -128,6 +128,25 @@ const ROOM_CAP = 6;
 const roomConnections = new Map<string, TestPlayerConnection[]>();
 let testPlayerCounter = 1;
 
+function isTestToolsAllowedHost(): boolean {
+  if (typeof window === "undefined") return true;
+  const host = window.location.hostname.toLowerCase();
+
+  if (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host.endsWith(".local")
+  ) {
+    return true;
+  }
+
+  return (
+    host.includes("-dev") ||
+    host.startsWith("dev-") ||
+    host.includes("test-")
+  );
+}
+
 function readStoredFlag(): boolean {
   if (typeof window === "undefined") return false;
   try {
@@ -406,11 +425,17 @@ async function connectAndJoinRoom(
 }
 
 export function isTestToolsEnabled(): boolean {
+  if (!isTestToolsAllowedHost()) return false;
   return TEST_TOOLS_ENABLED || resolveBrowserFlag();
 }
 
 export function setTestToolsEnabledForBrowser(enabled: boolean): void {
+  if (!isTestToolsAllowedHost()) return;
   persistFlag(enabled);
+}
+
+export function canRenderTestToolsUI(): boolean {
+  return isTestToolsAllowedHost();
 }
 
 export function listTestPlayers(roomCode: string): string[] {
