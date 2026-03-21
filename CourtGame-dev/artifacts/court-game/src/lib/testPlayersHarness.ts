@@ -12,7 +12,20 @@ interface AddTestPlayersResult {
   activeCount: number;
 }
 
-const TEST_TOOLS_ENABLED = import.meta.env.VITE_ENABLE_TEST_TOOLS === "1";
+function isTruthyEnvValue(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized === "1" ||
+    normalized === "true" ||
+    normalized === "yes" ||
+    normalized === "on"
+  );
+}
+
+const TEST_TOOLS_ENABLED = isTruthyEnvValue(
+  import.meta.env.VITE_ENABLE_TEST_TOOLS,
+);
 const ROOM_CAP = 6;
 
 const roomConnections = new Map<string, TestPlayerConnection[]>();
