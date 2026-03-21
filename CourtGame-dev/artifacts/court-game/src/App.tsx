@@ -1300,6 +1300,11 @@ export default function App() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const socket = getSocket();
   const activeRoomCode = room?.code ?? game?.code ?? null;
+  const hasStoredSession =
+    typeof window !== "undefined" &&
+    !!localStorage.getItem("court_session") &&
+    !!localStorage.getItem("court_session_token");
+  const canReconnect = hasSession || hasStoredSession;
 
   useEffect(() => {
     const savedName = localStorage.getItem("court_nickname");
@@ -1333,8 +1338,12 @@ export default function App() {
   useEffect(() => {
     if (screen !== "home") {
       setProfileMenuOpen(false);
+      return;
     }
-  }, [screen]);
+    if (hasSession !== hasStoredSession) {
+      setHasSession(hasStoredSession);
+    }
+  }, [screen, hasSession, hasStoredSession]);
 
   useEffect(() => {
     socket.on(
@@ -1792,7 +1801,9 @@ export default function App() {
         code: sessionCode,
         sessionToken,
       });
+      return;
     }
+    setHasSession(false);
   }, [socket]);
 
   const takeOverPlayer = useCallback(
@@ -2604,7 +2615,7 @@ export default function App() {
                   </AnimatePresence>
 
                   <AnimatePresence>
-                    {hasSession && (
+                    {canReconnect && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
