@@ -40,7 +40,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import TestPlayersPanel from "@/components/test/TestPlayersPanel";
-import { disconnectTestPlayersFromRoom } from "@/lib/testPlayersHarness";
+import {
+  disconnectTestPlayersFromRoom,
+  type TestRoleView,
+} from "@/lib/testPlayersHarness";
 
 const DEFAULT_GAME_STAGES = [
   "Подготовка",
@@ -1559,6 +1562,22 @@ export default function App() {
     socket.emit("prev_stage", { code: game.code, playerId: myId });
   }, [socket, game, myId]);
 
+  const jumpToStage = useCallback(
+    (targetIndex: number) => {
+      if (!game || !myId) return;
+      const maxIndex = Math.max(0, game.stages.length - 1);
+      const clampedTarget = Math.max(0, Math.min(targetIndex, maxIndex));
+      if (clampedTarget === game.stageIndex) return;
+
+      const steps = Math.abs(clampedTarget - game.stageIndex);
+      const eventName = clampedTarget > game.stageIndex ? "next_stage" : "prev_stage";
+      for (let i = 0; i < steps; i += 1) {
+        socket.emit(eventName, { code: game.code, playerId: myId });
+      }
+    },
+    [socket, game, myId],
+  );
+
   const submitVerdict = useCallback(
     (verdict: string) => {
       if (!game || !myId) return;
@@ -2133,6 +2152,13 @@ export default function App() {
                     roomCode={room.code}
                     currentPlayers={room.players.length}
                     isHost={myId === room.hostId}
+                    mode="room"
+                    onStartGame={startGame}
+                    canStartGame={
+                      !startGameLoading &&
+                      room.players.length >= 3 &&
+                      room.players.length <= 6
+                    }
                   />
                   {myId === room.hostId && (
                     <motion.div
@@ -2271,6 +2297,18 @@ export default function App() {
         : null;
     const isPreparationStage = isPreparationStageName(currentStage);
     const canRevealFactsAtCurrentStage = game.me.canRevealFactsNow === true;
+    const selfRoleView: TestRoleView = {
+      playerId: game.me.id,
+      playerName: game.me.name,
+      roleKey: game.me.roleKey,
+      roleTitle: game.me.roleTitle,
+      goal: game.me.goal,
+      facts: game.me.facts,
+      cards: game.me.cards,
+      canRevealFactsNow: game.me.canRevealFactsNow === true,
+      stageIndex: game.stageIndex,
+      stages: gameStages,
+    };
 
     return (
       <motion.div
@@ -2523,6 +2561,16 @@ export default function App() {
                     className="h-3 bg-zinc-800 [&>div]:bg-red-600 [&>div]:transition-all [&>div]:duration-500"
                   />
                   <div className="flex flex-wrap gap-3">
+                    <TestPlayersPanel
+                      roomCode={game.code}
+                      currentPlayers={game.players.length}
+                      isHost={isHost}
+                      mode="game"
+                      stages={gameStages}
+                      currentStageIndex={game.stageIndex}
+                      onJumpToStage={jumpToStage}
+                      selfRoleView={selfRoleView}
+                    />
                     {(isHost || isJudge) && (
                       <>
                         <Button

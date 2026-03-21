@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus, UserX, Wrench } from "lucide-react";
+import { Eye, Play, UserPlus, UserX, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,29 +14,66 @@ import {
   disconnectTestPlayersFromRoom,
   isTestToolsEnabled,
   listTestPlayers,
+  listTestRoleViews,
   setTestToolsEnabledForBrowser,
+  type TestRoleView,
 } from "@/lib/testPlayersHarness";
 
 interface TestPlayersPanelProps {
   roomCode: string;
   currentPlayers: number;
   isHost: boolean;
+  mode: "room" | "game";
+  onStartGame?: () => void;
+  canStartGame?: boolean;
+  stages?: string[];
+  currentStageIndex?: number;
+  onJumpToStage?: (targetIndex: number) => void;
+  selfRoleView?: TestRoleView | null;
 }
 
 const ROOM_CAP = 6;
+
+function mergeRoleViews(
+  selfRoleView: TestRoleView | null | undefined,
+  externalViews: TestRoleView[],
+): TestRoleView[] {
+  const byId = new Map<string, TestRoleView>();
+  for (const view of externalViews) byId.set(view.playerId, view);
+  if (selfRoleView) byId.set(selfRoleView.playerId, selfRoleView);
+  return [...byId.values()];
+}
 
 export default function TestPlayersPanel({
   roomCode,
   currentPlayers,
   isHost,
+  mode,
+  onStartGame,
+  canStartGame,
+  stages = [],
+  currentStageIndex = 0,
+  onJumpToStage,
+  selfRoleView,
 }: TestPlayersPanelProps) {
   const [managedPlayers, setManagedPlayers] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [toolsEnabled, setToolsEnabled] = useState(isTestToolsEnabled());
   const [open, setOpen] = useState(false);
+  const [roleViews, setRoleViews] = useState<TestRoleView[]>([]);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
 
   const enabled = isHost && toolsEnabled;
+  const availableSlots = useMemo(
+    () => Math.max(0, ROOM_CAP - currentPlayers),
+    [currentPlayers],
+  );
+
+  const selectedRole =
+    roleViews.find((role) => role.playerId === selectedRoleId) ??
+    roleViews[0] ??
+    null;
 
   useEffect(() => {
     if (!isHost) return;
@@ -47,19 +84,29 @@ export default function TestPlayersPanel({
     if (!enabled || !open) return;
     setManagedPlayers(listTestPlayers(roomCode));
     setStatus("");
-  }, [enabled, roomCode, open]);
+  }, [enabled, roomCode, open, mode]);
 
-  const availableSlots = useMemo(
-    () => Math.max(0, ROOM_CAP - currentPlayers),
-    [currentPlayers],
-  );
+  useEffect(() => {
+    if (!enabled || !open || mode !== "game") return;
+
+    const refreshRoleViews = () => {
+      const views = mergeRoleViews(selfRoleView, listTestRoleViews(roomCode));
+      setRoleViews(views);
+      setSelectedRoleId((prev) => prev ?? views[0]?.playerId ?? null);
+    };
+
+    refreshRoleViews();
+    const timer = window.setInterval(refreshRoleViews, 1000);
+    return () => window.clearInterval(timer);
+  }, [enabled, open, mode, roomCode, selfRoleView]);
 
   if (!isHost) return null;
 
   const handleAdd = async (count: number) => {
-    if (busy || availableSlots <= 0) return;
+    if (busy || availableSlots <= 0) return 0;
     setBusy(true);
     setStatus("");
+
     const result = await addTestPlayers(roomCode, Math.min(count, availableSlots));
     setManagedPlayers(listTestPlayers(roomCode));
 
@@ -71,7 +118,19 @@ export default function TestPlayersPanel({
     } else {
       setStatus(`Added ${result.added.length} test player(s).`);
     }
+
     setBusy(false);
+    return result.added.length;
+  };
+
+  const handleQuickStart = async () => {
+    const need = Math.max(0, 3 - currentPlayers);
+    if (need > 0) {
+      await handleAdd(need);
+    }
+    if (onStartGame) {
+      window.setTimeout(() => onStartGame(), 250);
+    }
   };
 
   const handleClear = () => {
@@ -92,7 +151,7 @@ export default function TestPlayersPanel({
           Тест-инструменты
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg border-amber-500/35 bg-zinc-950 text-zinc-100">
+      <DialogContent className="max-w-3xl border-amber-500/35 bg-zinc-950 text-zinc-100">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-amber-200">
@@ -122,54 +181,181 @@ export default function TestPlayersPanel({
             </Button>
           </div>
         ) : (
-          <div className="space-y-3">
-            <div className="text-xs text-amber-100/80">
-              Temporary helper for test environment.
+          <div className="space-y-5">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-950/10 p-3 space-y-3">
+              <div className="text-sm font-semibold text-amber-100">
+                Быстрые игроки
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  className="rounded-xl bg-amber-500 text-zinc-950 hover:bg-amber-400 border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
+                  onClick={() => handleAdd(1)}
+                  disabled={busy || availableSlots <= 0}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  +1 игрок
+                </Button>
+                <Button
+                  size="sm"
+                  className="rounded-xl bg-amber-500 text-zinc-950 hover:bg-amber-400 border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
+                  onClick={() => handleAdd(2)}
+                  disabled={busy || availableSlots <= 0}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  +2 игрока
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
+                  onClick={() => handleAdd(availableSlots)}
+                  disabled={busy || availableSlots <= 0}
+                >
+                  заполнить комнату
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-50"
+                  onClick={handleClear}
+                  disabled={busy || managedPlayers.length === 0}
+                >
+                  <UserX className="w-4 h-4" />
+                  удалить тест-игроков
+                </Button>
+              </div>
+              <div className="text-xs text-zinc-400">
+                Управляемых тест-игроков: {managedPlayers.length}
+              </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                className="rounded-xl bg-amber-500 text-zinc-950 hover:bg-amber-400 border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
-                onClick={() => handleAdd(1)}
-                disabled={busy || availableSlots <= 0}
-              >
-                <UserPlus className="w-4 h-4" />
-                +1 player
-              </Button>
-              <Button
-                size="sm"
-                className="rounded-xl bg-amber-500 text-zinc-950 hover:bg-amber-400 border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
-                onClick={() => handleAdd(2)}
-                disabled={busy || availableSlots <= 0}
-              >
-                <UserPlus className="w-4 h-4" />
-                +2 players
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
-                onClick={() => handleAdd(availableSlots)}
-                disabled={busy || availableSlots <= 0}
-              >
-                fill room
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-50"
-                onClick={handleClear}
-                disabled={busy || managedPlayers.length === 0}
-              >
-                <UserX className="w-4 h-4" />
-                clear test players
-              </Button>
-            </div>
+            {mode === "room" && (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 space-y-3">
+                <div className="text-sm font-semibold text-zinc-100">
+                  Быстрый старт матча
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    className="rounded-xl bg-red-600 hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
+                    onClick={handleQuickStart}
+                    disabled={busy}
+                  >
+                    <Play className="w-4 h-4" />
+                    Добить до 3 и старт
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
+                    onClick={onStartGame}
+                    disabled={!onStartGame || !canStartGame || busy}
+                  >
+                    <Play className="w-4 h-4" />
+                    Старт сейчас
+                  </Button>
+                </div>
+              </div>
+            )}
 
-            <div className="text-xs text-zinc-400">
-              Managed test players: {managedPlayers.length}
-            </div>
+            {mode === "game" && (
+              <>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
+                    <Eye className="w-4 h-4" />
+                    Просмотр ролей
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {roleViews.length === 0 ? (
+                      <div className="text-xs text-zinc-400">
+                        Нет данных ролей. Добавьте тест-игроков и дождитесь старта.
+                      </div>
+                    ) : (
+                      roleViews.map((view) => (
+                        <Button
+                          key={view.playerId}
+                          size="sm"
+                          variant={
+                            selectedRole?.playerId === view.playerId
+                              ? "secondary"
+                              : "outline"
+                          }
+                          className={
+                            selectedRole?.playerId === view.playerId
+                              ? "rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
+                              : "rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                          }
+                          onClick={() => setSelectedRoleId(view.playerId)}
+                        >
+                          {view.playerName} • {view.roleTitle}
+                        </Button>
+                      ))
+                    )}
+                  </div>
+
+                  {selectedRole && (
+                    <div className="grid md:grid-cols-3 gap-3 text-xs">
+                      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-2 space-y-1">
+                        <div className="text-zinc-300 font-semibold">
+                          Роль и цель
+                        </div>
+                        <div className="text-zinc-100">{selectedRole.roleTitle}</div>
+                        <div className="text-zinc-400">{selectedRole.goal}</div>
+                        <div className="text-zinc-500">
+                          Может раскрывать факт сейчас:{" "}
+                          {selectedRole.canRevealFactsNow ? "да" : "нет"}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-2 space-y-1">
+                        <div className="text-zinc-300 font-semibold">
+                          Факты ({selectedRole.facts.length})
+                        </div>
+                        {selectedRole.facts.slice(0, 5).map((fact) => (
+                          <div key={fact.id} className="text-zinc-400">
+                            • {fact.text}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-2 space-y-1">
+                        <div className="text-zinc-300 font-semibold">
+                          Карты ({selectedRole.cards.length})
+                        </div>
+                        {selectedRole.cards.slice(0, 5).map((card) => (
+                          <div key={card.id} className="text-zinc-400">
+                            • {card.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 space-y-3">
+                  <div className="text-sm font-semibold text-zinc-100">
+                    Быстрый переход по этапам
+                  </div>
+                  <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto pr-1">
+                    {stages.map((stage, index) => (
+                      <Button
+                        key={`${index}-${stage}`}
+                        size="sm"
+                        variant={index === currentStageIndex ? "secondary" : "outline"}
+                        className={
+                          index === currentStageIndex
+                            ? "rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
+                            : "rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        }
+                        onClick={() => onJumpToStage?.(index)}
+                        disabled={!onJumpToStage}
+                      >
+                        {index + 1}. {stage}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
             {status && <div className="text-xs text-amber-100/90">{status}</div>}
           </div>

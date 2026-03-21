@@ -1,15 +1,106 @@
 import { io, type Socket } from "socket.io-client";
 
+interface TestFact {
+  id: string;
+  text: string;
+  revealed: boolean;
+}
+
+interface TestCard {
+  id: string;
+  name: string;
+  description: string;
+  used: boolean;
+}
+
+interface TestPlayerInfo {
+  id: string;
+  name: string;
+  avatar?: string;
+  roleKey?: string;
+  roleTitle?: string;
+}
+
+interface TestRoomState {
+  type: "room";
+  code: string;
+  hostId: string;
+  players: TestPlayerInfo[];
+  started: boolean;
+  isHostJudge?: boolean;
+}
+
+interface TestGameMe {
+  id: string;
+  name: string;
+  avatar?: string;
+  roleKey: string;
+  roleTitle: string;
+  goal: string;
+  facts: TestFact[];
+  cards: TestCard[];
+  canRevealFactsNow?: boolean;
+}
+
+interface TestRevealedFact {
+  id: string;
+  ownerId?: string;
+  text: string;
+  owner: string;
+  ownerRole: string;
+  stageIndex?: number;
+}
+
+interface TestUsedCard {
+  id: string;
+  ownerId?: string;
+  owner: string;
+  ownerRole: string;
+  name: string;
+  description: string;
+}
+
+interface TestGameState {
+  type: "game";
+  code: string;
+  hostId: string;
+  players: TestPlayerInfo[];
+  stages: string[];
+  stageIndex: number;
+  revealedFacts: TestRevealedFact[];
+  usedCards: TestUsedCard[];
+  finished: boolean;
+  verdict: string;
+  verdictEvaluation: string;
+  me: TestGameMe | null;
+}
+
+type TestSocketState = TestRoomState | TestGameState;
+
 interface TestPlayerConnection {
   roomCode: string;
   name: string;
   socket: Socket;
+  latestState: TestSocketState | null;
 }
 
 interface AddTestPlayersResult {
   added: string[];
   failed: Array<{ name: string; reason: string }>;
   activeCount: number;
+}
+
+export interface TestRoleView {
+  playerId: string;
+  playerName: string;
+  roleKey: string;
+  roleTitle: string;
+  goal: string;
+  facts: TestFact[];
+  cards: TestCard[];
+  canRevealFactsNow: boolean;
+  stageIndex: number;
+  stages: string[];
 }
 
 function isTruthyEnvValue(value: string | undefined): boolean {
@@ -27,11 +118,17 @@ const TEST_TOOLS_ENABLED = isTruthyEnvValue(
   import.meta.env.VITE_ENABLE_TEST_TOOLS,
 );
 const TEST_TOOLS_STORAGE_KEY = "court_test_tools_enabled";
+const ROOM_CAP = 6;
+
+const roomConnections = new Map<string, TestPlayerConnection[]>();
+let testPlayerCounter = 1;
 
 function readStoredFlag(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return isTruthyEnvValue(window.localStorage.getItem(TEST_TOOLS_STORAGE_KEY) ?? undefined);
+    return isTruthyEnvValue(
+      window.localStorage.getItem(TEST_TOOLS_STORAGE_KEY) ?? undefined,
+    );
   } catch {
     return false;
   }
@@ -62,10 +159,6 @@ function resolveBrowserFlag(): boolean {
   }
   return readStoredFlag();
 }
-const ROOM_CAP = 6;
-
-const roomConnections = new Map<string, TestPlayerConnection[]>();
-let testPlayerCounter = 1;
 
 function normalizeRoomCode(roomCode: string): string {
   return roomCode.trim().toUpperCase();
@@ -81,6 +174,24 @@ function setConnections(roomCode: string, next: TestPlayerConnection[]) {
     return;
   }
   roomConnections.set(roomCode, next);
+}
+
+function findConnection(
+  roomCode: string,
+  socket: Socket,
+): TestPlayerConnection | null {
+  const existing = getConnections(roomCode).find((entry) => entry.socket === socket);
+  return existing ?? null;
+}
+
+function updateGameState(
+  roomCode: string,
+  socket: Socket,
+  updater: (gameState: TestGameState) => TestGameState,
+) {
+  const entry = findConnection(roomCode, socket);
+  if (!entry || !entry.latestState || entry.latestState.type !== "game") return;
+  entry.latestState = updater(entry.latestState);
 }
 
 function removeConnection(roomCode: string, socket: Socket) {
@@ -102,6 +213,85 @@ function nextTestPlayerName(existingNames: Set<string>): string {
 function toErrorReason(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return "Unexpected join failure";
+}
+
+function attachStateSync(connection: TestPlayerConnection) {
+  const { roomCode, socket } = connection;
+
+  socket.on("game_started", ({ state }: { state: TestGameState }) => {
+    const entry = findConnection(roomCode, socket);
+    if (!entry) return;
+    entry.latestState = state;
+  });
+
+  socket.on("game_players_updated", ({ players }: { players: TestPlayerInfo[] }) => {
+    updateGameState(roomCode, socket, (prev) => ({ ...prev, players }));
+  });
+
+  socket.on(
+    "facts_updated",
+    ({ revealedFacts }: { revealedFacts: TestRevealedFact[] }) => {
+      updateGameState(roomCode, socket, (prev) => ({ ...prev, revealedFacts }));
+    },
+  );
+
+  socket.on("my_facts_updated", ({ facts }: { facts: TestFact[] }) => {
+    updateGameState(roomCode, socket, (prev) => {
+      if (!prev.me) return prev;
+      return { ...prev, me: { ...prev.me, facts } };
+    });
+  });
+
+  socket.on("cards_updated", ({ usedCards }: { usedCards: TestUsedCard[] }) => {
+    updateGameState(roomCode, socket, (prev) => ({ ...prev, usedCards }));
+  });
+
+  socket.on("my_cards_updated", ({ cards }: { cards: TestCard[] }) => {
+    updateGameState(roomCode, socket, (prev) => {
+      if (!prev.me) return prev;
+      return { ...prev, me: { ...prev.me, cards } };
+    });
+  });
+
+  socket.on("stage_updated", ({ stageIndex }: { stageIndex: number }) => {
+    updateGameState(roomCode, socket, (prev) => ({ ...prev, stageIndex }));
+  });
+
+  socket.on(
+    "verdict_set",
+    ({
+      verdict,
+      verdictEvaluation,
+      finished,
+    }: {
+      verdict: string;
+      verdictEvaluation: string;
+      finished: boolean;
+    }) => {
+      updateGameState(roomCode, socket, (prev) => ({
+        ...prev,
+        verdict,
+        verdictEvaluation,
+        finished,
+      }));
+    },
+  );
+
+  socket.on(
+    "fact_reveal_permission",
+    ({ canRevealFactsNow }: { canRevealFactsNow: boolean }) => {
+      updateGameState(roomCode, socket, (prev) => {
+        if (!prev.me) return prev;
+        return {
+          ...prev,
+          me: {
+            ...prev.me,
+            canRevealFactsNow,
+          },
+        };
+      });
+    },
+  );
 }
 
 async function connectAndJoinRoom(
@@ -142,11 +332,23 @@ async function connectAndJoinRoom(
       });
     };
 
-    const onRoomJoined = () => {
-      const connection: TestPlayerConnection = { roomCode, name, socket };
+    const onRoomJoined = ({
+      state,
+    }: {
+      playerId: string;
+      state: TestSocketState;
+    }) => {
+      const connection: TestPlayerConnection = {
+        roomCode,
+        name,
+        socket,
+        latestState: state,
+      };
+
       socket.on("disconnect", () => {
         removeConnection(roomCode, socket);
       });
+      attachStateSync(connection);
       settle({ ok: true, connection });
     };
 
@@ -188,6 +390,32 @@ export function listTestPlayers(roomCode: string): string[] {
   if (!isTestToolsEnabled()) return [];
   const code = normalizeRoomCode(roomCode);
   return getConnections(code).map((entry) => entry.name);
+}
+
+export function listTestRoleViews(roomCode: string): TestRoleView[] {
+  if (!isTestToolsEnabled()) return [];
+  const code = normalizeRoomCode(roomCode);
+  const views: TestRoleView[] = [];
+
+  for (const entry of getConnections(code)) {
+    if (!entry.latestState || entry.latestState.type !== "game") continue;
+    const me = entry.latestState.me;
+    if (!me) continue;
+    views.push({
+      playerId: me.id,
+      playerName: me.name,
+      roleKey: me.roleKey,
+      roleTitle: me.roleTitle,
+      goal: me.goal,
+      facts: me.facts ?? [],
+      cards: me.cards ?? [],
+      canRevealFactsNow: me.canRevealFactsNow === true,
+      stageIndex: entry.latestState.stageIndex,
+      stages: entry.latestState.stages ?? [],
+    });
+  }
+
+  return views;
 }
 
 export async function addTestPlayers(
