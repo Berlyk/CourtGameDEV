@@ -1236,6 +1236,9 @@ export default function App() {
   const [hasSession, setHasSession] = useState(false);
 
   const [myId, setMyId] = useState<string | null>(null);
+  const [adminHostId, setAdminHostId] = useState<string | null>(
+    () => localStorage.getItem("court_admin_host_id"),
+  );
   const [room, setRoom] = useState<RoomState | null>(null);
   const [game, setGame] = useState<GameState | null>(null);
   const [showFactHistory, setShowFactHistory] = useState(false);
@@ -1273,6 +1276,10 @@ export default function App() {
         localStorage.setItem("court_session", state.code);
         setHasSession(true);
         setStartGameLoading(false);
+        if (state.hostId === playerId) {
+          setAdminHostId(playerId);
+          localStorage.setItem("court_admin_host_id", playerId);
+        }
         if (avatar) {
           socket.emit("update_avatar", {
             code: state.code,
@@ -1386,6 +1393,8 @@ export default function App() {
       setRoom(null);
       setGame(null);
       setMyId(null);
+      setAdminHostId(null);
+      localStorage.removeItem("court_admin_host_id");
       setJoinCode("");
       setDisconnectAlert("");
       setRejoinAlert("");
@@ -1529,28 +1538,33 @@ export default function App() {
     [socket, room, game],
   );
 
+  const roomControlPlayerId =
+    room && adminHostId === room.hostId ? adminHostId : myId;
+  const gameControlPlayerId =
+    game && adminHostId === game.hostId ? adminHostId : myId;
+
   const startGame = useCallback(() => {
-    if (!room || !myId) return;
+    if (!room || !roomControlPlayerId) return;
     setStartGameLoading(true);
-    socket.emit("start_game", { code: room.code, playerId: myId });
-  }, [socket, room, myId]);
+    socket.emit("start_game", { code: room.code, playerId: roomControlPlayerId });
+  }, [socket, room, roomControlPlayerId]);
 
   const toggleHostJudge = useCallback((checked: boolean) => {
-    if (!room || !myId) return;
+    if (!room || !roomControlPlayerId) return;
     setIsHostJudge(checked);
-    socket.emit("set_host_judge", { code: room.code, playerId: myId, isHostJudge: checked });
-  }, [socket, room, myId]);
+    socket.emit("set_host_judge", { code: room.code, playerId: roomControlPlayerId, isHostJudge: checked });
+  }, [socket, room, roomControlPlayerId]);
 
   const kickPlayerFromRoom = useCallback(
     (targetPlayerId: string) => {
-      if (!room || !myId || myId !== room.hostId) return;
+      if (!room || !roomControlPlayerId || roomControlPlayerId !== room.hostId) return;
       socket.emit("kick_player", {
         code: room.code,
-        playerId: myId,
+        playerId: roomControlPlayerId,
         targetPlayerId,
       });
     },
-    [socket, room, myId],
+    [socket, room, roomControlPlayerId],
   );
 
   const revealFact = useCallback(
@@ -1570,18 +1584,18 @@ export default function App() {
   );
 
   const advanceStage = useCallback(() => {
-    if (!game || !myId) return;
-    socket.emit("next_stage", { code: game.code, playerId: myId });
-  }, [socket, game, myId]);
+    if (!game || !gameControlPlayerId) return;
+    socket.emit("next_stage", { code: game.code, playerId: gameControlPlayerId });
+  }, [socket, game, gameControlPlayerId]);
 
   const retreatStage = useCallback(() => {
-    if (!game || !myId) return;
-    socket.emit("prev_stage", { code: game.code, playerId: myId });
-  }, [socket, game, myId]);
+    if (!game || !gameControlPlayerId) return;
+    socket.emit("prev_stage", { code: game.code, playerId: gameControlPlayerId });
+  }, [socket, game, gameControlPlayerId]);
 
   const jumpToStage = useCallback(
     (targetIndex: number) => {
-      if (!game || !myId) return;
+      if (!game || !gameControlPlayerId) return;
       const maxIndex = Math.max(0, game.stages.length - 1);
       const clampedTarget = Math.max(0, Math.min(targetIndex, maxIndex));
       if (clampedTarget === game.stageIndex) return;
@@ -1589,10 +1603,10 @@ export default function App() {
       const steps = Math.abs(clampedTarget - game.stageIndex);
       const eventName = clampedTarget > game.stageIndex ? "next_stage" : "prev_stage";
       for (let i = 0; i < steps; i += 1) {
-        socket.emit(eventName, { code: game.code, playerId: myId });
+        socket.emit(eventName, { code: game.code, playerId: gameControlPlayerId });
       }
     },
-    [socket, game, myId],
+    [socket, game, gameControlPlayerId],
   );
 
   const submitVerdict = useCallback(
@@ -1612,6 +1626,8 @@ export default function App() {
     setRoom(null);
     setGame(null);
     setMyId(null);
+    setAdminHostId(null);
+    localStorage.removeItem("court_admin_host_id");
     setJoinCode("");
     setDisconnectAlert("");
     setRejoinAlert("");
@@ -1633,6 +1649,8 @@ export default function App() {
     setRoom(null);
     setGame(null);
     setMyId(null);
+    setAdminHostId(null);
+    localStorage.removeItem("court_admin_host_id");
     setJoinCode("");
     setKickedAlert("");
     setCopiedRoomCode(false);
@@ -2168,7 +2186,7 @@ export default function App() {
                   <TestPlayersPanel
                     roomCode={room.code}
                     currentPlayers={room.players.length}
-                    isHost={myId === room.hostId}
+                    isHost={roomControlPlayerId === room.hostId}
                     mode="room"
                     players={room.players.map((p) => ({
                       id: p.id,
@@ -2309,6 +2327,7 @@ export default function App() {
     const currentStage = gameStages[game.stageIndex] ?? gameStages[0];
     const stageProgress = ((game.stageIndex + 1) / gameStages.length) * 100;
     const isHost = myId === game.hostId;
+    const hasGameAdminAccess = gameControlPlayerId === game.hostId;
     const isJudge = game.me.roleKey === "judge";
     const isWitness = game.me.roleKey === "witness";
     const isObserverRole = isJudge || isWitness;
@@ -2588,7 +2607,7 @@ export default function App() {
                     <TestPlayersPanel
                       roomCode={game.code}
                       currentPlayers={game.players.length}
-                      isHost={isHost}
+                      isHost={hasGameAdminAccess}
                       mode="game"
                       players={game.players.map((p) => ({
                         id: p.id,
@@ -2601,7 +2620,7 @@ export default function App() {
                       stages={gameStages}
                       currentStageIndex={game.stageIndex}
                       onJumpToStage={jumpToStage}
-                      canControlStages={isHost || isJudge}
+                      canControlStages={hasGameAdminAccess || isJudge}
                       selfRoleView={selfRoleView}
                     />
                     {(isHost || isJudge) && (

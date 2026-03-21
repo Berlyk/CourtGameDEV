@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   addTestPlayers,
+  canRenderTestToolsUI,
   disconnectTestPlayerByName,
   disconnectTestPlayersFromRoom,
   isTestToolsEnabled,
@@ -118,6 +119,7 @@ export default function TestPlayersPanel({
     return () => window.clearInterval(timer);
   }, [enabled, open, mode, roomCode, selfRoleView]);
 
+  if (!canRenderTestToolsUI()) return null;
   if (!isHost && !toolsEnabled) return null;
 
   const handleAdd = async (count: number) => {
@@ -204,7 +206,7 @@ export default function TestPlayersPanel({
           Тест-инструменты
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[82vh] overflow-y-auto border-amber-500/35 bg-zinc-950 text-zinc-100">
+      <DialogContent className="max-w-2xl max-h-[82vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden border-amber-500/35 bg-zinc-950 text-zinc-100">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-amber-200">
