@@ -982,6 +982,12 @@ export function setupSocket(httpServer: HttpServer) {
         leavingGamePlayer.disconnectedUntil = disconnectedUntil;
       }
 
+      io.to(socketId).emit("reconnect_available", {
+        code: info.roomCode,
+        sessionToken: info.sessionToken,
+        reconnectExpiresAt: disconnectedUntil,
+      });
+
       if (room.game) {
         io.to(info.roomCode).emit("player_left", {
           playerId: info.playerId,

@@ -1649,6 +1649,32 @@ export default function App() {
       },
     );
 
+    socket.on(
+      "reconnect_available",
+      ({
+        code,
+        sessionToken,
+        reconnectExpiresAt,
+      }: {
+        code: string;
+        sessionToken: string;
+        reconnectExpiresAt?: number;
+      }) => {
+        if (!code || !sessionToken) return;
+        localStorage.setItem("court_session", code);
+        localStorage.setItem("court_session_token", sessionToken);
+        const nextDeadline =
+          reconnectExpiresAt && reconnectExpiresAt > 0
+            ? reconnectExpiresAt
+            : Date.now() + RECONNECT_GRACE_MS;
+        localStorage.setItem(RECONNECT_DEADLINE_KEY, String(nextDeadline));
+        setReconnectDeadline(nextDeadline);
+        setReconnectNow(Date.now());
+        setHasSession(true);
+        setHomeTab("play");
+      },
+    );
+
     socket.on("rejoin_failed", () => {
       localStorage.removeItem("court_session");
       localStorage.removeItem("court_session_token");
@@ -1661,6 +1687,7 @@ export default function App() {
       setReconnectDeadline(null);
       setHasSession(false);
       setLobbyChatMessages([]);
+      setHomeTab("play");
       setScreen("home");
     });
 
@@ -1688,6 +1715,7 @@ export default function App() {
       setJoinPassword("");
       setProfileMenuOpen(false);
       setReconnectDeadline(null);
+      setHomeTab("play");
       setScreen("home");
       setKickedAlert(
         "\u0412\u044b \u0431\u044b\u043b\u0438 \u043a\u0438\u043a\u043d\u0443\u0442\u044b \u0438\u0437 \u043a\u043e\u043c\u043d\u0430\u0442\u044b.",
@@ -1771,6 +1799,7 @@ export default function App() {
       socket.off("lobby_chat_updated");
       socket.off("player_left");
       socket.off("player_rejoined");
+      socket.off("reconnect_available");
       socket.off("rejoin_failed");
       socket.off("kicked");
       socket.off("game_started");
@@ -2119,6 +2148,7 @@ export default function App() {
     setLobbyChatMessages([]);
     setProfileMenuOpen(false);
     setOpenMatchesOpen(false);
+    setHomeTab("play");
     setHasSession(!!reconnectCode && !!reconnectToken);
   }, [socket, activeRoomCode, mySessionToken]);
 
