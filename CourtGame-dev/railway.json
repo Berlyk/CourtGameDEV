@@ -4,6 +4,8 @@
     "buildCommand": "rm -rf artifacts/court-game/dist && npm i -g pnpm && pnpm install && pnpm --dir artifacts/court-game build && pnpm --dir artifacts/api-server build"
   },
   "deploy": {
-    "startCommand": "node artifacts/api-server/dist/index.cjs"
+    "startCommand": "node artifacts/api-server/dist/index.cjs",
+    "healthcheckPath": "/healthz",
+    "healthcheckTimeout": 120
   }
 }
