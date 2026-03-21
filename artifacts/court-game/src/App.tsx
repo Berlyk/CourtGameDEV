@@ -2672,7 +2672,7 @@ export default function App() {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  className="grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-6 lg:gap-3 items-stretch w-full min-w-0 max-w-full lg:max-w-[1120px] mx-auto"
+                  className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-6 lg:gap-3 items-stretch w-full min-w-0 max-w-full lg:max-w-[1120px] mx-auto"
                 >
                   <motion.div
                     custom={0}
