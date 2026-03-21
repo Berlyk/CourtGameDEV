@@ -2672,7 +2672,7 @@ export default function App() {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  className="grid lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] gap-6 items-stretch w-full min-w-0 max-w-full"
+                  className="grid lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] gap-6 lg:gap-4 items-stretch w-full min-w-0 max-w-full"
                 >
                   <motion.div
                     custom={0}
@@ -2728,7 +2728,7 @@ export default function App() {
                     variants={cardVariants}
                     initial="initial"
                     animate="animate"
-                    className="lg:max-w-[560px] lg:ml-auto min-w-0"
+                    className="lg:max-w-[620px] min-w-0"
                   >
                     <Card className="w-full min-w-0 rounded-[28px] shadow-sm h-full bg-gradient-to-br from-zinc-900/95 via-zinc-900/92 to-zinc-800/85 border-zinc-800 text-zinc-100">
                       <CardContent className="p-6 sm:p-8 md:p-10 space-y-6">
@@ -2756,7 +2756,7 @@ export default function App() {
                             <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.985 }}>
                               <Button
                                 onClick={createQuickRoom}
-                                className="w-full sm:w-[82%] sm:mx-auto h-16 rounded-2xl text-4xl gap-2 bg-red-600 hover:bg-red-600 text-white border-0 text-[33px] font-bold tracking-tight shadow-[0_8px_28px_rgba(220,38,38,0.35)] transition-transform duration-200 hover:-translate-y-0.5"
+                                className="w-full sm:w-[90%] lg:w-[94%] sm:mx-auto h-16 rounded-2xl text-4xl gap-2 bg-red-600 hover:bg-red-600 text-white border-0 text-[33px] font-bold tracking-tight shadow-[0_8px_28px_rgba(220,38,38,0.35)] transition-transform duration-200 hover:-translate-y-0.5"
                               >
                                 Создать игру
                               </Button>
