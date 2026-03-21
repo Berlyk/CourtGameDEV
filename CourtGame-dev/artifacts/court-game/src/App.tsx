@@ -39,6 +39,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import TestPlayersPanel from "@/components/test/TestPlayersPanel";
+import { disconnectTestPlayersFromRoom } from "@/lib/testPlayersHarness";
 
 const DEFAULT_GAME_STAGES = [
   "Подготовка",
@@ -1238,6 +1240,7 @@ export default function App() {
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const socket = getSocket();
+  const activeRoomCode = room?.code ?? game?.code ?? null;
 
   useEffect(() => {
     const savedName = localStorage.getItem("court_nickname");
@@ -1565,6 +1568,9 @@ export default function App() {
   );
 
   const resetAll = useCallback(() => {
+    if (activeRoomCode) {
+      disconnectTestPlayersFromRoom(activeRoomCode);
+    }
     socket.emit("leave_room");
     setScreen("home");
     setRoom(null);
@@ -1578,9 +1584,12 @@ export default function App() {
     setIsHostJudge(false);
     setStartGameLoading(false);
     setContextHelpOpen(false);
-  }, [socket]);
+  }, [socket, activeRoomCode]);
 
   const finalExit = useCallback(() => {
+    if (activeRoomCode) {
+      disconnectTestPlayersFromRoom(activeRoomCode);
+    }
     socket.emit("leave_room");
     localStorage.removeItem("court_session");
     setHasSession(false);
@@ -1593,7 +1602,7 @@ export default function App() {
     setCopiedRoomCode(false);
     setStartGameLoading(false);
     setContextHelpOpen(false);
-  }, [socket]);
+  }, [socket, activeRoomCode]);
 
   const setupNickname = useCallback(() => {
     const name = playerName.trim();
@@ -2194,6 +2203,11 @@ export default function App() {
                   )}
                 </div>
               </InfoBlock>
+              <TestPlayersPanel
+                roomCode={room.code}
+                currentPlayers={room.players.length}
+                isHost={myId === room.hostId}
+              />
             </motion.div>
 
             <motion.div
