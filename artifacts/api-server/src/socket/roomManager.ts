@@ -87,6 +87,7 @@ export interface Player {
   id: string;
   name: string;
   socketId: string;
+  sessionToken?: string;
   avatar?: string;
   roleKey?: string;
   roleTitle?: string;
@@ -232,17 +233,20 @@ export function joinRunningGameAsWitness(code: string, player: Player): Room | n
 
 export function rejoinRoom(
   code: string,
-  playerName: string,
+  sessionToken: string,
   newSocketId: string,
   avatar?: string | null
-): { room: Room; playerId: string } | null {
+): { room: Room; playerId: string; playerName: string } | null {
   const room = rooms.get(code);
   if (!room) return null;
-  const lower = playerName.trim().toLowerCase();
+  const normalizedToken = sessionToken.trim();
+  if (!normalizedToken) return null;
   const normalizedAvatar = avatar || undefined;
 
   if (room.game) {
-    const player = room.game.players.find((p: any) => p.name.trim().toLowerCase() === lower);
+    const player = room.game.players.find(
+      (p: any) => p.sessionToken === normalizedToken,
+    );
     if (player) {
       player.socketId = newSocketId;
       if (avatar !== undefined) {
@@ -255,17 +259,17 @@ export function rejoinRoom(
           lobbyPlayer.avatar = normalizedAvatar;
         }
       }
-      return { room, playerId: player.id };
+      return { room, playerId: player.id, playerName: player.name };
     }
   }
 
-  const player = room.players.find(p => p.name.trim().toLowerCase() === lower);
+  const player = room.players.find((p) => p.sessionToken === normalizedToken);
   if (player) {
     player.socketId = newSocketId;
     if (avatar !== undefined) {
       player.avatar = normalizedAvatar;
     }
-    return { room, playerId: player.id };
+    return { room, playerId: player.id, playerName: player.name };
   }
 
   return null;

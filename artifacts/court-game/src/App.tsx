@@ -42,6 +42,7 @@ import {
 import TestPlayersPanel from "@/components/test/TestPlayersPanel";
 import {
   disconnectTestPlayersFromRoom,
+  getTestPlayerSessionToken,
   type TestRoleView,
 } from "@/lib/testPlayersHarness";
 
@@ -1236,8 +1237,14 @@ export default function App() {
   const [hasSession, setHasSession] = useState(false);
 
   const [myId, setMyId] = useState<string | null>(null);
+  const [mySessionToken, setMySessionToken] = useState<string | null>(
+    () => localStorage.getItem("court_session_token"),
+  );
   const [adminHostId, setAdminHostId] = useState<string | null>(
     () => localStorage.getItem("court_admin_host_id"),
+  );
+  const [adminHostSessionToken, setAdminHostSessionToken] = useState<string | null>(
+    () => localStorage.getItem("court_admin_host_token"),
   );
   const [room, setRoom] = useState<RoomState | null>(null);
   const [game, setGame] = useState<GameState | null>(null);
@@ -1256,12 +1263,16 @@ export default function App() {
     if (savedName) {
       setPlayerName(savedName);
       const sessionCode = localStorage.getItem("court_session");
-      if (sessionCode) {
+      const sessionToken = localStorage.getItem("court_session_token");
+      if (sessionCode && sessionToken) {
         setHasSession(true);
         socket.emit("rejoin_room", {
           code: sessionCode,
-          playerName: savedName,
+          sessionToken,
         });
+      } else if (sessionCode && !sessionToken) {
+        localStorage.removeItem("court_session");
+        setHasSession(false);
       }
     } else {
       setScreen("setup");
@@ -1271,19 +1282,33 @@ export default function App() {
   useEffect(() => {
     socket.on(
       "room_joined",
-      ({ playerId, state }: { playerId: string; state: any }) => {
+      ({
+        playerId,
+        sessionToken,
+        state,
+      }: {
+        playerId: string;
+        sessionToken?: string;
+        state: any;
+      }) => {
         setMyId(playerId);
+        if (sessionToken) {
+          setMySessionToken(sessionToken);
+          localStorage.setItem("court_session_token", sessionToken);
+        }
         localStorage.setItem("court_session", state.code);
         setHasSession(true);
         setStartGameLoading(false);
-        if (state.hostId === playerId) {
+        if (state.hostId === playerId && sessionToken) {
           setAdminHostId(playerId);
           localStorage.setItem("court_admin_host_id", playerId);
+          setAdminHostSessionToken(sessionToken);
+          localStorage.setItem("court_admin_host_token", sessionToken);
         }
         if (avatar) {
           socket.emit("update_avatar", {
             code: state.code,
-            playerId,
+            sessionToken,
             avatar,
           });
         }
@@ -1383,18 +1408,28 @@ export default function App() {
 
     socket.on("rejoin_failed", () => {
       localStorage.removeItem("court_session");
+      localStorage.removeItem("court_session_token");
+      localStorage.removeItem("court_admin_host_id");
+      localStorage.removeItem("court_admin_host_token");
+      setMySessionToken(null);
+      setAdminHostId(null);
+      setAdminHostSessionToken(null);
       setHasSession(false);
       setScreen("home");
     });
 
     socket.on("kicked", () => {
       localStorage.removeItem("court_session");
+      localStorage.removeItem("court_session_token");
       setHasSession(false);
       setRoom(null);
       setGame(null);
       setMyId(null);
+      setMySessionToken(null);
       setAdminHostId(null);
       localStorage.removeItem("court_admin_host_id");
+      setAdminHostSessionToken(null);
+      localStorage.removeItem("court_admin_host_token");
       setJoinCode("");
       setDisconnectAlert("");
       setRejoinAlert("");
@@ -1511,12 +1546,12 @@ export default function App() {
   }, [socket, joinCode, playerName]);
 
   const reconnect = useCallback(() => {
-    const savedName = localStorage.getItem("court_nickname");
     const sessionCode = localStorage.getItem("court_session");
-    if (savedName && sessionCode) {
+    const sessionToken = localStorage.getItem("court_session_token");
+    if (sessionCode && sessionToken) {
       socket.emit("rejoin_room", {
         code: sessionCode,
-        playerName: savedName,
+        sessionToken,
       });
     }
   }, [socket]);
@@ -1527,75 +1562,136 @@ export default function App() {
       if (!name) return;
       const code = room?.code ?? game?.code ?? localStorage.getItem("court_session");
       if (!code) return;
+      const normalizedName = name.toLowerCase();
+      const hostName =
+        room?.players.find((player) => player.id === room.hostId)?.name ??
+        game?.players.find((player) => player.id === game.hostId)?.name ??
+        null;
+
+      let targetSessionToken: string | null = null;
+      const currentPlayerName =
+        game?.me?.name ??
+        room?.players.find((player) => player.id === myId)?.name ??
+        null;
+      if (currentPlayerName?.trim().toLowerCase() === normalizedName) {
+        targetSessionToken = mySessionToken;
+      }
+      if (
+        !targetSessionToken &&
+        hostName?.trim().toLowerCase() === normalizedName
+      ) {
+        targetSessionToken = adminHostSessionToken;
+      }
+      if (!targetSessionToken) {
+        targetSessionToken = getTestPlayerSessionToken(code, name);
+      }
+      if (!targetSessionToken) {
+        setError(
+          "Безопасное переключение возможно только для хоста этого браузера и управляемых тест-игроков.",
+        );
+        return;
+      }
+      setError("");
 
       localStorage.setItem("court_nickname", name);
+      localStorage.setItem("court_session_token", targetSessionToken);
       setPlayerName(name);
+      setMySessionToken(targetSessionToken);
       socket.emit("rejoin_room", {
         code,
-        playerName: name,
+        sessionToken: targetSessionToken,
       });
     },
-    [socket, room, game],
+    [socket, room, game, myId, mySessionToken, adminHostSessionToken],
   );
 
   const roomControlPlayerId =
     room && adminHostId === room.hostId ? adminHostId : myId;
   const gameControlPlayerId =
     game && adminHostId === game.hostId ? adminHostId : myId;
+  const roomControlSessionToken =
+    room && adminHostId === room.hostId
+      ? adminHostSessionToken ?? mySessionToken
+      : mySessionToken;
+  const gameControlSessionToken =
+    game && adminHostId === game.hostId
+      ? adminHostSessionToken ?? mySessionToken
+      : mySessionToken;
 
   const startGame = useCallback(() => {
-    if (!room || !roomControlPlayerId) return;
+    if (!room || !roomControlSessionToken) return;
     setStartGameLoading(true);
-    socket.emit("start_game", { code: room.code, playerId: roomControlPlayerId });
-  }, [socket, room, roomControlPlayerId]);
+    socket.emit("start_game", {
+      code: room.code,
+      sessionToken: roomControlSessionToken,
+    });
+  }, [socket, room, roomControlSessionToken]);
 
   const toggleHostJudge = useCallback((checked: boolean) => {
-    if (!room || !roomControlPlayerId) return;
+    if (!room || !roomControlSessionToken) return;
     setIsHostJudge(checked);
-    socket.emit("set_host_judge", { code: room.code, playerId: roomControlPlayerId, isHostJudge: checked });
-  }, [socket, room, roomControlPlayerId]);
+    socket.emit("set_host_judge", {
+      code: room.code,
+      sessionToken: roomControlSessionToken,
+      isHostJudge: checked,
+    });
+  }, [socket, room, roomControlSessionToken]);
 
   const kickPlayerFromRoom = useCallback(
     (targetPlayerId: string) => {
-      if (!room || !roomControlPlayerId || roomControlPlayerId !== room.hostId) return;
+      if (!room || !roomControlSessionToken || roomControlPlayerId !== room.hostId) return;
       socket.emit("kick_player", {
         code: room.code,
-        playerId: roomControlPlayerId,
+        sessionToken: roomControlSessionToken,
         targetPlayerId,
       });
     },
-    [socket, room, roomControlPlayerId],
+    [socket, room, roomControlPlayerId, roomControlSessionToken],
   );
 
   const revealFact = useCallback(
     (factId: string) => {
-      if (!game || !myId) return;
-      socket.emit("reveal_fact", { code: game.code, playerId: myId, factId });
+      if (!game || !mySessionToken) return;
+      socket.emit("reveal_fact", {
+        code: game.code,
+        sessionToken: mySessionToken,
+        factId,
+      });
     },
-    [socket, game, myId],
+    [socket, game, mySessionToken],
   );
 
   const useCard = useCallback(
     (cardId: string) => {
-      if (!game || !myId) return;
-      socket.emit("use_card", { code: game.code, playerId: myId, cardId });
+      if (!game || !mySessionToken) return;
+      socket.emit("use_card", {
+        code: game.code,
+        sessionToken: mySessionToken,
+        cardId,
+      });
     },
-    [socket, game, myId],
+    [socket, game, mySessionToken],
   );
 
   const advanceStage = useCallback(() => {
-    if (!game || !gameControlPlayerId) return;
-    socket.emit("next_stage", { code: game.code, playerId: gameControlPlayerId });
-  }, [socket, game, gameControlPlayerId]);
+    if (!game || !gameControlSessionToken) return;
+    socket.emit("next_stage", {
+      code: game.code,
+      sessionToken: gameControlSessionToken,
+    });
+  }, [socket, game, gameControlSessionToken]);
 
   const retreatStage = useCallback(() => {
-    if (!game || !gameControlPlayerId) return;
-    socket.emit("prev_stage", { code: game.code, playerId: gameControlPlayerId });
-  }, [socket, game, gameControlPlayerId]);
+    if (!game || !gameControlSessionToken) return;
+    socket.emit("prev_stage", {
+      code: game.code,
+      sessionToken: gameControlSessionToken,
+    });
+  }, [socket, game, gameControlSessionToken]);
 
   const jumpToStage = useCallback(
     (targetIndex: number) => {
-      if (!game || !gameControlPlayerId) return;
+      if (!game || !gameControlSessionToken) return;
       const maxIndex = Math.max(0, game.stages.length - 1);
       const clampedTarget = Math.max(0, Math.min(targetIndex, maxIndex));
       if (clampedTarget === game.stageIndex) return;
@@ -1603,18 +1699,25 @@ export default function App() {
       const steps = Math.abs(clampedTarget - game.stageIndex);
       const eventName = clampedTarget > game.stageIndex ? "next_stage" : "prev_stage";
       for (let i = 0; i < steps; i += 1) {
-        socket.emit(eventName, { code: game.code, playerId: gameControlPlayerId });
+        socket.emit(eventName, {
+          code: game.code,
+          sessionToken: gameControlSessionToken,
+        });
       }
     },
-    [socket, game, gameControlPlayerId],
+    [socket, game, gameControlSessionToken],
   );
 
   const submitVerdict = useCallback(
     (verdict: string) => {
-      if (!game || !myId) return;
-      socket.emit("set_verdict", { code: game.code, playerId: myId, verdict });
+      if (!game || !mySessionToken) return;
+      socket.emit("set_verdict", {
+        code: game.code,
+        sessionToken: mySessionToken,
+        verdict,
+      });
     },
-    [socket, game, myId],
+    [socket, game, mySessionToken],
   );
 
   const resetAll = useCallback(() => {
@@ -1626,8 +1729,12 @@ export default function App() {
     setRoom(null);
     setGame(null);
     setMyId(null);
+    setMySessionToken(null);
     setAdminHostId(null);
     localStorage.removeItem("court_admin_host_id");
+    setAdminHostSessionToken(null);
+    localStorage.removeItem("court_admin_host_token");
+    localStorage.removeItem("court_session_token");
     setJoinCode("");
     setDisconnectAlert("");
     setRejoinAlert("");
@@ -1644,13 +1751,17 @@ export default function App() {
     }
     socket.emit("leave_room");
     localStorage.removeItem("court_session");
+    localStorage.removeItem("court_session_token");
     setHasSession(false);
     setScreen("home");
     setRoom(null);
     setGame(null);
     setMyId(null);
+    setMySessionToken(null);
     setAdminHostId(null);
     localStorage.removeItem("court_admin_host_id");
+    setAdminHostSessionToken(null);
+    localStorage.removeItem("court_admin_host_token");
     setJoinCode("");
     setKickedAlert("");
     setCopiedRoomCode(false);

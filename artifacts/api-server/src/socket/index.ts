@@ -205,22 +205,72 @@ export function setupSocket(httpServer: HttpServer) {
     path: "/api/socket.io"
   });
 
-  const socketToRoom = new Map<string, { roomCode: string; playerId: string }>();
+  const socketToRoom = new Map<
+    string,
+    { roomCode: string; playerId: string; sessionToken: string }
+  >();
+  const normalizeRoomCode = (code: string): string => code.trim().toUpperCase();
+
+  const findPlayerBySessionToken = (room: any, sessionToken: string) => {
+    const token = sessionToken.trim();
+    if (!token) return null;
+    return (
+      room?.game?.players?.find((p: any) => p.sessionToken === token) ??
+      room?.players?.find((p: any) => p.sessionToken === token) ??
+      null
+    );
+  };
+
+  const resolveActorId = ({
+    socketId,
+    roomCode,
+    room,
+    sessionToken,
+  }: {
+    socketId: string;
+    roomCode: string;
+    room: any;
+    sessionToken?: string;
+  }): string | null => {
+    const socketInfo = socketToRoom.get(socketId);
+    if (!socketInfo || socketInfo.roomCode !== roomCode) {
+      return null;
+    }
+
+    if (sessionToken) {
+      const tokenPlayer = findPlayerBySessionToken(room, sessionToken);
+      if (!tokenPlayer) return null;
+      return tokenPlayer.id;
+    }
+
+    return socketInfo.playerId;
+  };
 
   io.on("connection", (socket) => {
     socket.on("create_room", ({ playerName, avatar }: { playerName: string; avatar?: string | null }) => {
       const code = randomCode();
       const playerId = crypto.randomUUID();
-      const player = { id: playerId, name: playerName || "Игрок 1", socketId: socket.id, avatar: avatar || undefined };
+      const sessionToken = crypto.randomUUID();
+      const player = {
+        id: playerId,
+        name: playerName || "Игрок 1",
+        socketId: socket.id,
+        sessionToken,
+        avatar: avatar || undefined
+      };
       const room = createRoom(code, player);
 
-      socketToRoom.set(socket.id, { roomCode: code, playerId });
+      socketToRoom.set(socket.id, { roomCode: code, playerId, sessionToken });
       socket.join(code);
-      socket.emit("room_joined", { playerId, state: getRoomState(room, playerId) });
+      socket.emit("room_joined", {
+        playerId,
+        sessionToken,
+        state: getRoomState(room, playerId)
+      });
     });
 
     socket.on("join_room", ({ code, playerName, avatar }: { code: string; playerName: string; avatar?: string | null }) => {
-      const roomCode = code.trim().toUpperCase();
+      const roomCode = normalizeRoomCode(code);
       const room = getRoom(roomCode);
       const trimmedName = (playerName || "").trim();
 
@@ -238,7 +288,14 @@ export function setupSocket(httpServer: HttpServer) {
       }
 
       const playerId = crypto.randomUUID();
-      const player = { id: playerId, name: trimmedName, socketId: socket.id, avatar: avatar || undefined };
+      const sessionToken = crypto.randomUUID();
+      const player = {
+        id: playerId,
+        name: trimmedName,
+        socketId: socket.id,
+        sessionToken,
+        avatar: avatar || undefined
+      };
 
       if (room.started) {
         const updatedRoom = joinRunningGameAsWitness(roomCode, player);
@@ -247,9 +304,13 @@ export function setupSocket(httpServer: HttpServer) {
           return;
         }
 
-        socketToRoom.set(socket.id, { roomCode, playerId });
+        socketToRoom.set(socket.id, { roomCode, playerId, sessionToken });
         socket.join(roomCode);
-        socket.emit("room_joined", { playerId, state: getRoomState(updatedRoom, playerId) });
+        socket.emit("room_joined", {
+          playerId,
+          sessionToken,
+          state: getRoomState(updatedRoom, playerId)
+        });
         io.to(roomCode).emit("game_players_updated", {
           players: mapGamePlayers(updatedRoom.game.players)
         });
@@ -267,9 +328,13 @@ export function setupSocket(httpServer: HttpServer) {
         return;
       }
 
-      socketToRoom.set(socket.id, { roomCode, playerId });
+      socketToRoom.set(socket.id, { roomCode, playerId, sessionToken });
       socket.join(roomCode);
-      socket.emit("room_joined", { playerId, state: getRoomState(updatedRoom, playerId) });
+      socket.emit("room_joined", {
+        playerId,
+        sessionToken,
+        state: getRoomState(updatedRoom, playerId)
+      });
 
       socket.to(roomCode).emit("room_updated", {
         players: updatedRoom.players.map((p: any) => ({ id: p.id, name: p.name, avatar: p.avatar })),
@@ -277,9 +342,13 @@ export function setupSocket(httpServer: HttpServer) {
       });
     });
 
-    socket.on("rejoin_room", ({ code, playerName, avatar }: { code: string; playerName: string; avatar?: string | null }) => {
-      const roomCode = code.trim().toUpperCase();
-      const result = rejoinRoom(roomCode, playerName, socket.id, avatar);
+    socket.on("rejoin_room", ({ code, sessionToken, avatar }: { code: string; sessionToken: string; avatar?: string | null }) => {
+      const roomCode = normalizeRoomCode(code);
+      if (!sessionToken?.trim()) {
+        socket.emit("rejoin_failed", { message: "Недействительная сессия." });
+        return;
+      }
+      const result = rejoinRoom(roomCode, sessionToken, socket.id, avatar);
 
       if (!result) {
         socket.emit("rejoin_failed", { message: "Комната не найдена или вас нет в ней." });
@@ -287,19 +356,37 @@ export function setupSocket(httpServer: HttpServer) {
       }
 
       const { room, playerId } = result;
-      socketToRoom.set(socket.id, { roomCode, playerId });
+      socketToRoom.set(socket.id, { roomCode, playerId, sessionToken });
       socket.join(roomCode);
 
-      socket.emit("room_joined", { playerId, state: getRoomState(room, playerId) });
+      socket.emit("room_joined", {
+        playerId,
+        sessionToken,
+        state: getRoomState(room, playerId)
+      });
 
       if (room.game) {
-        socket.to(roomCode).emit("player_rejoined", { playerId, playerName: playerName.trim() });
+        socket.to(roomCode).emit("player_rejoined", {
+          playerId,
+          playerName: result.playerName.trim()
+        });
       }
     });
 
-    socket.on("start_game", ({ code, playerId }: { code: string; playerId: string }) => {
-      const room = getRoom(code);
-      if (!room || room.hostId !== playerId) {
+    socket.on("start_game", ({ code, sessionToken }: { code: string; sessionToken?: string }) => {
+      const roomCode = normalizeRoomCode(code);
+      const room = getRoom(roomCode);
+      if (!room) {
+        socket.emit("error", { message: "Комната не найдена." });
+        return;
+      }
+      const actorId = resolveActorId({
+        socketId: socket.id,
+        roomCode,
+        room,
+        sessionToken
+      });
+      if (!actorId || room.hostId !== actorId) {
         socket.emit("error", { message: "Только ведущий может начать игру." });
         return;
       }
@@ -308,7 +395,7 @@ export function setupSocket(httpServer: HttpServer) {
         return;
       }
 
-      const updatedRoom = startGame(code);
+      const updatedRoom = startGame(roomCode);
       if (!updatedRoom) {
         socket.emit("error", { message: "Не удалось начать игру." });
         return;
@@ -324,11 +411,19 @@ export function setupSocket(httpServer: HttpServer) {
       });
     });
 
-    socket.on("set_host_judge", ({ code, playerId, isHostJudge }: { code: string; playerId: string; isHostJudge: boolean }) => {
-      const room = getRoom(code);
-      if (!room || room.hostId !== playerId) return;
-      setHostJudge(code, isHostJudge);
-      socket.to(code).emit("room_updated", {
+    socket.on("set_host_judge", ({ code, isHostJudge, sessionToken }: { code: string; isHostJudge: boolean; sessionToken?: string }) => {
+      const roomCode = normalizeRoomCode(code);
+      const room = getRoom(roomCode);
+      if (!room) return;
+      const actorId = resolveActorId({
+        socketId: socket.id,
+        roomCode,
+        room,
+        sessionToken
+      });
+      if (!actorId || room.hostId !== actorId) return;
+      setHostJudge(roomCode, isHostJudge);
+      socket.to(roomCode).emit("room_updated", {
         players: room.players.map((p: any) => ({ id: p.id, name: p.name, avatar: p.avatar })),
         hostId: room.hostId,
         isHostJudge
@@ -337,19 +432,29 @@ export function setupSocket(httpServer: HttpServer) {
 
     socket.on(
       "update_avatar",
-      ({ code, playerId, avatar }: { code: string; playerId: string; avatar?: string | null }) => {
+      ({ code, avatar, sessionToken }: { code: string; avatar?: string | null; sessionToken?: string }) => {
         if (!avatar) return;
-        const room = updatePlayerAvatar(code, playerId, avatar);
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room) return;
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken
+        });
+        if (!actorId) return;
+        updatePlayerAvatar(roomCode, actorId, avatar);
         if (!room) return;
 
         if (room.game) {
-          io.to(code).emit("game_players_updated", {
+          io.to(roomCode).emit("game_players_updated", {
             players: mapGamePlayers(room.game.players)
           });
           return;
         }
 
-        io.to(code).emit("room_updated", {
+        io.to(roomCode).emit("room_updated", {
           players: room.players.map((p: any) => ({ id: p.id, name: p.name, avatar: p.avatar })),
           hostId: room.hostId,
           isHostJudge: room.isHostJudge
@@ -359,13 +464,20 @@ export function setupSocket(httpServer: HttpServer) {
 
     socket.on(
       "kick_player",
-      ({ code, playerId, targetPlayerId }: { code: string; playerId: string; targetPlayerId: string }) => {
-        const room = getRoom(code);
+      ({ code, targetPlayerId, sessionToken }: { code: string; targetPlayerId: string; sessionToken?: string }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
         if (!room) {
           socket.emit("error", { message: "Room not found." });
           return;
         }
-        if (room.hostId !== playerId) {
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken
+        });
+        if (!actorId || room.hostId !== actorId) {
           socket.emit("error", { message: "Only host can kick players." });
           return;
         }
@@ -385,10 +497,10 @@ export function setupSocket(httpServer: HttpServer) {
         }
 
         const targetSocketId = targetPlayer.socketId;
-        const updatedRoom = removePlayer(code, targetPlayerId);
+        const updatedRoom = removePlayer(roomCode, targetPlayerId);
 
         const mappingEntry = [...socketToRoom.entries()].find(
-          ([, value]) => value.roomCode === code && value.playerId === targetPlayerId
+          ([, value]) => value.roomCode === roomCode && value.playerId === targetPlayerId
         );
         if (mappingEntry) {
           socketToRoom.delete(mappingEntry[0]);
@@ -398,11 +510,11 @@ export function setupSocket(httpServer: HttpServer) {
           io.to(targetSocketId).emit("kicked", {
             message: "You were kicked from the room by the host."
           });
-          io.in(targetSocketId).socketsLeave(code);
+          io.in(targetSocketId).socketsLeave(roomCode);
         }
 
         if (updatedRoom) {
-          io.to(code).emit("room_updated", {
+          io.to(roomCode).emit("room_updated", {
             players: updatedRoom.players.map((p: any) => ({ id: p.id, name: p.name, avatar: p.avatar })),
             hostId: updatedRoom.hostId,
             isHostJudge: updatedRoom.isHostJudge
@@ -411,9 +523,17 @@ export function setupSocket(httpServer: HttpServer) {
       }
     );
 
-    socket.on("reveal_fact", ({ code, playerId, factId }: { code: string; playerId: string; factId: string }) => {
-      const room = getRoom(code);
+    socket.on("reveal_fact", ({ code, factId, sessionToken }: { code: string; factId: string; sessionToken?: string }) => {
+      const roomCode = normalizeRoomCode(code);
+      const room = getRoom(roomCode);
       if (!room?.game) return;
+      const actorId = resolveActorId({
+        socketId: socket.id,
+        roomCode,
+        room,
+        sessionToken
+      });
+      if (!actorId) return;
       const currentStageName = getCurrentStageName(
         room.game.stages,
         room.game.stageIndex,
@@ -426,7 +546,7 @@ export function setupSocket(httpServer: HttpServer) {
         return;
       }
 
-      const currentPlayer = room.game.players.find((p: any) => p.id === playerId);
+      const currentPlayer = room.game.players.find((p: any) => p.id === actorId);
       if (!currentPlayer) return;
 
       if (!canRoleRevealFactsAtStage(currentPlayer.roleKey, currentStageName)) {
@@ -444,7 +564,7 @@ export function setupSocket(httpServer: HttpServer) {
       if (isCurrentPlayerOpeningSpeech) {
         const revealedFactsOnThisOpeningStage = room.game.revealedFacts.filter(
           (fact: any) =>
-            fact.ownerId === playerId && fact.stageIndex === room.game!.stageIndex,
+            fact.ownerId === actorId && fact.stageIndex === room.game!.stageIndex,
         ).length;
 
         if (revealedFactsOnThisOpeningStage >= 2) {
@@ -456,24 +576,32 @@ export function setupSocket(httpServer: HttpServer) {
         }
       }
 
-      const updatedRoom = revealFact(code, playerId, factId);
+      const updatedRoom = revealFact(roomCode, actorId, factId);
       if (!updatedRoom) return;
 
-      io.to(code).emit("facts_updated", {
+      io.to(roomCode).emit("facts_updated", {
         revealedFacts: updatedRoom.game!.revealedFacts,
         players: updatedRoom.game!.players.map((p: any) => ({ id: p.id, facts: p.facts }))
       });
 
-      const myPlayer = updatedRoom.game!.players.find((p: any) => p.id === playerId);
+      const myPlayer = updatedRoom.game!.players.find((p: any) => p.id === actorId);
       if (myPlayer) {
         io.to(myPlayer.socketId).emit("my_facts_updated", { facts: myPlayer.facts });
       }
       emitFactRevealPermissions(io, updatedRoom);
     });
 
-    socket.on("use_card", ({ code, playerId, cardId }: { code: string; playerId: string; cardId: string }) => {
-      const room = getRoom(code);
+    socket.on("use_card", ({ code, cardId, sessionToken }: { code: string; cardId: string; sessionToken?: string }) => {
+      const roomCode = normalizeRoomCode(code);
+      const room = getRoom(roomCode);
       if (!room?.game) return;
+      const actorId = resolveActorId({
+        socketId: socket.id,
+        roomCode,
+        room,
+        sessionToken
+      });
+      if (!actorId) return;
       const currentStageName = getCurrentStageName(
         room.game.stages,
         room.game.stageIndex,
@@ -483,67 +611,91 @@ export function setupSocket(httpServer: HttpServer) {
         return;
       }
 
-      const updatedRoom = useCard(code, playerId, cardId);
+      const updatedRoom = useCard(roomCode, actorId, cardId);
       if (!updatedRoom) return;
 
-      io.to(code).emit("cards_updated", {
+      io.to(roomCode).emit("cards_updated", {
         usedCards: updatedRoom.game!.usedCards
       });
 
-      const myPlayer = updatedRoom.game!.players.find((p: any) => p.id === playerId);
+      const myPlayer = updatedRoom.game!.players.find((p: any) => p.id === actorId);
       if (myPlayer) {
         io.to(myPlayer.socketId).emit("my_cards_updated", { cards: myPlayer.cards });
       }
     });
 
-    socket.on("next_stage", ({ code, playerId }: { code: string; playerId: string }) => {
-      const room = getRoom(code);
+    socket.on("next_stage", ({ code, sessionToken }: { code: string; sessionToken?: string }) => {
+      const roomCode = normalizeRoomCode(code);
+      const room = getRoom(roomCode);
       if (!room?.game) return;
+      const actorId = resolveActorId({
+        socketId: socket.id,
+        roomCode,
+        room,
+        sessionToken
+      });
+      if (!actorId) return;
       const judgePlayer = room.game.players.find((p: any) => p.roleKey === "judge");
-      const canControl = room.hostId === playerId || judgePlayer?.id === playerId;
+      const canControl = room.hostId === actorId || judgePlayer?.id === actorId;
       if (!canControl) {
         socket.emit("error", { message: "Только ведущий или судья может менять этапы." });
         return;
       }
 
-      const updatedRoom = nextStage(code);
+      const updatedRoom = nextStage(roomCode);
       if (!updatedRoom) return;
 
-      io.to(code).emit("stage_updated", { stageIndex: updatedRoom.game!.stageIndex });
+      io.to(roomCode).emit("stage_updated", { stageIndex: updatedRoom.game!.stageIndex });
       emitFactRevealPermissions(io, updatedRoom);
     });
 
-    socket.on("prev_stage", ({ code, playerId }: { code: string; playerId: string }) => {
-      const room = getRoom(code);
+    socket.on("prev_stage", ({ code, sessionToken }: { code: string; sessionToken?: string }) => {
+      const roomCode = normalizeRoomCode(code);
+      const room = getRoom(roomCode);
       if (!room?.game) return;
+      const actorId = resolveActorId({
+        socketId: socket.id,
+        roomCode,
+        room,
+        sessionToken
+      });
+      if (!actorId) return;
       const judgePlayer = room.game.players.find((p: any) => p.roleKey === "judge");
-      const canControl = room.hostId === playerId || judgePlayer?.id === playerId;
+      const canControl = room.hostId === actorId || judgePlayer?.id === actorId;
       if (!canControl) {
         socket.emit("error", { message: "Только ведущий или судья может менять этапы." });
         return;
       }
 
-      const updatedRoom = prevStage(code);
+      const updatedRoom = prevStage(roomCode);
       if (!updatedRoom) return;
 
-      io.to(code).emit("stage_updated", { stageIndex: updatedRoom.game!.stageIndex });
+      io.to(roomCode).emit("stage_updated", { stageIndex: updatedRoom.game!.stageIndex });
       emitFactRevealPermissions(io, updatedRoom);
     });
 
-    socket.on("set_verdict", ({ code, playerId, verdict }: { code: string; playerId: string; verdict: string }) => {
-      const room = getRoom(code);
+    socket.on("set_verdict", ({ code, verdict, sessionToken }: { code: string; verdict: string; sessionToken?: string }) => {
+      const roomCode = normalizeRoomCode(code);
+      const room = getRoom(roomCode);
       if (!room?.game) return;
+      const actorId = resolveActorId({
+        socketId: socket.id,
+        roomCode,
+        room,
+        sessionToken
+      });
+      if (!actorId) return;
 
       const judgePlayer = room.game.players.find((p: any) => p.roleKey === "judge");
-      if (!judgePlayer || judgePlayer.id !== playerId) {
+      if (!judgePlayer || judgePlayer.id !== actorId) {
         socket.emit("error", { message: "Только судья может выносить вердикт." });
         return;
       }
 
-      const updatedRoom = setVerdict(code, verdict);
+      const updatedRoom = setVerdict(roomCode, verdict);
       if (!updatedRoom) return;
 
-      io.to(code).emit("verdict_set", {
+      io.to(roomCode).emit("verdict_set", {
         verdict: updatedRoom.game!.verdict,
         verdictEvaluation: updatedRoom.game!.verdictEvaluation,
         finished: true,
@@ -591,4 +743,3 @@ export function setupSocket(httpServer: HttpServer) {
 
   return io;
 }
-

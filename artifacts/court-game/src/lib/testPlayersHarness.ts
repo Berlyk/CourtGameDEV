@@ -80,6 +80,7 @@ type TestSocketState = TestRoomState | TestGameState;
 interface TestPlayerConnection {
   roomCode: string;
   name: string;
+  sessionToken: string;
   socket: Socket;
   latestState: TestSocketState | null;
 }
@@ -372,14 +373,22 @@ async function connectAndJoinRoom(
     };
 
     const onRoomJoined = ({
+      sessionToken,
       state,
     }: {
       playerId: string;
+      sessionToken?: string;
       state: TestSocketState;
     }) => {
+      if (!sessionToken) {
+        socket.disconnect();
+        settle({ ok: false, reason: "Missing session token" });
+        return;
+      }
       const connection: TestPlayerConnection = {
         roomCode,
         name,
+        sessionToken,
         socket,
         latestState: state,
       };
@@ -435,6 +444,16 @@ export function listTestPlayers(roomCode: string): string[] {
   if (!isTestToolsEnabled()) return [];
   const code = normalizeRoomCode(roomCode);
   return getConnections(code).map((entry) => entry.name);
+}
+
+export function getTestPlayerSessionToken(
+  roomCode: string,
+  playerName: string,
+): string | null {
+  if (!isTestToolsEnabled()) return null;
+  const code = normalizeRoomCode(roomCode);
+  const entry = findConnectionByName(code, playerName);
+  return entry?.sessionToken ?? null;
 }
 
 export function listTestRoleViews(roomCode: string): TestRoleView[] {
@@ -549,7 +568,7 @@ export function triggerTestPlayerRevealNextFact(
 
   entry.socket.emit("reveal_fact", {
     code,
-    playerId,
+    sessionToken: entry.sessionToken,
     factId: nextFact.id,
   });
 
@@ -586,7 +605,7 @@ export function triggerTestPlayerUseNextCard(
 
   entry.socket.emit("use_card", {
     code,
-    playerId,
+    sessionToken: entry.sessionToken,
     cardId: nextCard.id,
   });
 
