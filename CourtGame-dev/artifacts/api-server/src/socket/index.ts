@@ -1,11 +1,15 @@
 import { Server as SocketIOServer } from "socket.io";
 import type { Server as HttpServer } from "http";
 import {
+  addLobbyChatMessage,
   createRoom,
   joinRoom,
   joinRunningGameAsWitness,
+  isJoinPasswordValid,
   rejoinRoom,
   isNameTaken,
+  isNameTakenByOther,
+  listPublicMatches,
   removePlayer,
   startGame,
   revealFact,
@@ -15,7 +19,9 @@ import {
   setVerdict,
   getRoom,
   setHostJudge,
-  updatePlayerAvatar
+  updatePlayerAvatar,
+  updatePlayerProfile,
+  type CreateRoomOptions,
 } from "./roomManager.js";
 
 function randomCode(): string {
@@ -158,15 +164,28 @@ function mapGamePlayers(players: any[]) {
   }));
 }
 
+function mapLobbyPlayers(players: any[]) {
+  return players.map((p: any) => ({
+    id: p.id,
+    name: p.name,
+    avatar: p.avatar,
+  }));
+}
+
 function getRoomState(room: any, playerId: string) {
   if (!room.game) {
     return {
       type: "room",
       code: room.code,
       hostId: room.hostId,
-      players: room.players.map((p: any) => ({ id: p.id, name: p.name, avatar: p.avatar })),
+      players: mapLobbyPlayers(room.players),
       started: room.started,
-      isHostJudge: room.isHostJudge
+      isHostJudge: room.isHostJudge,
+      visibility: room.visibility,
+      venueLabel: room.venueLabel,
+      venueUrl: room.venueUrl,
+      requiresPassword: !!room.password,
+      lobbyChat: room.lobbyChat,
     };
   }
 
@@ -197,6 +216,12 @@ function getRoomState(room: any, playerId: string) {
       canRevealFactsNow: canPlayerRevealFactNow(room, playerId),
     } : null
   };
+}
+
+function emitPublicMatches(io: SocketIOServer) {
+  io.emit("public_matches_updated", {
+    matches: listPublicMatches(),
+  });
 }
 
 export function setupSocket(httpServer: HttpServer) {
@@ -247,7 +272,23 @@ export function setupSocket(httpServer: HttpServer) {
   };
 
   io.on("connection", (socket) => {
-    socket.on("create_room", ({ playerName, avatar }: { playerName: string; avatar?: string | null }) => {
+    socket.on("list_public_matches", () => {
+      socket.emit("public_matches_updated", {
+        matches: listPublicMatches(),
+      });
+    });
+
+    socket.on(
+      "create_room",
+      ({
+        playerName,
+        avatar,
+        options,
+      }: {
+        playerName: string;
+        avatar?: string | null;
+        options?: CreateRoomOptions;
+      }) => {
       const code = randomCode();
       const playerId = crypto.randomUUID();
       const sessionToken = crypto.randomUUID();
@@ -258,7 +299,7 @@ export function setupSocket(httpServer: HttpServer) {
         sessionToken,
         avatar: avatar || undefined
       };
-      const room = createRoom(code, player);
+      const room = createRoom(code, player, options);
 
       socketToRoom.set(socket.id, { roomCode: code, playerId, sessionToken });
       socket.join(code);
@@ -267,9 +308,10 @@ export function setupSocket(httpServer: HttpServer) {
         sessionToken,
         state: getRoomState(room, playerId)
       });
+      emitPublicMatches(io);
     });
 
-    socket.on("join_room", ({ code, playerName, avatar }: { code: string; playerName: string; avatar?: string | null }) => {
+    socket.on("join_room", ({ code, playerName, avatar, password }: { code: string; playerName: string; avatar?: string | null; password?: string }) => {
       const roomCode = normalizeRoomCode(code);
       const room = getRoom(roomCode);
       const trimmedName = (playerName || "").trim();
@@ -280,6 +322,10 @@ export function setupSocket(httpServer: HttpServer) {
       }
       if (!trimmedName) {
         socket.emit("error", { message: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043d\u0438\u043a\u043d\u0435\u0439\u043c \u043f\u0435\u0440\u0435\u0434 \u0432\u0445\u043e\u0434\u043e\u043c." });
+        return;
+      }
+      if (!isJoinPasswordValid(roomCode, password)) {
+        socket.emit("error", { message: "\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c \u043a\u043e\u043c\u043d\u0430\u0442\u044b." });
         return;
       }
       if (isNameTaken(roomCode, trimmedName)) {
@@ -314,6 +360,7 @@ export function setupSocket(httpServer: HttpServer) {
         io.to(roomCode).emit("game_players_updated", {
           players: mapGamePlayers(updatedRoom.game.players)
         });
+        emitPublicMatches(io);
         return;
       }
 
@@ -322,7 +369,7 @@ export function setupSocket(httpServer: HttpServer) {
         return;
       }
 
-      const updatedRoom = joinRoom(roomCode, player);
+      const updatedRoom = joinRoom(roomCode, player, password);
       if (!updatedRoom) {
         socket.emit("error", { message: "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u043e\u0439\u0442\u0438 \u0432 \u043a\u043e\u043c\u043d\u0430\u0442\u0443." });
         return;
@@ -337,9 +384,16 @@ export function setupSocket(httpServer: HttpServer) {
       });
 
       socket.to(roomCode).emit("room_updated", {
-        players: updatedRoom.players.map((p: any) => ({ id: p.id, name: p.name, avatar: p.avatar })),
-        hostId: updatedRoom.hostId
+        players: mapLobbyPlayers(updatedRoom.players),
+        hostId: updatedRoom.hostId,
+        isHostJudge: updatedRoom.isHostJudge,
+        visibility: updatedRoom.visibility,
+        venueLabel: updatedRoom.venueLabel,
+        venueUrl: updatedRoom.venueUrl,
+        requiresPassword: !!updatedRoom.password,
+        lobbyChat: updatedRoom.lobbyChat,
       });
+      emitPublicMatches(io);
     });
 
     socket.on("rejoin_room", ({ code, sessionToken, avatar }: { code: string; sessionToken: string; avatar?: string | null }) => {
@@ -409,6 +463,7 @@ export function setupSocket(httpServer: HttpServer) {
           });
         }
       });
+      emitPublicMatches(io);
     });
 
     socket.on("set_host_judge", ({ code, isHostJudge, sessionToken }: { code: string; isHostJudge: boolean; sessionToken?: string }) => {
@@ -424,9 +479,14 @@ export function setupSocket(httpServer: HttpServer) {
       if (!actorId || room.hostId !== actorId) return;
       setHostJudge(roomCode, isHostJudge);
       socket.to(roomCode).emit("room_updated", {
-        players: room.players.map((p: any) => ({ id: p.id, name: p.name, avatar: p.avatar })),
+        players: mapLobbyPlayers(room.players),
         hostId: room.hostId,
-        isHostJudge
+        isHostJudge,
+        visibility: room.visibility,
+        venueLabel: room.venueLabel,
+        venueUrl: room.venueUrl,
+        requiresPassword: !!room.password,
+        lobbyChat: room.lobbyChat,
       });
     });
 
@@ -455,11 +515,115 @@ export function setupSocket(httpServer: HttpServer) {
         }
 
         io.to(roomCode).emit("room_updated", {
-          players: room.players.map((p: any) => ({ id: p.id, name: p.name, avatar: p.avatar })),
+          players: mapLobbyPlayers(room.players),
           hostId: room.hostId,
-          isHostJudge: room.isHostJudge
+          isHostJudge: room.isHostJudge,
+          visibility: room.visibility,
+          venueLabel: room.venueLabel,
+          venueUrl: room.venueUrl,
+          requiresPassword: !!room.password,
+          lobbyChat: room.lobbyChat,
         });
       }
+    );
+
+    socket.on(
+      "update_profile",
+      ({
+        code,
+        name,
+        avatar,
+        sessionToken,
+      }: {
+        code: string;
+        name?: string;
+        avatar?: string | null;
+        sessionToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room) return;
+
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken,
+        });
+        if (!actorId) return;
+
+        const nextName = name?.trim();
+        if (nextName && isNameTakenByOther(roomCode, actorId, nextName)) {
+          socket.emit("error", {
+            message: `\u041d\u0438\u043a\u043d\u0435\u0439\u043c \u00ab${nextName}\u00bb \u0443\u0436\u0435 \u0437\u0430\u043d\u044f\u0442 \u0432 \u044d\u0442\u043e\u0439 \u043a\u043e\u043c\u043d\u0430\u0442\u0435.`,
+          });
+          return;
+        }
+
+        const updatedRoom = updatePlayerProfile(roomCode, actorId, {
+          name: nextName,
+          avatar,
+        });
+        if (!updatedRoom) return;
+
+        if (updatedRoom.game) {
+          updatedRoom.game.players.forEach((p: any) => {
+            if (!p.socketId) return;
+            io.to(p.socketId).emit("game_profile_updated", {
+              players: mapGamePlayers(updatedRoom.game!.players),
+              revealedFacts: updatedRoom.game!.revealedFacts,
+              usedCards: updatedRoom.game!.usedCards,
+            });
+          });
+        } else {
+          io.to(roomCode).emit("room_updated", {
+            players: mapLobbyPlayers(updatedRoom.players),
+            hostId: updatedRoom.hostId,
+            isHostJudge: updatedRoom.isHostJudge,
+            visibility: updatedRoom.visibility,
+            venueLabel: updatedRoom.venueLabel,
+            venueUrl: updatedRoom.venueUrl,
+            requiresPassword: !!updatedRoom.password,
+            lobbyChat: updatedRoom.lobbyChat,
+          });
+        }
+
+        io.to(roomCode).emit("lobby_chat_updated", {
+          messages: updatedRoom.lobbyChat,
+        });
+        emitPublicMatches(io);
+      },
+    );
+
+    socket.on(
+      "send_lobby_chat",
+      ({
+        code,
+        text,
+        sessionToken,
+      }: {
+        code: string;
+        text: string;
+        sessionToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room || room.started) return;
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken,
+        });
+        if (!actorId) return;
+
+        const updatedRoom = addLobbyChatMessage(roomCode, actorId, text);
+        if (!updatedRoom) return;
+
+        io.to(roomCode).emit("lobby_chat_updated", {
+          messages: updatedRoom.lobbyChat,
+        });
+      },
     );
 
     socket.on(
@@ -515,11 +679,17 @@ export function setupSocket(httpServer: HttpServer) {
 
         if (updatedRoom) {
           io.to(roomCode).emit("room_updated", {
-            players: updatedRoom.players.map((p: any) => ({ id: p.id, name: p.name, avatar: p.avatar })),
+            players: mapLobbyPlayers(updatedRoom.players),
             hostId: updatedRoom.hostId,
-            isHostJudge: updatedRoom.isHostJudge
+            isHostJudge: updatedRoom.isHostJudge,
+            visibility: updatedRoom.visibility,
+            venueLabel: updatedRoom.venueLabel,
+            venueUrl: updatedRoom.venueUrl,
+            requiresPassword: !!updatedRoom.password,
+            lobbyChat: updatedRoom.lobbyChat,
           });
         }
+        emitPublicMatches(io);
       }
     );
 
@@ -725,10 +895,17 @@ export function setupSocket(httpServer: HttpServer) {
         const updatedRoom = removePlayer(info.roomCode, info.playerId);
         if (updatedRoom) {
           socket.to(info.roomCode).emit("room_updated", {
-            players: updatedRoom.players.map((p: any) => ({ id: p.id, name: p.name, avatar: p.avatar })),
-            hostId: updatedRoom.hostId
+            players: mapLobbyPlayers(updatedRoom.players),
+            hostId: updatedRoom.hostId,
+            isHostJudge: updatedRoom.isHostJudge,
+            visibility: updatedRoom.visibility,
+            venueLabel: updatedRoom.venueLabel,
+            venueUrl: updatedRoom.venueUrl,
+            requiresPassword: !!updatedRoom.password,
+            lobbyChat: updatedRoom.lobbyChat,
           });
         }
+        emitPublicMatches(io);
       }
     }
 

@@ -133,18 +133,85 @@ export interface Room {
   game: GameState | null;
   started: boolean;
   isHostJudge: boolean;
+  visibility: "public" | "private";
+  password?: string;
+  venueLabel?: string;
+  venueUrl?: string;
+  createdAt: number;
+  lobbyChat: LobbyChatMessage[];
+}
+
+export interface LobbyChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  text: string;
+  createdAt: number;
+}
+
+export interface PublicMatchInfo {
+  code: string;
+  hostName: string;
+  playerCount: number;
+  maxPlayers: number;
+  started: boolean;
+  createdAt: number;
+  venueLabel?: string;
+  venueUrl?: string;
+  requiresPassword: boolean;
+}
+
+export interface CreateRoomOptions {
+  visibility?: "public" | "private";
+  password?: string;
+  venueLabel?: string;
+  venueUrl?: string;
 }
 
 const rooms = new Map<string, Room>();
 
-export function createRoom(code: string, player: Player): Room {
+function normalizeVisibility(value: string | undefined): "public" | "private" {
+  if (value === "public") return "public";
+  return "private";
+}
+
+function normalizeRoomPassword(password: string | undefined): string | undefined {
+  if (!password) return undefined;
+  const trimmed = password.trim();
+  return trimmed ? trimmed.slice(0, 64) : undefined;
+}
+
+function normalizeVenueLabel(label: string | undefined): string | undefined {
+  if (!label) return undefined;
+  const trimmed = label.trim();
+  return trimmed ? trimmed.slice(0, 120) : undefined;
+}
+
+function normalizeVenueUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  return trimmed ? trimmed.slice(0, 300) : undefined;
+}
+
+export function createRoom(code: string, player: Player, options?: CreateRoomOptions): Room {
+  const visibility = normalizeVisibility(options?.visibility);
+  const password = normalizeRoomPassword(options?.password);
+  const venueLabel = normalizeVenueLabel(options?.venueLabel);
+  const venueUrl = normalizeVenueUrl(options?.venueUrl);
   const room: Room = {
     code,
     hostId: player.id,
     players: [player],
     game: null,
     started: false,
-    isHostJudge: false
+    isHostJudge: false,
+    visibility,
+    password,
+    venueLabel,
+    venueUrl,
+    createdAt: Date.now(),
+    lobbyChat: [],
   };
   rooms.set(code, room);
   return room;
@@ -195,11 +262,33 @@ export function isNameTaken(code: string, name: string): boolean {
   return false;
 }
 
-export function joinRoom(code: string, player: Player): Room | null {
+export function isNameTakenByOther(code: string, playerId: string, name: string): boolean {
+  const room = rooms.get(code);
+  if (!room) return false;
+  const lower = name.trim().toLowerCase();
+  if (room.players.some((p) => p.id !== playerId && p.name.trim().toLowerCase() === lower)) {
+    return true;
+  }
+  if (room.game?.players.some((p: any) => p.id !== playerId && p.name.trim().toLowerCase() === lower)) {
+    return true;
+  }
+  return false;
+}
+
+export function isJoinPasswordValid(code: string, password?: string): boolean {
+  const room = rooms.get(code);
+  if (!room) return false;
+  if (!room.password) return true;
+  const normalized = (password ?? "").trim();
+  return room.password === normalized;
+}
+
+export function joinRoom(code: string, player: Player, password?: string): Room | null {
   const room = rooms.get(code);
   if (!room) return null;
   if (room.started) return null;
   if (room.players.length >= 6) return null;
+  if (!isJoinPasswordValid(code, password)) return null;
   room.players.push(player);
   return room;
 }
@@ -286,6 +375,120 @@ export function removePlayer(code: string, playerId: string): Room | null {
   if (room.hostId === playerId && room.players.length > 0) {
     room.hostId = room.players[0].id;
   }
+  return room;
+}
+
+export function listPublicMatches(): PublicMatchInfo[] {
+  return [...rooms.values()]
+    .filter((room) => room.visibility === "public")
+    .map((room) => {
+      const hostPlayer =
+        room.players.find((p) => p.id === room.hostId) ??
+        room.game?.players.find((p: any) => p.id === room.hostId);
+
+      return {
+        code: room.code,
+        hostName: hostPlayer?.name ?? "Host",
+        playerCount: room.players.length,
+        maxPlayers: 6,
+        started: room.started,
+        createdAt: room.createdAt,
+        venueLabel: room.venueLabel,
+        venueUrl: room.venueUrl,
+        requiresPassword: !!room.password,
+      };
+    })
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function addLobbyChatMessage(
+  code: string,
+  senderId: string,
+  text: string,
+): Room | null {
+  const room = rooms.get(code);
+  if (!room) return null;
+  const sender =
+    room.players.find((p) => p.id === senderId) ??
+    room.game?.players.find((p: any) => p.id === senderId);
+  if (!sender) return null;
+
+  const normalizedText = text.trim().slice(0, 500);
+  if (!normalizedText) return room;
+
+  room.lobbyChat.push({
+    id: crypto.randomUUID(),
+    senderId,
+    senderName: sender.name,
+    senderAvatar: sender.avatar,
+    text: normalizedText,
+    createdAt: Date.now(),
+  });
+
+  if (room.lobbyChat.length > 120) {
+    room.lobbyChat = room.lobbyChat.slice(-120);
+  }
+
+  return room;
+}
+
+export function updatePlayerProfile(
+  code: string,
+  playerId: string,
+  profile: { name?: string; avatar?: string | null },
+): Room | null {
+  const room = rooms.get(code);
+  if (!room) return null;
+
+  const normalizedName = profile.name?.trim();
+  const normalizedAvatar = profile.avatar || undefined;
+  const hasName = !!normalizedName;
+  const hasAvatar = profile.avatar !== undefined;
+
+  if (!hasName && !hasAvatar) return room;
+
+  const applyProfile = (player: Player) => {
+    if (hasName && normalizedName) {
+      player.name = normalizedName;
+    }
+    if (hasAvatar) {
+      player.avatar = normalizedAvatar;
+    }
+  };
+
+  const lobbyPlayer = room.players.find((p) => p.id === playerId);
+  if (lobbyPlayer) {
+    applyProfile(lobbyPlayer);
+  }
+
+  if (room.game) {
+    const gamePlayer = room.game.players.find((p) => p.id === playerId);
+    if (gamePlayer) {
+      applyProfile(gamePlayer);
+    }
+
+    room.game.revealedFacts = room.game.revealedFacts.map((fact) =>
+      fact.ownerId === playerId && normalizedName
+        ? { ...fact, owner: normalizedName }
+        : fact,
+    );
+    room.game.usedCards = room.game.usedCards.map((card) =>
+      card.ownerId === playerId && normalizedName
+        ? { ...card, owner: normalizedName }
+        : card,
+    );
+  }
+
+  room.lobbyChat = room.lobbyChat.map((entry) =>
+    entry.senderId === playerId
+      ? {
+          ...entry,
+          senderName: normalizedName ?? entry.senderName,
+          senderAvatar: hasAvatar ? normalizedAvatar : entry.senderAvatar,
+        }
+      : entry,
+  );
+
   return room;
 }
 
