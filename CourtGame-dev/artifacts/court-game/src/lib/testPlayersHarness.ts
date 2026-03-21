@@ -26,6 +26,42 @@ function isTruthyEnvValue(value: string | undefined): boolean {
 const TEST_TOOLS_ENABLED = isTruthyEnvValue(
   import.meta.env.VITE_ENABLE_TEST_TOOLS,
 );
+const TEST_TOOLS_STORAGE_KEY = "court_test_tools_enabled";
+
+function readStoredFlag(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return isTruthyEnvValue(window.localStorage.getItem(TEST_TOOLS_STORAGE_KEY) ?? undefined);
+  } catch {
+    return false;
+  }
+}
+
+function readQueryFlag(): boolean | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get("test-tools") ?? params.get("testTools");
+  if (raw === null) return null;
+  return isTruthyEnvValue(raw);
+}
+
+function persistFlag(value: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(TEST_TOOLS_STORAGE_KEY, value ? "1" : "0");
+  } catch {
+    // ignore localStorage access issues
+  }
+}
+
+function resolveBrowserFlag(): boolean {
+  const queryFlag = readQueryFlag();
+  if (queryFlag !== null) {
+    persistFlag(queryFlag);
+    return queryFlag;
+  }
+  return readStoredFlag();
+}
 const ROOM_CAP = 6;
 
 const roomConnections = new Map<string, TestPlayerConnection[]>();
@@ -141,7 +177,7 @@ async function connectAndJoinRoom(
 }
 
 export function isTestToolsEnabled(): boolean {
-  return TEST_TOOLS_ENABLED;
+  return TEST_TOOLS_ENABLED || resolveBrowserFlag();
 }
 
 export function listTestPlayers(roomCode: string): string[] {
