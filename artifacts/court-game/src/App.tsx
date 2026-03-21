@@ -301,28 +301,35 @@ function CourtAtmosphereBackground() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
       <div className="absolute inset-0 bg-[#0b0b0f]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_20%,rgba(145,22,36,0.18),transparent_58%),radial-gradient(ellipse_at_50%_85%,rgba(120,16,28,0.1),transparent_62%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_-5%,rgba(255,255,255,0.05),transparent_46%),radial-gradient(ellipse_at_50%_110%,rgba(255,255,255,0.04),transparent_48%)]" />
 
-      <div className="absolute inset-y-0 left-0 w-[18vw] min-w-[64px] max-w-[180px] opacity-[0.14]">
-        <div className="relative h-full w-full bg-[linear-gradient(to_right,rgba(212,212,216,0.09),rgba(212,212,216,0.03)_28%,transparent_72%,rgba(212,212,216,0.06))]">
-          <div className="absolute inset-y-0 left-[38%] w-px bg-zinc-100/10" />
-          <div className="absolute inset-y-0 right-[30%] w-px bg-zinc-100/10" />
+      <div className="absolute inset-y-0 left-0 w-[20vw] min-w-[74px] max-w-[230px] opacity-[0.14]">
+        <div className="relative h-full w-full bg-[linear-gradient(to_right,rgba(212,212,216,0.11),rgba(212,212,216,0.03)_24%,transparent_72%,rgba(212,212,216,0.05))]">
+          <div className="absolute inset-y-0 left-[22%] w-[15%] bg-zinc-200/10 rounded-t-[28px]" />
+          <div className="absolute inset-y-0 left-[48%] w-[11%] bg-zinc-200/8 rounded-t-[20px]" />
+          <div className="absolute inset-y-0 right-[18%] w-px bg-zinc-100/12" />
         </div>
       </div>
-      <div className="absolute inset-y-0 right-0 w-[18vw] min-w-[64px] max-w-[180px] opacity-[0.14]">
-        <div className="relative h-full w-full bg-[linear-gradient(to_left,rgba(212,212,216,0.09),rgba(212,212,216,0.03)_28%,transparent_72%,rgba(212,212,216,0.06))]">
-          <div className="absolute inset-y-0 left-[30%] w-px bg-zinc-100/10" />
-          <div className="absolute inset-y-0 right-[38%] w-px bg-zinc-100/10" />
+      <div className="absolute inset-y-0 right-0 w-[20vw] min-w-[74px] max-w-[230px] opacity-[0.14]">
+        <div className="relative h-full w-full bg-[linear-gradient(to_left,rgba(212,212,216,0.11),rgba(212,212,216,0.03)_24%,transparent_72%,rgba(212,212,216,0.05))]">
+          <div className="absolute inset-y-0 right-[22%] w-[15%] bg-zinc-200/10 rounded-t-[28px]" />
+          <div className="absolute inset-y-0 right-[48%] w-[11%] bg-zinc-200/8 rounded-t-[20px]" />
+          <div className="absolute inset-y-0 left-[18%] w-px bg-zinc-100/12" />
         </div>
       </div>
 
-      <div className="absolute left-1/2 top-[22%] h-[320px] w-[320px] -translate-x-1/2 opacity-[0.06]">
-        <div className="absolute left-[50%] top-[36%] h-2.5 w-44 -translate-x-1/2 rotate-[28deg] rounded-full bg-zinc-300/70" />
-        <div className="absolute left-[59%] top-[28%] h-9 w-24 -translate-x-1/2 rotate-[28deg] rounded-md border border-zinc-300/45 bg-zinc-300/30" />
-        <div className="absolute left-[41%] top-[53%] h-7 w-20 -translate-x-1/2 rotate-[28deg] rounded-md border border-zinc-300/40 bg-zinc-300/25" />
+      <div className="absolute left-[7%] top-[28%] h-[220px] w-[130px] opacity-[0.06]">
+        <div className="absolute left-[54%] top-[42%] h-2 w-24 -translate-x-1/2 rotate-[34deg] rounded-full bg-zinc-300/70" />
+        <div className="absolute left-[66%] top-[30%] h-7 w-16 -translate-x-1/2 rotate-[34deg] rounded-md border border-zinc-300/45 bg-zinc-300/28" />
+        <div className="absolute left-[42%] top-[57%] h-5 w-14 -translate-x-1/2 rotate-[34deg] rounded-md border border-zinc-300/38 bg-zinc-300/20" />
+      </div>
+      <div className="absolute right-[7%] top-[30%] h-[220px] w-[130px] opacity-[0.06]">
+        <div className="absolute left-[46%] top-[42%] h-2 w-24 -translate-x-1/2 -rotate-[34deg] rounded-full bg-zinc-300/70" />
+        <div className="absolute left-[34%] top-[30%] h-7 w-16 -translate-x-1/2 -rotate-[34deg] rounded-md border border-zinc-300/45 bg-zinc-300/28" />
+        <div className="absolute left-[58%] top-[57%] h-5 w-14 -translate-x-1/2 -rotate-[34deg] rounded-md border border-zinc-300/38 bg-zinc-300/20" />
       </div>
 
-      <div className="absolute inset-0 opacity-[0.07] mix-blend-soft-light bg-[radial-gradient(rgba(255,255,255,0.22)_0.55px,transparent_0.8px)] [background-size:3px_3px]" />
+      <div className="absolute inset-0 opacity-[0.05] mix-blend-soft-light bg-[radial-gradient(rgba(255,255,255,0.24)_0.5px,transparent_0.8px)] [background-size:3px_3px]" />
     </div>
   );
 }
@@ -2540,9 +2547,8 @@ export default function App() {
         </AnimatePresence>
 
         <div className="max-w-6xl mx-auto mb-8 flex justify-center">
-          <div className="relative w-full max-w-[760px]">
-            <div className="flex flex-col gap-2 rounded-[28px] border border-zinc-800 bg-zinc-900/90 p-2 shadow-sm shadow-black/30 sm:flex-row sm:items-center sm:justify-between">
-              <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-1">
+          <div className="relative w-full sm:w-auto">
+            <div className="inline-flex w-full sm:w-auto flex-wrap items-center justify-center gap-1 rounded-[28px] border border-zinc-800 bg-zinc-900/90 p-1.5 shadow-sm shadow-black/30">
               <Button
                 variant="ghost"
                 onClick={() => {
@@ -2579,7 +2585,7 @@ export default function App() {
                   setHomeTab("help");
                   setProfileMenuOpen(false);
                 }}
-                className={`h-10 rounded-full px-4 gap-2 col-span-2 sm:col-span-1 ${
+                className={`h-10 rounded-full px-4 gap-2 ${
                   homeTab === "help"
                     ? "bg-red-600 text-white hover:bg-red-500"
                     : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800"
@@ -2588,20 +2594,17 @@ export default function App() {
                 <CircleHelp className="w-4 h-4" />
                 Помощь
               </Button>
-              </div>
 
-              <div className="hidden h-5 w-px bg-zinc-700 sm:block" />
-              <div className="flex justify-center sm:justify-end sm:pl-2">
+              <div className="mx-1 hidden h-5 w-px bg-zinc-700 sm:block" />
               <Button
                 variant="outline"
                 onClick={() => setProfileMenuOpen((prev) => !prev)}
-                className="h-11 w-full sm:w-auto rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-3.5 gap-2"
+                className="h-10 basis-full sm:basis-auto rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-3.5 gap-2"
               >
                 <Avatar src={avatar} name={playerName || "Игрок"} size={32} />
                 <span className="max-w-[130px] truncate text-sm">{playerName || "Игрок"}</span>
                 <ChevronDown className="w-4 h-4 text-zinc-400" />
               </Button>
-              </div>
             </div>
 
             <AnimatePresence>
@@ -2736,38 +2739,39 @@ export default function App() {
                         </AnimatePresence>
 
                         <div className="grid gap-4">
-                          <div className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950/90 p-4 sm:p-5 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                            <div className="flex items-start gap-3">
-                              <div className="mt-0.5 h-9 w-9 rounded-xl border border-zinc-700 bg-zinc-900/90 text-zinc-300 flex items-center justify-center">
-                                <Search className="h-4 w-4" />
-                              </div>
-                              <div className="space-y-1">
-                                <div className="text-sm sm:text-base font-semibold text-zinc-100">
-                                  Вход по коду комнаты
-                                </div>
-                                <div className="text-xs text-zinc-500">
-                                  Введите код и сразу перейдите в нужное лобби.
-                                </div>
-                              </div>
+                          <div className="rounded-2xl border border-zinc-800 bg-zinc-950/65 px-4 py-5 sm:px-6 sm:py-6 space-y-4">
+                            <motion.div whileHover={{ y: -1 }} whileTap={{ scale: 0.985 }}>
+                              <Button
+                                onClick={createQuickRoom}
+                                className="w-full h-16 rounded-2xl text-4xl gap-2 bg-red-600 hover:bg-red-600 text-white border-0 text-[33px] font-bold tracking-tight shadow-[0_8px_28px_rgba(220,38,38,0.35)] transition-transform duration-200 hover:-translate-y-0.5"
+                              >
+                                Начать игру
+                              </Button>
+                            </motion.div>
+                            <div className="text-center text-zinc-400 text-sm">
+                              Быстрый старт (3–6 игроков)
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                              <Input
-                                value={joinCode}
-                                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                                placeholder="Введите код комнаты"
-                                className="h-12 rounded-xl bg-zinc-100 text-zinc-950 placeholder:text-zinc-400 border-0 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-0"
-                                onKeyDown={(e) => e.key === "Enter" && joinByCodeFromQuickInput()}
-                              />
-                              <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                                <Button
-                                  onClick={joinByCodeFromQuickInput}
-                                  variant="secondary"
-                                  disabled={!joinCode.trim()}
-                                  className="h-12 rounded-xl px-6 min-w-[120px] bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
-                                >
-                                  Войти
-                                </Button>
-                              </motion.div>
+                            <Separator className="bg-zinc-800" />
+                            <div className="flex items-center gap-2">
+                              <div className="h-12 flex-1 rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 flex items-center gap-2">
+                                <span className="text-zinc-400 font-semibold">#</span>
+                                <Input
+                                  value={joinCode}
+                                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                                  placeholder="Введите код"
+                                  className="h-10 bg-transparent border-0 p-0 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-0 focus-visible:ring-offset-0"
+                                  onKeyDown={(e) =>
+                                    e.key === "Enter" && joinByCodeFromQuickInput()
+                                  }
+                                />
+                              </div>
+                              <Button
+                                onClick={joinByCodeFromQuickInput}
+                                disabled={!joinCode.trim()}
+                                className="h-12 min-w-[100px] rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0 text-lg"
+                              >
+                                Войти
+                              </Button>
                             </div>
                           </div>
 
@@ -2791,19 +2795,6 @@ export default function App() {
                               </motion.div>
                             )}
                           </AnimatePresence>
-
-                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
-                            <Button
-                              onClick={createQuickRoom}
-                              className="w-full h-12 rounded-xl text-base gap-2 bg-red-600 hover:bg-red-500 text-white border-0"
-                            >
-                              <UserPlus className="w-4 h-4" />
-                              Быстрая комната
-                            </Button>
-                          </motion.div>
-                          <div className="text-xs text-zinc-500 -mt-2">
-                            Быстрый режим: старт возможен при 3–6 игроках.
-                          </div>
                         </div>
 
                         <Separator className="bg-zinc-800" />
@@ -2841,7 +2832,7 @@ export default function App() {
                         <div className="flex w-full sm:w-auto items-center">
                           <Button
                             onClick={() => setCreateMatchDialogOpen(true)}
-                            className="w-full sm:w-auto h-12 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0 gap-2 px-7 text-base font-semibold shadow-[0_0_0_1px_rgba(239,68,68,0.5),0_0_24px_rgba(220,38,38,0.35)] hover:shadow-[0_0_0_1px_rgba(239,68,68,0.6),0_0_28px_rgba(239,68,68,0.5)]"
+                            className="w-full sm:w-auto h-14 rounded-xl bg-red-600 hover:bg-red-600 text-white border-0 gap-2 px-9 text-lg font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-[0_0_0_1px_rgba(239,68,68,0.5),0_10px_28px_rgba(220,38,38,0.35)] hover:shadow-[0_0_0_1px_rgba(248,113,113,0.7),0_16px_36px_rgba(220,38,38,0.45)]"
                           >
                             <UserPlus className="w-4 h-4" />
                             Создать матч
@@ -2957,7 +2948,7 @@ export default function App() {
               }}
             >
               <DialogContent
-                className={`w-[calc(100vw-1.25rem)] max-w-3xl max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-5 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
+                className={`w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-2xl max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
               >
                 <DialogHeader className="space-y-1">
                   <DialogTitle>Создать матч</DialogTitle>
@@ -2966,7 +2957,7 @@ export default function App() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-5">
-                  <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 via-zinc-900/80 to-red-950/30 px-4 py-3">
+                  <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 via-zinc-900/80 to-zinc-900 px-4 py-3">
                     <div className="text-xs uppercase tracking-[0.12em] text-zinc-400">
                       Выбранный режим
                     </div>
@@ -2998,7 +2989,7 @@ export default function App() {
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <label className="text-sm text-zinc-300">Режим матча</label>
-                      <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="grid gap-2 md:grid-cols-2">
                         {ROOM_MODE_OPTIONS.map((mode) => (
                           <button
                             key={mode.key}
