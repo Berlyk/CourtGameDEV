@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import path from "path";
+import { existsSync } from "fs";
 import { HealthCheckResponse } from "@workspace/api-zod";
 import router from "./routes";
 
@@ -21,10 +22,18 @@ app.get("/healthz", (_req, res) => {
 
 /* ---------- FRONTEND ---------- */
 
-const frontendPath = path.resolve(
-  process.cwd(),
-  "artifacts/court-game/dist"
-);
+const frontendPathCandidates = [
+  // When server is started from repo root
+  path.resolve(process.cwd(), "artifacts/court-game/dist"),
+  // When server is started from artifacts/api-server
+  path.resolve(process.cwd(), "../court-game/dist"),
+];
+
+const frontendPath =
+  frontendPathCandidates.find((candidate) => existsSync(candidate)) ??
+  frontendPathCandidates[0];
+
+console.log(`[frontend] serving static files from: ${frontendPath}`);
 
 app.use(express.static(frontendPath));
 
