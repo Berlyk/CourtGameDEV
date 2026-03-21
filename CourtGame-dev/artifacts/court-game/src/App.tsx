@@ -239,6 +239,21 @@ const HIDE_SCROLLBAR_CLASS =
 const RECONNECT_GRACE_MS = 30_000;
 const RECONNECT_DEADLINE_KEY = "court_reconnect_deadline";
 
+function getDisconnectProgress(nowTs: number, reconnectExpiresAt?: number | null): number {
+  if (!reconnectExpiresAt) return 0;
+  const msLeft = Math.max(0, reconnectExpiresAt - nowTs);
+  return 1 - Math.min(1, msLeft / RECONNECT_GRACE_MS);
+}
+
+function getDisconnectColor(nowTs: number, reconnectExpiresAt?: number | null): string {
+  const progress = getDisconnectProgress(nowTs, reconnectExpiresAt);
+  const from = { r: 248, g: 113, b: 113 };
+  const to = { r: 113, g: 113, b: 122 };
+  const mix = (start: number, end: number) =>
+    Math.round(start + (end - start) * progress);
+  return `rgb(${mix(from.r, to.r)}, ${mix(from.g, to.g)}, ${mix(from.b, to.b)})`;
+}
+
 interface DevLogEntry {
   date: string;
   version: string;
@@ -1127,14 +1142,27 @@ function PlayerCard({
   isHost,
   canKick = false,
   onKick,
+  nowTs,
 }: {
   player: PlayerInfo;
   isHost: boolean;
   canKick?: boolean;
   onKick?: () => void;
+  nowTs: number;
 }) {
+  const disconnectColor = getDisconnectColor(nowTs, player.reconnectExpiresAt);
+  const disconnectProgress = getDisconnectProgress(
+    nowTs,
+    player.reconnectExpiresAt,
+  );
+
   return (
-    <motion.div variants={cardVariants} initial="initial" animate="animate">
+    <motion.div
+      variants={cardVariants}
+      initial="initial"
+      animate="animate"
+      exit={{ opacity: 0, y: 8, scale: 0.97, transition: { duration: 0.22 } }}
+    >
       <Card className="rounded-2xl shadow-sm bg-zinc-900/90 border-zinc-800 text-zinc-100">
         <CardContent className="p-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -1142,10 +1170,19 @@ function PlayerCard({
             <div className="min-w-0">
               <div className="font-semibold text-base truncate">{player.name}</div>
               {player.isDisconnected && (
-                <div className="inline-flex items-center gap-1 text-xs text-amber-400 mt-1">
+                <motion.div
+                  className="inline-flex items-center gap-1 text-xs mt-1"
+                  style={{ color: disconnectColor }}
+                  animate={
+                    disconnectProgress >= 0.98
+                      ? { scale: [1, 1.12, 0.96], opacity: [1, 0.8, 0.55] }
+                      : { scale: 1, opacity: 1 }
+                  }
+                  transition={{ duration: 0.4 }}
+                >
                   <DoorOpen className="w-3.5 h-3.5" />
                   <span>Вышел</span>
-                </div>
+                </motion.div>
               )}
               <div className="text-sm text-zinc-400">
                 {isHost ? "Ведущий комнаты" : "Игрок"}
@@ -1326,6 +1363,14 @@ export default function App() {
       ? Math.ceil((reconnectDeadline - reconnectNow) / 1000)
       : 0;
   const reconnectWindowActive = reconnectDeadline !== null && reconnectSecondsLeft > 0;
+  const hasDisconnectedPlayers = useMemo(() => {
+    const roomPlayers = room?.players ?? [];
+    const gamePlayers = game?.players ?? [];
+    return [...roomPlayers, ...gamePlayers].some(
+      (player) =>
+        player.isDisconnected && (player.reconnectExpiresAt ?? 0) > 0,
+    );
+  }, [room?.players, game?.players]);
   const canReconnect = reconnectWindowActive || hasSession || hasStoredSession;
 
   useEffect(() => {
@@ -1375,12 +1420,12 @@ export default function App() {
   }, [screen, hasSession, hasStoredSession]);
 
   useEffect(() => {
-    if (!reconnectDeadline) return;
+    if (!reconnectDeadline && !hasDisconnectedPlayers) return;
     const timer = window.setInterval(() => {
       setReconnectNow(Date.now());
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [reconnectDeadline]);
+  }, [reconnectDeadline, hasDisconnectedPlayers]);
 
   useEffect(() => {
     if (!reconnectDeadline) return;
@@ -2961,6 +3006,7 @@ export default function App() {
                         key={player.id}
                         player={player}
                         isHost={player.id === room.hostId}
+                        nowTs={reconnectNow}
                         canKick={myId === room.hostId && player.id !== room.hostId}
                         onKick={() => kickPlayerFromRoom(player.id)}
                       />
@@ -3452,7 +3498,26 @@ export default function App() {
                           <Avatar src={p.avatar ?? null} name={p.name} size={32} />
                           <span className="text-zinc-300 truncate">{p.name}</span>
                           {p.isDisconnected && (
-                            <DoorOpen className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                            <motion.span
+                              className="inline-flex flex-shrink-0"
+                              style={{
+                                color: getDisconnectColor(
+                                  reconnectNow,
+                                  p.reconnectExpiresAt,
+                                ),
+                              }}
+                              animate={
+                                getDisconnectProgress(
+                                  reconnectNow,
+                                  p.reconnectExpiresAt,
+                                ) >= 0.98
+                                  ? { scale: [1, 1.1, 0.95], opacity: [1, 0.8, 0.55] }
+                                  : { scale: 1, opacity: 1 }
+                              }
+                              transition={{ duration: 0.4 }}
+                            >
+                              <DoorOpen className="w-3.5 h-3.5" />
+                            </motion.span>
                           )}
                         </div>
                         <span className="text-zinc-500">{p.roleTitle}</span>

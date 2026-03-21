@@ -157,7 +157,7 @@ function emitFactRevealPermissions(io: SocketIOServer, room: any) {
 }
 
 function isPlayerTemporarilyDisconnected(player: any): boolean {
-  return !player?.socketId && (player?.disconnectedUntil ?? 0) > Date.now();
+  return !player?.socketId && (player?.disconnectedUntil ?? 0) > 0;
 }
 
 function mapGamePlayers(players: any[]) {

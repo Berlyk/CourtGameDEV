@@ -332,12 +332,21 @@ export function rejoinRoom(
   const normalizedToken = sessionToken.trim();
   if (!normalizedToken) return null;
   const normalizedAvatar = avatar || undefined;
+  const canReconnectNow = (player: Player) => {
+    if (player.socketId) return true;
+    const deadline = player.disconnectedUntil ?? 0;
+    if (!deadline) return true;
+    return deadline > Date.now();
+  };
 
   if (room.game) {
     const player = room.game.players.find(
       (p: any) => p.sessionToken === normalizedToken,
     );
     if (player) {
+      if (!canReconnectNow(player)) {
+        return null;
+      }
       player.socketId = newSocketId;
       player.disconnectedUntil = null;
       if (avatar !== undefined) {
@@ -357,6 +366,9 @@ export function rejoinRoom(
 
   const player = room.players.find((p) => p.sessionToken === normalizedToken);
   if (player) {
+    if (!canReconnectNow(player)) {
+      return null;
+    }
     player.socketId = newSocketId;
     player.disconnectedUntil = null;
     if (avatar !== undefined) {
