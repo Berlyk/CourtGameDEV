@@ -1734,7 +1734,6 @@ export default function App() {
     localStorage.removeItem("court_admin_host_id");
     setAdminHostSessionToken(null);
     localStorage.removeItem("court_admin_host_token");
-    localStorage.removeItem("court_session_token");
     setJoinCode("");
     setDisconnectAlert("");
     setRejoinAlert("");
