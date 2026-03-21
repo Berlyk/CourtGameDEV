@@ -7,6 +7,7 @@ import {
   joinRunningGameAsWitness,
   isJoinPasswordValid,
   rejoinRoom,
+  reclaimDisconnectedPlayerByName,
   isNameTaken,
   isNameTakenByOther,
   listPublicMatches,
@@ -334,6 +335,53 @@ export function setupSocket(httpServer: HttpServer) {
         socket.emit("error", { message: "\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c \u043a\u043e\u043c\u043d\u0430\u0442\u044b." });
         return;
       }
+
+      // If a player with this nickname disconnected earlier, reclaim their slot/role.
+      const reclaimed = reclaimDisconnectedPlayerByName(
+        roomCode,
+        trimmedName,
+        socket.id,
+        avatar,
+      );
+      if (reclaimed) {
+        socketToRoom.set(socket.id, {
+          roomCode,
+          playerId: reclaimed.playerId,
+          sessionToken: reclaimed.sessionToken,
+        });
+        socket.join(roomCode);
+        socket.emit("room_joined", {
+          playerId: reclaimed.playerId,
+          sessionToken: reclaimed.sessionToken,
+          state: getRoomState(reclaimed.room, reclaimed.playerId),
+        });
+        if (reclaimed.room.game) {
+          socket.to(roomCode).emit("player_rejoined", {
+            playerId: reclaimed.playerId,
+            playerName: reclaimed.playerName.trim(),
+          });
+          io.to(roomCode).emit("game_players_updated", {
+            players: mapGamePlayers(reclaimed.room.game.players),
+          });
+        } else {
+          io.to(roomCode).emit("room_updated", {
+            players: mapLobbyPlayers(reclaimed.room.players),
+            hostId: reclaimed.room.hostId,
+            roomName: reclaimed.room.roomName,
+            modeKey: reclaimed.room.modeKey,
+            maxPlayers: reclaimed.room.maxPlayers,
+            isHostJudge: reclaimed.room.isHostJudge,
+            visibility: reclaimed.room.visibility,
+            venueLabel: reclaimed.room.venueLabel,
+            venueUrl: reclaimed.room.venueUrl,
+            requiresPassword: !!reclaimed.room.password,
+            lobbyChat: reclaimed.room.lobbyChat,
+          });
+        }
+        emitPublicMatches(io);
+        return;
+      }
+
       if (isNameTaken(roomCode, trimmedName)) {
         socket.emit("error", { message: `\u041d\u0438\u043a\u043d\u0435\u0439\u043c \u00ab${trimmedName}\u00bb \u0443\u0436\u0435 \u0437\u0430\u043d\u044f\u0442 \u0432 \u044d\u0442\u043e\u0439 \u043a\u043e\u043c\u043d\u0430\u0442\u0435.` });
         return;

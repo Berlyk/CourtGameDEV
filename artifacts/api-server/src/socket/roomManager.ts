@@ -411,6 +411,65 @@ export function rejoinRoom(
   return null;
 }
 
+export function reclaimDisconnectedPlayerByName(
+  code: string,
+  playerName: string,
+  newSocketId: string,
+  avatar?: string | null,
+): { room: Room; playerId: string; playerName: string; sessionToken: string } | null {
+  const room = rooms.get(code);
+  if (!room) return null;
+
+  const normalizedName = playerName.trim().toLowerCase();
+  if (!normalizedName) return null;
+  const normalizedAvatar = avatar || undefined;
+
+  const findDisconnected = (list: Player[]) =>
+    list.find(
+      (p) =>
+        p.name.trim().toLowerCase() === normalizedName &&
+        (!p.socketId || p.socketId.trim().length === 0),
+    );
+
+  const lobbyPlayer = findDisconnected(room.players);
+  const gamePlayer = room.game ? findDisconnected(room.game.players) : undefined;
+  const targetPlayer = gamePlayer ?? lobbyPlayer;
+  if (!targetPlayer) return null;
+
+  targetPlayer.socketId = newSocketId;
+  if (avatar !== undefined) {
+    targetPlayer.avatar = normalizedAvatar;
+  }
+  if (!targetPlayer.sessionToken || !targetPlayer.sessionToken.trim()) {
+    targetPlayer.sessionToken = crypto.randomUUID();
+  }
+
+  const mirrorLobbyPlayer = room.players.find((p) => p.id === targetPlayer.id);
+  if (mirrorLobbyPlayer) {
+    mirrorLobbyPlayer.socketId = newSocketId;
+    mirrorLobbyPlayer.sessionToken = targetPlayer.sessionToken;
+    if (avatar !== undefined) {
+      mirrorLobbyPlayer.avatar = normalizedAvatar;
+    }
+  }
+
+  const mirrorGamePlayer = room.game?.players.find((p) => p.id === targetPlayer.id);
+  if (mirrorGamePlayer) {
+    mirrorGamePlayer.socketId = newSocketId;
+    mirrorGamePlayer.sessionToken = targetPlayer.sessionToken;
+    if (avatar !== undefined) {
+      mirrorGamePlayer.avatar = normalizedAvatar;
+    }
+  }
+
+  return {
+    room,
+    playerId: targetPlayer.id,
+    playerName: targetPlayer.name,
+    sessionToken: targetPlayer.sessionToken!,
+  };
+}
+
 export function removePlayer(code: string, playerId: string): Room | null {
   const room = rooms.get(code);
   if (!room) return null;
