@@ -2129,6 +2129,11 @@ export default function App() {
                     <Copy className="w-4 h-4" />
                     {copiedRoomCode ? "Скопировано" : "Скопировать"}
                   </Button>
+                  <TestPlayersPanel
+                    roomCode={room.code}
+                    currentPlayers={room.players.length}
+                    isHost={myId === room.hostId}
+                  />
                   {myId === room.hostId && (
                     <motion.div
                       whileHover={{ scale: 1.03 }}
@@ -2203,11 +2208,6 @@ export default function App() {
                   )}
                 </div>
               </InfoBlock>
-              <TestPlayersPanel
-                roomCode={room.code}
-                currentPlayers={room.players.length}
-                isHost={myId === room.hostId}
-              />
             </motion.div>
 
             <motion.div
