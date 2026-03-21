@@ -1986,6 +1986,10 @@ export default function App() {
     setLobbyChatMessages([]);
     setProfileMenuOpen(false);
     setOpenMatchesOpen(false);
+    const hasStoredSession =
+      !!localStorage.getItem("court_session") &&
+      !!localStorage.getItem("court_session_token");
+    setHasSession(hasStoredSession);
   }, [socket, activeRoomCode]);
 
   const finalExit = useCallback(() => {

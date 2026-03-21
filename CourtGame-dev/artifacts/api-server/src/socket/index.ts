@@ -155,7 +155,9 @@ function emitFactRevealPermissions(io: SocketIOServer, room: any) {
   });
 }
 function mapGamePlayers(players: any[]) {
-  return players.map((p: any) => ({
+  return players
+    .filter((p: any) => !!p.socketId)
+    .map((p: any) => ({
     id: p.id,
     name: p.name,
     avatar: p.avatar,
@@ -165,7 +167,9 @@ function mapGamePlayers(players: any[]) {
 }
 
 function mapLobbyPlayers(players: any[]) {
-  return players.map((p: any) => ({
+  return players
+    .filter((p: any) => !!p.socketId)
+    .map((p: any) => ({
     id: p.id,
     name: p.name,
     avatar: p.avatar,
@@ -424,7 +428,22 @@ export function setupSocket(httpServer: HttpServer) {
           playerId,
           playerName: result.playerName.trim()
         });
+        io.to(roomCode).emit("game_players_updated", {
+          players: mapGamePlayers(room.game.players),
+        });
+      } else {
+        io.to(roomCode).emit("room_updated", {
+          players: mapLobbyPlayers(room.players),
+          hostId: room.hostId,
+          isHostJudge: room.isHostJudge,
+          visibility: room.visibility,
+          venueLabel: room.venueLabel,
+          venueUrl: room.venueUrl,
+          requiresPassword: !!room.password,
+          lobbyChat: room.lobbyChat,
+        });
       }
+      emitPublicMatches(io);
     });
 
     socket.on("start_game", ({ code, sessionToken }: { code: string; sessionToken?: string }) => {
@@ -878,35 +897,44 @@ export function setupSocket(httpServer: HttpServer) {
       if (!info) return;
 
       socketToRoom.delete(socketId);
+      socket.leave(info.roomCode);
 
       const room = getRoom(info.roomCode);
-      const leavingPlayer = room?.players.find((p: any) => p.id === info.playerId)
-        || room?.game?.players.find((p: any) => p.id === info.playerId);
-      const leavingName = leavingPlayer?.name || "Игрок";
-      const wasInGame = !!room?.game;
+      if (!room) return;
 
-      if (wasInGame) {
-        if (leavingPlayer) leavingPlayer.socketId = "";
+      const leavingLobbyPlayer = room.players.find((p: any) => p.id === info.playerId);
+      const leavingGamePlayer = room.game?.players.find((p: any) => p.id === info.playerId);
+      const leavingName = leavingLobbyPlayer?.name || leavingGamePlayer?.name || "Guest";
+
+      if (leavingLobbyPlayer) {
+        leavingLobbyPlayer.socketId = "";
+      }
+      if (leavingGamePlayer) {
+        leavingGamePlayer.socketId = "";
+      }
+
+      if (room.game) {
         socket.to(info.roomCode).emit("player_left", {
           playerId: info.playerId,
-          playerName: leavingName
+          playerName: leavingName,
+        });
+        socket.to(info.roomCode).emit("game_players_updated", {
+          players: mapGamePlayers(room.game.players),
         });
       } else {
-        const updatedRoom = removePlayer(info.roomCode, info.playerId);
-        if (updatedRoom) {
-          socket.to(info.roomCode).emit("room_updated", {
-            players: mapLobbyPlayers(updatedRoom.players),
-            hostId: updatedRoom.hostId,
-            isHostJudge: updatedRoom.isHostJudge,
-            visibility: updatedRoom.visibility,
-            venueLabel: updatedRoom.venueLabel,
-            venueUrl: updatedRoom.venueUrl,
-            requiresPassword: !!updatedRoom.password,
-            lobbyChat: updatedRoom.lobbyChat,
-          });
-        }
-        emitPublicMatches(io);
+        socket.to(info.roomCode).emit("room_updated", {
+          players: mapLobbyPlayers(room.players),
+          hostId: room.hostId,
+          isHostJudge: room.isHostJudge,
+          visibility: room.visibility,
+          venueLabel: room.venueLabel,
+          venueUrl: room.venueUrl,
+          requiresPassword: !!room.password,
+          lobbyChat: room.lobbyChat,
+        });
       }
+
+      emitPublicMatches(io);
     }
 
     socket.on("leave_room", () => {

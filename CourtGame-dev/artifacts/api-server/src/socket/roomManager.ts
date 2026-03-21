@@ -382,6 +382,7 @@ export function listPublicMatches(): PublicMatchInfo[] {
   return [...rooms.values()]
     .filter((room) => room.visibility === "public")
     .map((room) => {
+      const connectedLobbyPlayers = room.players.filter((p) => !!p.socketId);
       const hostPlayer =
         room.players.find((p) => p.id === room.hostId) ??
         room.game?.players.find((p: any) => p.id === room.hostId);
@@ -389,7 +390,7 @@ export function listPublicMatches(): PublicMatchInfo[] {
       return {
         code: room.code,
         hostName: hostPlayer?.name ?? "Host",
-        playerCount: room.players.length,
+        playerCount: connectedLobbyPlayers.length,
         maxPlayers: 6,
         started: room.started,
         createdAt: room.createdAt,
@@ -398,6 +399,7 @@ export function listPublicMatches(): PublicMatchInfo[] {
         requiresPassword: !!room.password,
       };
     })
+    .filter((match) => match.playerCount > 0)
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
