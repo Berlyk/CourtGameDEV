@@ -2127,6 +2127,29 @@ export default function App() {
     setCreateMatchDialogOpen(false);
   }, [socket]);
 
+  const returnHomeWithSession = useCallback(() => {
+    setScreen("home");
+    setRoom(null);
+    setGame(null);
+    setJoinCode("");
+    setJoinPasswordDialogOpen(false);
+    setJoinPasswordDialogMatch(null);
+    setJoinPasswordInput("");
+    setJoinPasswordDialogError("");
+    setJoinPasswordVisible(false);
+    setDisconnectAlert("");
+    setRejoinAlert("");
+    setKickedAlert("");
+    setCopiedRoomCode(false);
+    setIsHostJudge(false);
+    setStartGameLoading(false);
+    setContextHelpOpen(false);
+    setLobbyChatInput("");
+    setLobbyChatMessages([]);
+    setProfileMenuOpen(false);
+    setCreateMatchDialogOpen(false);
+  }, []);
+
   const finalExit = useCallback(() => {
     socket.emit("leave_room");
     localStorage.removeItem("court_session");
@@ -3244,7 +3267,7 @@ export default function App() {
                   <Button
                     variant="outline"
                     className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                    onClick={resetAll}
+                    onClick={returnHomeWithSession}
                   >
                     Выйти
                   </Button>
