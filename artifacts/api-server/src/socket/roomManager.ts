@@ -129,6 +129,8 @@ export interface GameState {
 export interface Room {
   code: string;
   roomName?: string;
+  modeKey: RoomModeKey;
+  maxPlayers: number;
   hostId: string;
   players: Player[];
   game: GameState | null;
@@ -154,6 +156,7 @@ export interface LobbyChatMessage {
 export interface PublicMatchInfo {
   code: string;
   roomName?: string;
+  modeKey: RoomModeKey;
   visibility: "public" | "private";
   hostName: string;
   playerCount: number;
@@ -167,12 +170,26 @@ export interface PublicMatchInfo {
 }
 
 export interface CreateRoomOptions {
+  modeKey?: RoomModeKey;
   visibility?: "public" | "private";
   password?: string;
   roomName?: string;
   venueLabel?: string;
   venueUrl?: string;
 }
+
+export type RoomModeKey =
+  | "civil_3"
+  | "criminal_4"
+  | "criminal_5"
+  | "company_6";
+
+const ROOM_MODE_MAX_PLAYERS: Record<RoomModeKey, number> = {
+  civil_3: 3,
+  criminal_4: 4,
+  criminal_5: 5,
+  company_6: 6,
+};
 
 const rooms = new Map<string, Room>();
 
@@ -193,6 +210,12 @@ function normalizeRoomName(name: string | undefined): string | undefined {
   return trimmed ? trimmed.slice(0, 80) : undefined;
 }
 
+function normalizeModeKey(modeKey: RoomModeKey | undefined): RoomModeKey {
+  if (!modeKey) return "civil_3";
+  if (modeKey in ROOM_MODE_MAX_PLAYERS) return modeKey;
+  return "civil_3";
+}
+
 function normalizeVenueLabel(label: string | undefined): string | undefined {
   if (!label) return undefined;
   const trimmed = label.trim();
@@ -206,6 +229,8 @@ function normalizeVenueUrl(url: string | undefined): string | undefined {
 }
 
 export function createRoom(code: string, player: Player, options?: CreateRoomOptions): Room {
+  const modeKey = normalizeModeKey(options?.modeKey);
+  const maxPlayers = ROOM_MODE_MAX_PLAYERS[modeKey];
   const visibility = normalizeVisibility(options?.visibility);
   const password = normalizeRoomPassword(options?.password);
   const roomName = normalizeRoomName(options?.roomName);
@@ -214,6 +239,8 @@ export function createRoom(code: string, player: Player, options?: CreateRoomOpt
   const room: Room = {
     code,
     roomName,
+    modeKey,
+    maxPlayers,
     hostId: player.id,
     players: [player],
     game: null,
@@ -300,7 +327,7 @@ export function joinRoom(code: string, player: Player, password?: string): Room 
   const room = rooms.get(code);
   if (!room) return null;
   if (room.started) return null;
-  if (room.players.length >= 6) return null;
+  if (room.players.length >= room.maxPlayers) return null;
   if (!isJoinPasswordValid(code, password)) return null;
   room.players.push(player);
   return room;
@@ -309,6 +336,7 @@ export function joinRoom(code: string, player: Player, password?: string): Room 
 export function joinRunningGameAsWitness(code: string, player: Player): Room | null {
   const room = rooms.get(code);
   if (!room?.game) return null;
+  if (room.players.length >= room.maxPlayers) return null;
 
   const witnessPlayer: Player = {
     ...player,
@@ -401,10 +429,11 @@ export function listPublicMatches(): PublicMatchInfo[] {
       return {
         code: room.code,
         roomName: room.roomName,
+        modeKey: room.modeKey,
         visibility: room.visibility,
         hostName: hostPlayer?.name ?? "Host",
         playerCount: room.players.length,
-        maxPlayers: 6,
+        maxPlayers: room.maxPlayers,
         started: room.started,
         currentStage: room.game
           ? room.game.stages[room.game.stageIndex] ?? undefined
@@ -512,7 +541,7 @@ export function updatePlayerProfile(
 export function startGame(code: string): Room | null {
   const room = rooms.get(code);
   if (!room) return null;
-  if (room.players.length < 3 || room.players.length > 6) return null;
+  if (room.players.length !== room.maxPlayers) return null;
 
 const count = room.players.length;
 const availableCases = cases[count] || cases[3];

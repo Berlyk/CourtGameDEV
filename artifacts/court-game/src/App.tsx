@@ -14,6 +14,7 @@ import {
   UserX,
   Play,
   Eye,
+  EyeOff,
   Shield,
   AlertCircle,
   Sparkles,
@@ -25,10 +26,8 @@ import {
   MessageSquare,
   Lock,
   Globe,
-  Link2,
   UserCircle2,
   ChevronDown,
-  ExternalLink,
 } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import { Switch } from "@/components/ui/switch";
@@ -62,6 +61,56 @@ const DEFAULT_GAME_STAGES = [
   "Финальная речь ответчика",
   "Решение судьи",
 ];
+
+type RoomModeKey = "civil_3" | "criminal_4" | "criminal_5" | "company_6";
+
+const ROOM_MODE_OPTIONS: Array<{
+  key: RoomModeKey;
+  title: string;
+  subtitle: string;
+  maxPlayers: number;
+}> = [
+  {
+    key: "civil_3",
+    title: "Гражданский спор / Трудовой спор",
+    subtitle: "Короткий формат на 3 участников.",
+    maxPlayers: 3,
+  },
+  {
+    key: "criminal_4",
+    title: "Уголовное дело (4)",
+    subtitle: "Режим с адвокатом ответчика.",
+    maxPlayers: 4,
+  },
+  {
+    key: "criminal_5",
+    title: "Уголовное дело (5)",
+    subtitle: "Режим с прокурором.",
+    maxPlayers: 5,
+  },
+  {
+    key: "company_6",
+    title: "Суд на компанию",
+    subtitle: "Полный состав сторон.",
+    maxPlayers: 6,
+  },
+];
+
+const ROOM_MODE_BY_KEY = Object.fromEntries(
+  ROOM_MODE_OPTIONS.map((mode) => [mode.key, mode]),
+) as Record<RoomModeKey, (typeof ROOM_MODE_OPTIONS)[number]>;
+
+function getRoomModeMeta(modeKey: RoomModeKey | undefined, fallbackMaxPlayers = 6) {
+  if (modeKey && ROOM_MODE_BY_KEY[modeKey]) {
+    return ROOM_MODE_BY_KEY[modeKey];
+  }
+  return {
+    key: "company_6" as RoomModeKey,
+    title: `Режим на ${fallbackMaxPlayers} игроков`,
+    subtitle: "Параметры режима определяются хостом.",
+    maxPlayers: fallbackMaxPlayers,
+  };
+}
 
 
 const PREPARATION_STAGE_MARKER = "подготов";
@@ -1032,6 +1081,7 @@ interface LobbyChatMessage {
 interface PublicMatchInfo {
   code: string;
   roomName?: string;
+  modeKey: RoomModeKey;
   visibility: "public" | "private";
   hostName: string;
   playerCount: number;
@@ -1080,6 +1130,8 @@ interface GameState {
 interface RoomState {
   code: string;
   roomName?: string;
+  modeKey?: RoomModeKey;
+  maxPlayers?: number;
   hostId: string;
   players: PlayerInfo[];
   started: boolean;
@@ -1279,10 +1331,19 @@ export default function App() {
   const [joinPasswordDialogOpen, setJoinPasswordDialogOpen] = useState(false);
   const [joinPasswordDialogMatch, setJoinPasswordDialogMatch] = useState<PublicMatchInfo | null>(null);
   const [joinPasswordInput, setJoinPasswordInput] = useState("");
+  const [joinPasswordDialogError, setJoinPasswordDialogError] = useState("");
+  const [joinPasswordVisible, setJoinPasswordVisible] = useState(false);
   const [createRoomName, setCreateRoomName] = useState("");
-  const [createVenueLabel, setCreateVenueLabel] = useState("");
-  const [createVenueUrl, setCreateVenueUrl] = useState("");
+  const [createRoomMode, setCreateRoomMode] = useState<RoomModeKey>("civil_3");
+  const [createRoomPrivate, setCreateRoomPrivate] = useState(false);
   const [createRoomPassword, setCreateRoomPassword] = useState("");
+  const [createRoomPasswordVisible, setCreateRoomPasswordVisible] = useState(false);
+  const [showChatSeconds, setShowChatSeconds] = useState(
+    () => localStorage.getItem("court_show_chat_seconds") === "1",
+  );
+  const [shareAvatarInProfile, setShareAvatarInProfile] = useState(
+    () => localStorage.getItem("court_share_avatar") !== "0",
+  );
   const [lobbyChatInput, setLobbyChatInput] = useState("");
   const [lobbyChatMessages, setLobbyChatMessages] = useState<LobbyChatMessage[]>([]);
 
@@ -1302,8 +1363,12 @@ export default function App() {
   const [isHostJudge, setIsHostJudge] = useState(false);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const lobbyChatScrollRef = useRef<HTMLDivElement>(null);
+  const joinPasswordDialogOpenRef = useRef(false);
   const socket = getSocket();
   const activeRoomCode = room?.code ?? game?.code ?? null;
+  const sharedAvatar = shareAvatarInProfile ? avatar : null;
+  const selectedCreateMode = getRoomModeMeta(createRoomMode);
 
   useEffect(() => {
     const savedName = localStorage.getItem("court_nickname");
@@ -1346,6 +1411,27 @@ export default function App() {
   }, [screen]);
 
   useEffect(() => {
+    joinPasswordDialogOpenRef.current = joinPasswordDialogOpen;
+  }, [joinPasswordDialogOpen]);
+
+  useEffect(() => {
+    localStorage.setItem("court_show_chat_seconds", showChatSeconds ? "1" : "0");
+  }, [showChatSeconds]);
+
+  useEffect(() => {
+    localStorage.setItem("court_share_avatar", shareAvatarInProfile ? "1" : "0");
+  }, [shareAvatarInProfile]);
+
+  useEffect(() => {
+    if (screen !== "room") return;
+    const container = lobbyChatScrollRef.current;
+    if (!container) return;
+    requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+  }, [lobbyChatMessages, screen, room?.code]);
+
+  useEffect(() => {
     socket.on(
       "room_joined",
       ({
@@ -1370,17 +1456,19 @@ export default function App() {
         setJoinPasswordDialogOpen(false);
         setJoinPasswordDialogMatch(null);
         setJoinPasswordInput("");
+        setJoinPasswordDialogError("");
+        setJoinPasswordVisible(false);
         if (state.hostId === playerId && sessionToken) {
           setAdminHostId(playerId);
           localStorage.setItem("court_admin_host_id", playerId);
           setAdminHostSessionToken(sessionToken);
           localStorage.setItem("court_admin_host_token", sessionToken);
         }
-        if (avatar) {
+        if (sharedAvatar) {
           socket.emit("update_avatar", {
             code: state.code,
             sessionToken,
-            avatar,
+            avatar: sharedAvatar,
           });
         }
         if (state.type === "room") {
@@ -1421,6 +1509,8 @@ export default function App() {
         hostId,
         isHostJudge: hj,
         roomName,
+        modeKey,
+        maxPlayers,
         visibility,
         venueLabel,
         venueUrl,
@@ -1431,6 +1521,8 @@ export default function App() {
         hostId: string;
         isHostJudge?: boolean;
         roomName?: string;
+        modeKey?: RoomModeKey;
+        maxPlayers?: number;
         visibility?: "public" | "private";
         venueLabel?: string;
         venueUrl?: string;
@@ -1451,6 +1543,8 @@ export default function App() {
             players: mergedPlayers,
             hostId,
             roomName: roomName ?? prev.roomName,
+            modeKey: modeKey ?? prev.modeKey,
+            maxPlayers: maxPlayers ?? prev.maxPlayers,
             visibility: visibility ?? prev.visibility,
             venueLabel: venueLabel ?? prev.venueLabel,
             venueUrl: venueUrl ?? prev.venueUrl,
@@ -1595,6 +1689,8 @@ export default function App() {
       setJoinPasswordDialogOpen(false);
       setJoinPasswordDialogMatch(null);
       setJoinPasswordInput("");
+      setJoinPasswordDialogError("");
+      setJoinPasswordVisible(false);
       setProfileMenuOpen(false);
       setScreen("home");
       setKickedAlert(
@@ -1666,6 +1762,12 @@ export default function App() {
 
     socket.on("error", ({ message }: { message: string }) => {
       setStartGameLoading(false);
+      if (message.toLowerCase().includes("парол")) {
+        setJoinPasswordDialogError(message);
+        if (joinPasswordDialogOpenRef.current) {
+          return;
+        }
+      }
       setError(message);
       setTimeout(() => setError(""), 4000);
     });
@@ -1691,42 +1793,51 @@ export default function App() {
       socket.off("verdict_set");
       socket.off("error");
     };
-  }, [socket, avatar]);
+  }, [socket, avatar, sharedAvatar]);
 
   const createQuickPrivateRoom = useCallback(() => {
     const name = playerName.trim() || "Игрок";
     localStorage.setItem("court_nickname", name);
     socket.emit("create_room", {
       playerName: name,
-      avatar,
+      avatar: sharedAvatar || undefined,
       options: {
         visibility: "private",
+        modeKey: "company_6",
       },
     });
-  }, [socket, playerName, avatar]);
+  }, [socket, playerName, sharedAvatar]);
 
   const createRoomFromPanel = useCallback(() => {
     const name = playerName.trim() || "Игрок";
+    if (createRoomPrivate && !createRoomPassword.trim()) {
+      setError("Для приватной комнаты задайте пароль.");
+      setTimeout(() => setError(""), 3000);
+      return false;
+    }
     localStorage.setItem("court_nickname", name);
     socket.emit("create_room", {
       playerName: name,
-      avatar,
+      avatar: sharedAvatar || undefined,
       options: {
-        visibility: "public",
+        modeKey: createRoomMode,
+        visibility: createRoomPrivate ? "private" : "public",
         roomName: createRoomName.trim() || undefined,
-        password: createRoomPassword.trim() || undefined,
-        venueLabel: createVenueLabel.trim() || undefined,
-        venueUrl: createVenueUrl.trim() || undefined,
+        password:
+          createRoomPrivate && createRoomPassword.trim()
+            ? createRoomPassword.trim()
+            : undefined,
       },
     });
+    return true;
   }, [
     socket,
     playerName,
-    avatar,
+    sharedAvatar,
+    createRoomMode,
+    createRoomPrivate,
     createRoomName,
     createRoomPassword,
-    createVenueLabel,
-    createVenueUrl,
   ]);
 
   const joinRoom = useCallback((options?: { code?: string; password?: string }) => {
@@ -1738,10 +1849,10 @@ export default function App() {
     socket.emit("join_room", {
       code: targetCode,
       playerName: name,
-      avatar,
+      avatar: sharedAvatar || undefined,
       password: password || undefined,
     });
-  }, [socket, joinCode, playerName, avatar]);
+  }, [socket, joinCode, playerName, sharedAvatar]);
 
   const updateProfile = useCallback(() => {
     const nextName = playerName.trim();
@@ -1759,13 +1870,13 @@ export default function App() {
         code: activeRoomCode,
         sessionToken: mySessionToken,
         name: nextName,
-        avatar,
+        avatar: sharedAvatar,
       });
     }
 
     setProfileMenuOpen(false);
     setScreen("home");
-  }, [socket, activeRoomCode, mySessionToken, playerName, avatar]);
+  }, [socket, activeRoomCode, mySessionToken, playerName, avatar, sharedAvatar]);
 
   const sendLobbyChatMessage = useCallback(() => {
     const text = lobbyChatInput.trim();
@@ -1780,9 +1891,11 @@ export default function App() {
 
   const joinPublicMatch = useCallback(
     (match: PublicMatchInfo) => {
+      setJoinPasswordDialogError("");
       if (match.requiresPassword) {
         setJoinPasswordDialogMatch(match);
         setJoinPasswordInput("");
+        setJoinPasswordVisible(false);
         setJoinPasswordDialogOpen(true);
         return;
       }
@@ -1791,28 +1904,39 @@ export default function App() {
     [joinRoom],
   );
 
-  const openPublicMatchLink = useCallback((url: string | undefined) => {
-    if (!url) return;
-    window.open(url, "_blank", "noopener,noreferrer");
-  }, []);
+  const joinByCodeFromQuickInput = useCallback(() => {
+    const targetCode = joinCode.trim().toUpperCase();
+    if (!targetCode) return;
+    const listedMatch = publicMatches.find((match) => match.code === targetCode);
+    if (listedMatch?.requiresPassword) {
+      setJoinPasswordDialogMatch(listedMatch);
+      setJoinPasswordInput("");
+      setJoinPasswordDialogError("");
+      setJoinPasswordVisible(false);
+      setJoinPasswordDialogOpen(true);
+      return;
+    }
+    joinRoom({ code: targetCode });
+  }, [joinCode, publicMatches, joinRoom]);
 
   const joinPublicMatchWithPassword = useCallback(() => {
     if (!joinPasswordDialogMatch) return;
     const password = joinPasswordInput.trim();
+    setJoinPasswordDialogError("");
     if (!password) {
-      setError("Введите пароль комнаты.");
-      setTimeout(() => setError(""), 3000);
+      setJoinPasswordDialogError("Введите пароль комнаты.");
       return;
     }
     joinRoom({ code: joinPasswordDialogMatch.code, password });
-    setJoinPasswordDialogOpen(false);
-    setJoinPasswordDialogMatch(null);
-    setJoinPasswordInput("");
   }, [joinPasswordDialogMatch, joinPasswordInput, joinRoom]);
 
   const openProfileScreen = useCallback(() => {
     setProfileMenuOpen(false);
     setScreen("profile");
+  }, []);
+
+  const handlePlayerNameChange = useCallback((value: string) => {
+    setPlayerName(value.slice(0, 20));
   }, []);
 
   const reconnect = useCallback(() => {
@@ -2008,6 +2132,8 @@ export default function App() {
     setJoinPasswordDialogOpen(false);
     setJoinPasswordDialogMatch(null);
     setJoinPasswordInput("");
+    setJoinPasswordDialogError("");
+    setJoinPasswordVisible(false);
     setDisconnectAlert("");
     setRejoinAlert("");
     setKickedAlert("");
@@ -2042,6 +2168,8 @@ export default function App() {
     setJoinPasswordDialogOpen(false);
     setJoinPasswordDialogMatch(null);
     setJoinPasswordInput("");
+    setJoinPasswordDialogError("");
+    setJoinPasswordVisible(false);
     setKickedAlert("");
     setCopiedRoomCode(false);
     setStartGameLoading(false);
@@ -2171,7 +2299,7 @@ export default function App() {
                 <label className="text-sm font-medium">Ваш никнейм</label>
                 <Input
                   value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
+                  onChange={(e) => handlePlayerNameChange(e.target.value)}
                   placeholder="Например: Артём"
                   className="h-12 rounded-xl bg-zinc-100 text-zinc-950 placeholder:text-zinc-400 border-0 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-0"
                   onKeyDown={(e) => e.key === "Enter" && setupNickname()}
@@ -2207,9 +2335,9 @@ export default function App() {
         exit="exit"
         className="min-h-screen overflow-y-scroll bg-zinc-950 text-zinc-100 p-6 md:p-10"
       >
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100">
-            <CardContent className="p-8 md:p-10 space-y-6">
+            <CardContent className="p-8 md:p-10">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-sm uppercase tracking-[0.16em] text-zinc-500">
@@ -2217,7 +2345,7 @@ export default function App() {
                   </div>
                   <h2 className="text-3xl font-bold mt-2">Личные настройки</h2>
                   <p className="text-zinc-400 mt-2">
-                    Здесь можно изменить ник и аватар.
+                    Настройте профиль игрока и внешний вид лобби.
                   </p>
                 </div>
                 <Button
@@ -2229,53 +2357,103 @@ export default function App() {
                 </Button>
               </div>
 
-              <div className="flex flex-col items-center gap-3">
-                <div
-                  className="relative cursor-pointer group"
-                  onClick={() => avatarInputRef.current?.click()}
-                >
-                  <Avatar src={avatar} name={playerName || "?"} size={96} />
-                  <div className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Camera className="w-6 h-6 text-white" />
+              <div className="mt-7 grid gap-6 lg:grid-cols-[260px_1fr]">
+                <Card className="rounded-2xl border-zinc-800 bg-zinc-950/70 text-zinc-100">
+                  <CardContent className="p-5 space-y-4">
+                    <div className="text-sm font-medium text-zinc-300">Аватар профиля</div>
+                    <div className="flex justify-center">
+                      <div
+                        className="relative cursor-pointer group"
+                        onClick={() => avatarInputRef.current?.click()}
+                      >
+                        <Avatar src={avatar} name={playerName || "?"} size={128} />
+                        <div className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Camera className="w-7 h-7 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarChange}
+                    />
+                    <div className="grid gap-2">
+                      <Button
+                        variant="outline"
+                        className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        onClick={() => avatarInputRef.current?.click()}
+                      >
+                        Загрузить аватар
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        onClick={() => setAvatar(null)}
+                      >
+                        Удалить аватар
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+                    <label className="text-sm font-medium text-zinc-300">Никнейм</label>
+                    <Input
+                      value={playerName}
+                      onChange={(e) => handlePlayerNameChange(e.target.value)}
+                      placeholder="Например: Berly"
+                      className="mt-2 h-11 rounded-xl bg-zinc-100 text-zinc-950 placeholder:text-zinc-400 border-0 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-0"
+                    />
+                    <div className="mt-2 text-xs text-zinc-500">
+                      До 20 символов, отображается в подборе и лобби.
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+                      <div className="text-sm font-medium text-zinc-100">Показывать аватар</div>
+                      <div className="text-xs text-zinc-500 mt-1">
+                        Если выключено, другие увидят только инициалы.
+                      </div>
+                      <div className="mt-3">
+                        <Switch
+                          checked={shareAvatarInProfile}
+                          onCheckedChange={setShareAvatarInProfile}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+                      <div className="text-sm font-medium text-zinc-100">Секунды в чате</div>
+                      <div className="text-xs text-zinc-500 mt-1">
+                        Показывать секунды у времени сообщений в лобби.
+                      </div>
+                      <div className="mt-3">
+                        <Switch checked={showChatSeconds} onCheckedChange={setShowChatSeconds} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-1">
+                    <Button
+                      variant="outline"
+                      className="flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                      onClick={() => setScreen("home")}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      className="flex-1 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
+                      onClick={updateProfile}
+                      disabled={!playerName.trim()}
+                    >
+                      Сохранить
+                    </Button>
                   </div>
                 </div>
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleAvatarChange}
-                />
-                <div className="text-xs text-zinc-500">
-                  Нажмите на аватар, чтобы загрузить новый
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Никнейм</label>
-                <Input
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  placeholder="Например: Berly"
-                  className="h-11 rounded-xl bg-zinc-100 text-zinc-950 placeholder:text-zinc-400 border-0 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-0"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                  onClick={() => setScreen("home")}
-                >
-                  Отмена
-                </Button>
-                <Button
-                  className="flex-1 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
-                  onClick={updateProfile}
-                  disabled={!playerName.trim()}
-                >
-                  Сохранить
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -2518,11 +2696,11 @@ export default function App() {
                               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                               placeholder="Код комнаты"
                               className="h-12 rounded-xl bg-zinc-100 text-zinc-950 placeholder:text-zinc-400 border-0 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-0"
-                              onKeyDown={(e) => e.key === "Enter" && joinRoom()}
+                              onKeyDown={(e) => e.key === "Enter" && joinByCodeFromQuickInput()}
                             />
                             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                               <Button
-                                onClick={() => joinRoom()}
+                                onClick={joinByCodeFromQuickInput}
                                 variant="secondary"
                                 disabled={!joinCode.trim()}
                                 className="h-12 rounded-xl px-6 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
@@ -2560,6 +2738,18 @@ export default function App() {
                               </motion.div>
                             )}
                           </AnimatePresence>
+                        </div>
+
+                        <Separator className="bg-zinc-800" />
+
+                        <div className="space-y-3">
+                          <div className="font-semibold">Функционал</div>
+                          <div className="grid gap-2 text-sm text-zinc-400">
+                            <div>• создайте комнату и поделитесь кодом с игроками</div>
+                            <div>• выберите режим и фиксированный лимит участников</div>
+                            <div>• приватные комнаты защищаются паролем</div>
+                            <div>• в лобби доступен общий чат и управление этапами</div>
+                          </div>
                         </div>
 
                       </CardContent>
@@ -2621,6 +2811,7 @@ export default function App() {
                           </div>
                         )}
                         {publicMatches.map((match) => {
+                          const modeMeta = getRoomModeMeta(match.modeKey, match.maxPlayers);
                           const roomTitle = match.roomName?.trim() || `Комната ${match.code}`;
                           const hasLock = match.requiresPassword;
                           const showLockBadge = hasLock || match.visibility === "private";
@@ -2662,15 +2853,12 @@ export default function App() {
                                     </span>
                                     <span>Хост: {match.hostName}</span>
                                     <span>{statusLabel}</span>
+                                    <span className="text-zinc-300">
+                                      Режим: {modeMeta.title}
+                                    </span>
                                     {match.currentStage && (
                                       <span className="text-zinc-300">
                                         Этап: {match.currentStage}
-                                      </span>
-                                    )}
-                                    {match.venueLabel && (
-                                      <span className="inline-flex items-center gap-1">
-                                        <Link2 className="w-3.5 h-3.5" />
-                                        {match.venueLabel}
                                       </span>
                                     )}
                                   </div>
@@ -2683,17 +2871,6 @@ export default function App() {
                                   >
                                     Войти
                                   </Button>
-                                  {match.venueUrl && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="rounded-lg border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                                      onClick={() => openPublicMatchLink(match.venueUrl)}
-                                    >
-                                      <ExternalLink className="w-3.5 h-3.5 mr-1" />
-                                      Ссылка
-                                    </Button>
-                                  )}
                                 </div>
                               </div>
                             </motion.div>
@@ -2706,17 +2883,33 @@ export default function App() {
               )}
             </AnimatePresence>
 
-            <Dialog open={createMatchDialogOpen} onOpenChange={setCreateMatchDialogOpen}>
-              <DialogContent className="max-w-2xl border-zinc-800 bg-zinc-950 text-zinc-100">
-                <DialogHeader>
+            <Dialog
+              open={createMatchDialogOpen}
+              onOpenChange={(open) => {
+                setCreateMatchDialogOpen(open);
+                if (!open) {
+                  setCreateRoomPasswordVisible(false);
+                }
+              }}
+            >
+              <DialogContent className="max-w-3xl border-zinc-800 bg-zinc-950 text-zinc-100">
+                <DialogHeader className="space-y-1">
                   <DialogTitle>Создать матч</DialogTitle>
                   <DialogDescription className="text-zinc-400">
                     Настройте комнату для раздела «Подбор игроков».
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400">
-                    Комната появится в общем списке и будет доступна для подключения.
+                <div className="space-y-5">
+                  <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 via-zinc-900/80 to-red-950/30 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                      Выбранный режим
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-zinc-100">
+                      {selectedCreateMode.title}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-400">
+                      Лимит комнаты: {selectedCreateMode.maxPlayers} игроков
+                    </div>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2 md:col-span-2">
@@ -2729,42 +2922,90 @@ export default function App() {
                       />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <label className="text-sm text-zinc-300">Где проводится матч</label>
-                      <Input
-                        value={createVenueLabel}
-                        onChange={(e) => setCreateVenueLabel(e.target.value)}
-                        placeholder="Например: Discord, Telegram, Zoom"
-                        className="h-11 rounded-xl bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
-                      />
+                      <label className="text-sm text-zinc-300">Режим матча</label>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {ROOM_MODE_OPTIONS.map((mode) => (
+                          <button
+                            key={mode.key}
+                            type="button"
+                            onClick={() => setCreateRoomMode(mode.key)}
+                            className={`text-left rounded-xl border px-3 py-3 transition-colors ${
+                              createRoomMode === mode.key
+                                ? "border-red-500/70 bg-red-600/15"
+                                : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
+                            }`}
+                          >
+                            <div className="text-sm font-semibold text-zinc-100">
+                              {mode.title}
+                            </div>
+                            <div className="text-xs text-zinc-400 mt-1">
+                              {mode.subtitle}
+                            </div>
+                            <div className="text-xs text-zinc-500 mt-2">
+                              Лимит: {mode.maxPlayers} игроков
+                            </div>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm text-zinc-300">Ссылка на лобби (опционально)</label>
-                      <Input
-                        value={createVenueUrl}
-                        onChange={(e) => setCreateVenueUrl(e.target.value)}
-                        placeholder="https://..."
-                        className="h-11 rounded-xl bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
-                      />
+                    <div className="md:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium text-zinc-100">
+                            Приватная комната
+                          </div>
+                          <div className="text-xs text-zinc-500">
+                            В приватную комнату можно зайти только по коду и паролю.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={createRoomPrivate}
+                          onCheckedChange={(checked) => {
+                            setCreateRoomPrivate(checked);
+                            if (!checked) {
+                              setCreateRoomPassword("");
+                              setCreateRoomPasswordVisible(false);
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm text-zinc-300">Пароль (опционально)</label>
-                      <Input
-                        value={createRoomPassword}
-                        type="password"
-                        onChange={(e) => setCreateRoomPassword(e.target.value)}
-                        placeholder="Только для приглашённых"
-                        className="h-11 rounded-xl bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
-                      />
-                    </div>
+                    {createRoomPrivate && (
+                      <div className="space-y-2 md:col-span-2">
+                        <label className="text-sm text-zinc-300">Пароль комнаты</label>
+                        <div className="relative">
+                          <Input
+                            value={createRoomPassword}
+                            type={createRoomPasswordVisible ? "text" : "password"}
+                            onChange={(e) => setCreateRoomPassword(e.target.value)}
+                            placeholder="Введите пароль для входа"
+                            className="h-11 rounded-xl bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500 pr-11"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setCreateRoomPasswordVisible((prev) => !prev)}
+                            className="absolute inset-y-0 right-0 w-11 inline-flex items-center justify-center text-zinc-400 hover:text-zinc-200"
+                          >
+                            {createRoomPasswordVisible ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <Button
                     onClick={() => {
-                      createRoomFromPanel();
+                      const created = createRoomFromPanel();
+                      if (!created) return;
                       setCreateMatchDialogOpen(false);
                       setCreateRoomName("");
-                      setCreateVenueLabel("");
-                      setCreateVenueUrl("");
                       setCreateRoomPassword("");
+                      setCreateRoomPrivate(false);
+                      setCreateRoomPasswordVisible(false);
+                      setCreateRoomMode("civil_3");
                     }}
                     className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0 gap-2"
                   >
@@ -2782,6 +3023,8 @@ export default function App() {
                 if (!open) {
                   setJoinPasswordDialogMatch(null);
                   setJoinPasswordInput("");
+                  setJoinPasswordDialogError("");
+                  setJoinPasswordVisible(false);
                 }
               }}
             >
@@ -2798,14 +3041,37 @@ export default function App() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
-                  <Input
-                    type="password"
-                    value={joinPasswordInput}
-                    onChange={(e) => setJoinPasswordInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && joinPublicMatchWithPassword()}
-                    placeholder="Пароль комнаты"
-                    className="h-11 rounded-xl bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={joinPasswordVisible ? "text" : "password"}
+                      value={joinPasswordInput}
+                      onChange={(e) => {
+                        setJoinPasswordInput(e.target.value);
+                        if (joinPasswordDialogError) {
+                          setJoinPasswordDialogError("");
+                        }
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && joinPublicMatchWithPassword()}
+                      placeholder="Пароль комнаты"
+                      className="h-11 rounded-xl bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500 pr-11"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setJoinPasswordVisible((prev) => !prev)}
+                      className="absolute inset-y-0 right-0 w-11 inline-flex items-center justify-center text-zinc-400 hover:text-zinc-200"
+                    >
+                      {joinPasswordVisible ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                  {joinPasswordDialogError && (
+                    <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                      {joinPasswordDialogError}
+                    </div>
+                  )}
                   <Button
                     onClick={joinPublicMatchWithPassword}
                     className="w-full h-11 rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
@@ -2884,6 +3150,8 @@ export default function App() {
   }
 
   if (screen === "room" && room) {
+    const roomModeMeta = getRoomModeMeta(room.modeKey, room.maxPlayers ?? 6);
+    const roomMaxPlayers = room.maxPlayers ?? roomModeMeta.maxPlayers;
     return (
       <motion.div
         key="room"
@@ -2930,9 +3198,12 @@ export default function App() {
                     {room.code}
                   </div>
                   <div className="text-sm text-zinc-400">
-                    Поделитесь кодом с другими игроками • 3–6 участников
+                    Поделитесь кодом с другими игроками • {roomMaxPlayers} участников
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
+                      {roomModeMeta.title}
+                    </Badge>
                     <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
                       {room.visibility === "private" ? "Приватная" : "Публичная"}
                     </Badge>
@@ -2941,22 +3212,7 @@ export default function App() {
                         С паролем
                       </Badge>
                     )}
-                    {room.venueLabel && (
-                      <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
-                        {room.venueLabel}
-                      </Badge>
-                    )}
                   </div>
-                  {room.venueUrl && (
-                    <button
-                      type="button"
-                      className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors inline-flex items-center gap-1"
-                      onClick={() => openPublicMatchLink(room.venueUrl)}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      {room.venueUrl}
-                    </button>
-                  )}
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Button
@@ -2982,8 +3238,7 @@ export default function App() {
                     onStartGame={startGame}
                     canStartGame={
                       !startGameLoading &&
-                      room.players.length >= 3 &&
-                      room.players.length <= 6
+                      room.players.length === roomMaxPlayers
                     }
                   />
                   <Button
@@ -3021,7 +3276,7 @@ export default function App() {
                   </div>
                 ) : undefined}
               >
-                <div className="flex min-h-[360px] flex-col">
+                <div className="flex min-h-[460px] lg:min-h-[660px] flex-col">
                   <div className="grid gap-3">
                     <AnimatePresence>
                       {room.players.map((player) => (
@@ -3035,9 +3290,9 @@ export default function App() {
                       ))}
                     </AnimatePresence>
                   </div>
-                  {room.players.length < 3 && (
-                    <div className="mt-auto pt-4 text-center text-sm text-zinc-500">
-                      Ожидание игроков... (нужно ещё минимум {3 - room.players.length})
+                  {room.players.length < roomMaxPlayers && (
+                    <div className="mt-auto pb-2 text-center text-sm text-zinc-500">
+                      Ожидание игроков... (нужно ещё минимум {roomMaxPlayers - room.players.length})
                     </div>
                   )}
                 </div>
@@ -3059,16 +3314,19 @@ export default function App() {
                     <div className="flex items-center justify-between">
                       <span>Игроков сейчас</span>
                       <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
-                        {room.players.length}
+                        {room.players.length}/{roomMaxPlayers}
                       </Badge>
                     </div>
                     <Separator />
-                    {room.players.length === 3 && (
-                      <div>Гражданский спор, трудовой спор</div>
-                    )}
-                    {room.players.length === 4 && <div>Уголовное дело</div>}
-                    {room.players.length === 5 && <div>Уголовное дело</div>}
-                    {room.players.length >= 6 && <div>Суд на компанию</div>}
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                      <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">
+                        Выбранный режим
+                      </div>
+                      <div className="text-zinc-100 font-medium mt-1">
+                        {roomModeMeta.title}
+                      </div>
+                      <div className="text-xs text-zinc-400 mt-1">{roomModeMeta.subtitle}</div>
+                    </div>
                     <div className="text-zinc-400 pt-2">
                       Ведущий запускает игру, сайт случайно выбирает подходящее
                       дело и распределяет роли.
@@ -3079,8 +3337,7 @@ export default function App() {
                         onClick={startGame}
                         disabled={
                           startGameLoading ||
-                          room.players.length < 3 ||
-                          room.players.length > 6
+                          room.players.length !== roomMaxPlayers
                         }
                       >
                         <Play className="w-4 h-4" />
@@ -3096,6 +3353,7 @@ export default function App() {
                 >
                   <div className="space-y-3">
                     <div
+                      ref={lobbyChatScrollRef}
                       className={`rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 h-[360px] overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2">
@@ -3125,6 +3383,7 @@ export default function App() {
                                     {new Date(message.createdAt).toLocaleTimeString([], {
                                       hour: "2-digit",
                                       minute: "2-digit",
+                                      second: showChatSeconds ? "2-digit" : undefined,
                                     })}
                                   </span>
                                 </div>

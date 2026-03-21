@@ -178,6 +178,8 @@ function getRoomState(room: any, playerId: string) {
       type: "room",
       code: room.code,
       roomName: room.roomName,
+      modeKey: room.modeKey,
+      maxPlayers: room.maxPlayers,
       hostId: room.hostId,
       players: mapLobbyPlayers(room.players),
       started: room.started,
@@ -346,6 +348,12 @@ export function setupSocket(httpServer: HttpServer) {
       };
 
       if (room.started) {
+        if (room.players.length >= room.maxPlayers) {
+          socket.emit("error", {
+            message: `Матч заполнен (максимум ${room.maxPlayers} игроков).`,
+          });
+          return;
+        }
         const updatedRoom = joinRunningGameAsWitness(roomCode, player);
         if (!updatedRoom?.game) {
           socket.emit("error", { message: "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u043e\u0439\u0442\u0438 \u0432 \u0443\u0436\u0435 \u0438\u0434\u0443\u0449\u0438\u0439 \u043c\u0430\u0442\u0447." });
@@ -366,8 +374,8 @@ export function setupSocket(httpServer: HttpServer) {
         return;
       }
 
-      if (room.players.length >= 6) {
-        socket.emit("error", { message: "\u041a\u043e\u043c\u043d\u0430\u0442\u0430 \u0437\u0430\u043f\u043e\u043b\u043d\u0435\u043d\u0430 (\u043c\u0430\u043a\u0441\u0438\u043c\u0443\u043c 6 \u0438\u0433\u0440\u043e\u043a\u043e\u0432)." });
+      if (room.players.length >= room.maxPlayers) {
+        socket.emit("error", { message: `Комната заполнена (максимум ${room.maxPlayers} игроков).` });
         return;
       }
 
@@ -389,6 +397,8 @@ export function setupSocket(httpServer: HttpServer) {
         players: mapLobbyPlayers(updatedRoom.players),
         hostId: updatedRoom.hostId,
         roomName: updatedRoom.roomName,
+        modeKey: updatedRoom.modeKey,
+        maxPlayers: updatedRoom.maxPlayers,
         isHostJudge: updatedRoom.isHostJudge,
         visibility: updatedRoom.visibility,
         venueLabel: updatedRoom.venueLabel,
@@ -447,8 +457,10 @@ export function setupSocket(httpServer: HttpServer) {
         socket.emit("error", { message: "Только ведущий может начать игру." });
         return;
       }
-      if (room.players.length < 3) {
-        socket.emit("error", { message: "Нужно минимум 3 игрока." });
+      if (room.players.length !== room.maxPlayers) {
+        socket.emit("error", {
+          message: `Для старта нужно ровно ${room.maxPlayers} игроков.`,
+        });
         return;
       }
 
@@ -485,6 +497,8 @@ export function setupSocket(httpServer: HttpServer) {
         players: mapLobbyPlayers(room.players),
         hostId: room.hostId,
         roomName: room.roomName,
+        modeKey: room.modeKey,
+        maxPlayers: room.maxPlayers,
         isHostJudge,
         visibility: room.visibility,
         venueLabel: room.venueLabel,
@@ -522,6 +536,8 @@ export function setupSocket(httpServer: HttpServer) {
           players: mapLobbyPlayers(room.players),
           hostId: room.hostId,
           roomName: room.roomName,
+          modeKey: room.modeKey,
+          maxPlayers: room.maxPlayers,
           isHostJudge: room.isHostJudge,
           visibility: room.visibility,
           venueLabel: room.venueLabel,
@@ -585,6 +601,8 @@ export function setupSocket(httpServer: HttpServer) {
             players: mapLobbyPlayers(updatedRoom.players),
             hostId: updatedRoom.hostId,
             roomName: updatedRoom.roomName,
+            modeKey: updatedRoom.modeKey,
+            maxPlayers: updatedRoom.maxPlayers,
             isHostJudge: updatedRoom.isHostJudge,
             visibility: updatedRoom.visibility,
             venueLabel: updatedRoom.venueLabel,
@@ -688,6 +706,8 @@ export function setupSocket(httpServer: HttpServer) {
             players: mapLobbyPlayers(updatedRoom.players),
             hostId: updatedRoom.hostId,
             roomName: updatedRoom.roomName,
+            modeKey: updatedRoom.modeKey,
+            maxPlayers: updatedRoom.maxPlayers,
             isHostJudge: updatedRoom.isHostJudge,
             visibility: updatedRoom.visibility,
             venueLabel: updatedRoom.venueLabel,
@@ -908,6 +928,8 @@ export function setupSocket(httpServer: HttpServer) {
             players: mapLobbyPlayers(updatedRoom.players),
             hostId: updatedRoom.hostId,
             roomName: updatedRoom.roomName,
+            modeKey: updatedRoom.modeKey,
+            maxPlayers: updatedRoom.maxPlayers,
             isHostJudge: updatedRoom.isHostJudge,
             visibility: updatedRoom.visibility,
             venueLabel: updatedRoom.venueLabel,
