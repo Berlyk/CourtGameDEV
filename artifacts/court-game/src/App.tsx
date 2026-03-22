@@ -4094,24 +4094,16 @@ export default function App() {
 
           <AnimatePresence>
             {influenceAnnouncement && (
-              <>
-                <motion.div
-                  key={`${influenceAnnouncement.id}-bg`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.18, ease: "easeOut" }}
-                  className="fixed inset-0 z-[68] pointer-events-none bg-black/72"
-                />
-                <motion.div
-                  key={`${influenceAnnouncement.id}-text`}
-                  initial={{ opacity: 0, scale: 0.86, y: 16 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 1.03, y: -10 }}
-                  transition={{ duration: 0.24, ease: "easeOut" }}
-                  className="fixed inset-0 z-[70] pointer-events-none flex items-center justify-center px-4"
-                >
-                  <div className="w-full max-w-3xl text-center">
+              <motion.div
+                key={`${influenceAnnouncement.id}-text`}
+                initial={{ opacity: 0, scale: 0.86, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 1.03, y: -10 }}
+                transition={{ duration: 0.24, ease: "easeOut" }}
+                className="fixed inset-0 z-[70] pointer-events-none flex items-center justify-center px-4"
+              >
+                <div className="w-full max-w-3xl text-center">
+                  <div className="inline-flex max-w-full flex-col items-center rounded-2xl border border-zinc-700/70 bg-zinc-950/88 px-8 py-5 shadow-[0_18px_64px_rgba(0,0,0,0.7)]">
                     <motion.div
                       animate={{ textShadow: ["0 0 18px rgba(239,68,68,0.35)", "0 0 34px rgba(239,68,68,0.85)", "0 0 20px rgba(239,68,68,0.45)"] }}
                       transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
@@ -4120,13 +4112,13 @@ export default function App() {
                       {influenceAnnouncement.title}
                     </motion.div>
                     {influenceAnnouncement.subtitle && (
-                      <div className="mt-3 text-sm md:text-base text-zinc-300 font-medium">
+                      <div className="mt-3 rounded-lg bg-black/45 px-3 py-1.5 text-sm md:text-base text-zinc-200 font-medium">
                         {influenceAnnouncement.subtitle}
                       </div>
                     )}
                   </div>
-                </motion.div>
-              </>
+                </div>
+              </motion.div>
             )}
           </AnimatePresence>
 
