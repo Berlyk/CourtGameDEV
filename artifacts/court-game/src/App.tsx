@@ -3857,6 +3857,10 @@ export default function App() {
     const isObserverRole = isJudge || isWitness;
     const visibleFacts = game.revealedFacts.slice(-3);
     const visibleCards = game.usedCards.slice(-3);
+    const latestRevealedFactId =
+      game.revealedFacts.length > 0
+        ? game.revealedFacts[game.revealedFacts.length - 1].id
+        : null;
     const latestUsedCardId =
       game.usedCards.length > 0
         ? game.usedCards[game.usedCards.length - 1].id
@@ -4615,6 +4619,7 @@ export default function App() {
                 ) : (
                   <AnimatePresence mode="popLayout">
                     {visibleFacts.map((fact) => {
+                      const isLatestFact = fact.id === latestRevealedFactId;
                       const ownerPlayer = game.players.find(
                         (p) => p.id === fact.ownerId,
                       );
@@ -4627,7 +4632,13 @@ export default function App() {
                         exit="exit"
                         layout
                       >
-                        <Card className="rounded-2xl border-dashed border-zinc-700 bg-zinc-900/80 text-zinc-100">
+                        <Card
+                          className={
+                            isLatestFact
+                              ? "rounded-2xl border border-red-500/35 bg-red-950/15 text-zinc-100 ring-1 ring-red-500/20 shadow-[0_0_10px_rgba(220,38,38,0.12)]"
+                              : "rounded-2xl border-dashed border-zinc-700 bg-zinc-900/80 text-zinc-100"
+                          }
+                        >
                           <CardContent className="p-4 min-h-[120px]">
                             <div className="flex items-center justify-between gap-3 mb-2">
                               <div className="flex items-center gap-2 min-w-0">
@@ -4640,7 +4651,13 @@ export default function App() {
                                   {fact.owner}
                                 </div>
                               </div>
-                              <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
+                              <Badge
+                                className={
+                                  isLatestFact
+                                    ? "bg-red-600/20 text-red-100 border border-red-500/30"
+                                    : "bg-zinc-800 text-zinc-100 border border-zinc-700"
+                                }
+                              >
                                 {fact.ownerRole}
                               </Badge>
                             </div>
