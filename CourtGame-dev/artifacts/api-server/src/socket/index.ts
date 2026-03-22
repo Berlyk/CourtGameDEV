@@ -755,7 +755,9 @@ export function setupSocket(httpServer: HttpServer) {
 
         const targetSocketId = targetPlayer.socketId;
         clearDisconnectCleanup(roomCode, targetPlayerId);
-        const updatedRoom = removePlayer(roomCode, targetPlayerId);
+        const updatedRoom = removePlayer(roomCode, targetPlayerId, {
+          force: true,
+        });
 
         const mappingEntry = [...socketToRoom.entries()].find(
           ([, value]) => value.roomCode === roomCode && value.playerId === targetPlayerId

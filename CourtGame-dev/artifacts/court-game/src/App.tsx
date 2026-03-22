@@ -1334,6 +1334,7 @@ export default function App() {
     const parsed = stored ? Number(stored) : NaN;
     return Number.isFinite(parsed) ? parsed : null;
   });
+  const [manualReconnectDeadline, setManualReconnectDeadline] = useState<number | null>(null);
   const [reconnectNow, setReconnectNow] = useState(() => Date.now());
 
   const [myId, setMyId] = useState<string | null>(null);
@@ -1358,11 +1359,19 @@ export default function App() {
     typeof window !== "undefined" &&
     !!localStorage.getItem("court_session") &&
     !!localStorage.getItem("court_session_token");
+  const effectiveReconnectDeadline = useMemo(() => {
+    const maxDeadline = Math.max(
+      reconnectDeadline ?? 0,
+      manualReconnectDeadline ?? 0,
+    );
+    return maxDeadline > 0 ? maxDeadline : null;
+  }, [reconnectDeadline, manualReconnectDeadline]);
   const reconnectSecondsLeft =
-    reconnectDeadline && reconnectDeadline > reconnectNow
-      ? Math.ceil((reconnectDeadline - reconnectNow) / 1000)
+    effectiveReconnectDeadline && effectiveReconnectDeadline > reconnectNow
+      ? Math.ceil((effectiveReconnectDeadline - reconnectNow) / 1000)
       : 0;
-  const reconnectWindowActive = reconnectDeadline !== null && reconnectSecondsLeft > 0;
+  const reconnectWindowActive =
+    effectiveReconnectDeadline !== null && reconnectSecondsLeft > 0;
   const hasDisconnectedPlayers = useMemo(() => {
     const roomPlayers = room?.players ?? [];
     const gamePlayers = game?.players ?? [];
@@ -1420,23 +1429,24 @@ export default function App() {
   }, [screen, hasSession, hasStoredSession]);
 
   useEffect(() => {
-    if (!reconnectDeadline && !hasDisconnectedPlayers) return;
+    if (!effectiveReconnectDeadline && !hasDisconnectedPlayers) return;
     const timer = window.setInterval(() => {
       setReconnectNow(Date.now());
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [reconnectDeadline, hasDisconnectedPlayers]);
+  }, [effectiveReconnectDeadline, hasDisconnectedPlayers]);
 
   useEffect(() => {
-    if (!reconnectDeadline) return;
-    if (reconnectDeadline > reconnectNow) return;
+    if (!effectiveReconnectDeadline) return;
+    if (effectiveReconnectDeadline > reconnectNow) return;
 
     localStorage.removeItem(RECONNECT_DEADLINE_KEY);
     localStorage.removeItem("court_session");
     localStorage.removeItem("court_session_token");
     setReconnectDeadline(null);
+    setManualReconnectDeadline(null);
     setHasSession(false);
-  }, [reconnectDeadline, reconnectNow]);
+  }, [effectiveReconnectDeadline, reconnectNow]);
 
   useEffect(() => {
     socket.on(
@@ -1458,6 +1468,7 @@ export default function App() {
         localStorage.setItem("court_session", state.code);
         localStorage.removeItem(RECONNECT_DEADLINE_KEY);
         setReconnectDeadline(null);
+        setManualReconnectDeadline(null);
         setHasSession(true);
         setStartGameLoading(false);
         setOpenMatchesOpen(false);
@@ -1669,6 +1680,7 @@ export default function App() {
             : Date.now() + RECONNECT_GRACE_MS;
         localStorage.setItem(RECONNECT_DEADLINE_KEY, String(nextDeadline));
         setReconnectDeadline(nextDeadline);
+        setManualReconnectDeadline(nextDeadline);
         setReconnectNow(Date.now());
         setHasSession(true);
         setHomeTab("play");
@@ -1685,6 +1697,7 @@ export default function App() {
       setAdminHostId(null);
       setAdminHostSessionToken(null);
       setReconnectDeadline(null);
+      setManualReconnectDeadline(null);
       setHasSession(false);
       setLobbyChatMessages([]);
       setHomeTab("play");
@@ -1715,6 +1728,7 @@ export default function App() {
       setJoinPassword("");
       setProfileMenuOpen(false);
       setReconnectDeadline(null);
+      setManualReconnectDeadline(null);
       setHomeTab("play");
       setScreen("home");
       setKickedAlert(
@@ -1922,11 +1936,12 @@ export default function App() {
   }, []);
 
   const reconnect = useCallback(() => {
-    if (reconnectDeadline && reconnectDeadline <= Date.now()) {
+    if (effectiveReconnectDeadline && effectiveReconnectDeadline <= Date.now()) {
       localStorage.removeItem(RECONNECT_DEADLINE_KEY);
       localStorage.removeItem("court_session");
       localStorage.removeItem("court_session_token");
       setReconnectDeadline(null);
+      setManualReconnectDeadline(null);
       setHasSession(false);
       return;
     }
@@ -1940,7 +1955,7 @@ export default function App() {
       return;
     }
     setHasSession(false);
-  }, [socket, reconnectDeadline]);
+  }, [socket, effectiveReconnectDeadline]);
 
   const takeOverPlayer = useCallback(
     (nextName: string) => {
@@ -2116,10 +2131,12 @@ export default function App() {
       localStorage.setItem("court_session_token", reconnectToken);
       localStorage.setItem(RECONNECT_DEADLINE_KEY, String(reconnectDeadlineAt));
       setReconnectDeadline(reconnectDeadlineAt);
+      setManualReconnectDeadline(reconnectDeadlineAt);
       setReconnectNow(Date.now());
     } else {
       localStorage.removeItem(RECONNECT_DEADLINE_KEY);
       setReconnectDeadline(null);
+      setManualReconnectDeadline(null);
     }
 
     if (activeRoomCode) {
@@ -2151,6 +2168,7 @@ export default function App() {
         localStorage.setItem("court_session_token", leaveToken);
         localStorage.setItem(RECONNECT_DEADLINE_KEY, String(leaveDeadline));
         setReconnectDeadline(leaveDeadline);
+        setManualReconnectDeadline(leaveDeadline);
         setReconnectNow(Date.now());
         setHasSession(true);
       },

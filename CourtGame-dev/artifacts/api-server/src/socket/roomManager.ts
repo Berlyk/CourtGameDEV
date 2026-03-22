@@ -380,9 +380,27 @@ export function rejoinRoom(
   return null;
 }
 
-export function removePlayer(code: string, playerId: string): Room | null {
+export function removePlayer(
+  code: string,
+  playerId: string,
+  options?: { force?: boolean },
+): Room | null {
   const room = rooms.get(code);
   if (!room) return null;
+
+  if (!options?.force) {
+    const now = Date.now();
+    const lobbyPlayer = room.players.find((p) => p.id === playerId);
+    const gamePlayer = room.game?.players.find((p: any) => p.id === playerId);
+    const deadline = Math.max(
+      lobbyPlayer?.disconnectedUntil ?? 0,
+      gamePlayer?.disconnectedUntil ?? 0,
+    );
+    if (deadline > now) {
+      return room;
+    }
+  }
+
   room.players = room.players.filter(p => p.id !== playerId);
   if (room.game) {
     room.game.players = room.game.players.filter((p) => p.id !== playerId);
