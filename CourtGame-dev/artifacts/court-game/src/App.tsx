@@ -1343,6 +1343,7 @@ export default function App() {
     return Number.isFinite(parsed) ? parsed : null;
   });
   const [manualReconnectDeadline, setManualReconnectDeadline] = useState<number | null>(null);
+  const [forceReconnectVisible, setForceReconnectVisible] = useState(false);
   const [reconnectNow, setReconnectNow] = useState(() => Date.now());
 
   const [myId, setMyId] = useState<string | null>(null);
@@ -1366,6 +1367,7 @@ export default function App() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const roomRef = useRef<RoomState | null>(null);
   const gameRef = useRef<GameState | null>(null);
+  const lastKnownSessionTokenRef = useRef<string | null>(null);
   const socket = getSocket();
   const activeRoomCode = room?.code ?? game?.code ?? null;
   const hasStoredSession =
@@ -1438,7 +1440,8 @@ export default function App() {
       } as PlayerInfo));
     return [...gamePlayers, ...ghosts];
   }, [game, disconnectedGhosts, reconnectNow]);
-  const canReconnect = reconnectWindowActive || hasSession || hasStoredSession;
+  const canReconnect =
+    reconnectWindowActive || hasSession || hasStoredSession || forceReconnectVisible;
 
   useEffect(() => {
     const savedName = localStorage.getItem("court_nickname");
@@ -1479,6 +1482,12 @@ export default function App() {
   useEffect(() => {
     gameRef.current = game;
   }, [game]);
+
+  useEffect(() => {
+    if (mySessionToken) {
+      lastKnownSessionTokenRef.current = mySessionToken;
+    }
+  }, [mySessionToken]);
 
   useEffect(() => {
     if (screen !== "home") return;
@@ -1528,6 +1537,7 @@ export default function App() {
     localStorage.removeItem("court_session_token");
     setReconnectDeadline(null);
     setManualReconnectDeadline(null);
+    setForceReconnectVisible(false);
     setHasSession(false);
   }, [effectiveReconnectDeadline, reconnectNow]);
 
@@ -1553,6 +1563,7 @@ export default function App() {
         setReconnectDeadline(null);
         setManualReconnectDeadline(null);
         setDisconnectedGhosts({});
+        setForceReconnectVisible(false);
         setHasSession(true);
         setStartGameLoading(false);
         setOpenMatchesOpen(false);
@@ -1908,6 +1919,7 @@ export default function App() {
         localStorage.setItem(RECONNECT_DEADLINE_KEY, String(nextDeadline));
         setReconnectDeadline(nextDeadline);
         setManualReconnectDeadline(nextDeadline);
+        setForceReconnectVisible(true);
         setReconnectNow(Date.now());
         setHasSession(true);
         setHomeTab("play");
@@ -1926,6 +1938,7 @@ export default function App() {
       setReconnectDeadline(null);
       setManualReconnectDeadline(null);
       setDisconnectedGhosts({});
+      setForceReconnectVisible(false);
       setHasSession(false);
       setLobbyChatMessages([]);
       setHomeTab("play");
@@ -1958,6 +1971,7 @@ export default function App() {
       setReconnectDeadline(null);
       setManualReconnectDeadline(null);
       setDisconnectedGhosts({});
+      setForceReconnectVisible(false);
       setHomeTab("play");
       setScreen("home");
       setKickedAlert(
@@ -2355,9 +2369,13 @@ export default function App() {
   const resetAll = useCallback(() => {
     const reconnectCode = activeRoomCode ?? localStorage.getItem("court_session");
     const reconnectToken =
-      mySessionToken ?? localStorage.getItem("court_session_token");
+      mySessionToken ??
+      localStorage.getItem("court_session_token") ??
+      lastKnownSessionTokenRef.current ??
+      adminHostSessionToken;
     const forcedReconnectDeadline = Date.now() + RECONNECT_GRACE_MS;
     setManualReconnectDeadline(forcedReconnectDeadline);
+    setForceReconnectVisible(true);
     setReconnectNow(Date.now());
     if (reconnectCode && reconnectToken) {
       localStorage.setItem("court_session", reconnectCode);
@@ -2403,6 +2421,7 @@ export default function App() {
         localStorage.setItem(RECONNECT_DEADLINE_KEY, String(leaveDeadline));
         setReconnectDeadline(leaveDeadline);
         setManualReconnectDeadline(leaveDeadline);
+        setForceReconnectVisible(true);
         setReconnectNow(Date.now());
         setHasSession(!!leaveCode && !!leaveToken);
       },
@@ -2431,7 +2450,7 @@ export default function App() {
     setOpenMatchesOpen(false);
     setHomeTab("play");
     setHasSession(!!reconnectCode && !!reconnectToken);
-  }, [socket, activeRoomCode, mySessionToken, myId]);
+  }, [socket, activeRoomCode, mySessionToken, myId, adminHostSessionToken]);
 
   const finalExit = useCallback(() => {
     resetAll();
