@@ -37,6 +37,7 @@ const CLOSING_STAGE_MARKERS = ["финальн", "заключительн"];
 const RECONNECT_GRACE_MS = 30_000;
 const PROTEST_COOLDOWN_MS = 30_000;
 const JUDGE_SILENCE_COOLDOWN_MS = 15_000;
+const WARNING_COOLDOWN_MS = 60_000;
 const INFLUENCE_ANNOUNCEMENT_DURATION_MS = 3_000;
 type SpeechOwnerRole =
   | "plaintiff"
@@ -201,6 +202,7 @@ function mapGamePlayers(players: any[]) {
     avatar: p.avatar,
     roleKey: p.roleKey,
     roleTitle: p.roleTitle,
+    warningCount: typeof p?.warningCount === "number" ? p.warningCount : 0,
     disconnectedUntil:
       typeof p?.disconnectedUntil === "number" ? p.disconnectedUntil : undefined,
   }));
@@ -211,6 +213,7 @@ function mapLobbyPlayers(players: any[]) {
     id: p.id,
     name: p.name,
     avatar: p.avatar,
+    warningCount: typeof p?.warningCount === "number" ? p.warningCount : 0,
     disconnectedUntil:
       typeof p?.disconnectedUntil === "number" ? p.disconnectedUntil : undefined,
   }));
@@ -299,7 +302,7 @@ export function setupSocket(httpServer: HttpServer) {
   const getActionCooldownKey = (
     roomCode: string,
     playerId: string,
-    action: "protest" | "silence",
+    action: "protest" | "silence" | "warning",
   ) => `${roomCode}:${playerId}:${action}`;
   const getLawyerChatKey = (roomCode: string, firstId: string, secondId: string) => {
     const sorted = [firstId, secondId].sort();
@@ -372,6 +375,27 @@ export function setupSocket(httpServer: HttpServer) {
       },
       messages: lawyerChats.get(pair.chatKey) ?? [],
     });
+  };
+
+  const applyWarningToPlayer = (roomCode: string, targetPlayerId: string) => {
+    const room = getRoom(roomCode);
+    if (!room?.game) return null;
+
+    const gameTarget = room.game.players.find((p: any) => p.id === targetPlayerId);
+    if (!gameTarget) return null;
+    const currentWarnings =
+      typeof gameTarget.warningCount === "number" ? gameTarget.warningCount : 0;
+    if (currentWarnings >= 3) {
+      return { room, warningCount: currentWarnings, changed: false };
+    }
+
+    gameTarget.warningCount = currentWarnings + 1;
+    const lobbyTarget = room.players.find((p: any) => p.id === targetPlayerId);
+    if (lobbyTarget) {
+      lobbyTarget.warningCount = gameTarget.warningCount;
+    }
+
+    return { room, warningCount: gameTarget.warningCount, changed: true };
   };
 
   const clearReconnectCleanup = (roomCode: string, playerId: string) => {
@@ -1078,7 +1102,7 @@ export function setupSocket(httpServer: HttpServer) {
         io.to(roomCode).emit("influence_announcement", {
           id: crypto.randomUUID(),
           kind: "protest",
-          title: "Протестую",
+          title: "ПРОТЕСТУЮ!",
           subtitle: actor.roleTitle || actor.name,
           durationMs: INFLUENCE_ANNOUNCEMENT_DURATION_MS,
         });
@@ -1126,8 +1150,92 @@ export function setupSocket(httpServer: HttpServer) {
         io.to(roomCode).emit("influence_announcement", {
           id: crypto.randomUUID(),
           kind: "silence",
-          title: "Тишина в зале!",
+          title: "ТИШИНА В ЗАЛЕ СУДА!",
           subtitle: actor.roleTitle || actor.name,
+          durationMs: INFLUENCE_ANNOUNCEMENT_DURATION_MS,
+        });
+      },
+    );
+
+    socket.on(
+      "trigger_warning",
+      ({
+        code,
+        targetPlayerId,
+        sessionToken,
+      }: {
+        code: string;
+        targetPlayerId: string;
+        sessionToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room?.game || room.game.finished) return;
+
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken,
+        });
+        if (!actorId) return;
+
+        const actor = room.game.players.find((p: any) => p.id === actorId);
+        if (!actor || normalizeRoleKey(actor.roleKey) !== "judge") {
+          socket.emit("error", { message: "Предупреждение может выдавать только судья." });
+          return;
+        }
+
+        if (!targetPlayerId || targetPlayerId === actorId) {
+          socket.emit("error", { message: "Нельзя выдать предупреждение этому игроку." });
+          return;
+        }
+
+        const targetPlayer = room.game.players.find((p: any) => p.id === targetPlayerId);
+        if (!targetPlayer) {
+          socket.emit("error", { message: "Игрок не найден." });
+          return;
+        }
+        if (normalizeRoleKey(targetPlayer.roleKey) === "judge") {
+          socket.emit("error", { message: "Судье нельзя выдать предупреждение." });
+          return;
+        }
+
+        const key = getActionCooldownKey(roomCode, actorId, "warning");
+        const now = Date.now();
+        const cooldownEndsAt = actionCooldowns.get(key) ?? 0;
+        if (cooldownEndsAt > now) {
+          socket.emit("influence_cooldown", {
+            action: "warning",
+            cooldownEndsAt,
+          });
+          return;
+        }
+
+        const result = applyWarningToPlayer(roomCode, targetPlayerId);
+        if (!result) return;
+        if (!result.changed) {
+          socket.emit("error", {
+            message: "Этому игроку уже выдан максимум предупреждений (3).",
+          });
+          return;
+        }
+
+        const nextCooldownEndsAt = now + WARNING_COOLDOWN_MS;
+        actionCooldowns.set(key, nextCooldownEndsAt);
+        socket.emit("influence_cooldown", {
+          action: "warning",
+          cooldownEndsAt: nextCooldownEndsAt,
+        });
+
+        io.to(roomCode).emit("game_players_updated", {
+          players: mapGamePlayers(result.room.game.players),
+        });
+        io.to(roomCode).emit("influence_announcement", {
+          id: crypto.randomUUID(),
+          kind: "warning",
+          title: `ПРЕДУПРЕЖДЕНИЕ: ${targetPlayer.name.toUpperCase()}`,
+          subtitle: `Выдал судья • ${actor.name}`,
           durationMs: INFLUENCE_ANNOUNCEMENT_DURATION_MS,
         });
       },
