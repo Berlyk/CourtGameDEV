@@ -4112,7 +4112,7 @@ export default function App() {
                       {influenceAnnouncement.title}
                     </motion.div>
                     {influenceAnnouncement.subtitle && (
-                      <div className="mt-3 rounded-lg bg-black/45 px-3 py-1.5 text-sm md:text-base text-zinc-200 font-medium">
+                      <div className="mt-3 rounded-lg border border-zinc-600/60 bg-black/30 px-4 py-2 text-base md:text-lg text-zinc-100 font-semibold">
                         {influenceAnnouncement.subtitle}
                       </div>
                     )}
