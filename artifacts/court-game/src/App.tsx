@@ -2469,6 +2469,18 @@ export default function App() {
     [game, mySessionToken, socket],
   );
 
+  const removeJudgeWarning = useCallback(
+    (targetPlayerId: string) => {
+      if (!game || !mySessionToken || !targetPlayerId) return;
+      socket.emit("remove_warning", {
+        code: game.code,
+        targetPlayerId,
+        sessionToken: mySessionToken,
+      });
+    },
+    [game, mySessionToken, socket],
+  );
+
   const openLawyerChat = useCallback(() => {
     if (!game || !mySessionToken) return;
     setLawyerChatUnreadCount(0);
@@ -4447,6 +4459,7 @@ export default function App() {
                           const warningCount = player.warningCount ?? 0;
                           const reachedLimit = warningCount >= 3;
                           const canWarn = canUseJudgeWarning && !reachedLimit;
+                          const canRemove = canUseJudgeWarning && warningCount > 0;
                           return (
                             <div
                               key={player.id}
@@ -4461,17 +4474,33 @@ export default function App() {
                                   {warningCount}/3
                                 </Badge>
                               </div>
-                              <Button
-                                className={`w-full rounded-xl border-0 ${
-                                  canWarn
-                                    ? "bg-red-600 text-white hover:bg-red-500"
-                                    : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
-                                }`}
-                                disabled={!canWarn}
-                                onClick={() => triggerJudgeWarning(player.id)}
-                              >
-                                {reachedLimit ? "Лимит предупреждений" : "Выдать предупреждение"}
-                              </Button>
+                              <div className={`grid gap-2 ${warningCount > 0 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+                                <Button
+                                  className={`w-full rounded-xl border-0 ${
+                                    canWarn
+                                      ? "bg-red-600 text-white hover:bg-red-500"
+                                      : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                                  }`}
+                                  disabled={!canWarn}
+                                  onClick={() => triggerJudgeWarning(player.id)}
+                                >
+                                  {reachedLimit ? "Лимит предупреждений" : "Выдать предупреждение"}
+                                </Button>
+                                {warningCount > 0 && (
+                                  <Button
+                                    variant="outline"
+                                    className={`w-full rounded-xl border-zinc-700 ${
+                                      canRemove
+                                        ? "bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                                        : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                                    }`}
+                                    disabled={!canRemove}
+                                    onClick={() => removeJudgeWarning(player.id)}
+                                  >
+                                    Снять предупреждение
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           );
                         })

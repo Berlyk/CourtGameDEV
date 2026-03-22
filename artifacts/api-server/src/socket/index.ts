@@ -398,6 +398,27 @@ export function setupSocket(httpServer: HttpServer) {
     return { room, warningCount: gameTarget.warningCount, changed: true };
   };
 
+  const removeWarningFromPlayer = (roomCode: string, targetPlayerId: string) => {
+    const room = getRoom(roomCode);
+    if (!room?.game) return null;
+
+    const gameTarget = room.game.players.find((p: any) => p.id === targetPlayerId);
+    if (!gameTarget) return null;
+    const currentWarnings =
+      typeof gameTarget.warningCount === "number" ? gameTarget.warningCount : 0;
+    if (currentWarnings <= 0) {
+      return { room, warningCount: currentWarnings, changed: false };
+    }
+
+    gameTarget.warningCount = currentWarnings - 1;
+    const lobbyTarget = room.players.find((p: any) => p.id === targetPlayerId);
+    if (lobbyTarget) {
+      lobbyTarget.warningCount = gameTarget.warningCount;
+    }
+
+    return { room, warningCount: gameTarget.warningCount, changed: true };
+  };
+
   const clearReconnectCleanup = (roomCode: string, playerId: string) => {
     const key = getReconnectKey(roomCode, playerId);
     const timeout = reconnectCleanupTimers.get(key);
@@ -1216,6 +1237,83 @@ export function setupSocket(httpServer: HttpServer) {
         if (!result.changed) {
           socket.emit("error", {
             message: "Этому игроку уже выдан максимум предупреждений (3).",
+          });
+          return;
+        }
+
+        const nextCooldownEndsAt = now + WARNING_COOLDOWN_MS;
+        actionCooldowns.set(key, nextCooldownEndsAt);
+        socket.emit("influence_cooldown", {
+          action: "warning",
+          cooldownEndsAt: nextCooldownEndsAt,
+        });
+
+        io.to(roomCode).emit("game_players_updated", {
+          players: mapGamePlayers(result.room.game.players),
+        });
+      },
+    );
+
+    socket.on(
+      "remove_warning",
+      ({
+        code,
+        targetPlayerId,
+        sessionToken,
+      }: {
+        code: string;
+        targetPlayerId: string;
+        sessionToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room?.game || room.game.finished) return;
+
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken,
+        });
+        if (!actorId) return;
+
+        const actor = room.game.players.find((p: any) => p.id === actorId);
+        if (!actor || normalizeRoleKey(actor.roleKey) !== "judge") {
+          socket.emit("error", { message: "РЎРЅРёРјР°С‚СЊ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёСЏ РјРѕР¶РµС‚ С‚РѕР»СЊРєРѕ СЃСѓРґСЊСЏ." });
+          return;
+        }
+
+        if (!targetPlayerId || targetPlayerId === actorId) {
+          socket.emit("error", { message: "РќРµР»СЊР·СЏ РёР·РјРµРЅРёС‚СЊ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ СЌС‚РѕРјСѓ РёРіСЂРѕРєСѓ." });
+          return;
+        }
+
+        const targetPlayer = room.game.players.find((p: any) => p.id === targetPlayerId);
+        if (!targetPlayer) {
+          socket.emit("error", { message: "РРіСЂРѕРє РЅРµ РЅР°Р№РґРµРЅ." });
+          return;
+        }
+        if (normalizeRoleKey(targetPlayer.roleKey) === "judge") {
+          socket.emit("error", { message: "РЎСѓРґСЊСЋ РЅРµР»СЊР·СЏ РёР·РјРµРЅСЏС‚СЊ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёСЏ." });
+          return;
+        }
+
+        const key = getActionCooldownKey(roomCode, actorId, "warning");
+        const now = Date.now();
+        const cooldownEndsAt = actionCooldowns.get(key) ?? 0;
+        if (cooldownEndsAt > now) {
+          socket.emit("influence_cooldown", {
+            action: "warning",
+            cooldownEndsAt,
+          });
+          return;
+        }
+
+        const result = removeWarningFromPlayer(roomCode, targetPlayerId);
+        if (!result) return;
+        if (!result.changed) {
+          socket.emit("error", {
+            message: "РЈ СЌС‚РѕРіРѕ РёРіСЂРѕРєР° РЅРµС‚ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёР№.",
           });
           return;
         }
