@@ -1502,9 +1502,12 @@ export function setupSocket(httpServer: HttpServer) {
       const leavingPlayer = lobbyPlayer || gamePlayer;
       const leavingName = leavingPlayer?.name || "Игрок";
       const wasInGame = !!room?.game;
+      const shouldPreserveReconnect =
+        preserveForRejoin &&
+        !(!wasInGame && room.hostId === info.playerId && room.players.length <= 1);
 
       if (wasInGame) {
-        if (preserveForRejoin) {
+        if (shouldPreserveReconnect) {
           const disconnectedUntil = Date.now() + RECONNECT_GRACE_MS;
           const updatedRoom =
             markPlayerDisconnected(info.roomCode, info.playerId, disconnectedUntil) ??
@@ -1547,7 +1550,7 @@ export function setupSocket(httpServer: HttpServer) {
           emitPublicMatches(io);
         }
       } else {
-        if (preserveForRejoin) {
+        if (shouldPreserveReconnect) {
           const disconnectedUntil = Date.now() + RECONNECT_GRACE_MS;
           const updatedRoom =
             markPlayerDisconnected(info.roomCode, info.playerId, disconnectedUntil) ??
@@ -1597,8 +1600,9 @@ export function setupSocket(httpServer: HttpServer) {
       }
     }
 
-    socket.on("leave_room", () => {
-      handleLeave(socket.id, true);
+    socket.on("leave_room", (payload?: { preserveForRejoin?: boolean }) => {
+      const preserveForRejoin = payload?.preserveForRejoin !== false;
+      handleLeave(socket.id, preserveForRejoin);
     });
 
     socket.on("disconnect", () => {

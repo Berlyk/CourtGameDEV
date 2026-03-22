@@ -2492,8 +2492,18 @@ export default function App() {
   }, [game, lawyerChatInput, lawyerChatPartner, mySessionToken, socket]);
 
   const returnHomeWithSession = useCallback(() => {
-    startReconnectWindow();
-    socket.emit("leave_room");
+    const shouldPreserveReconnect =
+      !!game || !!(room && !(myId === room.hostId && room.players.length <= 1));
+    if (shouldPreserveReconnect) {
+      startReconnectWindow();
+    } else {
+      clearReconnectWindow();
+      localStorage.removeItem("court_session");
+      localStorage.removeItem("court_session_token");
+      setHasSession(false);
+      setMySessionToken(null);
+    }
+    socket.emit("leave_room", { preserveForRejoin: shouldPreserveReconnect });
     setScreen("home");
     setRoom(null);
     setGame(null);
@@ -2519,11 +2529,21 @@ export default function App() {
     setLobbyChatMessages([]);
     setProfileMenuOpen(false);
     setCreateMatchDialogOpen(false);
-  }, [socket, startReconnectWindow]);
+  }, [clearReconnectWindow, game, myId, room, socket, startReconnectWindow]);
 
   const finalExit = useCallback(() => {
-    startReconnectWindow();
-    socket.emit("leave_room");
+    const shouldPreserveReconnect =
+      !!game || !!(room && !(myId === room.hostId && room.players.length <= 1));
+    if (shouldPreserveReconnect) {
+      startReconnectWindow();
+    } else {
+      clearReconnectWindow();
+      localStorage.removeItem("court_session");
+      localStorage.removeItem("court_session_token");
+      setHasSession(false);
+      setMySessionToken(null);
+    }
+    socket.emit("leave_room", { preserveForRejoin: shouldPreserveReconnect });
     setScreen("home");
     setRoom(null);
     setGame(null);
@@ -2546,7 +2566,7 @@ export default function App() {
     setLobbyChatMessages([]);
     setProfileMenuOpen(false);
     setCreateMatchDialogOpen(false);
-  }, [socket, startReconnectWindow]);
+  }, [clearReconnectWindow, game, myId, room, socket, startReconnectWindow]);
 
   const setupNickname = useCallback(() => {
     const name = playerName.trim();
@@ -3839,6 +3859,13 @@ export default function App() {
     const isPreparationStage = isPreparationStageName(currentStage);
     const isCrossExaminationStage = isCrossExaminationStageName(currentStage);
     const isVerdictStage = game.stageIndex >= gameStages.length - 1;
+    const normalizedMyRoleKey = (game.me.roleKey ?? "").toLowerCase();
+    const isLawyerRole =
+      normalizedMyRoleKey.includes("lawyer") ||
+      (game.me.roleTitle ?? "").toLowerCase().includes("адвокат");
+    const lawyerChatButtonLabel = isLawyerRole
+      ? "Чат с клиентом"
+      : "Чат с адвокатом";
     const canRevealFactsAtCurrentStage = game.me.canRevealFactsNow === true;
     const canUseProtest =
       !isJudge && !game.finished && isCrossExaminationStage && protestCooldownLeft <= 0;
@@ -4067,30 +4094,39 @@ export default function App() {
 
           <AnimatePresence>
             {influenceAnnouncement && (
-              <motion.div
-                key={influenceAnnouncement.id}
-                initial={{ opacity: 0, scale: 0.82, y: 22 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 1.04, y: -10 }}
-                transition={{ duration: 0.28, ease: "easeOut" }}
-                className="fixed inset-0 z-[70] pointer-events-none flex items-center justify-center px-4"
-              >
-                <div className="absolute inset-0 bg-black/65 backdrop-blur-[1.5px]" />
-                <div className="relative w-full max-w-3xl text-center">
-                  <motion.div
-                    animate={{ textShadow: ["0 0 18px rgba(239,68,68,0.35)", "0 0 34px rgba(239,68,68,0.85)", "0 0 20px rgba(239,68,68,0.45)"] }}
-                    transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
-                    className="text-[clamp(2.1rem,7vw,4.9rem)] font-black tracking-[0.08em] leading-none text-red-500 uppercase"
-                  >
-                    {influenceAnnouncement.title}
-                  </motion.div>
-                  {influenceAnnouncement.subtitle && (
-                    <div className="mt-3 text-sm md:text-base text-zinc-300 font-medium">
-                      {influenceAnnouncement.subtitle}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
+              <>
+                <motion.div
+                  key={`${influenceAnnouncement.id}-bg`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="fixed inset-0 z-[68] pointer-events-none bg-black/72"
+                />
+                <motion.div
+                  key={`${influenceAnnouncement.id}-text`}
+                  initial={{ opacity: 0, scale: 0.86, y: 16 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 1.03, y: -10 }}
+                  transition={{ duration: 0.24, ease: "easeOut" }}
+                  className="fixed inset-0 z-[70] pointer-events-none flex items-center justify-center px-4"
+                >
+                  <div className="w-full max-w-3xl text-center">
+                    <motion.div
+                      animate={{ textShadow: ["0 0 18px rgba(239,68,68,0.35)", "0 0 34px rgba(239,68,68,0.85)", "0 0 20px rgba(239,68,68,0.45)"] }}
+                      transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
+                      className="text-[clamp(2.1rem,7vw,4.9rem)] font-black tracking-[0.05em] whitespace-nowrap leading-none text-red-500 uppercase"
+                    >
+                      {influenceAnnouncement.title}
+                    </motion.div>
+                    {influenceAnnouncement.subtitle && (
+                      <div className="mt-3 text-sm md:text-base text-zinc-300 font-medium">
+                        {influenceAnnouncement.subtitle}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              </>
             )}
           </AnimatePresence>
 
@@ -4472,9 +4508,12 @@ export default function App() {
                           }`}
                           disabled={!canUseJudgeSilence}
                           onClick={triggerJudgeSilence}
+                          title="Тишина в зале!"
                         >
-                          Тишина в зале!
-                          {silenceCooldownLeft > 0 ? ` (${silenceCooldownLeft}s)` : ""}
+                          <span className="whitespace-nowrap">
+                            Тишина в зале!
+                            {silenceCooldownLeft > 0 ? ` (${silenceCooldownLeft}s)` : ""}
+                          </span>
                         </Button>
                         <Button
                           variant="outline"
@@ -4514,7 +4553,7 @@ export default function App() {
                             }`}
                             onClick={openLawyerChat}
                           >
-                            Чат с адвокатом
+                            {lawyerChatButtonLabel}
                             {lawyerChatUnreadCount > 0 && (
                               <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-xs text-white">
                                 {lawyerChatUnreadCount}
