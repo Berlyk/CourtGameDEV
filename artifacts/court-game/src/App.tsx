@@ -1471,7 +1471,6 @@ export default function App() {
   const [influenceNotes, setInfluenceNotes] = useState("");
   const [protestCooldownEndsAt, setProtestCooldownEndsAt] = useState(0);
   const [silenceCooldownEndsAt, setSilenceCooldownEndsAt] = useState(0);
-  const [warningCooldownEndsAt, setWarningCooldownEndsAt] = useState(0);
   const [influenceAnnouncement, setInfluenceAnnouncement] =
     useState<InfluenceAnnouncement | null>(null);
 
@@ -1514,10 +1513,6 @@ export default function App() {
   const silenceCooldownLeft = Math.max(
     0,
     Math.ceil((silenceCooldownEndsAt - nowMs) / 1000),
-  );
-  const warningCooldownLeft = Math.max(
-    0,
-    Math.ceil((warningCooldownEndsAt - nowMs) / 1000),
   );
   const notesStorageKey =
     game && game.me ? `court_notes_${game.code}_${game.me.id}` : null;
@@ -1614,7 +1609,6 @@ export default function App() {
       setInfluenceNotes("");
       setProtestCooldownEndsAt(0);
       setSilenceCooldownEndsAt(0);
-      setWarningCooldownEndsAt(0);
       setInfluenceAnnouncement(null);
       return;
     }
@@ -1986,7 +1980,6 @@ export default function App() {
           setSilenceCooldownEndsAt(cooldownEndsAt || 0);
           return;
         }
-        setWarningCooldownEndsAt(cooldownEndsAt || 0);
       },
     );
 
@@ -3882,7 +3875,7 @@ export default function App() {
     const canUseProtest =
       !isJudge && !game.finished && isCrossExaminationStage && protestCooldownLeft <= 0;
     const canUseJudgeSilence = isJudge && !game.finished && silenceCooldownLeft <= 0;
-    const canUseJudgeWarning = isJudge && !game.finished && warningCooldownLeft <= 0;
+    const canUseJudgeWarning = isJudge && !game.finished;
     const warningTargets = game.players.filter(
       (player) => player.id !== game.me!.id && player.roleKey !== "judge",
     );
@@ -4447,7 +4440,6 @@ export default function App() {
                     </div>
                     <div className="text-xs text-zinc-500">
                       Лимит: максимум 3 предупреждения на игрока.
-                      {warningCooldownLeft > 0 ? ` Откат: ${warningCooldownLeft}s` : ""}
                     </div>
                     <div className="space-y-2">
                       {warningTargets.length === 0 ? (
@@ -4476,7 +4468,7 @@ export default function App() {
                               </div>
                               <div className={`grid gap-2 ${warningCount > 0 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
                                 <Button
-                                  className={`w-full rounded-xl border-0 ${
+                                  className={`w-full rounded-xl border-0 h-auto min-h-[44px] py-2 px-3 whitespace-normal break-words text-center text-sm leading-tight ${
                                     canWarn
                                       ? "bg-red-600 text-white hover:bg-red-500"
                                       : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
@@ -4489,7 +4481,7 @@ export default function App() {
                                 {warningCount > 0 && (
                                   <Button
                                     variant="outline"
-                                    className={`w-full rounded-xl border-zinc-700 ${
+                                    className={`w-full rounded-xl border-zinc-700 h-auto min-h-[44px] py-2 px-3 whitespace-normal break-words text-center text-sm leading-tight ${
                                       canRemove
                                         ? "bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                                         : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
@@ -4542,7 +4534,6 @@ export default function App() {
                           onClick={() => setInfluenceView("warnings")}
                         >
                           Предупреждение
-                          {warningCooldownLeft > 0 ? ` (${warningCooldownLeft}s)` : ""}
                         </Button>
                         <Button
                           variant="outline"

@@ -37,7 +37,6 @@ const CLOSING_STAGE_MARKERS = ["финальн", "заключительн"];
 const RECONNECT_GRACE_MS = 30_000;
 const PROTEST_COOLDOWN_MS = 30_000;
 const JUDGE_SILENCE_COOLDOWN_MS = 15_000;
-const WARNING_COOLDOWN_MS = 60_000;
 const INFLUENCE_ANNOUNCEMENT_DURATION_MS = 3_000;
 type SpeechOwnerRole =
   | "plaintiff"
@@ -1221,17 +1220,6 @@ export function setupSocket(httpServer: HttpServer) {
           return;
         }
 
-        const key = getActionCooldownKey(roomCode, actorId, "warning");
-        const now = Date.now();
-        const cooldownEndsAt = actionCooldowns.get(key) ?? 0;
-        if (cooldownEndsAt > now) {
-          socket.emit("influence_cooldown", {
-            action: "warning",
-            cooldownEndsAt,
-          });
-          return;
-        }
-
         const result = applyWarningToPlayer(roomCode, targetPlayerId);
         if (!result) return;
         if (!result.changed) {
@@ -1240,13 +1228,6 @@ export function setupSocket(httpServer: HttpServer) {
           });
           return;
         }
-
-        const nextCooldownEndsAt = now + WARNING_COOLDOWN_MS;
-        actionCooldowns.set(key, nextCooldownEndsAt);
-        socket.emit("influence_cooldown", {
-          action: "warning",
-          cooldownEndsAt: nextCooldownEndsAt,
-        });
 
         io.to(roomCode).emit("game_players_updated", {
           players: mapGamePlayers(result.room.game.players),
@@ -1298,17 +1279,6 @@ export function setupSocket(httpServer: HttpServer) {
           return;
         }
 
-        const key = getActionCooldownKey(roomCode, actorId, "warning");
-        const now = Date.now();
-        const cooldownEndsAt = actionCooldowns.get(key) ?? 0;
-        if (cooldownEndsAt > now) {
-          socket.emit("influence_cooldown", {
-            action: "warning",
-            cooldownEndsAt,
-          });
-          return;
-        }
-
         const result = removeWarningFromPlayer(roomCode, targetPlayerId);
         if (!result) return;
         if (!result.changed) {
@@ -1317,13 +1287,6 @@ export function setupSocket(httpServer: HttpServer) {
           });
           return;
         }
-
-        const nextCooldownEndsAt = now + WARNING_COOLDOWN_MS;
-        actionCooldowns.set(key, nextCooldownEndsAt);
-        socket.emit("influence_cooldown", {
-          action: "warning",
-          cooldownEndsAt: nextCooldownEndsAt,
-        });
 
         io.to(roomCode).emit("game_players_updated", {
           players: mapGamePlayers(result.room.game.players),
