@@ -1150,8 +1150,7 @@ export function setupSocket(httpServer: HttpServer) {
         io.to(roomCode).emit("influence_announcement", {
           id: crypto.randomUUID(),
           kind: "silence",
-          title: "ТИШИНА В ЗАЛЕ СУДА!",
-          subtitle: actor.roleTitle || actor.name,
+          title: "ТИШИНА В ЗАЛЕ!",
           durationMs: INFLUENCE_ANNOUNCEMENT_DURATION_MS,
         });
       },
@@ -1230,13 +1229,6 @@ export function setupSocket(httpServer: HttpServer) {
 
         io.to(roomCode).emit("game_players_updated", {
           players: mapGamePlayers(result.room.game.players),
-        });
-        io.to(roomCode).emit("influence_announcement", {
-          id: crypto.randomUUID(),
-          kind: "warning",
-          title: `ПРЕДУПРЕЖДЕНИЕ: ${targetPlayer.name.toUpperCase()}`,
-          subtitle: `Выдал судья • ${actor.name}`,
-          durationMs: INFLUENCE_ANNOUNCEMENT_DURATION_MS,
         });
       },
     );

@@ -4075,7 +4075,8 @@ export default function App() {
                 transition={{ duration: 0.28, ease: "easeOut" }}
                 className="fixed inset-0 z-[70] pointer-events-none flex items-center justify-center px-4"
               >
-                <div className="w-full max-w-3xl text-center">
+                <div className="absolute inset-0 bg-black/65 backdrop-blur-[1.5px]" />
+                <div className="relative w-full max-w-3xl text-center">
                   <motion.div
                     animate={{ textShadow: ["0 0 18px rgba(239,68,68,0.35)", "0 0 34px rgba(239,68,68,0.85)", "0 0 20px rgba(239,68,68,0.45)"] }}
                     transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
@@ -4192,7 +4193,7 @@ export default function App() {
                           <span className="text-zinc-300 truncate">{p.name}</span>
                           {(p.warningCount ?? 0) > 0 && (
                             <Badge className="bg-red-950/70 text-red-300 border border-red-700/70">
-                              П{p.warningCount}/3
+                              {p.warningCount}/3
                             </Badge>
                           )}
                           {typeof p.disconnectedUntil === "number" &&
@@ -4429,7 +4430,7 @@ export default function App() {
                                   <div className="text-xs text-zinc-500 truncate">{player.roleTitle}</div>
                                 </div>
                                 <Badge className="bg-red-950/70 text-red-300 border border-red-700/70">
-                                  П{warningCount}/3
+                                  {warningCount}/3
                                 </Badge>
                               </div>
                               <Button
@@ -4496,7 +4497,7 @@ export default function App() {
                         <Button
                           className={`w-full h-14 rounded-xl border-0 text-lg font-black tracking-[0.05em] transition-all ${
                             canUseProtest
-                              ? "bg-red-600 text-white hover:bg-red-500 shadow-[0_0_28px_rgba(239,68,68,0.58)] animate-pulse"
+                              ? "bg-red-600 text-white hover:bg-red-500 shadow-[0_0_28px_rgba(239,68,68,0.58)]"
                               : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
                           }`}
                           onClick={triggerProtest}
@@ -4505,11 +4506,6 @@ export default function App() {
                           ПРОТЕСТУЮ
                           {protestCooldownLeft > 0 ? ` (${protestCooldownLeft}s)` : ""}
                         </Button>
-                        {!isCrossExaminationStage && (
-                          <div className="text-xs text-zinc-500">
-                            Кнопка активна только на этапе «Перекрестный допрос».
-                          </div>
-                        )}
                         {lawyerChatPartner && (
                           <Button
                             variant="outline"
