@@ -1450,8 +1450,6 @@ export default function App() {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
-  const [disconnectAlert, setDisconnectAlert] = useState("");
-  const [rejoinAlert, setRejoinAlert] = useState("");
   const [kickedAlert, setKickedAlert] = useState("");
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
   const [startGameLoading, setStartGameLoading] = useState(false);
@@ -1928,22 +1926,6 @@ export default function App() {
     );
 
     socket.on(
-      "player_left",
-      ({ playerName: name }: { playerId: string; playerName: string }) => {
-        setDisconnectAlert(`⚠️ ${name} покинул игру`);
-        setTimeout(() => setDisconnectAlert(""), 6000);
-      },
-    );
-
-    socket.on(
-      "player_rejoined",
-      ({ playerName: name }: { playerName: string }) => {
-        setRejoinAlert(`${name} вернулся в игру`);
-        setTimeout(() => setRejoinAlert(""), 4000);
-      },
-    );
-
-    socket.on(
       "lawyer_chat_state",
       ({
         enabled,
@@ -2091,8 +2073,6 @@ export default function App() {
       setAdminHostSessionToken(null);
       localStorage.removeItem("court_admin_host_token");
       setJoinCode("");
-      setDisconnectAlert("");
-      setRejoinAlert("");
       setCopiedRoomCode(false);
       setIsHostJudge(false);
       setStartGameLoading(false);
@@ -2583,8 +2563,6 @@ export default function App() {
     setJoinPasswordInput("");
     setJoinPasswordDialogError("");
     setJoinPasswordVisible(false);
-    setDisconnectAlert("");
-    setRejoinAlert("");
     setKickedAlert("");
     setCopiedRoomCode(false);
     setIsHostJudge(false);
@@ -3109,9 +3087,9 @@ export default function App() {
                               className="h-full"
                             >
                               <Card className="h-full rounded-2xl bg-zinc-900/90 border-zinc-800 text-zinc-100">
-                                <CardContent className="h-full p-4 flex flex-col justify-between gap-1.5">
+                                <CardContent className="h-full p-4 space-y-1.5">
                                   <div className="font-semibold">{item.title}</div>
-                                  <div className="text-zinc-400 mt-1">{item.sub}</div>
+                                  <div className="text-zinc-400">{item.sub}</div>
                                 </CardContent>
                               </Card>
                             </motion.div>
@@ -3985,7 +3963,7 @@ export default function App() {
         variants={pageVariants}
         initial="initial"
         animate="animate"
-        className="relative isolate min-h-screen bg-[#0b0b0f] text-zinc-100 p-4 sm:p-6 md:p-10"
+        className="relative isolate min-h-screen overflow-x-hidden bg-[#0b0b0f] text-zinc-100 p-4 sm:p-6 md:p-10"
       >
         <CourtAtmosphereBackground />
         <AnimatePresence>
@@ -4173,28 +4151,6 @@ export default function App() {
                 {error}
               </motion.div>
             )}
-            {disconnectAlert && (
-              <motion.div
-                key="disc"
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="bg-yellow-500/15 border border-yellow-500/40 text-yellow-300 rounded-xl px-4 py-3 text-sm font-medium"
-              >
-                {disconnectAlert}
-              </motion.div>
-            )}
-            {rejoinAlert && (
-              <motion.div
-                key="rej"
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="bg-green-500/15 border border-green-500/40 text-green-300 rounded-xl px-4 py-3 text-sm font-medium"
-              >
-                ✓ {rejoinAlert}
-              </motion.div>
-            )}
           </AnimatePresence>
 
           <AnimatePresence>
@@ -4238,8 +4194,8 @@ export default function App() {
                 transition={{ duration: 0.24, ease: "easeOut" }}
                 className="fixed inset-0 z-[70] pointer-events-none flex items-center justify-center px-4"
               >
-                <div className="w-full max-w-4xl text-center">
-                  <div className="inline-flex w-full max-w-full flex-col items-center rounded-2xl border border-zinc-700/70 bg-zinc-950/88 px-5 py-5 sm:px-8 shadow-[0_18px_64px_rgba(0,0,0,0.7)]">
+                <div className="w-full text-center flex justify-center">
+                  <div className="inline-flex max-w-[min(92vw,980px)] flex-col items-center rounded-2xl border border-zinc-700/70 bg-zinc-950/88 px-5 py-4 sm:px-7 sm:py-5 shadow-[0_18px_64px_rgba(0,0,0,0.7)]">
                     <motion.div
                       animate={{
                         textShadow: isCardAnnouncement
@@ -4601,7 +4557,7 @@ export default function App() {
                       Лимит: максимум 3 предупреждения на игрока.
                     </div>
                     <div
-                      className={`space-y-2 max-h-[360px] overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`space-y-2 max-h-[360px] overflow-y-auto overflow-x-hidden pr-1 ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       {warningTargets.length === 0 ? (
                         <div className="text-sm text-zinc-500">
@@ -4634,7 +4590,7 @@ export default function App() {
                               <div className="mt-2 flex items-center gap-2">
                                 {warningCount === 0 ? (
                                   <Button
-                                    className={`h-8 w-full rounded-lg border-0 px-3 text-xs font-semibold ${
+                                    className={`h-8 w-full min-w-0 rounded-lg border-0 px-3 text-xs font-semibold ${
                                       canWarn
                                         ? "bg-red-600 text-white hover:bg-red-500"
                                         : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
@@ -4642,12 +4598,12 @@ export default function App() {
                                     disabled={!canWarn}
                                     onClick={() => triggerJudgeWarning(player.id)}
                                   >
-                                    Выдать предупреждение
+                                    <span className="truncate">Выдать предупреждение</span>
                                   </Button>
                                 ) : (
                                   <>
                                     <Button
-                                      className={`h-8 flex-1 rounded-lg border-0 px-3 text-xs font-semibold ${
+                                      className={`h-8 min-w-0 flex-1 rounded-lg border-0 px-3 text-xs font-semibold ${
                                         canWarn
                                           ? "bg-red-600 text-white hover:bg-red-500"
                                           : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
@@ -4655,11 +4611,11 @@ export default function App() {
                                       disabled={!canWarn}
                                       onClick={() => triggerJudgeWarning(player.id)}
                                     >
-                                      Добавить
+                                      <span className="truncate">Добавить</span>
                                     </Button>
                                     <Button
                                       variant="outline"
-                                      className={`h-8 flex-1 rounded-lg border-zinc-700 px-3 text-xs font-semibold ${
+                                      className={`h-8 min-w-0 flex-1 rounded-lg border-zinc-700 px-3 text-xs font-semibold ${
                                         canRemove
                                           ? "bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                                           : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
@@ -4667,7 +4623,7 @@ export default function App() {
                                       disabled={!canRemove}
                                       onClick={() => removeJudgeWarning(player.id)}
                                     >
-                                      Убрать
+                                      <span className="truncate">Убрать</span>
                                     </Button>
                                   </>
                                 )}
@@ -4683,7 +4639,7 @@ export default function App() {
                     {isJudge ? (
                       <>
                         {hasActiveProtest && (
-                          <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/75 p-3 space-y-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                          <div className="rounded-xl border border-zinc-800 bg-zinc-950/75 p-3 space-y-2.5">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
                               Активный протест
                             </div>
@@ -4692,13 +4648,15 @@ export default function App() {
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <Button
-                                className="h-10 rounded-xl border-0 bg-emerald-600/90 text-white hover:bg-emerald-500 shadow-[0_8px_20px_rgba(16,185,129,0.28)]"
+                                variant="outline"
+                                className="h-10 rounded-xl border-emerald-500/50 bg-emerald-500/12 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200"
                                 onClick={() => resolveProtest("accepted")}
                               >
                                 Принять
                               </Button>
                               <Button
-                                className="h-10 rounded-xl border-0 bg-red-600/90 text-white hover:bg-red-500 shadow-[0_8px_20px_rgba(239,68,68,0.28)]"
+                                variant="outline"
+                                className="h-10 rounded-xl border-red-500/50 bg-red-500/10 text-red-300 hover:bg-red-500/18 hover:text-red-200"
                                 onClick={() => resolveProtest("rejected")}
                               >
                                 Отклонить
