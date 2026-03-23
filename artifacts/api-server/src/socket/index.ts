@@ -32,10 +32,10 @@ function randomCode(): string {
   return Math.random().toString(36).slice(2, 7).toUpperCase();
 }
 
-const PREPARATION_STAGE_MARKER = "РїРѕРґРіРѕС‚РѕРІ";
-const CROSS_EXAMINATION_STAGE_MARKERS = ["РїРµСЂРµРєСЂРµСЃС‚", "РґРѕРїСЂРѕСЃ"];
-const OPENING_STAGE_MARKERS = ["РІС‹СЃС‚СѓРїР»РµРЅ", "РІСЃС‚СѓРїРёС‚РµР»СЊРЅ"];
-const CLOSING_STAGE_MARKERS = ["С„РёРЅР°Р»СЊРЅ", "Р·Р°РєР»СЋС‡РёС‚РµР»СЊРЅ"];
+const PREPARATION_STAGE_MARKER = "подготов";
+const CROSS_EXAMINATION_STAGE_MARKERS = ["перекрест", "допрос"];
+const OPENING_STAGE_MARKERS = ["выступлен", "вступительн"];
+const CLOSING_STAGE_MARKERS = ["финальн", "заключительн"];
 const RECONNECT_GRACE_MS = 30_000;
 const PROTEST_COOLDOWN_MS = 30_000;
 const JUDGE_SILENCE_COOLDOWN_MS = 15_000;
@@ -82,7 +82,7 @@ function resolveLawyerPartnerRole(role: CanonicalRole | null): CanonicalRole | n
 }
 
 function normalizeStageName(stageName: string): string {
-  return stageName.toLowerCase().replace(/С‘/g, "Рµ").trim();
+  return stageName.toLowerCase().replace(/ё/g, "е").trim();
 }
 
 function stageIncludesAll(normalizedStageName: string, markers: string[]): boolean {
@@ -121,10 +121,10 @@ function isClosingSpeechStage(stageName: string): boolean {
 function resolveSpeechOwnerRole(stageName: string): SpeechOwnerRole | null {
   const normalizedStageName = normalizeStageName(stageName);
   if (!normalizedStageName) return null;
-  const hasLawyer = normalizedStageName.includes("Р°РґРІРѕРєР°С‚");
-  const hasPlaintiff = normalizedStageName.includes("РёСЃС‚С†");
-  const hasDefendant = normalizedStageName.includes("РѕС‚РІРµС‚С‡РёРє");
-  const hasProsecutor = normalizedStageName.includes("РїСЂРѕРєСѓСЂРѕСЂ");
+  const hasLawyer = normalizedStageName.includes("адвокат");
+  const hasPlaintiff = normalizedStageName.includes("истец");
+  const hasDefendant = normalizedStageName.includes("ответчик");
+  const hasProsecutor = normalizedStageName.includes("прокурор");
 
   if (hasLawyer && hasPlaintiff) return "plaintiffLawyer";
   if (hasLawyer && hasDefendant) return "defenseLawyer";
@@ -1122,14 +1122,14 @@ export function setupSocket(httpServer: HttpServer) {
         }
         if (actorRole === "witness") {
           socket.emit("error", {
-            message: "РЎРІРёРґРµС‚РµР»СЊ РЅРµ РјРѕР¶РµС‚ Р·Р°СЏРІР»СЏС‚СЊ РїСЂРѕС‚РµСЃС‚.",
+            message: "Свидетель не может заявлять протест.",
           });
           return;
         }
         if (room.game.activeProtest) {
           socket.emit("error", {
             message:
-              "Р’ РјР°С‚С‡Рµ СѓР¶Рµ РµСЃС‚СЊ Р°РєС‚РёРІРЅС‹Р№ РїСЂРѕС‚РµСЃС‚. Р”РѕР¶РґРёС‚РµСЃСЊ СЂРµС€РµРЅРёСЏ СЃСѓРґСЊРё.",
+              "В матче уже есть активный протест. Дождитесь решения судьи.",
           });
           return;
         }
@@ -1138,7 +1138,7 @@ export function setupSocket(httpServer: HttpServer) {
         if (!isCrossExaminationStage(stageName)) {
           socket.emit("error", {
             message:
-              "РџСЂРѕС‚РµСЃС‚ РґРѕСЃС‚СѓРїРµРЅ С‚РѕР»СЊРєРѕ РЅР° СЌС‚Р°РїРµ В«РџРµСЂРµРєСЂРµСЃС‚РЅС‹Р№ РґРѕРїСЂРѕСЃВ».",
+              "Протест доступен только на этапе «Перекрестный допрос».",
           });
           return;
         }
@@ -1198,7 +1198,7 @@ export function setupSocket(httpServer: HttpServer) {
         const actor = room.game.players.find((p: any) => p.id === actorId);
         if (!actor || normalizeRoleKey(actor.roleKey) !== "judge") {
           socket.emit("error", {
-            message: "РџСЂРёРЅРёРјР°С‚СЊ РёР»Рё РѕС‚РєР»РѕРЅСЏС‚СЊ РїСЂРѕС‚РµСЃС‚ РјРѕР¶РµС‚ С‚РѕР»СЊРєРѕ СЃСѓРґСЊСЏ.",
+            message: "Принимать или отклонять протест может только судья.",
           });
           return;
         }
@@ -1206,7 +1206,7 @@ export function setupSocket(httpServer: HttpServer) {
         const active = room.game.activeProtest;
         if (!active) {
           socket.emit("error", {
-            message: "Р’ РјР°С‚С‡Рµ РЅРµС‚ Р°РєС‚РёРІРЅРѕРіРѕ РїСЂРѕС‚РµСЃС‚Р°.",
+            message: "В матче нет активного протеста.",
           });
           return;
         }
@@ -1219,8 +1219,8 @@ export function setupSocket(httpServer: HttpServer) {
           kind: "protest",
           title:
             resolution === "accepted"
-              ? "РџР РћРўР•РЎРў РџР РРќРЇРў"
-              : "РџР РћРўР•РЎРў РћРўРљР›РћРќР•Рќ",
+              ? "ПРОТЕСТ ПРИНЯТ"
+              : "ПРОТЕСТ ОТКЛОНЕН",
           durationMs: INFLUENCE_ANNOUNCEMENT_DURATION_MS,
         });
       },
@@ -1547,7 +1547,7 @@ export function setupSocket(httpServer: HttpServer) {
         room.game.stageIndex,
       );
       if (isPreparationStage(currentStageName)) {
-        socket.emit("error", { message: "РќР° СЌС‚Р°РїРµ В«РџРѕРґРіРѕС‚РѕРІРєР°В» РєР°СЂС‚С‹ РјРµС…Р°РЅРёРє РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ РЅРµР»СЊР·СЏ." });
+        socket.emit("error", { message: "На этапе «Подготовка» карты механик использовать нельзя." });
         return;
       }
 

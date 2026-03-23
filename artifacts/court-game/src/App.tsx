@@ -4202,6 +4202,11 @@ export default function App() {
                         : "max-w-[min(92vw,980px)] sm:px-7 sm:py-5"
                     }`}
                   >
+                    {isCardAnnouncement && (
+                      <div className="mb-2 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.11em] text-zinc-400">
+                        Использована карта механики
+                      </div>
+                    )}
                     <motion.div
                       animate={{
                         textShadow: isCardAnnouncement
