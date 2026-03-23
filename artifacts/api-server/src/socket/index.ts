@@ -564,7 +564,7 @@ export function setupSocket(httpServer: HttpServer) {
       const sessionToken = crypto.randomUUID();
       const player = {
         id: playerId,
-        name: playerName || "РРіСЂРѕРє 1",
+        name: playerName || "Игрок 1",
         socketId: socket.id,
         sessionToken,
         avatar: avatar || undefined
@@ -687,7 +687,7 @@ export function setupSocket(httpServer: HttpServer) {
       }
 
       if (room.players.length >= room.maxPlayers) {
-        socket.emit("error", { message: `РљРѕРјРЅР°С‚Р° Р·Р°РїРѕР»РЅРµРЅР° (РјР°РєСЃРёРјСѓРј ${room.maxPlayers} РёРіСЂРѕРєРѕРІ).` });
+        socket.emit("error", { message: `Комната заполнена (максимум ${room.maxPlayers} игроков).` });
         return;
       }
 
@@ -724,13 +724,13 @@ export function setupSocket(httpServer: HttpServer) {
     socket.on("rejoin_room", ({ code, sessionToken, avatar }: { code: string; sessionToken: string; avatar?: string | null }) => {
       const roomCode = normalizeRoomCode(code);
       if (!sessionToken?.trim()) {
-        socket.emit("rejoin_failed", { message: "РќРµРґРµР№СЃС‚РІРёС‚РµР»СЊРЅР°СЏ СЃРµСЃСЃРёСЏ." });
+        socket.emit("rejoin_failed", { message: "Недействительная сессия." });
         return;
       }
       const result = rejoinRoom(roomCode, sessionToken, socket.id, avatar);
 
       if (!result) {
-        socket.emit("rejoin_failed", { message: "РљРѕРјРЅР°С‚Р° РЅРµ РЅР°Р№РґРµРЅР° РёР»Рё РІР°СЃ РЅРµС‚ РІ РЅРµР№." });
+        socket.emit("rejoin_failed", { message: "Комната не найдена или вас нет в ней." });
         return;
       }
 
@@ -778,7 +778,7 @@ export function setupSocket(httpServer: HttpServer) {
       const roomCode = normalizeRoomCode(code);
       const room = getRoom(roomCode);
       if (!room) {
-        socket.emit("error", { message: "РљРѕРјРЅР°С‚Р° РЅРµ РЅР°Р№РґРµРЅР°." });
+        socket.emit("error", { message: "Комната не найдена." });
         return;
       }
       const actorId = resolveActorId({
@@ -788,26 +788,26 @@ export function setupSocket(httpServer: HttpServer) {
         sessionToken
       });
       if (!actorId || room.hostId !== actorId) {
-        socket.emit("error", { message: "РўРѕР»СЊРєРѕ РІРµРґСѓС‰РёР№ РјРѕР¶РµС‚ РЅР°С‡Р°С‚СЊ РёРіСЂСѓ." });
+        socket.emit("error", { message: "Только ведущий может начать игру." });
         return;
       }
       if (room.modeKey === "quick_flex") {
         if (room.players.length < 3 || room.players.length > room.maxPlayers) {
           socket.emit("error", {
-            message: `Р”Р»СЏ СЃС‚Р°СЂС‚Р° Р±С‹СЃС‚СЂРѕР№ РєРѕРјРЅР°С‚С‹ РЅСѓР¶РЅРѕ РѕС‚ 3 РґРѕ ${room.maxPlayers} РёРіСЂРѕРєРѕРІ.`,
+            message: `Для старта быстрой комнаты нужно от 3 до ${room.maxPlayers} игроков.`,
           });
           return;
         }
       } else if (room.players.length !== room.maxPlayers) {
         socket.emit("error", {
-          message: `Р”Р»СЏ СЃС‚Р°СЂС‚Р° РЅСѓР¶РЅРѕ СЂРѕРІРЅРѕ ${room.maxPlayers} РёРіСЂРѕРєРѕРІ.`,
+          message: `Для старта нужно ровно ${room.maxPlayers} игроков.`,
         });
         return;
       }
 
       const updatedRoom = startGame(roomCode);
       if (!updatedRoom) {
-        socket.emit("error", { message: "РќРµ СѓРґР°Р»РѕСЃСЊ РЅР°С‡Р°С‚СЊ РёРіСЂСѓ." });
+        socket.emit("error", { message: "Не удалось начать игру." });
         return;
       }
 
@@ -1116,7 +1116,7 @@ export function setupSocket(httpServer: HttpServer) {
         const actorRole = normalizeRoleKey(actor.roleKey);
         if (actorRole === "judge") {
           socket.emit("error", {
-            message: "РЎСѓРґСЊСЏ РЅРµ РёСЃРїРѕР»СЊР·СѓРµС‚ РєРЅРѕРїРєСѓ В«РџСЂРѕС‚РµСЃС‚СѓСЋВ».",
+            message: "Судья не использует кнопку «Протестую».",
           });
           return;
         }
@@ -1242,7 +1242,7 @@ export function setupSocket(httpServer: HttpServer) {
 
         const actor = room.game.players.find((p: any) => p.id === actorId);
         if (!actor || normalizeRoleKey(actor.roleKey) !== "judge") {
-          socket.emit("error", { message: "Р­С‚Сѓ РєРЅРѕРїРєСѓ РјРѕР¶РµС‚ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ С‚РѕР»СЊРєРѕ СЃСѓРґСЊСЏ." });
+          socket.emit("error", { message: "Эту кнопку может использовать только судья." });
           return;
         }
 
@@ -1266,7 +1266,7 @@ export function setupSocket(httpServer: HttpServer) {
         io.to(roomCode).emit("influence_announcement", {
           id: crypto.randomUUID(),
           kind: "silence",
-          title: "РўРРЁРРќРђ Р’ Р—РђР›Р•!",
+          title: "ТИШИНА В ЗАЛЕ!",
           durationMs: INFLUENCE_ANNOUNCEMENT_DURATION_MS,
         });
       },
@@ -1297,22 +1297,22 @@ export function setupSocket(httpServer: HttpServer) {
 
         const actor = room.game.players.find((p: any) => p.id === actorId);
         if (!actor || normalizeRoleKey(actor.roleKey) !== "judge") {
-          socket.emit("error", { message: "РџСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ РјРѕР¶РµС‚ РІС‹РґР°РІР°С‚СЊ С‚РѕР»СЊРєРѕ СЃСѓРґСЊСЏ." });
+          socket.emit("error", { message: "Предупреждение может выдавать только судья." });
           return;
         }
 
         if (!targetPlayerId || targetPlayerId === actorId) {
-          socket.emit("error", { message: "РќРµР»СЊР·СЏ РІС‹РґР°С‚СЊ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ СЌС‚РѕРјСѓ РёРіСЂРѕРєСѓ." });
+          socket.emit("error", { message: "Нельзя выдать предупреждение этому игроку." });
           return;
         }
 
         const targetPlayer = room.game.players.find((p: any) => p.id === targetPlayerId);
         if (!targetPlayer) {
-          socket.emit("error", { message: "РРіСЂРѕРє РЅРµ РЅР°Р№РґРµРЅ." });
+          socket.emit("error", { message: "Игрок не найден." });
           return;
         }
         if (normalizeRoleKey(targetPlayer.roleKey) === "judge") {
-          socket.emit("error", { message: "РЎСѓРґСЊРµ РЅРµР»СЊР·СЏ РІС‹РґР°С‚СЊ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ." });
+          socket.emit("error", { message: "Судье нельзя выдать предупреждение." });
           return;
         }
 
@@ -1320,7 +1320,7 @@ export function setupSocket(httpServer: HttpServer) {
         if (!result) return;
         if (!result.changed) {
           socket.emit("error", {
-            message: "Р­С‚РѕРјСѓ РёРіСЂРѕРєСѓ СѓР¶Рµ РІС‹РґР°РЅ РјР°РєСЃРёРјСѓРј РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёР№ (3).",
+            message: "Этому игроку уже выдан максимум предупреждений (3).",
           });
           return;
         }
@@ -1356,22 +1356,22 @@ export function setupSocket(httpServer: HttpServer) {
 
         const actor = room.game.players.find((p: any) => p.id === actorId);
         if (!actor || normalizeRoleKey(actor.roleKey) !== "judge") {
-          socket.emit("error", { message: "Р РЋР Р…Р С‘Р СР В°РЎвЂљРЎРЉ Р С—РЎР‚Р ВµР Т‘РЎС“Р С—РЎР‚Р ВµР В¶Р Т‘Р ВµР Р…Р С‘РЎРЏ Р СР С•Р В¶Р ВµРЎвЂљ РЎвЂљР С•Р В»РЎРЉР С”Р С• РЎРѓРЎС“Р Т‘РЎРЉРЎРЏ." });
+          socket.emit("error", { message: "Снимать предупреждения может только судья." });
           return;
         }
 
         if (!targetPlayerId || targetPlayerId === actorId) {
-          socket.emit("error", { message: "Р СњР ВµР В»РЎРЉР В·РЎРЏ Р С‘Р В·Р СР ВµР Р…Р С‘РЎвЂљРЎРЉ Р С—РЎР‚Р ВµР Т‘РЎС“Р С—РЎР‚Р ВµР В¶Р Т‘Р ВµР Р…Р С‘Р Вµ РЎРЊРЎвЂљР С•Р СРЎС“ Р С‘Р С–РЎР‚Р С•Р С”РЎС“." });
+          socket.emit("error", { message: "Нельзя изменить предупреждение этому игроку." });
           return;
         }
 
         const targetPlayer = room.game.players.find((p: any) => p.id === targetPlayerId);
         if (!targetPlayer) {
-          socket.emit("error", { message: "Р ВР С–РЎР‚Р С•Р С” Р Р…Р Вµ Р Р…Р В°Р в„–Р Т‘Р ВµР Р…." });
+          socket.emit("error", { message: "Игрок не найден." });
           return;
         }
         if (normalizeRoleKey(targetPlayer.roleKey) === "judge") {
-          socket.emit("error", { message: "Р РЋРЎС“Р Т‘РЎРЉРЎР‹ Р Р…Р ВµР В»РЎРЉР В·РЎРЏ Р С‘Р В·Р СР ВµР Р…РЎРЏРЎвЂљРЎРЉ Р С—РЎР‚Р ВµР Т‘РЎС“Р С—РЎР‚Р ВµР В¶Р Т‘Р ВµР Р…Р С‘РЎРЏ." });
+          socket.emit("error", { message: "Судью нельзя изменять предупреждения." });
           return;
         }
 
@@ -1379,7 +1379,7 @@ export function setupSocket(httpServer: HttpServer) {
         if (!result) return;
         if (!result.changed) {
           socket.emit("error", {
-            message: "Р Р€ РЎРЊРЎвЂљР С•Р С–Р С• Р С‘Р С–РЎР‚Р С•Р С”Р В° Р Р…Р ВµРЎвЂљ Р С—РЎР‚Р ВµР Т‘РЎС“Р С—РЎР‚Р ВµР В¶Р Т‘Р ВµР Р…Р С‘Р в„–.",
+            message: "У этого игрока нет предупреждений.",
           });
           return;
         }
@@ -1481,7 +1481,7 @@ export function setupSocket(httpServer: HttpServer) {
 
       if (isPreparationStage(currentStageName)) {
         socket.emit("error", {
-          message: "РќР° СЌС‚Р°РїРµ В«РџРѕРґРіРѕС‚РѕРІРєР°В» СЂР°СЃРєСЂС‹РІР°С‚СЊ С„Р°РєС‚С‹ РЅРµР»СЊР·СЏ.",
+          message: "На этапе «Подготовка» раскрывать факты нельзя.",
         });
         return;
       }
@@ -1492,7 +1492,7 @@ export function setupSocket(httpServer: HttpServer) {
       if (!canRoleRevealFactsAtStage(currentPlayer.roleKey, currentStageName)) {
         socket.emit("error", {
           message:
-            "РЎРµР№С‡Р°СЃ РІС‹ РЅРµ РјРѕР¶РµС‚Рµ СЂР°СЃРєСЂС‹РІР°С‚СЊ С„Р°РєС‚С‹. РњРѕР¶РЅРѕ РЅР° СЃРІРѕРµРј СЌС‚Р°РїРµ Рё РЅР° СЌС‚Р°РїРµ В«РџРµСЂРµРєСЂРµСЃС‚РЅС‹Р№ РґРѕРїСЂРѕСЃВ».",
+            "Сейчас вы не можете раскрывать факты. Можно на своем этапе и на этапе «Перекрестный допрос».",
         });
         return;
       }
@@ -1510,7 +1510,7 @@ export function setupSocket(httpServer: HttpServer) {
         if (revealedFactsOnThisOpeningStage >= 2) {
           socket.emit("error", {
             message:
-              "РќР° СЃРІРѕРµРј РІСЃС‚СѓРїРёС‚РµР»СЊРЅРѕРј СЌС‚Р°РїРµ РјРѕР¶РЅРѕ СЂР°СЃРєСЂС‹С‚СЊ РјР°РєСЃРёРјСѓРј 2 С„Р°РєС‚Р°.",
+              "На своем вступительном этапе можно раскрыть максимум 2 факта.",
           });
           return;
         }
@@ -1588,7 +1588,7 @@ export function setupSocket(httpServer: HttpServer) {
       const judgePlayer = room.game.players.find((p: any) => p.roleKey === "judge");
       const canControl = room.hostId === actorId || judgePlayer?.id === actorId;
       if (!canControl) {
-        socket.emit("error", { message: "РўРѕР»СЊРєРѕ РІРµРґСѓС‰РёР№ РёР»Рё СЃСѓРґСЊСЏ РјРѕР¶РµС‚ РјРµРЅСЏС‚СЊ СЌС‚Р°РїС‹." });
+        socket.emit("error", { message: "Только ведущий или судья может менять этапы." });
         return;
       }
 
@@ -1614,7 +1614,7 @@ export function setupSocket(httpServer: HttpServer) {
       const judgePlayer = room.game.players.find((p: any) => p.roleKey === "judge");
       const canControl = room.hostId === actorId || judgePlayer?.id === actorId;
       if (!canControl) {
-        socket.emit("error", { message: "РўРѕР»СЊРєРѕ РІРµРґСѓС‰РёР№ РёР»Рё СЃСѓРґСЊСЏ РјРѕР¶РµС‚ РјРµРЅСЏС‚СЊ СЌС‚Р°РїС‹." });
+        socket.emit("error", { message: "Только ведущий или судья может менять этапы." });
         return;
       }
 
@@ -1640,7 +1640,7 @@ export function setupSocket(httpServer: HttpServer) {
 
       const judgePlayer = room.game.players.find((p: any) => p.roleKey === "judge");
       if (!judgePlayer || judgePlayer.id !== actorId) {
-        socket.emit("error", { message: "РўРѕР»СЊРєРѕ СЃСѓРґСЊСЏ РјРѕР¶РµС‚ РІС‹РЅРѕСЃРёС‚СЊ РІРµСЂРґРёРєС‚." });
+        socket.emit("error", { message: "Только судья может выносить вердикт." });
         return;
       }
 
@@ -1667,7 +1667,7 @@ export function setupSocket(httpServer: HttpServer) {
       const lobbyPlayer = room?.players.find((p: any) => p.id === info.playerId);
       const gamePlayer = room?.game?.players.find((p: any) => p.id === info.playerId);
       const leavingPlayer = lobbyPlayer || gamePlayer;
-      const leavingName = leavingPlayer?.name || "РРіСЂРѕРє";
+      const leavingName = leavingPlayer?.name || "Игрок";
       const wasInGame = !!room?.game;
       const shouldPreserveReconnect =
         preserveForRejoin &&
