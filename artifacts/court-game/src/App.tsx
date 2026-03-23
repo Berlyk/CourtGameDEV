@@ -3091,7 +3091,7 @@ export default function App() {
                             </p>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="grid grid-cols-2 auto-rows-fr gap-3 text-sm">
                           {[
                             { title: "3-6 игроков", sub: "Разные роли и режимы" },
                             { title: "Карты механик", sub: "Дают особые возможности" },
@@ -3106,9 +3106,10 @@ export default function App() {
                               animate="animate"
                               whileHover={{ y: -2 }}
                               whileTap={{ scale: 0.995 }}
+                              className="h-full"
                             >
-                              <Card className="rounded-2xl bg-zinc-900/90 border-zinc-800 text-zinc-100">
-                                <CardContent className="p-4">
+                              <Card className="h-full rounded-2xl bg-zinc-900/90 border-zinc-800 text-zinc-100">
+                                <CardContent className="h-full p-4 flex flex-col justify-between gap-1.5">
                                   <div className="font-semibold">{item.title}</div>
                                   <div className="text-zinc-400 mt-1">{item.sub}</div>
                                 </CardContent>
@@ -3970,6 +3971,11 @@ export default function App() {
     const canUseJudgeSilence = isJudge && !game.finished && silenceCooldownLeft <= 0;
     const canUseJudgeWarning = isJudge && !game.finished;
     const isCardAnnouncement = influenceAnnouncement?.kind === "card";
+    const announcementTitle = influenceAnnouncement?.title ?? "";
+    const isProtestAcceptedAnnouncement =
+      influenceAnnouncement?.kind === "protest" && /ПРИНЯТ/i.test(announcementTitle);
+    const isProtestRejectedAnnouncement =
+      influenceAnnouncement?.kind === "protest" && /ОТКЛОНЕН/i.test(announcementTitle);
     const warningTargets = game.players.filter(
       (player) => player.id !== game.me!.id && player.roleKey !== "judge",
     );
@@ -4232,8 +4238,8 @@ export default function App() {
                 transition={{ duration: 0.24, ease: "easeOut" }}
                 className="fixed inset-0 z-[70] pointer-events-none flex items-center justify-center px-4"
               >
-                <div className="w-full max-w-3xl text-center">
-                  <div className="inline-flex max-w-full flex-col items-center rounded-2xl border border-zinc-700/70 bg-zinc-950/88 px-8 py-5 shadow-[0_18px_64px_rgba(0,0,0,0.7)]">
+                <div className="w-full max-w-4xl text-center">
+                  <div className="inline-flex w-full max-w-full flex-col items-center rounded-2xl border border-zinc-700/70 bg-zinc-950/88 px-5 py-5 sm:px-8 shadow-[0_18px_64px_rgba(0,0,0,0.7)]">
                     <motion.div
                       animate={{
                         textShadow: isCardAnnouncement
@@ -4242,6 +4248,12 @@ export default function App() {
                               "0 0 34px rgba(59,130,246,0.85)",
                               "0 0 20px rgba(59,130,246,0.45)",
                             ]
+                          : isProtestAcceptedAnnouncement
+                            ? [
+                                "0 0 18px rgba(16,185,129,0.35)",
+                                "0 0 34px rgba(16,185,129,0.85)",
+                                "0 0 20px rgba(16,185,129,0.45)",
+                              ]
                           : [
                               "0 0 18px rgba(239,68,68,0.35)",
                               "0 0 34px rgba(239,68,68,0.85)",
@@ -4249,8 +4261,14 @@ export default function App() {
                             ],
                       }}
                       transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
-                      className={`text-[clamp(2.1rem,7vw,4.9rem)] font-black tracking-[0.04em] whitespace-nowrap leading-none uppercase ${
-                        isCardAnnouncement ? "text-blue-400" : "text-red-500"
+                      className={`max-w-full break-words [text-wrap:balance] text-[clamp(1.9rem,6.1vw,4.6rem)] font-black tracking-[0.02em] leading-[0.92] uppercase ${
+                        isCardAnnouncement
+                          ? "text-blue-400"
+                          : isProtestAcceptedAnnouncement
+                            ? "text-emerald-400"
+                            : isProtestRejectedAnnouncement
+                              ? "text-red-500"
+                              : "text-red-500"
                       }`}
                     >
                       {influenceAnnouncement.title}
@@ -4598,7 +4616,7 @@ export default function App() {
                           return (
                             <div
                               key={player.id}
-                              className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-2.5"
+                              className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-2.5 overflow-hidden"
                             >
                               <div className="flex items-center gap-2">
                                 <div className="min-w-0 flex-1">
@@ -4612,37 +4630,47 @@ export default function App() {
                                 <Badge className="bg-red-950/70 text-red-300 border border-red-700/70">
                                   {warningCount}/3
                                 </Badge>
-                                <div
-                                  className={`flex shrink-0 items-center gap-2 ${
-                                    warningCount > 0 ? "" : "w-[172px]"
-                                  }`}
-                                >
-                                <Button
-                                  className={`h-9 rounded-lg border-0 px-3 text-xs font-semibold ${
-                                    canWarn
-                                      ? "bg-red-600 text-white hover:bg-red-500"
-                                      : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
-                                  }`}
-                                  disabled={!canWarn}
-                                  onClick={() => triggerJudgeWarning(player.id)}
-                                >
-                                  {warningCount === 0 ? "Выдать предупреждение" : "Добавить"}
-                                </Button>
-                                {warningCount > 0 && (
+                              </div>
+                              <div className="mt-2 flex items-center gap-2">
+                                {warningCount === 0 ? (
                                   <Button
-                                    variant="outline"
-                                    className={`h-9 rounded-lg border-zinc-700 px-3 text-xs font-semibold ${
-                                      canRemove
-                                        ? "bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                                    className={`h-8 w-full rounded-lg border-0 px-3 text-xs font-semibold ${
+                                      canWarn
+                                        ? "bg-red-600 text-white hover:bg-red-500"
                                         : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
                                     }`}
-                                    disabled={!canRemove}
-                                    onClick={() => removeJudgeWarning(player.id)}
+                                    disabled={!canWarn}
+                                    onClick={() => triggerJudgeWarning(player.id)}
                                   >
-                                    Убрать
+                                    Выдать предупреждение
                                   </Button>
+                                ) : (
+                                  <>
+                                    <Button
+                                      className={`h-8 flex-1 rounded-lg border-0 px-3 text-xs font-semibold ${
+                                        canWarn
+                                          ? "bg-red-600 text-white hover:bg-red-500"
+                                          : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                                      }`}
+                                      disabled={!canWarn}
+                                      onClick={() => triggerJudgeWarning(player.id)}
+                                    >
+                                      Добавить
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      className={`h-8 flex-1 rounded-lg border-zinc-700 px-3 text-xs font-semibold ${
+                                        canRemove
+                                          ? "bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                                          : "bg-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                                      }`}
+                                      disabled={!canRemove}
+                                      onClick={() => removeJudgeWarning(player.id)}
+                                    >
+                                      Убрать
+                                    </Button>
+                                  </>
                                 )}
-                                </div>
                               </div>
                             </div>
                           );
@@ -4655,22 +4683,22 @@ export default function App() {
                     {isJudge ? (
                       <>
                         {hasActiveProtest && (
-                          <div className="rounded-xl border border-red-700/50 bg-red-950/30 p-3 space-y-2">
-                            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-red-300">
+                          <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/75 p-3 space-y-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
                               Активный протест
                             </div>
-                            <div className="text-sm text-zinc-200">
+                            <div className="text-sm font-semibold text-zinc-100">
                               {game.activeProtest?.actorRoleTitle}
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <Button
-                                className="h-10 rounded-xl border-0 bg-emerald-600 text-white hover:bg-emerald-500"
+                                className="h-10 rounded-xl border-0 bg-emerald-600/90 text-white hover:bg-emerald-500 shadow-[0_8px_20px_rgba(16,185,129,0.28)]"
                                 onClick={() => resolveProtest("accepted")}
                               >
                                 Принять
                               </Button>
                               <Button
-                                className="h-10 rounded-xl border-0 bg-zinc-700 text-zinc-100 hover:bg-zinc-600"
+                                className="h-10 rounded-xl border-0 bg-red-600/90 text-white hover:bg-red-500 shadow-[0_8px_20px_rgba(239,68,68,0.28)]"
                                 onClick={() => resolveProtest("rejected")}
                               >
                                 Отклонить
