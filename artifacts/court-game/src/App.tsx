@@ -4198,7 +4198,7 @@ export default function App() {
                   <div
                     className={`inline-flex flex-col items-center rounded-2xl border border-zinc-700/70 bg-zinc-950/88 px-5 py-4 shadow-[0_18px_64px_rgba(0,0,0,0.7)] ${
                       isCardAnnouncement
-                        ? "max-w-[min(84vw,620px)] sm:px-6 sm:py-4"
+                        ? "max-w-[min(90vw,760px)] sm:px-8 sm:py-5"
                         : "max-w-[min(92vw,980px)] sm:px-7 sm:py-5"
                     }`}
                   >
@@ -4225,7 +4225,7 @@ export default function App() {
                       transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
                       className={`max-w-full break-words [text-wrap:balance] font-black uppercase ${
                         isCardAnnouncement
-                          ? "text-[clamp(1.2rem,3.2vw,2rem)] tracking-[0.025em] leading-[1.02] text-rose-300"
+                          ? "text-[clamp(1.55rem,4.2vw,2.7rem)] tracking-[0.018em] leading-[0.98] text-rose-300"
                           : isProtestAcceptedAnnouncement
                             ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-emerald-400"
                             : isProtestRejectedAnnouncement
@@ -4235,7 +4235,7 @@ export default function App() {
                     >
                       {influenceAnnouncement.title}
                     </motion.div>
-                    {influenceAnnouncement.subtitle && (
+                    {influenceAnnouncement.subtitle && !isCardAnnouncement && (
                       <div
                         className={`mt-3 rounded-lg border border-zinc-600/60 bg-black/30 px-4 py-2 text-zinc-100 font-semibold ${
                           isCardAnnouncement ? "text-sm md:text-base" : "text-base md:text-lg"
@@ -4563,9 +4563,6 @@ export default function App() {
                         Назад
                       </Button>
                     </div>
-                    <div className="text-xs text-zinc-500">
-                      Лимит: максимум 3 предупреждения на игрока.
-                    </div>
                     <div
                       className={`space-y-2.5 max-h-[340px] overflow-y-auto overflow-x-hidden pr-1 ${HIDE_SCROLLBAR_CLASS}`}
                     >
@@ -4597,16 +4594,6 @@ export default function App() {
                                   <Badge className="bg-red-950/70 text-red-300 border border-red-700/70">
                                     {warningCount}/3
                                   </Badge>
-                                  <div className="flex items-center gap-1">
-                                    {[0, 1, 2].map((idx) => (
-                                      <span
-                                        key={`${player.id}-warn-dot-${idx}`}
-                                        className={`h-1.5 w-4 rounded-full ${
-                                          idx < warningCount ? "bg-red-500" : "bg-zinc-700"
-                                        }`}
-                                      />
-                                    ))}
-                                  </div>
                                 </div>
                               </div>
                               <div className="mt-2.5 min-w-0 flex items-center gap-2">
