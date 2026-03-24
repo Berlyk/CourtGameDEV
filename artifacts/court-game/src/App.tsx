@@ -2904,8 +2904,7 @@ export default function App() {
         initial="initial"
         animate="animate"
         exit="exit"
-        className="relative isolate min-h-screen bg-[#0b0b0f] text-zinc-100 p-4 sm:p-6 md:p-10 overflow-x-hidden"
-        style={{ scrollbarGutter: "stable" }}
+        className="relative isolate h-screen bg-[#0b0b0f] text-zinc-100 p-4 sm:p-6 md:p-10 overflow-x-hidden overflow-y-scroll"
       >
         <CourtAtmosphereBackground />
         <AnimatePresence>
