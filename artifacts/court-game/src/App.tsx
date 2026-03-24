@@ -4621,7 +4621,7 @@ export default function App() {
                       </Button>
                     </div>
                     <div
-                      className={`space-y-2.5 max-h-[340px] overflow-y-auto overflow-x-hidden pr-1 ${HIDE_SCROLLBAR_CLASS}`}
+                      className="space-y-2.5 max-h-[340px] overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500"
                     >
                       {warningTargets.length === 0 ? (
                         <div className="text-sm text-zinc-500">
