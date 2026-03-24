@@ -3562,6 +3562,23 @@ export default function App() {
           <div className="max-w-6xl mx-auto">
             <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100">
               <CardContent className="p-8 md:p-10 space-y-6">
+                <div className="flex justify-end">
+                  <motion.a
+                    href={DISCORD_INVITE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.99 }}
+                  >
+                    <Button
+                      variant="outline"
+                      className="h-10 rounded-xl border-red-500/35 bg-red-950/20 text-red-100 hover:bg-red-900/30 hover:text-white gap-2 px-4"
+                    >
+                      <AlertCircle className="w-4 h-4" />
+                      <span>Сообщить о баге</span>
+                    </Button>
+                  </motion.a>
+                </div>
                 <div className="flex justify-center">
                   <div className="w-full max-w-md rounded-3xl border border-red-500/35 bg-gradient-to-br from-red-950/50 via-zinc-900 to-zinc-900 px-6 py-5 text-center shadow-[0_16px_40px_rgba(185,28,28,0.25)]">
                     <div className="text-[11px] uppercase tracking-[0.22em] text-red-300/80">
@@ -3574,32 +3591,6 @@ export default function App() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex justify-center">
-                    <motion.a
-                      href={DISCORD_INVITE_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      whileHover={{ y: -1 }}
-                      whileTap={{ scale: 0.99 }}
-                      className="w-full max-w-md"
-                    >
-                      <Button
-                        variant="outline"
-                        className="w-full h-12 rounded-xl border-red-500/35 bg-red-950/20 text-red-100 hover:bg-red-900/30 hover:text-white gap-2.5"
-                      >
-                        <AlertCircle className="w-4 h-4" />
-                        <span>Сообщить о баге</span>
-                        <svg
-                          viewBox="0 0 16 16"
-                          aria-hidden="true"
-                          className="h-4 w-4 shrink-0 opacity-90"
-                          fill="currentColor"
-                        >
-                          <path d="M13.545 2.907A13.227 13.227 0 0 0 10.227 2c-.158.287-.34.666-.465.965a12.19 12.19 0 0 0-3.523 0A10.809 10.809 0 0 0 5.772 2a13.14 13.14 0 0 0-3.319.907C.353 6.057-.212 9.13.067 12.16c1.391 1.03 2.739 1.656 4.063 2.071.328-.447.62-.918.874-1.417a8.925 8.925 0 0 1-1.377-.662c.116-.084.23-.171.34-.26 2.651 1.257 5.523 1.257 8.142 0 .11.09.224.176.34.26-.439.257-.9.48-1.378.662.257.5.55.97.878 1.417 1.327-.415 2.676-1.04 4.066-2.071.327-3.513-.563-6.559-2.47-9.254ZM5.349 10.478c-.797 0-1.45-.732-1.45-1.632 0-.9.64-1.634 1.45-1.634.816 0 1.456.741 1.45 1.634 0 .9-.64 1.632-1.45 1.632Zm5.302 0c-.797 0-1.45-.732-1.45-1.632 0-.9.64-1.634 1.45-1.634.816 0 1.456.741 1.45 1.634 0 .9-.634 1.632-1.45 1.632Z" />
-                        </svg>
-                      </Button>
-                    </motion.a>
-                  </div>
                   {visibleDevlogEntries.map((entry, index) => (
                     <motion.div
                       key={`${entry.date}-${entry.title}`}
