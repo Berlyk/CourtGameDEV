@@ -103,6 +103,7 @@ const QUICK_ROOM_MODE = {
   subtitle: "Свободный набор, старт от 3 до 6 игроков.",
   maxPlayers: 6,
 };
+const DISCORD_INVITE_URL = "https://discord.gg/6UZ7xDxnhR";
 const RECONNECT_GRACE_MS = 30_000;
 
 const ROOM_MODE_BY_KEY = Object.fromEntries(
@@ -3160,7 +3161,7 @@ export default function App() {
                               </Button>
                             </div>
                             <motion.a
-                              href="https://discord.gg/6UZ7xDxnhR"
+                              href={DISCORD_INVITE_URL}
                               target="_blank"
                               rel="noopener noreferrer"
                               whileHover={{ y: -1 }}
@@ -3573,6 +3574,32 @@ export default function App() {
                 </div>
 
                 <div className="space-y-4">
+                  <div className="flex justify-center">
+                    <motion.a
+                      href={DISCORD_INVITE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      whileHover={{ y: -1 }}
+                      whileTap={{ scale: 0.99 }}
+                      className="w-full max-w-md"
+                    >
+                      <Button
+                        variant="outline"
+                        className="w-full h-12 rounded-xl border-red-500/35 bg-red-950/20 text-red-100 hover:bg-red-900/30 hover:text-white gap-2.5"
+                      >
+                        <AlertCircle className="w-4 h-4" />
+                        <span>Сообщить о баге</span>
+                        <svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          className="h-4 w-4 shrink-0 opacity-90"
+                          fill="currentColor"
+                        >
+                          <path d="M13.545 2.907A13.227 13.227 0 0 0 10.227 2c-.158.287-.34.666-.465.965a12.19 12.19 0 0 0-3.523 0A10.809 10.809 0 0 0 5.772 2a13.14 13.14 0 0 0-3.319.907C.353 6.057-.212 9.13.067 12.16c1.391 1.03 2.739 1.656 4.063 2.071.328-.447.62-.918.874-1.417a8.925 8.925 0 0 1-1.377-.662c.116-.084.23-.171.34-.26 2.651 1.257 5.523 1.257 8.142 0 .11.09.224.176.34.26-.439.257-.9.48-1.378.662.257.5.55.97.878 1.417 1.327-.415 2.676-1.04 4.066-2.071.327-3.513-.563-6.559-2.47-9.254ZM5.349 10.478c-.797 0-1.45-.732-1.45-1.632 0-.9.64-1.634 1.45-1.634.816 0 1.456.741 1.45 1.634 0 .9-.64 1.632-1.45 1.632Zm5.302 0c-.797 0-1.45-.732-1.45-1.632 0-.9.64-1.634 1.45-1.634.816 0 1.456.741 1.45 1.634 0 .9-.634 1.632-1.45 1.632Z" />
+                        </svg>
+                      </Button>
+                    </motion.a>
+                  </div>
                   {visibleDevlogEntries.map((entry, index) => (
                     <motion.div
                       key={`${entry.date}-${entry.title}`}
