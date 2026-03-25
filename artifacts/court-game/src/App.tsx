@@ -30,6 +30,7 @@ import {
   ChevronDown,
   DoorOpen,
   ArrowLeft,
+  LogIn,
 } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import { Switch } from "@/components/ui/switch";
@@ -119,6 +120,9 @@ const SITE_RULES: string[] = [
   "Запрещен обман: ложные обвинения, фальсификация данных, подделка сообщений и мошенничество.",
   "Запрещено искать и использовать уязвимости сайта. Найденные уязвимости нужно сообщать администрации через почту или Discord.",
 ];
+
+const RULES_INTRO_TEXT =
+  "Добро пожаловать на сайт CourtGame. Соблюдайте правила для комфортной и справедливой игры.";
 
 function generateGuestName(): string {
   const randomPart = Math.floor(1000 + Math.random() * 9000);
@@ -1352,6 +1356,48 @@ async function authRequest<T>(
   return payload as T;
 }
 
+function localizeAuthError(message: string): string {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) return "Произошла ошибка. Попробуйте снова.";
+  if (
+    normalized.includes("invalid login/email or password") ||
+    normalized.includes("login failed")
+  ) {
+    return "Неверный логин/email или пароль.";
+  }
+  if (normalized.includes("login is already taken")) {
+    return "Логин уже занят.";
+  }
+  if (normalized.includes("email is already in use")) {
+    return "Эта почта уже используется.";
+  }
+  if (normalized.includes("nickname is already taken")) {
+    return "Никнейм уже занят.";
+  }
+  if (normalized.includes("passwords do not match")) {
+    return "Пароли не совпадают.";
+  }
+  if (normalized.includes("password must be at least 6")) {
+    return "Пароль должен быть не короче 6 символов.";
+  }
+  if (normalized.includes("login must be at least 3")) {
+    return "Логин должен быть не короче 3 символов.";
+  }
+  if (normalized.includes("valid email")) {
+    return "Введите корректную почту.";
+  }
+  if (normalized.includes("must accept the site rules")) {
+    return "Нужно принять правила сайта.";
+  }
+  if (normalized.includes("please enter login/email and password")) {
+    return "Введите логин/email и пароль.";
+  }
+  if (normalized.includes("unauthorized") || normalized.includes("invalid session")) {
+    return "Сессия истекла. Войдите снова.";
+  }
+  return "Произошла ошибка. Попробуйте снова.";
+}
+
 function PlayerCard({
   player,
   isHost,
@@ -1552,7 +1598,10 @@ export default function App() {
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [registerAcceptRules, setRegisterAcceptRules] = useState(false);
-  const [rulesDialogOpen, setRulesDialogOpen] = useState(false);
+  const [authView, setAuthView] = useState<"form" | "rules">("form");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
   const [kickedAlert, setKickedAlert] = useState("");
@@ -3237,10 +3286,12 @@ export default function App() {
                       variant="outline"
                       onClick={() => {
                         setAuthMode("login");
+                        setAuthView("form");
                         setAuthDialogOpen(true);
                       }}
-                      className="h-10 w-full sm:w-auto rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 transition-all duration-200 hover:-translate-y-0.5"
+                      className="h-10 w-full sm:w-auto rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
                     >
+                      <LogIn className="w-4 h-4" />
                       Войти
                     </Button>
                   )}
@@ -3280,170 +3331,223 @@ export default function App() {
               open={authDialogOpen}
               onOpenChange={(open) => {
                 setAuthDialogOpen(open);
-                if (!open) setAuthError("");
+                if (!open) {
+                  setAuthError("");
+                  setAuthView("form");
+                }
               }}
             >
               <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
-                <DialogHeader>
-                  <DialogTitle>
-                    {authMode === "login" ? "Вход в аккаунт" : "Регистрация"}
-                  </DialogTitle>
-                  <DialogDescription className="text-zinc-400">
-                    {authMode === "login"
-                      ? "Войдите, чтобы использовать личный профиль."
-                      : "Создайте аккаунт. После регистрации откроется ваш профиль."}
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
+                {authView === "rules" ? (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Правила сайта</DialogTitle>
+                      <DialogDescription className="text-zinc-400">
+                        Ознакомьтесь с правилами перед регистрацией.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className={`space-y-2 max-h-[65vh] overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
+                      <p className="text-sm text-zinc-400">{RULES_INTRO_TEXT}</p>
+                      <ol className="list-decimal pl-5 space-y-2 text-sm text-zinc-300">
+                        {SITE_RULES.map((rule) => (
+                          <li key={rule}>{rule}</li>
+                        ))}
+                      </ol>
+                    </div>
                     <Button
                       type="button"
-                      variant={authMode === "login" ? "secondary" : "outline"}
-                      onClick={() => {
-                        setAuthMode("login");
-                        setAuthError("");
-                      }}
-                      className={
-                        authMode === "login"
-                          ? "rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
-                          : "rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                      }
+                      variant="outline"
+                      onClick={() => setAuthView("form")}
+                      className="w-full h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                     >
-                      Вход
+                      Назад к регистрации
                     </Button>
-                    <Button
-                      type="button"
-                      variant={authMode === "register" ? "secondary" : "outline"}
-                      onClick={() => {
-                        setAuthMode("register");
-                        setAuthError("");
-                      }}
-                      className={
-                        authMode === "register"
-                          ? "rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
-                          : "rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                      }
-                    >
-                      Регистрация
-                    </Button>
-                  </div>
+                  </>
+                ) : (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>
+                        {authMode === "login" ? "Вход в аккаунт" : "Регистрация"}
+                      </DialogTitle>
+                      <DialogDescription className="text-zinc-400">
+                        {authMode === "login"
+                          ? "Войдите, чтобы использовать личный профиль."
+                          : "Создайте аккаунт. После регистрации откроется ваш профиль."}
+                      </DialogDescription>
+                    </DialogHeader>
 
-                  {authError && (
-                    <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-                      {authError}
-                    </div>
-                  )}
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          type="button"
+                          variant={authMode === "login" ? "secondary" : "outline"}
+                          onClick={() => {
+                            setAuthMode("login");
+                            setAuthError("");
+                          }}
+                          className={
+                            authMode === "login"
+                              ? "rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
+                              : "rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                          }
+                        >
+                          Вход
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={authMode === "register" ? "secondary" : "outline"}
+                          onClick={() => {
+                            setAuthMode("register");
+                            setAuthError("");
+                          }}
+                          className={
+                            authMode === "register"
+                              ? "rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
+                              : "rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                          }
+                        >
+                          Регистрация
+                        </Button>
+                      </div>
 
-                  {authMode === "login" ? (
-                    <div className="space-y-2">
-                      <Input
-                        value={loginOrEmail}
-                        onChange={(e) => setLoginOrEmail(e.target.value)}
-                        placeholder="Логин или почта"
-                        className="h-11 rounded-xl bg-zinc-100 text-zinc-950 border-0 placeholder:text-zinc-500"
-                      />
-                      <Input
-                        type="password"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        placeholder="Пароль"
-                        className="h-11 rounded-xl bg-zinc-100 text-zinc-950 border-0 placeholder:text-zinc-500"
-                        onKeyDown={(e) => e.key === "Enter" && submitLogin()}
-                      />
-                      <Button
-                        type="button"
-                        onClick={submitLogin}
-                        disabled={authLoading || !loginOrEmail.trim() || !loginPassword}
-                        className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
-                      >
-                        {authLoading ? "Входим..." : "Войти"}
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Input
-                        value={registerLogin}
-                        onChange={(e) => setRegisterLogin(e.target.value.slice(0, 20))}
-                        placeholder="Логин"
-                        className="h-11 rounded-xl bg-zinc-100 text-zinc-950 border-0 placeholder:text-zinc-500"
-                      />
-                      <Input
-                        value={registerEmail}
-                        onChange={(e) => setRegisterEmail(e.target.value)}
-                        placeholder="Почта"
-                        className="h-11 rounded-xl bg-zinc-100 text-zinc-950 border-0 placeholder:text-zinc-500"
-                      />
-                      <Input
-                        type="password"
-                        value={registerPassword}
-                        onChange={(e) => setRegisterPassword(e.target.value)}
-                        placeholder="Пароль"
-                        className="h-11 rounded-xl bg-zinc-100 text-zinc-950 border-0 placeholder:text-zinc-500"
-                      />
-                      <Input
-                        type="password"
-                        value={registerConfirmPassword}
-                        onChange={(e) => setRegisterConfirmPassword(e.target.value)}
-                        placeholder="Подтверждение пароля"
-                        className="h-11 rounded-xl bg-zinc-100 text-zinc-950 border-0 placeholder:text-zinc-500"
-                        onKeyDown={(e) => e.key === "Enter" && submitRegister()}
-                      />
-                      <label className="flex items-start gap-2 rounded-xl border border-zinc-800 bg-zinc-900/75 px-3 py-2 text-sm text-zinc-300">
-                        <input
-                          type="checkbox"
-                          className="mt-1 accent-red-600"
-                          checked={registerAcceptRules}
-                          onChange={(e) => setRegisterAcceptRules(e.target.checked)}
-                        />
-                        <span>
-                          Я ознакомлен с{" "}
-                          <button
+                      {authMode === "login" ? (
+                        <div className="space-y-2">
+                          <Input
+                            value={loginOrEmail}
+                            onChange={(e) => setLoginOrEmail(e.target.value)}
+                            placeholder="Логин или почта"
+                            className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                          />
+                          <div className="relative">
+                            <Input
+                              type={showLoginPassword ? "text" : "password"}
+                              value={loginPassword}
+                              onChange={(e) => setLoginPassword(e.target.value)}
+                              placeholder="Пароль"
+                              className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-11 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                              onKeyDown={(e) => e.key === "Enter" && submitLogin()}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowLoginPassword((prev) => !prev)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                            >
+                              {showLoginPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                          <Button
                             type="button"
-                            className="text-red-300 underline underline-offset-2 hover:text-red-200"
-                            onClick={() => setRulesDialogOpen(true)}
+                            onClick={submitLogin}
+                            disabled={authLoading || !loginOrEmail.trim() || !loginPassword}
+                            className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
                           >
-                            правилами сайта
-                          </button>
-                          .
-                        </span>
-                      </label>
-                      <Button
-                        type="button"
-                        onClick={submitRegister}
-                        disabled={
-                          authLoading ||
-                          !registerLogin.trim() ||
-                          !registerEmail.trim() ||
-                          !registerPassword ||
-                          !registerConfirmPassword ||
-                          !registerAcceptRules
-                        }
-                        className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
-                      >
-                        {authLoading ? "Создаем..." : "Зарегистрироваться"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
+                            {authLoading ? "Входим..." : "Войти"}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Input
+                            value={registerLogin}
+                            onChange={(e) => setRegisterLogin(e.target.value.slice(0, 20))}
+                            placeholder="Логин"
+                            className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                          />
+                          <Input
+                            value={registerEmail}
+                            onChange={(e) => setRegisterEmail(e.target.value)}
+                            placeholder="Почта"
+                            className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                          />
+                          <div className="relative">
+                            <Input
+                              type={showRegisterPassword ? "text" : "password"}
+                              value={registerPassword}
+                              onChange={(e) => setRegisterPassword(e.target.value)}
+                              placeholder="Пароль"
+                              className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-11 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowRegisterPassword((prev) => !prev)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                            >
+                              {showRegisterPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <Input
+                              type={showRegisterConfirmPassword ? "text" : "password"}
+                              value={registerConfirmPassword}
+                              onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                              placeholder="Подтверждение пароля"
+                              className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-11 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                              onKeyDown={(e) => e.key === "Enter" && submitRegister()}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowRegisterConfirmPassword((prev) => !prev)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                            >
+                              {showRegisterConfirmPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                          <label className="flex items-start gap-2 rounded-xl border border-zinc-800 bg-zinc-900/75 px-3 py-2 text-sm text-zinc-300">
+                            <input
+                              type="checkbox"
+                              className="mt-1 accent-red-600"
+                              checked={registerAcceptRules}
+                              onChange={(e) => setRegisterAcceptRules(e.target.checked)}
+                            />
+                            <span>
+                              Я ознакомлен с{" "}
+                              <button
+                                type="button"
+                                className="text-red-300 underline underline-offset-2 hover:text-red-200"
+                                onClick={() => setAuthView("rules")}
+                              >
+                                правилами сайта
+                              </button>
+                              .
+                            </span>
+                          </label>
+                          <Button
+                            type="button"
+                            onClick={submitRegister}
+                            disabled={
+                              authLoading ||
+                              !registerLogin.trim() ||
+                              !registerEmail.trim() ||
+                              !registerPassword ||
+                              !registerConfirmPassword ||
+                              !registerAcceptRules
+                            }
+                            className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
+                          >
+                            {authLoading ? "Создаем..." : "Зарегистрироваться"}
+                          </Button>
+                        </div>
+                      )}
 
-            <Dialog open={rulesDialogOpen} onOpenChange={setRulesDialogOpen}>
-              <DialogContent className="max-w-2xl border-zinc-800 bg-zinc-950 text-zinc-100">
-                <DialogHeader>
-                  <DialogTitle>Правила сайта</DialogTitle>
-                </DialogHeader>
-                <div className={`space-y-2 max-h-[65vh] overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
-                  <p className="text-sm text-zinc-400">
-                    Добро пожаловать на наш сайт по игре Bunker Online. Соблюдайте правила для комфортной и справедливой игры.
-                  </p>
-                  <ol className="list-decimal pl-5 space-y-2 text-sm text-zinc-300">
-                    {SITE_RULES.map((rule) => (
-                      <li key={rule}>{rule}</li>
-                    ))}
-                  </ol>
-                </div>
+                      {authError && (
+                        <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                          {authError}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </DialogContent>
             </Dialog>
           </div>
