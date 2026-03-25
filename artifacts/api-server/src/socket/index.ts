@@ -266,6 +266,10 @@ function getRoomState(room: any, playerId: string) {
     finished: room.game.finished,
     verdict: room.game.verdict,
     verdictEvaluation: room.game.verdictEvaluation,
+    verdictCloseAt:
+      typeof room.game.verdictCloseAt === "number"
+        ? room.game.verdictCloseAt
+        : null,
     players: mapGamePlayers(room.game.players),
     me: myPlayer ? {
       id: myPlayer.id,
@@ -1720,11 +1724,14 @@ export function setupSocket(httpServer: HttpServer) {
 
       const updatedRoom = setVerdict(roomCode, verdict);
       if (!updatedRoom) return;
+      const closeAt = Date.now() + VERDICT_ROOM_CLOSE_MS;
+      updatedRoom.game!.verdictCloseAt = closeAt;
 
       io.to(roomCode).emit("verdict_set", {
         verdict: updatedRoom.game!.verdict,
         verdictEvaluation: updatedRoom.game!.verdictEvaluation,
         finished: true,
+        closeAt,
         truth: updatedRoom.game!.caseData.truth
       });
       scheduleVerdictRoomClose(roomCode);

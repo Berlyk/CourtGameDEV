@@ -134,6 +134,7 @@ export interface GameState {
   finished: boolean;
   verdict: string;
   verdictEvaluation: string;
+  verdictCloseAt?: number | null;
 }
 
 export interface Room {
@@ -820,7 +821,8 @@ const stages = buildStagesByPlayerCount(count);
     activeProtest: null,
     finished: false,
     verdict: "",
-    verdictEvaluation: ""
+    verdictEvaluation: "",
+    verdictCloseAt: null,
   };
   room.started = true;
   return room;

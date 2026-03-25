@@ -105,6 +105,7 @@ const QUICK_ROOM_MODE = {
 };
 const DISCORD_INVITE_URL = "https://discord.gg/6UZ7xDxnhR";
 const RECONNECT_GRACE_MS = 30_000;
+const VERDICT_CLOSE_COUNTDOWN_MS = 30_000;
 
 const ROOM_MODE_BY_KEY = Object.fromEntries(
   [...ROOM_MODE_OPTIONS, QUICK_ROOM_MODE].map((mode) => [mode.key, mode]),
@@ -1236,6 +1237,7 @@ interface GameState {
   finished: boolean;
   verdict: string;
   verdictEvaluation: string;
+  verdictCloseAt?: number | null;
   me: MyPlayer | null;
   code: string;
   hostId: string;
@@ -2137,7 +2139,7 @@ export default function App() {
       setTimeout(() => setKickedAlert(""), 5000);
     });
 
-    socket.on("room_closed", ({ message }: { message?: string }) => {
+    socket.on("room_closed", () => {
       clearReconnectWindow();
       localStorage.removeItem("court_session");
       localStorage.removeItem("court_session_token");
@@ -2160,8 +2162,6 @@ export default function App() {
       setProfileMenuOpen(false);
       setCreateMatchDialogOpen(false);
       setScreen("home");
-      setKickedAlert(message || "Матч завершён. Комната закрыта автоматически.");
-      setTimeout(() => setKickedAlert(""), 5000);
     });
 
     socket.on("game_started", ({ state }: { state: any }) => {
@@ -2218,9 +2218,21 @@ export default function App() {
 
     socket.on(
       "verdict_set",
-      ({ verdict, verdictEvaluation, finished }: any) => {
+      ({ verdict, verdictEvaluation, finished, closeAt }: any) => {
+        const resolvedCloseAt =
+          Number.isFinite(closeAt) && closeAt > 0
+            ? closeAt
+            : Date.now() + VERDICT_CLOSE_COUNTDOWN_MS;
         setGame((prev) =>
-          prev ? { ...prev, verdict, verdictEvaluation, finished } : prev,
+          prev
+            ? {
+                ...prev,
+                verdict,
+                verdictEvaluation,
+                finished,
+                verdictCloseAt: resolvedCloseAt,
+              }
+            : prev,
         );
       },
     );
@@ -4042,6 +4054,22 @@ export default function App() {
       : "Чат с адвокатом";
     const canRevealFactsAtCurrentStage = game.me.canRevealFactsNow === true;
     const hasActiveProtest = !!game.activeProtest;
+    const verdictCloseAt =
+      typeof game.verdictCloseAt === "number" ? game.verdictCloseAt : null;
+    const verdictMsLeft =
+      verdictCloseAt !== null ? Math.max(0, verdictCloseAt - nowMs) : 0;
+    const verdictSecondsLeft =
+      verdictCloseAt !== null
+        ? Math.max(0, Math.ceil(verdictMsLeft / 1000))
+        : 0;
+    const verdictRingRadius = 24;
+    const verdictRingLength = 2 * Math.PI * verdictRingRadius;
+    const verdictRingProgress =
+      verdictCloseAt !== null
+        ? Math.min(1, Math.max(0, verdictMsLeft / VERDICT_CLOSE_COUNTDOWN_MS))
+        : 0;
+    const verdictRingOffset =
+      verdictRingLength * (1 - verdictRingProgress);
     const canUseProtest =
       !isJudge &&
       !isWitness &&
@@ -4176,7 +4204,42 @@ export default function App() {
                 className="w-full max-w-lg"
               >
                 <Card className="rounded-[28px] border-zinc-800 bg-zinc-900 text-zinc-100">
-                  <CardContent className="p-8 space-y-6 text-center">
+                  <CardContent className="relative p-8 space-y-6 text-center">
+                    {verdictCloseAt !== null && verdictSecondsLeft > 0 && (
+                      <div className="absolute top-5 right-5 flex items-center justify-center">
+                        <div className="relative h-14 w-14">
+                          <svg
+                            className="h-14 w-14 -rotate-90"
+                            viewBox="0 0 56 56"
+                            aria-hidden="true"
+                          >
+                            <circle
+                              cx="28"
+                              cy="28"
+                              r={verdictRingRadius}
+                              fill="none"
+                              stroke="rgba(113, 113, 122, 0.45)"
+                              strokeWidth="4"
+                            />
+                            <circle
+                              cx="28"
+                              cy="28"
+                              r={verdictRingRadius}
+                              fill="none"
+                              stroke="#ef4444"
+                              strokeWidth="4"
+                              strokeLinecap="round"
+                              strokeDasharray={verdictRingLength}
+                              strokeDashoffset={verdictRingOffset}
+                              className="transition-[stroke-dashoffset] duration-200 ease-linear"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 grid place-items-center text-sm font-semibold text-zinc-100">
+                            {verdictSecondsLeft}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <motion.div
                         initial={{ scale: 0 }}
