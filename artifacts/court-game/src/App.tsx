@@ -2669,7 +2669,7 @@ export default function App() {
       setLoginPassword("");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Не удалось выполнить вход.";
-      setAuthError(message);
+      setAuthError(localizeAuthError(message));
     } finally {
       setAuthLoading(false);
     }
@@ -2695,7 +2695,7 @@ export default function App() {
       setRegisterConfirmPassword("");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Не удалось зарегистрироваться.";
-      setAuthError(message);
+      setAuthError(localizeAuthError(message));
     } finally {
       setAuthLoading(false);
     }
