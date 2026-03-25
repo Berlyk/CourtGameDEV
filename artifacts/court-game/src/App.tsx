@@ -1144,6 +1144,7 @@ function HelpCenter({
 
 interface PlayerInfo {
   id: string;
+  userId?: string;
   name: string;
   avatar?: string;
   roleKey?: string;
@@ -1244,11 +1245,28 @@ interface AuthUser {
   email: string;
   nickname: string;
   avatar?: string;
+  bio?: string;
+  gender?: "male" | "female" | "other";
+  birthDate?: string;
+  hideAge: boolean;
+  createdAt: number;
+}
+
+interface PublicUserProfile {
+  id: string;
+  nickname: string;
+  avatar?: string;
+  bio?: string;
+  gender?: "male" | "female" | "other";
+  birthDate?: string;
+  hideAge: boolean;
+  age?: number;
   createdAt: number;
 }
 
 interface MyPlayer {
   id: string;
+  userId?: string;
   name: string;
   avatar?: string;
   roleKey: string;
@@ -1365,13 +1383,22 @@ function localizeAuthError(message: string): string {
   ) {
     return "Неверный логин/email или пароль.";
   }
-  if (normalized.includes("login is already taken")) {
+  if (
+    normalized.includes("login is already taken") ||
+    (normalized.includes("login") && normalized.includes("already") && normalized.includes("taken"))
+  ) {
     return "Логин уже занят.";
   }
-  if (normalized.includes("email is already in use")) {
+  if (
+    normalized.includes("email is already in use") ||
+    (normalized.includes("email") && normalized.includes("already"))
+  ) {
     return "Эта почта уже используется.";
   }
-  if (normalized.includes("nickname is already taken")) {
+  if (
+    normalized.includes("nickname is already taken") ||
+    (normalized.includes("nickname") && normalized.includes("already"))
+  ) {
     return "Никнейм уже занят.";
   }
   if (normalized.includes("passwords do not match")) {
@@ -1392,8 +1419,29 @@ function localizeAuthError(message: string): string {
   if (normalized.includes("please enter login/email and password")) {
     return "Введите логин/email и пароль.";
   }
+  if (normalized.includes("invalid current password")) {
+    return "Текущий пароль введен неверно.";
+  }
+  if (
+    normalized.includes("current password and new password are required") ||
+    normalized.includes("current password and new email are required")
+  ) {
+    return "Заполните обязательные поля.";
+  }
+  if (normalized.includes("password change failed")) {
+    return "Не удалось сменить пароль.";
+  }
+  if (normalized.includes("email change failed")) {
+    return "Не удалось сменить почту.";
+  }
+  if (normalized.includes("user not found")) {
+    return "Профиль игрока не найден.";
+  }
   if (normalized.includes("unauthorized") || normalized.includes("invalid session")) {
     return "Сессия истекла. Войдите снова.";
+  }
+  if (normalized.includes("not found")) {
+    return "Не найдено.";
   }
   return "Произошла ошибка. Попробуйте снова.";
 }
@@ -1403,12 +1451,14 @@ function PlayerCard({
   isHost,
   canKick = false,
   onKick,
+  onOpenProfile,
   nowTs,
 }: {
   player: PlayerInfo;
   isHost: boolean;
   canKick?: boolean;
   onKick?: () => void;
+  onOpenProfile?: (userId?: string) => void;
   nowTs: number;
 }) {
   const disconnectRemainingMs =
@@ -1430,7 +1480,16 @@ function PlayerCard({
           <div className="flex items-center gap-3 min-w-0">
             <Avatar src={player.avatar ?? null} name={player.name} size={52} />
             <div className="min-w-0">
-              <div className="font-semibold text-base truncate">{player.name}</div>
+              <div className="font-semibold text-base truncate">
+                <button
+                  type="button"
+                  className="text-left hover:text-red-300 transition-colors"
+                  onClick={() => onOpenProfile?.(player.userId)}
+                  disabled={!player.userId}
+                >
+                  {player.name}
+                </button>
+              </div>
               <div className="text-sm text-zinc-400">
                 {isHost ? "Ведущий комнаты" : "Игрок"}
               </div>
@@ -1602,6 +1661,19 @@ export default function App() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false);
+  const [profileBio, setProfileBio] = useState("");
+  const [profileGender, setProfileGender] = useState<"" | "male" | "female" | "other">("");
+  const [profileBirthDate, setProfileBirthDate] = useState("");
+  const [profileHideAge, setProfileHideAge] = useState(false);
+  const [emailChangeCurrentPassword, setEmailChangeCurrentPassword] = useState("");
+  const [emailChangeNext, setEmailChangeNext] = useState("");
+  const [passwordChangeCurrent, setPasswordChangeCurrent] = useState("");
+  const [passwordChangeNext, setPasswordChangeNext] = useState("");
+  const [profileActionLoading, setProfileActionLoading] = useState(false);
+  const [viewPlayerProfileOpen, setViewPlayerProfileOpen] = useState(false);
+  const [viewPlayerProfileLoading, setViewPlayerProfileLoading] = useState(false);
+  const [viewPlayerProfileError, setViewPlayerProfileError] = useState("");
+  const [viewPlayerProfile, setViewPlayerProfile] = useState<PublicUserProfile | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
   const [kickedAlert, setKickedAlert] = useState("");
@@ -1759,6 +1831,100 @@ export default function App() {
   );
 
   useEffect(() => {
+    const styleId = "court-auth-autofill-dark";
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      input:-webkit-autofill,
+      input:-webkit-autofill:hover,
+      input:-webkit-autofill:focus,
+      textarea:-webkit-autofill,
+      textarea:-webkit-autofill:hover,
+      textarea:-webkit-autofill:focus {
+        -webkit-text-fill-color: rgb(244 244 245) !important;
+        -webkit-box-shadow: 0 0 0px 1000px rgb(24 24 27) inset !important;
+        box-shadow: 0 0 0px 1000px rgb(24 24 27) inset !important;
+        caret-color: rgb(244 244 245) !important;
+        transition: background-color 9999s ease-in-out 0s;
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
+
+  const renderPublicProfileDialog = () => {
+    const genderLabel =
+      viewPlayerProfile?.gender === "male"
+        ? "Мужской"
+        : viewPlayerProfile?.gender === "female"
+          ? "Женский"
+          : viewPlayerProfile?.gender === "other"
+            ? "Другой"
+            : "Не указан";
+    const ageLabel = viewPlayerProfile?.hideAge
+      ? "Скрыт"
+      : typeof viewPlayerProfile?.age === "number"
+        ? `${viewPlayerProfile.age}`
+        : "Не указан";
+    const createdAtLabel =
+      typeof viewPlayerProfile?.createdAt === "number"
+        ? new Date(viewPlayerProfile.createdAt).toLocaleDateString("ru-RU")
+        : "";
+
+    return (
+      <Dialog open={viewPlayerProfileOpen} onOpenChange={setViewPlayerProfileOpen}>
+        <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+          <DialogHeader>
+            <DialogTitle>Профиль игрока</DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              Публичная информация.
+            </DialogDescription>
+          </DialogHeader>
+          {viewPlayerProfileLoading ? (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-400">
+              Загрузка профиля...
+            </div>
+          ) : viewPlayerProfileError ? (
+            <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">
+              {viewPlayerProfileError}
+            </div>
+          ) : viewPlayerProfile ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Avatar src={viewPlayerProfile.avatar ?? null} name={viewPlayerProfile.nickname} size={56} />
+                <div>
+                  <div className="text-xl font-bold">{viewPlayerProfile.nickname}</div>
+                  <div className="text-xs text-zinc-500">Профиль с {createdAtLabel || "неизвестной даты"}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="text-zinc-500 text-xs">Пол</div>
+                  <div className="text-zinc-100 mt-1">{genderLabel}</div>
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="text-zinc-500 text-xs">Возраст</div>
+                  <div className="text-zinc-100 mt-1">{ageLabel}</div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                <div className="text-zinc-500 text-xs">О себе</div>
+                <div className="text-zinc-100 mt-1 whitespace-pre-wrap break-words">
+                  {viewPlayerProfile.bio?.trim() ? viewPlayerProfile.bio : "Пока без описания."}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-400">
+              Профиль не загружен.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
+  useEffect(() => {
     const savedName = localStorage.getItem("court_nickname");
     const savedAvatar = localStorage.getItem("court_avatar");
     if (savedAvatar) setAvatar(savedAvatar);
@@ -1811,6 +1977,18 @@ export default function App() {
       cancelled = true;
     };
   }, [authToken]);
+
+  useEffect(() => {
+    if (!authUser) return;
+    setProfileBio(authUser.bio ?? "");
+    setProfileGender(
+      authUser.gender === "male" || authUser.gender === "female" || authUser.gender === "other"
+        ? authUser.gender
+        : "",
+    );
+    setProfileBirthDate(authUser.birthDate ?? "");
+    setProfileHideAge(!!authUser.hideAge);
+  }, [authUser]);
 
   useEffect(() => {
     if (screen !== "home") return;
@@ -2459,12 +2637,13 @@ export default function App() {
     socket.emit("create_room", {
       playerName: name,
       avatar: sharedAvatar || undefined,
+      authToken: authToken || undefined,
       options: {
         visibility: "public",
         modeKey: "quick_flex",
       },
     });
-  }, [socket, playerName, sharedAvatar]);
+  }, [socket, playerName, sharedAvatar, authToken]);
 
   const createRoomFromPanel = useCallback(() => {
     const name = playerName.trim() || getOrCreateGuestName();
@@ -2477,6 +2656,7 @@ export default function App() {
     socket.emit("create_room", {
       playerName: name,
       avatar: sharedAvatar || undefined,
+      authToken: authToken || undefined,
       options: {
         modeKey: createRoomMode,
         visibility: createRoomPrivate ? "private" : "public",
@@ -2493,6 +2673,7 @@ export default function App() {
     socket,
     playerName,
     sharedAvatar,
+    authToken,
     createRoomMode,
     createRoomPrivate,
     createRoomName,
@@ -2510,9 +2691,10 @@ export default function App() {
       code: targetCode,
       playerName: name,
       avatar: sharedAvatar || undefined,
+      authToken: authToken || undefined,
       password: password || undefined,
     });
-  }, [socket, joinCode, playerName, sharedAvatar]);
+  }, [socket, joinCode, playerName, sharedAvatar, authToken]);
 
   const updateProfile = useCallback(() => {
     const nextName = playerName.trim();
@@ -2561,6 +2743,107 @@ export default function App() {
     sharedAvatar,
     authToken,
   ]);
+
+  const saveExtendedProfile = useCallback(async () => {
+    if (!authToken) return;
+    setProfileActionLoading(true);
+    try {
+      const payload = await authRequest<{ user: AuthUser }>("/auth/profile", {
+        method: "PATCH",
+        token: authToken,
+        body: {
+          bio: profileBio.trim() || null,
+          gender: profileGender || null,
+          birthDate: profileBirthDate || null,
+          hideAge: profileHideAge,
+        },
+      });
+      setAuthUser(payload.user);
+      localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(payload.user));
+      setError("Профиль обновлен.");
+      setTimeout(() => setError(""), 2500);
+    } catch (err) {
+      const message = err instanceof Error ? localizeAuthError(err.message) : "Ошибка обновления профиля.";
+      setError(message);
+      setTimeout(() => setError(""), 3500);
+    } finally {
+      setProfileActionLoading(false);
+    }
+  }, [authToken, profileBio, profileBirthDate, profileGender, profileHideAge]);
+
+  const changePassword = useCallback(async () => {
+    if (!authToken) return;
+    if (!passwordChangeCurrent || !passwordChangeNext) return;
+    setProfileActionLoading(true);
+    try {
+      await authRequest<{ ok: boolean }>("/auth/password", {
+        method: "PATCH",
+        token: authToken,
+        body: {
+          currentPassword: passwordChangeCurrent,
+          nextPassword: passwordChangeNext,
+        },
+      });
+      setPasswordChangeCurrent("");
+      setPasswordChangeNext("");
+      setError("Пароль обновлен.");
+      setTimeout(() => setError(""), 2500);
+    } catch (err) {
+      const message = err instanceof Error ? localizeAuthError(err.message) : "Не удалось сменить пароль.";
+      setError(message);
+      setTimeout(() => setError(""), 3500);
+    } finally {
+      setProfileActionLoading(false);
+    }
+  }, [authToken, passwordChangeCurrent, passwordChangeNext]);
+
+  const changeEmail = useCallback(async () => {
+    if (!authToken) return;
+    if (!emailChangeCurrentPassword || !emailChangeNext.trim()) return;
+    setProfileActionLoading(true);
+    try {
+      const payload = await authRequest<{ user: AuthUser }>("/auth/email", {
+        method: "PATCH",
+        token: authToken,
+        body: {
+          currentPassword: emailChangeCurrentPassword,
+          nextEmail: emailChangeNext.trim(),
+        },
+      });
+      setAuthUser(payload.user);
+      localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(payload.user));
+      setEmailChangeCurrentPassword("");
+      setEmailChangeNext("");
+      setError("Почта обновлена.");
+      setTimeout(() => setError(""), 2500);
+    } catch (err) {
+      const message = err instanceof Error ? localizeAuthError(err.message) : "Не удалось сменить почту.";
+      setError(message);
+      setTimeout(() => setError(""), 3500);
+    } finally {
+      setProfileActionLoading(false);
+    }
+  }, [authToken, emailChangeCurrentPassword, emailChangeNext]);
+
+  const openUserProfile = useCallback(
+    async (userId?: string) => {
+      if (!userId) return;
+      setViewPlayerProfileOpen(true);
+      setViewPlayerProfileLoading(true);
+      setViewPlayerProfileError("");
+      setViewPlayerProfile(null);
+      try {
+        const payload = await authRequest<{ profile: PublicUserProfile }>(`/auth/public/${userId}`);
+        setViewPlayerProfile(payload.profile);
+      } catch (err) {
+        const message = err instanceof Error ? localizeAuthError(err.message) : "Не удалось загрузить профиль.";
+        setViewPlayerProfileError(message);
+      } finally {
+        setViewPlayerProfileLoading(false);
+      }
+    },
+    [],
+  );
 
   const sendLobbyChatMessage = useCallback(() => {
     const text = lobbyChatInput.trim();
@@ -3136,12 +3419,121 @@ export default function App() {
                       value={playerName}
                       onChange={(e) => handlePlayerNameChange(e.target.value)}
                       placeholder="Например: Berly"
-                      className="mt-2 h-11 rounded-xl bg-zinc-100 text-zinc-950 placeholder:text-zinc-400 border-0 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-0"
+                      className="mt-2 h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-2 focus-visible:ring-red-500/40 focus-visible:ring-offset-0"
                     />
                     <div className="mt-2 text-xs text-zinc-500">
                       До 20 символов, отображается в подборе и лобби.
                     </div>
                   </div>
+
+                  {isAuthenticated && (
+                    <>
+                      <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3">
+                        <div className="text-sm font-medium text-zinc-300">О себе</div>
+                        <textarea
+                          value={profileBio}
+                          onChange={(e) => setProfileBio(e.target.value.slice(0, 500))}
+                          placeholder="Коротко о себе..."
+                          className="h-24 w-full resize-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
+                        />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-sm text-zinc-300">Пол</label>
+                            <select
+                              value={profileGender}
+                              onChange={(e) =>
+                                setProfileGender(e.target.value as "" | "male" | "female" | "other")
+                              }
+                              className="h-11 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
+                            >
+                              <option value="">Не указывать</option>
+                              <option value="male">Мужской</option>
+                              <option value="female">Женский</option>
+                              <option value="other">Другой</option>
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm text-zinc-300">Дата рождения</label>
+                            <Input
+                              type="date"
+                              value={profileBirthDate}
+                              onChange={(e) => setProfileBirthDate(e.target.value)}
+                              className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                          <div>
+                            <div className="text-sm font-medium text-zinc-100">Скрыть возраст</div>
+                            <div className="text-xs text-zinc-500">
+                              В публичном профиле возраст не показывается.
+                            </div>
+                          </div>
+                          <Switch
+                            checked={profileHideAge}
+                            onCheckedChange={setProfileHideAge}
+                          />
+                        </div>
+                        <Button
+                          onClick={saveExtendedProfile}
+                          disabled={profileActionLoading}
+                          className="w-full h-10 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
+                        >
+                          Сохранить инфо профиля
+                        </Button>
+                      </div>
+
+                      <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3">
+                        <div className="text-sm font-medium text-zinc-300">Сменить пароль</div>
+                        <Input
+                          type="password"
+                          value={passwordChangeCurrent}
+                          onChange={(e) => setPasswordChangeCurrent(e.target.value)}
+                          placeholder="Текущий пароль"
+                          className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                        />
+                        <Input
+                          type="password"
+                          value={passwordChangeNext}
+                          onChange={(e) => setPasswordChangeNext(e.target.value)}
+                          placeholder="Новый пароль"
+                          className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                        />
+                        <Button
+                          onClick={changePassword}
+                          disabled={profileActionLoading || !passwordChangeCurrent || !passwordChangeNext}
+                          className="w-full h-10 rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
+                        >
+                          Обновить пароль
+                        </Button>
+                      </div>
+
+                      <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3">
+                        <div className="text-sm font-medium text-zinc-300">Сменить почту</div>
+                        <Input
+                          type="email"
+                          value={emailChangeNext}
+                          onChange={(e) => setEmailChangeNext(e.target.value)}
+                          placeholder="Новая почта"
+                          className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                        />
+                        <Input
+                          type="password"
+                          value={emailChangeCurrentPassword}
+                          onChange={(e) => setEmailChangeCurrentPassword(e.target.value)}
+                          placeholder="Подтвердите текущим паролем"
+                          className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                        />
+                        <Button
+                          onClick={changeEmail}
+                          disabled={profileActionLoading || !emailChangeCurrentPassword || !emailChangeNext.trim()}
+                          className="w-full h-10 rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
+                        >
+                          Обновить почту
+                        </Button>
+                      </div>
+                    </>
+                  )}
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
@@ -3179,9 +3571,9 @@ export default function App() {
                     <Button
                       className="flex-1 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
                       onClick={updateProfile}
-                      disabled={!playerName.trim()}
+                      disabled={!playerName.trim() || profileActionLoading}
                     >
-                      Сохранить
+                      {profileActionLoading ? "Сохраняем..." : "Сохранить"}
                     </Button>
                   </div>
                 </div>
@@ -3189,6 +3581,7 @@ export default function App() {
             </CardContent>
           </Card>
         </div>
+        {renderPublicProfileDialog()}
       </motion.div>
     );
   }
@@ -4203,6 +4596,7 @@ export default function App() {
             </Card>
           </div>
         )}
+        {renderPublicProfileDialog()}
       </motion.div>
     );
   }
@@ -4346,6 +4740,7 @@ export default function App() {
                           isHost={player.id === room.hostId}
                           canKick={myId === room.hostId && player.id !== room.hostId}
                           onKick={() => kickPlayerFromRoom(player.id)}
+                          onOpenProfile={openUserProfile}
                           nowTs={nowMs}
                         />
                       ))}
@@ -4484,6 +4879,7 @@ export default function App() {
             onQueryChange={setContextHelpQuery}
           />
         </div>
+        {renderPublicProfileDialog()}
       </motion.div>
     );
   }
@@ -4983,7 +5379,17 @@ export default function App() {
                       <div key={p.id} className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2 min-w-0">
                           <Avatar src={p.avatar ?? null} name={p.name} size={32} />
-                          <span className="text-zinc-300 truncate">{p.name}</span>
+                          {p.userId ? (
+                            <button
+                              type="button"
+                              className="text-zinc-300 truncate text-left hover:text-red-300 transition-colors"
+                              onClick={() => openUserProfile(p.userId)}
+                            >
+                              {p.name}
+                            </button>
+                          ) : (
+                            <span className="text-zinc-300 truncate">{p.name}</span>
+                          )}
                           {(p.warningCount ?? 0) > 0 && (
                             <Badge className="bg-red-950/70 text-red-300 border border-red-700/70">
                               {p.warningCount}/3
@@ -5672,6 +6078,7 @@ export default function App() {
             onQueryChange={setContextHelpQuery}
           />
         </div>
+        {renderPublicProfileDialog()}
       </motion.div>
     );
   }
