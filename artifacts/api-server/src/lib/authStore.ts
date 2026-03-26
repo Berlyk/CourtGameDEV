@@ -13,6 +13,7 @@ export interface AuthUserPublic {
   birthDate?: string;
   hideAge: boolean;
   createdAt: number;
+  selectedBadgeKey?: string;
 }
 
 export interface UserRoleStats {
@@ -224,6 +225,7 @@ function toPublicUser(row: {
   gender: string | null;
   birth_date: Date | null;
   hide_age: boolean | null;
+  selected_badge_key?: string | null;
   created_at: Date;
 }): AuthUserPublic {
   return {
@@ -241,6 +243,7 @@ function toPublicUser(row: {
     birthDate: row.birth_date ? row.birth_date.toISOString().slice(0, 10) : undefined,
     hideAge: !!row.hide_age,
     createdAt: row.created_at.getTime(),
+    selectedBadgeKey: row.selected_badge_key ?? undefined,
   };
 }
 
@@ -444,7 +447,9 @@ export async function registerAccount(input: {
   const passwordHash = hashPassword(input.password, salt);
   const acceptedRulesAt = new Date();
 
-  const userResult = await pool.query<{
+  let userResult;
+  try {
+    userResult = await pool.query<{
     id: string;
     login: string;
     email: string;
@@ -455,6 +460,7 @@ export async function registerAccount(input: {
     gender: string | null;
     birth_date: Date | null;
     hide_age: boolean | null;
+    selected_badge_key: string | null;
     created_at: Date;
   }>(
     `
@@ -471,7 +477,7 @@ export async function registerAccount(input: {
         accepted_rules_at
       )
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-      RETURNING id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, created_at
+      RETURNING id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, created_at
     `,
     [
       userId,
@@ -486,6 +492,22 @@ export async function registerAccount(input: {
       acceptedRulesAt,
     ],
   );
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      const detail = String(error?.detail ?? "").toLowerCase();
+      const constraint = String(error?.constraint ?? "").toLowerCase();
+      if (detail.includes("email_normalized") || constraint.includes("email_normalized")) {
+        throw new Error("Эта почта уже используется.");
+      }
+      if (detail.includes("login_normalized") || constraint.includes("login_normalized")) {
+        throw new Error("Логин уже занят.");
+      }
+      if (detail.includes("nickname_normalized") || constraint.includes("nickname_normalized")) {
+        throw new Error("Никнейм уже занят.");
+      }
+    }
+    throw error;
+  }
 
   const token = crypto.randomUUID();
   await pool.query(
@@ -514,12 +536,13 @@ export async function loginAccount(input: {
     gender: string | null;
     birth_date: Date | null;
     hide_age: boolean | null;
+    selected_badge_key: string | null;
     created_at: Date;
     password_salt: string;
     password_hash: string;
   }>(
     `
-      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, created_at, password_salt, password_hash
+      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, created_at, password_salt, password_hash
       FROM auth_users
       WHERE login_normalized = $1 OR email_normalized = $1
       LIMIT 1
@@ -559,10 +582,11 @@ export async function getUserByToken(token: string): Promise<AuthUserPublic | nu
     gender: string | null;
     birth_date: Date | null;
     hide_age: boolean | null;
+    selected_badge_key: string | null;
     created_at: Date;
   }>(
     `
-      SELECT u.id, u.login, u.email, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.created_at
+      SELECT u.id, u.login, u.email, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.selected_badge_key, u.created_at
       FROM auth_sessions s
       JOIN auth_users u ON u.id = s.user_id
       WHERE s.token = $1
@@ -699,10 +723,11 @@ export async function updateProfileByToken(
     gender: string | null;
     birth_date: Date | null;
     hide_age: boolean | null;
+    selected_badge_key: string | null;
     created_at: Date;
   }>(
     `
-      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, created_at
+      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, created_at
       FROM auth_users
       WHERE id = $1
       LIMIT 1

@@ -31,7 +31,7 @@ import {
   DoorOpen,
   ArrowLeft,
   LogIn,
-  CalendarDays,
+  FlipHorizontal,
 } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import { Switch } from "@/components/ui/switch";
@@ -113,6 +113,24 @@ const AUTH_USER_STORAGE_KEY = "court_auth_user";
 const GUEST_NAME_STORAGE_KEY = "court_guest_name";
 const BANNER_STORAGE_KEY = "court_banner";
 const GUEST_NAME_PREFIX = "Гость-";
+const PROFILE_BIO_MAX = 150;
+
+const BADGE_SYMBOLS: Record<string, string> = {
+  plaintiff: "⚖",
+  defendant: "🛡",
+  plaintiffLawyer: "📘",
+  defenseLawyer: "📗",
+  prosecutor: "⚔",
+  judge: "🏛",
+  winner: "🏆",
+  legend: "✦",
+  media: "🎥",
+  creator: "🧩",
+  host: "🎙",
+  innovator: "💡",
+  moderator: "🛠",
+  admin: "👑",
+};
 
 const SITE_RULES: string[] = [
   "Запрещено иметь нецензурные ники.",
@@ -1150,6 +1168,7 @@ interface PlayerInfo {
   name: string;
   avatar?: string;
   banner?: string;
+  selectedBadgeKey?: string;
   roleKey?: string;
   roleTitle?: string;
   warningCount?: number;
@@ -1254,6 +1273,7 @@ interface AuthUser {
   birthDate?: string;
   hideAge: boolean;
   createdAt: number;
+  selectedBadgeKey?: string;
 }
 
 interface PublicUserProfile {
@@ -1434,7 +1454,7 @@ function getBannerStyle(
     };
   }
   return {
-    backgroundImage: buildNeutralBannerGradient(),
+    backgroundImage: buildAutoBannerGradient(normalizedAvatar || seedName),
   };
 }
 
@@ -1484,11 +1504,12 @@ async function cropImageDataUrl(options: {
   zoom: number;
   offsetX: number;
   offsetY: number;
+  flipX: boolean;
 }): Promise<string> {
-  const { sourceDataUrl, target } = options;
+  const { sourceDataUrl, target, flipX } = options;
   const zoom = clampNumber(options.zoom, 1, 3);
-  const offsetX = clampNumber(options.offsetX, -100, 100) / 100;
-  const offsetY = clampNumber(options.offsetY, -100, 100) / 100;
+  const offsetX = clampNumber(options.offsetX, -120, 120) / 120;
+  const offsetY = clampNumber(options.offsetY, -120, 120) / 120;
   const outputWidth = target === "avatar" ? 512 : 1280;
   const outputHeight = target === "avatar" ? 512 : 360;
   const outputAspect = outputWidth / outputHeight;
@@ -1531,6 +1552,11 @@ async function cropImageDataUrl(options: {
         resolve(sourceDataUrl);
         return;
       }
+      if (flipX) {
+        context.save();
+        context.translate(outputWidth, 0);
+        context.scale(-1, 1);
+      }
       context.drawImage(
         image,
         sx,
@@ -1542,6 +1568,9 @@ async function cropImageDataUrl(options: {
         outputWidth,
         outputHeight,
       );
+      if (flipX) {
+        context.restore();
+      }
 
       resolve(canvas.toDataURL("image/jpeg", 0.88));
     };
@@ -1592,18 +1621,23 @@ function localizeAuthError(message: string): string {
   }
   if (
     normalized.includes("login is already taken") ||
+    normalized.includes("login already taken") ||
     (normalized.includes("login") && normalized.includes("already") && normalized.includes("taken"))
   ) {
     return "Логин уже занят.";
   }
   if (
     normalized.includes("email is already in use") ||
-    (normalized.includes("email") && normalized.includes("already"))
+    normalized.includes("email already taken") ||
+    (normalized.includes("email") && normalized.includes("already")) ||
+    normalized.includes("duplicate key") ||
+    normalized.includes("email_normalized")
   ) {
     return "Эта почта уже используется.";
   }
   if (
     normalized.includes("nickname is already taken") ||
+    normalized.includes("nickname already taken") ||
     (normalized.includes("nickname") && normalized.includes("already"))
   ) {
     return "Никнейм уже занят.";
@@ -1656,6 +1690,19 @@ function localizeAuthError(message: string): string {
   return "Произошла ошибка. Попробуйте снова.";
 }
 
+function getBadgeSymbol(badgeKey?: string): string {
+  if (!badgeKey) return "★";
+  return BADGE_SYMBOLS[badgeKey] ?? "★";
+}
+
+function getBadgeTitleByKey(
+  badgeKey: string | undefined,
+  badges?: Array<{ key: string; title: string }>,
+): string {
+  if (!badgeKey) return "";
+  return badges?.find((item) => item.key === badgeKey)?.title ?? badgeKey;
+}
+
 function PlayerCard({
   player,
   isHost,
@@ -1672,6 +1719,7 @@ function PlayerCard({
   nowTs: number;
 }) {
   const canOpenProfile = !!player.userId && !!onOpenProfile;
+  const badgeSymbol = getBadgeSymbol(player.selectedBadgeKey);
   const disconnectRemainingMs =
     typeof player.disconnectedUntil === "number"
       ? Math.max(0, player.disconnectedUntil - nowTs)
@@ -1705,8 +1753,13 @@ function PlayerCard({
           >
             <Avatar src={player.avatar ?? null} name={player.name} size={72} />
             <div className="min-w-0">
-              <div className="font-semibold text-base truncate">
-                {player.name}
+              <div className="font-semibold text-base truncate inline-flex items-center gap-2">
+                {player.selectedBadgeKey ? (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-red-500/45 bg-red-600/20 px-1 text-[10px] font-bold leading-none text-red-200">
+                    {badgeSymbol}
+                  </span>
+                ) : null}
+                <span className="truncate">{player.name}</span>
               </div>
               <div className="text-sm text-zinc-400">
                 {isHost ? "Ведущий комнаты" : "Игрок"}
@@ -1851,10 +1904,13 @@ export default function App() {
   const [contextHelpOpen, setContextHelpOpen] = useState(false);
   const [contextHelpQuery, setContextHelpQuery] = useState("");
   const [playerName, setPlayerName] = useState("");
+  const [profileNicknameDraft, setProfileNicknameDraft] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(
     () => localStorage.getItem(BANNER_STORAGE_KEY),
   );
+  const [profileAvatarDraft, setProfileAvatarDraft] = useState<string | null>(null);
+  const [profileBannerDraft, setProfileBannerDraft] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(
     () => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY),
   );
@@ -1934,6 +1990,7 @@ export default function App() {
   const [imageCropZoom, setImageCropZoom] = useState(1);
   const [imageCropOffsetX, setImageCropOffsetX] = useState(0);
   const [imageCropOffsetY, setImageCropOffsetY] = useState(0);
+  const [imageCropFlipX, setImageCropFlipX] = useState(false);
   const [imageCropLoading, setImageCropLoading] = useState(false);
   const [lobbyChatInput, setLobbyChatInput] = useState("");
   const [lobbyChatMessages, setLobbyChatMessages] = useState<LobbyChatMessage[]>([]);
@@ -1975,6 +2032,14 @@ export default function App() {
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const lobbyChatScrollRef = useRef<HTMLDivElement>(null);
   const lawyerChatScrollRef = useRef<HTMLDivElement>(null);
+  const imageCropDragStateRef = useRef<{
+    dragging: boolean;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+  } | null>(null);
   const joinPasswordDialogOpenRef = useRef(false);
   const influenceViewRef = useRef<
     "main" | "chat" | "notes" | "verdict" | "warnings"
@@ -2113,7 +2178,7 @@ export default function App() {
 
     return (
       <Dialog open={viewPlayerProfileOpen} onOpenChange={setViewPlayerProfileOpen}>
-        <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+        <DialogContent className="max-w-[420px] border-zinc-800 bg-zinc-950 text-zinc-100">
           <DialogHeader>
             <DialogTitle>Профиль игрока</DialogTitle>
             <DialogDescription className="text-zinc-400">
@@ -2144,6 +2209,19 @@ export default function App() {
                     <Avatar src={viewPlayerProfile.avatar ?? null} name={viewPlayerProfile.nickname} size={88} />
                     <div>
                       <div className="text-xl font-bold leading-none">{viewPlayerProfile.nickname}</div>
+                      {viewPlayerProfile.selectedBadgeKey ? (
+                        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-red-500/50 bg-red-600/20 px-2.5 py-1 text-xs text-red-200">
+                          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-red-500/45 bg-red-600/20 px-1 text-[10px] font-bold leading-none">
+                            {getBadgeSymbol(viewPlayerProfile.selectedBadgeKey)}
+                          </span>
+                          <span>
+                            {getBadgeTitleByKey(
+                              viewPlayerProfile.selectedBadgeKey,
+                              viewPlayerProfile.badges,
+                            )}
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="mt-2 text-xs text-zinc-300">
                         Профиль с {createdAtLabel || "неизвестной даты"}
                       </div>
@@ -2203,12 +2281,15 @@ export default function App() {
 
     if (savedName) {
       setPlayerName(savedName);
+      setProfileNicknameDraft(savedName);
     } else if (authUser?.nickname) {
       setPlayerName(authUser.nickname);
+      setProfileNicknameDraft(authUser.nickname);
       localStorage.setItem("court_nickname", authUser.nickname);
     } else {
       const guestName = getOrCreateGuestName();
       setPlayerName(guestName);
+      setProfileNicknameDraft(guestName);
       localStorage.setItem("court_nickname", guestName);
     }
 
@@ -2232,6 +2313,7 @@ export default function App() {
         setAuthUser(user);
         localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
         setPlayerName(user.nickname);
+        setProfileNicknameDraft(user.nickname);
         localStorage.setItem("court_nickname", user.nickname);
         if (user.avatar) {
           setAvatar(user.avatar);
@@ -2256,6 +2338,7 @@ export default function App() {
 
   useEffect(() => {
     if (!authUser) return;
+    setProfileNicknameDraft(authUser.nickname);
     setProfileBio(authUser.bio ?? "");
     setProfileGender(
       authUser.gender === "male" || authUser.gender === "female" || authUser.gender === "other"
@@ -2265,6 +2348,12 @@ export default function App() {
     setProfileBirthDate(authUser.birthDate ?? "");
     setProfileHideAge(!!authUser.hideAge);
   }, [authUser]);
+
+  useEffect(() => {
+    if (screen !== "profile") return;
+    setProfileAvatarDraft(avatar);
+    setProfileBannerDraft(banner);
+  }, [screen, avatar, banner]);
 
   useEffect(() => {
     if (!authToken || !isAuthenticated) {
@@ -3021,43 +3110,14 @@ export default function App() {
     }
   }, [authToken]);
 
-  const resetProfileMedia = useCallback(async () => {
-    setAvatar(null);
-    setBanner(null);
-    localStorage.removeItem("court_avatar");
-    localStorage.removeItem(BANNER_STORAGE_KEY);
-
-    if (activeRoomCode && mySessionToken) {
-      socket.emit("update_profile", {
-        code: activeRoomCode,
-        sessionToken: mySessionToken,
-        name: playerName.trim() || getOrCreateGuestName(),
-        avatar: null,
-        banner: null,
-      });
-    }
-
-    if (!authToken) return;
-    try {
-      const payload = await authRequest<{ user: AuthUser }>("/auth/profile", {
-        method: "PATCH",
-        token: authToken,
-        body: {
-          avatar: null,
-          banner: null,
-        },
-      });
-      setAuthUser(payload.user);
-      localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(payload.user));
-      await reloadMyProfile();
-    } catch {
-      // no-op
-    }
-  }, [activeRoomCode, authToken, mySessionToken, playerName, reloadMyProfile, socket]);
+  const resetProfileMedia = useCallback(() => {
+    setProfileAvatarDraft(null);
+    setProfileBannerDraft(null);
+  }, []);
 
   const saveExtendedProfile = useCallback(async () => {
     if (!authToken) return;
-    const normalizedName = playerName.trim();
+    const normalizedName = profileNicknameDraft.trim();
     if (!normalizedName) {
       setError("Введите никнейм.");
       setTimeout(() => setError(""), 2500);
@@ -3082,8 +3142,8 @@ export default function App() {
         token: authToken,
         body: {
           nickname: normalizedName,
-          avatar: sharedAvatar,
-          banner: sharedBanner,
+          avatar: profileAvatarDraft,
+          banner: profileBannerDraft,
           bio: profileBio.trim() || null,
           gender: profileGender || null,
           birthDate: normalizedBirthDate || null,
@@ -3093,14 +3153,18 @@ export default function App() {
       });
       setAuthUser(payload.user);
       localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(payload.user));
+      setPlayerName(normalizedName);
+      setProfileNicknameDraft(normalizedName);
+      setAvatar(profileAvatarDraft);
+      setBanner(profileBannerDraft);
       localStorage.setItem("court_nickname", normalizedName);
-      if (sharedAvatar) {
-        localStorage.setItem("court_avatar", sharedAvatar);
+      if (profileAvatarDraft) {
+        localStorage.setItem("court_avatar", profileAvatarDraft);
       } else {
         localStorage.removeItem("court_avatar");
       }
-      if (sharedBanner) {
-        localStorage.setItem(BANNER_STORAGE_KEY, sharedBanner);
+      if (profileBannerDraft) {
+        localStorage.setItem(BANNER_STORAGE_KEY, profileBannerDraft);
       } else {
         localStorage.removeItem(BANNER_STORAGE_KEY);
       }
@@ -3109,13 +3173,12 @@ export default function App() {
           code: activeRoomCode,
           sessionToken: mySessionToken,
           name: normalizedName,
-          avatar: sharedAvatar,
-          banner: sharedBanner,
+          avatar: profileAvatarDraft,
+          banner: profileBannerDraft,
+          selectedBadgeKey: selectedBadgeKey || null,
         });
       }
       await reloadMyProfile();
-      setError("Профиль обновлен.");
-      setTimeout(() => setError(""), 2500);
     } catch (err) {
       const message = err instanceof Error ? localizeAuthError(err.message) : "Ошибка обновления профиля.";
       setError(message);
@@ -3125,15 +3188,15 @@ export default function App() {
     }
   }, [
     authToken,
-    playerName,
+    profileNicknameDraft,
     profileBirthDate,
     profileBio,
     profileGender,
     profileHideAge,
     reloadMyProfile,
     selectedBadgeKey,
-    sharedAvatar,
-    sharedBanner,
+    profileAvatarDraft,
+    profileBannerDraft,
     activeRoomCode,
     mySessionToken,
     socket,
@@ -3282,7 +3345,7 @@ export default function App() {
   }, []);
 
   const handlePlayerNameChange = useCallback((value: string) => {
-    setPlayerName(value.slice(0, 20));
+    setProfileNicknameDraft(value.slice(0, 20));
   }, []);
 
   const handleAuthSuccess = useCallback((user: AuthUser, token: string) => {
@@ -3292,6 +3355,7 @@ export default function App() {
     localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
     localStorage.setItem("court_nickname", user.nickname);
     setPlayerName(user.nickname);
+    setProfileNicknameDraft(user.nickname);
     if (user.avatar) {
       setAvatar(user.avatar);
       localStorage.setItem("court_avatar", user.avatar);
@@ -3689,6 +3753,7 @@ export default function App() {
         setImageCropZoom(1);
         setImageCropOffsetX(0);
         setImageCropOffsetY(0);
+        setImageCropFlipX(false);
         setImageCropDialogOpen(true);
       };
       reader.readAsDataURL(file);
@@ -3706,16 +3771,15 @@ export default function App() {
         zoom: imageCropZoom,
         offsetX: imageCropOffsetX,
         offsetY: imageCropOffsetY,
+        flipX: imageCropFlipX,
       });
 
       if (imageCropTarget === "avatar") {
         const compactAvatar = await compressImage(cropped, 384);
-        setAvatar(compactAvatar);
-        localStorage.setItem("court_avatar", compactAvatar);
+        setProfileAvatarDraft(compactAvatar);
       } else {
         const compactBanner = await compressImage(cropped, 1280);
-        setBanner(compactBanner);
-        localStorage.setItem(BANNER_STORAGE_KEY, compactBanner);
+        setProfileBannerDraft(compactBanner);
       }
 
       setImageCropDialogOpen(false);
@@ -3727,6 +3791,7 @@ export default function App() {
     compressImage,
     imageCropOffsetX,
     imageCropOffsetY,
+    imageCropFlipX,
     imageCropSource,
     imageCropTarget,
     imageCropZoom,
@@ -3736,6 +3801,40 @@ export default function App() {
     setImageCropZoom(1);
     setImageCropOffsetX(0);
     setImageCropOffsetY(0);
+    setImageCropFlipX(false);
+  }, []);
+
+  const startImageCropDrag = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!imageCropSource) return;
+      event.preventDefault();
+      (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
+      imageCropDragStateRef.current = {
+        dragging: true,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startOffsetX: imageCropOffsetX,
+        startOffsetY: imageCropOffsetY,
+      };
+    },
+    [imageCropOffsetX, imageCropOffsetY, imageCropSource],
+  );
+
+  const moveImageCropDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const dragState = imageCropDragStateRef.current;
+    if (!dragState?.dragging || dragState.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+    setImageCropOffsetX(clampNumber(dragState.startOffsetX + deltaX, -120, 120));
+    setImageCropOffsetY(clampNumber(dragState.startOffsetY + deltaY, -120, 120));
+  }, []);
+
+  const endImageCropDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const dragState = imageCropDragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    imageCropDragStateRef.current = null;
+    (event.currentTarget as HTMLDivElement).releasePointerCapture(event.pointerId);
   }, []);
 
   const handleAvatarChange = useCallback(
@@ -3846,7 +3945,7 @@ export default function App() {
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
                 <div
                   className="relative min-h-[124px] md:min-h-[136px] p-5 md:p-6 flex flex-col justify-end cursor-pointer group/banner"
-                  style={getBannerStyle(banner, avatar, playerName || "Игрок")}
+                  style={getBannerStyle(profileBannerDraft, profileAvatarDraft, playerName || "Игрок")}
                   onClick={() => bannerInputRef.current?.click()}
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
@@ -3860,16 +3959,13 @@ export default function App() {
                           avatarInputRef.current?.click();
                         }}
                       >
-                        <Avatar src={avatar} name={playerName || "?"} size={146} />
+                        <Avatar src={profileAvatarDraft} name={playerName || "?"} size={146} />
                         <div className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
                           <Camera className="w-6 h-6 text-white" />
                         </div>
                       </div>
                       <div>
                         <div className="text-2xl font-bold leading-none">{playerName || "Игрок"}</div>
-                        <div className="mt-2 text-sm text-zinc-300">
-                          {authUser ? `@${authUser.login}` : "Гостевой профиль"}
-                        </div>
                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
                           <span className="rounded-full border border-zinc-600 bg-black/35 px-3 py-1">
                             Возраст: {ageLabel}
@@ -3882,7 +3978,8 @@ export default function App() {
                           </span>
                           {selectedBadgeKey && (
                             <span className="rounded-full border border-red-500/60 bg-red-600/20 px-3 py-1 text-red-200">
-                              {badges.find((badge) => badge.key === selectedBadgeKey)?.title ?? "Выбран"}
+                              {getBadgeSymbol(selectedBadgeKey)}{" "}
+                              {getBadgeTitleByKey(selectedBadgeKey, badges)}
                             </span>
                           )}
                         </div>
@@ -3929,7 +4026,7 @@ export default function App() {
                       <div className="md:col-span-2">
                         <label className="text-sm text-zinc-300">Никнейм</label>
                         <Input
-                          value={playerName}
+                          value={profileNicknameDraft}
                           onChange={(e) => handlePlayerNameChange(e.target.value)}
                           placeholder="Например: Berly"
                           className="mt-2 h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
@@ -3939,10 +4036,17 @@ export default function App() {
                         <label className="text-sm text-zinc-300">О себе</label>
                         <textarea
                           value={profileBio}
-                          onChange={(e) => setProfileBio(e.target.value.slice(0, 500))}
+                          onChange={(e) => setProfileBio(e.target.value.slice(0, PROFILE_BIO_MAX))}
                           placeholder="Коротко о себе..."
                           className="mt-2 h-24 w-full resize-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
                         />
+                        <div
+                          className={`mt-1 text-xs text-left ${
+                            profileBio.length >= PROFILE_BIO_MAX ? "text-red-400" : "text-zinc-500"
+                          }`}
+                        >
+                          {profileBio.length}/{PROFILE_BIO_MAX}
+                        </div>
                       </div>
                       <div>
                         <label className="text-sm text-zinc-300">Пол</label>
@@ -3970,15 +4074,12 @@ export default function App() {
                       </div>
                       <div className="max-w-[240px]">
                         <label className="text-sm text-zinc-300">Дата рождения</label>
-                        <div className="relative mt-2">
-                          <Input
-                            type="date"
-                            value={profileBirthDate}
-                            onChange={(e) => setProfileBirthDate(e.target.value)}
-                            className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-10 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:opacity-0"
-                          />
-                          <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                        </div>
+                        <Input
+                          type="date"
+                          value={profileBirthDate}
+                          onChange={(e) => setProfileBirthDate(e.target.value)}
+                          className="mt-2 h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-3 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-80"
+                        />
                       </div>
                     </div>
 
@@ -4168,7 +4269,11 @@ export default function App() {
                         <button
                           key={`${participant.nickname}-${pIndex}`}
                           type="button"
-                          className="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-200 hover:bg-zinc-800 disabled:opacity-70"
+                          className={`rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs ${
+                            participant.userId
+                              ? "text-zinc-200 hover:bg-zinc-800"
+                              : "text-zinc-400 cursor-default"
+                          }`}
                           disabled={!participant.userId}
                           onClick={() => openUserProfile(participant.userId)}
                         >
@@ -4347,13 +4452,18 @@ export default function App() {
                 <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
                   <div
                     className={`relative mx-auto overflow-hidden bg-zinc-950 ${imageCropTarget === "avatar" ? "h-[280px] w-[280px] rounded-full border border-zinc-700" : "h-[220px] w-full rounded-xl border border-zinc-700"}`}
+                    onPointerDown={startImageCropDrag}
+                    onPointerMove={moveImageCropDrag}
+                    onPointerUp={endImageCropDrag}
+                    onPointerCancel={endImageCropDrag}
                   >
                     <img
                       src={imageCropSource}
                       alt="crop"
+                      draggable={false}
                       className="absolute left-1/2 top-1/2 max-w-none select-none pointer-events-none"
                       style={{
-                        transform: `translate(calc(-50% + ${imageCropOffsetX}px), calc(-50% + ${imageCropOffsetY}px)) scale(${imageCropZoom})`,
+                        transform: `translate(calc(-50% + ${imageCropOffsetX}px), calc(-50% + ${imageCropOffsetY}px)) scaleX(${imageCropFlipX ? -1 : 1}) scale(${imageCropZoom})`,
                         transformOrigin: "center center",
                         width: imageCropTarget === "avatar" ? "280px" : "100%",
                         height: imageCropTarget === "avatar" ? "280px" : "220px",
@@ -4362,7 +4472,7 @@ export default function App() {
                     />
                   </div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-1">
                     <label className="text-xs text-zinc-400">Масштаб</label>
                     <Input
@@ -4376,28 +4486,19 @@ export default function App() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-400">Смещение X</label>
-                    <Input
-                      type="range"
-                      min={-100}
-                      max={100}
-                      step={1}
-                      value={imageCropOffsetX}
-                      onChange={(e) => setImageCropOffsetX(Number(e.target.value))}
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-zinc-400">Смещение Y</label>
-                    <Input
-                      type="range"
-                      min={-100}
-                      max={100}
-                      step={1}
-                      value={imageCropOffsetY}
-                      onChange={(e) => setImageCropOffsetY(Number(e.target.value))}
-                      className="h-9"
-                    />
+                    <label className="text-xs text-zinc-400">Действия</label>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 gap-2"
+                        onClick={() => setImageCropFlipX((prev) => !prev)}
+                      >
+                        <FlipHorizontal className="h-4 w-4" />
+                        Перевернуть
+                      </Button>
+                      <div className="text-xs text-zinc-500">Перемещайте изображение мышью или пальцем.</div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-2">
@@ -4533,7 +4634,7 @@ export default function App() {
                         setAuthView("form");
                         setAuthDialogOpen(true);
                       }}
-                      className="h-10 w-full sm:w-auto rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
+                      className="h-10 w-full sm:w-[124px] rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
                     >
                       <LogIn className="w-4 h-4" />
                       Войти
@@ -4631,7 +4732,7 @@ export default function App() {
                           }}
                           className={
                             authMode === "login"
-                              ? "rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
+                              ? "rounded-xl border border-zinc-600 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
                               : "rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                           }
                         >
@@ -4646,7 +4747,7 @@ export default function App() {
                           }}
                           className={
                             authMode === "register"
-                              ? "rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
+                              ? "rounded-xl border border-zinc-600 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
                               : "rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                           }
                         >
@@ -6228,7 +6329,12 @@ export default function App() {
                     {game.players.map((p) => (
                       <div
                         key={p.id}
-                        className="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/60 px-2.5 py-1.5 flex items-center justify-between text-sm"
+                        className={`relative overflow-hidden rounded-xl border bg-zinc-900/60 px-2.5 py-1.5 flex items-center justify-between text-sm ${
+                          p.userId
+                            ? "cursor-pointer border-zinc-800 hover:border-zinc-700"
+                            : "border-zinc-800"
+                        }`}
+                        onClick={() => p.userId && openUserProfile(p.userId)}
                       >
                         <div
                           className="pointer-events-none absolute inset-0 opacity-80"
@@ -6236,19 +6342,21 @@ export default function App() {
                         />
                         <div className="pointer-events-none absolute inset-0 bg-black/35" />
                         <div className="relative z-10 flex items-center gap-2 min-w-0">
-                          <button
-                            type="button"
-                            disabled={!p.userId}
+                          <div
                             className={`inline-flex items-center gap-2 min-w-0 rounded-md px-1 py-0.5 text-left ${
                               p.userId
                                 ? "text-zinc-300 hover:text-red-300 transition-colors"
-                                : "text-zinc-300"
+                                : "text-zinc-400"
                             }`}
-                            onClick={() => p.userId && openUserProfile(p.userId)}
                           >
                             <Avatar src={p.avatar ?? null} name={p.name} size={32} />
+                            {p.selectedBadgeKey ? (
+                              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded border border-red-500/45 bg-red-600/20 px-1 text-[9px] font-bold leading-none text-red-200">
+                                {getBadgeSymbol(p.selectedBadgeKey)}
+                              </span>
+                            ) : null}
                             <span className="truncate">{p.name}</span>
-                          </button>
+                          </div>
                           {(p.warningCount ?? 0) > 0 && (
                             <Badge className="bg-red-950/70 text-red-300 border border-red-700/70">
                               {p.warningCount}/3

@@ -226,6 +226,7 @@ function mapGamePlayers(players: any[]) {
     name: p.name,
     avatar: p.avatar,
     banner: p.banner,
+    selectedBadgeKey: p.selectedBadgeKey ?? undefined,
     roleKey: p.roleKey,
     roleTitle: p.roleTitle,
     warningCount: typeof p?.warningCount === "number" ? p.warningCount : 0,
@@ -241,6 +242,7 @@ function mapLobbyPlayers(players: any[]) {
     name: p.name,
     avatar: p.avatar,
     banner: p.banner,
+    selectedBadgeKey: p.selectedBadgeKey ?? undefined,
     warningCount: typeof p?.warningCount === "number" ? p.warningCount : 0,
     disconnectedUntil:
       typeof p?.disconnectedUntil === "number" ? p.disconnectedUntil : undefined,
@@ -711,6 +713,7 @@ export function setupSocket(httpServer: HttpServer) {
           sessionToken,
           avatar: avatar || authUser?.avatar || undefined,
           banner: banner || authUser?.banner || undefined,
+          selectedBadgeKey: authUser?.selectedBadgeKey || undefined,
         };
       const room = createRoom(code, player, options);
 
@@ -904,6 +907,7 @@ export function setupSocket(httpServer: HttpServer) {
         sessionToken,
         avatar: avatar || authUser?.avatar || undefined,
         banner: banner || authUser?.banner || undefined,
+        selectedBadgeKey: authUser?.selectedBadgeKey || undefined,
       };
 
       if (room.started) {
@@ -1141,12 +1145,14 @@ export function setupSocket(httpServer: HttpServer) {
         name,
         avatar,
         banner,
+        selectedBadgeKey,
         sessionToken,
       }: {
         code: string;
         name?: string;
         avatar?: string | null;
         banner?: string | null;
+        selectedBadgeKey?: string | null;
         sessionToken?: string;
       }) => {
         const roomCode = normalizeRoomCode(code);
@@ -1173,6 +1179,7 @@ export function setupSocket(httpServer: HttpServer) {
           name: nextName,
           avatar,
           banner,
+          selectedBadgeKey,
         });
         if (!updatedRoom) return;
 
