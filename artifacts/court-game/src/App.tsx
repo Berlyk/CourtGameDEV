@@ -1283,6 +1283,9 @@ interface PublicUserProfile {
     title: string;
     description: string;
     active: boolean;
+    progressCurrent?: number;
+    progressTarget?: number;
+    progressLabel?: string;
   }>;
   selectedBadgeKey?: string;
   recentMatches?: Array<{
@@ -1576,6 +1579,9 @@ async function authRequest<T>(
 }
 
 function localizeAuthError(message: string): string {
+  if (/[А-Яа-яЁё]/.test(message)) {
+    return message;
+  }
   const normalized = message.trim().toLowerCase();
   if (!normalized) return "Произошла ошибка. Попробуйте снова.";
   if (
@@ -1665,6 +1671,7 @@ function PlayerCard({
   onOpenProfile?: (userId?: string) => void;
   nowTs: number;
 }) {
+  const canOpenProfile = !!player.userId && !!onOpenProfile;
   const disconnectRemainingMs =
     typeof player.disconnectedUntil === "number"
       ? Math.max(0, player.disconnectedUntil - nowTs)
@@ -1686,24 +1693,26 @@ function PlayerCard({
             style={getBannerStyle(player.banner, player.avatar, player.name)}
           />
           <div className="pointer-events-none absolute inset-[6px] rounded-[16px] bg-black/35" />
-          <div className="relative z-10 flex items-center gap-3 min-w-0">
+          <button
+            type="button"
+            disabled={!canOpenProfile}
+            onClick={() => canOpenProfile && onOpenProfile?.(player.userId)}
+            className={`relative z-10 flex items-center gap-3 min-w-0 text-left ${
+              canOpenProfile
+                ? "cursor-pointer transition-colors hover:text-red-300"
+                : "cursor-default"
+            }`}
+          >
             <Avatar src={player.avatar ?? null} name={player.name} size={72} />
             <div className="min-w-0">
               <div className="font-semibold text-base truncate">
-                <button
-                  type="button"
-                  className="text-left hover:text-red-300 transition-colors"
-                  onClick={() => onOpenProfile?.(player.userId)}
-                  disabled={!player.userId}
-                >
-                  {player.name}
-                </button>
+                {player.name}
               </div>
               <div className="text-sm text-zinc-400">
                 {isHost ? "Ведущий комнаты" : "Игрок"}
               </div>
             </div>
-          </div>
+          </button>
           <div className="relative z-10 flex items-center gap-2">
             {(player.warningCount ?? 0) > 0 && (
               <Badge className="bg-red-950/70 text-red-300 border border-red-700/70">
@@ -1730,7 +1739,7 @@ function PlayerCard({
                   : "bg-zinc-800 text-zinc-100 border border-zinc-700"
               }
             >
-              {isHost ? "Host" : "Player"}
+              {isHost ? "Host" : "Игрок"}
             </Badge>
             {canKick && onKick && (
               <Button
@@ -2061,12 +2070,16 @@ export default function App() {
       input:-webkit-autofill,
       input:-webkit-autofill:hover,
       input:-webkit-autofill:focus,
+      select:-webkit-autofill,
+      select:-webkit-autofill:hover,
+      select:-webkit-autofill:focus,
       textarea:-webkit-autofill,
       textarea:-webkit-autofill:hover,
       textarea:-webkit-autofill:focus {
         -webkit-text-fill-color: rgb(244 244 245) !important;
         -webkit-box-shadow: 0 0 0px 1000px rgb(24 24 27) inset !important;
         box-shadow: 0 0 0px 1000px rgb(24 24 27) inset !important;
+        background-color: rgb(24 24 27) !important;
         caret-color: rgb(244 244 245) !important;
         transition: background-color 9999s ease-in-out 0s;
       }
@@ -2100,7 +2113,7 @@ export default function App() {
 
     return (
       <Dialog open={viewPlayerProfileOpen} onOpenChange={setViewPlayerProfileOpen}>
-        <DialogContent className="max-w-3xl border-zinc-800 bg-zinc-950 text-zinc-100">
+        <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
           <DialogHeader>
             <DialogTitle>Профиль игрока</DialogTitle>
             <DialogDescription className="text-zinc-400">
@@ -2119,7 +2132,7 @@ export default function App() {
             <div className="space-y-4">
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
                 <div
-                  className="relative min-h-[132px] p-5 md:p-6 flex items-end"
+                  className="relative min-h-[132px] p-5 flex items-end"
                   style={getBannerStyle(
                     viewPlayerProfile.banner,
                     viewPlayerProfile.avatar,
@@ -2128,9 +2141,9 @@ export default function App() {
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/10" />
                   <div className="relative z-10 flex items-end gap-3">
-                    <Avatar src={viewPlayerProfile.avatar ?? null} name={viewPlayerProfile.nickname} size={96} />
+                    <Avatar src={viewPlayerProfile.avatar ?? null} name={viewPlayerProfile.nickname} size={88} />
                     <div>
-                      <div className="text-2xl font-bold leading-none">{viewPlayerProfile.nickname}</div>
+                      <div className="text-xl font-bold leading-none">{viewPlayerProfile.nickname}</div>
                       <div className="mt-2 text-xs text-zinc-300">
                         Профиль с {createdAtLabel || "неизвестной даты"}
                       </div>
@@ -2138,7 +2151,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 gap-3 text-sm">
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
                   <div className="text-zinc-500 text-xs">Пол</div>
                   <div className="text-zinc-100 mt-1">{genderLabel}</div>
@@ -3799,8 +3812,6 @@ export default function App() {
     const totalWinRate = profileData?.stats?.totalWinRate ?? 0;
     const roleStats = [...(profileData?.stats?.roleStats ?? [])].sort((a, b) => b.wins - a.wins);
     const badges = profileData?.badges ?? [];
-    const activeBadges = badges.filter((badge) => badge.active);
-    const inactiveBadges = badges.filter((badge) => !badge.active);
 
     return (
       <motion.div
@@ -3871,7 +3882,7 @@ export default function App() {
                           </span>
                           {selectedBadgeKey && (
                             <span className="rounded-full border border-red-500/60 bg-red-600/20 px-3 py-1 text-red-200">
-                              Бейдж: {badges.find((badge) => badge.key === selectedBadgeKey)?.title ?? "Выбран"}
+                              {badges.find((badge) => badge.key === selectedBadgeKey)?.title ?? "Выбран"}
                             </span>
                           )}
                         </div>
@@ -4081,51 +4092,31 @@ export default function App() {
                     <div className="text-sm text-zinc-500 mt-1">
                       Активные и доступные награды профиля.
                     </div>
-                    <div className={`mt-3 space-y-2 max-h-[250px] overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-2">
-                        <div className="text-xs text-zinc-500 px-1 pb-2">Выбранный бейдж</div>
-                        <div className="grid grid-cols-1 gap-2">
-                          {(badges.filter((badge) => badge.active)).map((badge) => (
-                            <button
-                              key={`select-${badge.key}`}
-                              type="button"
-                              onClick={() => setSelectedBadgeKey(badge.key)}
-                              className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-                                selectedBadgeKey === badge.key
-                                  ? "border-red-500 bg-red-600/20 text-red-200"
-                                  : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
-                              }`}
-                            >
-                              <div className="text-sm font-semibold">{badge.title}</div>
-                            </button>
-                          ))}
-                        </div>
-                        <Button
-                          variant="outline"
-                          className="mt-2 w-full rounded-lg border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                          onClick={() => setBadgeRulesOpen(true)}
-                        >
-                          Как получить бейджи
-                        </Button>
+                    <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/55 p-2">
+                      <div className="text-xs text-zinc-500 px-1 pb-2">Выбранный бейдж</div>
+                      <div className="grid grid-cols-1 gap-2">
+                        {(badges.filter((badge) => badge.active)).map((badge) => (
+                          <button
+                            key={`select-${badge.key}`}
+                            type="button"
+                            onClick={() => setSelectedBadgeKey(badge.key)}
+                            className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                              selectedBadgeKey === badge.key
+                                ? "border-red-500 bg-red-600/20 text-red-200"
+                                : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
+                            }`}
+                          >
+                            <div className="text-sm font-semibold">{badge.title}</div>
+                          </button>
+                        ))}
                       </div>
-                      {activeBadges.map((badge) => (
-                        <div
-                          key={`active-${badge.key}`}
-                          className="rounded-xl border border-red-600/40 bg-red-600/10 px-3 py-2"
-                        >
-                          <div className="text-sm font-semibold text-red-300">{badge.title}</div>
-                          <div className="text-xs text-zinc-400 mt-1">{badge.description}</div>
-                        </div>
-                      ))}
-                      {inactiveBadges.map((badge) => (
-                        <div
-                          key={`inactive-${badge.key}`}
-                          className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-2"
-                        >
-                          <div className="text-sm font-medium text-zinc-300">{badge.title}</div>
-                          <div className="text-xs text-zinc-500 mt-1">{badge.description}</div>
-                        </div>
-                      ))}
+                      <Button
+                        variant="outline"
+                        className="mt-2 w-full rounded-lg border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        onClick={() => setBadgeRulesOpen(true)}
+                      >
+                        Как получить бейджи
+                      </Button>
                     </div>
                   </div>
 
@@ -4199,34 +4190,66 @@ export default function App() {
                 Здесь показаны доступные бейджи и как их открыть.
               </DialogDescription>
             </DialogHeader>
-            <div className={`max-h-[60vh] overflow-y-auto pr-1 space-y-2 ${HIDE_SCROLLBAR_CLASS}`}>
-              {badges.map((badge) => (
-                <div
-                  key={`rules-${badge.key}`}
-                  className={`rounded-xl border px-3 py-3 ${
-                    badge.active
-                      ? "border-red-500/45 bg-red-600/12"
-                      : "border-zinc-800 bg-zinc-900/55"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] ${
-                          badge.active
-                            ? "border-red-400/70 bg-red-500/25 text-red-100"
-                            : "border-zinc-700 bg-zinc-800 text-zinc-300"
-                        }`}
-                      >
-                        ★
-                      </span>
-                      <div className="text-sm font-semibold truncate">{badge.title}</div>
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10 bg-gradient-to-t from-zinc-950 to-transparent" />
+              <div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex items-center justify-center text-[11px] text-zinc-500">
+                Прокрутите вниз, чтобы увидеть больше
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto pr-1 space-y-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
+                {badges.map((badge) => (
+                  <div
+                    key={`rules-${badge.key}`}
+                    className={`rounded-xl border px-3 py-3 ${
+                      badge.active
+                        ? "border-red-500/45 bg-red-600/12"
+                        : "border-zinc-800 bg-zinc-900/55"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] ${
+                            badge.active
+                              ? "border-red-400/70 bg-red-500/25 text-red-100"
+                              : "border-zinc-700 bg-zinc-800 text-zinc-300"
+                          }`}
+                        >
+                          ★
+                        </span>
+                        <div className="text-sm font-semibold truncate">{badge.title}</div>
+                      </div>
+                      <div className="text-xs text-zinc-400">{badge.active ? "Доступен" : "Закрыт"}</div>
                     </div>
-                    <div className="text-xs text-zinc-400">{badge.active ? "Доступен" : "Закрыт"}</div>
+                    <div className="mt-2 text-xs text-zinc-400">{badge.description}</div>
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                        <span>Прогресс</span>
+                        <span>{badge.progressLabel ?? (badge.active ? "Получен" : "Не получен")}</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full rounded-full bg-zinc-800">
+                        <div
+                          className={`h-1.5 rounded-full transition-all ${
+                            badge.active ? "bg-red-500" : "bg-zinc-600"
+                          }`}
+                          style={{
+                            width: `${Math.max(
+                              0,
+                              Math.min(
+                                100,
+                                badge.progressTarget && badge.progressTarget > 0
+                                  ? ((badge.progressCurrent ?? 0) / badge.progressTarget) * 100
+                                  : badge.active
+                                    ? 100
+                                    : 0,
+                              ),
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-2 text-xs text-zinc-400">{badge.description}</div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </DialogContent>
         </Dialog>
@@ -6213,18 +6236,19 @@ export default function App() {
                         />
                         <div className="pointer-events-none absolute inset-0 bg-black/35" />
                         <div className="relative z-10 flex items-center gap-2 min-w-0">
-                          <Avatar src={p.avatar ?? null} name={p.name} size={32} />
-                          {p.userId ? (
-                            <button
-                              type="button"
-                              className="text-zinc-300 truncate text-left hover:text-red-300 transition-colors"
-                              onClick={() => openUserProfile(p.userId)}
-                            >
-                              {p.name}
-                            </button>
-                          ) : (
-                            <span className="text-zinc-300 truncate">{p.name}</span>
-                          )}
+                          <button
+                            type="button"
+                            disabled={!p.userId}
+                            className={`inline-flex items-center gap-2 min-w-0 rounded-md px-1 py-0.5 text-left ${
+                              p.userId
+                                ? "text-zinc-300 hover:text-red-300 transition-colors"
+                                : "text-zinc-300"
+                            }`}
+                            onClick={() => p.userId && openUserProfile(p.userId)}
+                          >
+                            <Avatar src={p.avatar ?? null} name={p.name} size={32} />
+                            <span className="truncate">{p.name}</span>
+                          </button>
                           {(p.warningCount ?? 0) > 0 && (
                             <Badge className="bg-red-950/70 text-red-300 border border-red-700/70">
                               {p.warningCount}/3

@@ -34,6 +34,9 @@ export interface UserBadgeView {
   title: string;
   description: string;
   active: boolean;
+  progressCurrent?: number;
+  progressTarget?: number;
+  progressLabel?: string;
 }
 
 export interface UserSubscriptionView {
@@ -170,7 +173,7 @@ function normalizeBirthDateInput(value: string | null | undefined): string | nul
   if (!trimmed) return null;
   const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) {
-    throw new Error("Invalid birth date.");
+    throw new Error("Укажите корректную дату рождения.");
   }
   const year = Number(match[1]);
   const month = Number(match[2]);
@@ -181,11 +184,11 @@ function normalizeBirthDateInput(value: string | null | undefined): string | nul
     parsed.getUTCMonth() !== month - 1 ||
     parsed.getUTCDate() !== day
   ) {
-    throw new Error("Invalid birth date.");
+    throw new Error("Укажите корректную дату рождения.");
   }
   const now = new Date();
   if (parsed.getTime() > now.getTime()) {
-    throw new Error("Invalid birth date.");
+    throw new Error("Укажите корректную дату рождения.");
   }
   let age = now.getUTCFullYear() - year;
   const monthDiff = now.getUTCMonth() - (month - 1);
@@ -194,7 +197,7 @@ function normalizeBirthDateInput(value: string | null | undefined): string | nul
     age -= 1;
   }
   if (age < 0 || age > 120) {
-    throw new Error("Invalid birth date.");
+    throw new Error("Укажите корректную дату рождения.");
   }
   return `${match[1]}-${match[2]}-${match[3]}`;
 }
@@ -426,13 +429,13 @@ export async function registerAccount(input: {
   if (conflict.rowCount) {
     const row = conflict.rows[0];
     if (row.login_normalized === loginNormalized) {
-      throw new Error("Login is already taken.");
+      throw new Error("Логин уже занят.");
     }
     if (row.email_normalized === emailNormalized) {
-      throw new Error("Email is already in use.");
+      throw new Error("Эта почта уже используется.");
     }
     if (row.nickname_normalized === nicknameNormalized) {
-      throw new Error("Nickname is already taken.");
+      throw new Error("Никнейм уже занят.");
     }
   }
 
@@ -525,12 +528,12 @@ export async function loginAccount(input: {
   );
 
   if (!result.rowCount) {
-    throw new Error("Invalid login/email or password.");
+    throw new Error("Неверный логин/email или пароль.");
   }
 
   const row = result.rows[0];
   if (!verifyPassword(input.password, row.password_salt, row.password_hash)) {
-    throw new Error("Invalid login/email or password.");
+    throw new Error("Неверный логин/email или пароль.");
   }
 
   const token = crypto.randomUUID();
@@ -613,7 +616,7 @@ export async function updateProfileByToken(
         [userId, nextNormalized],
       );
       if (conflict.rowCount) {
-        throw new Error("Nickname is already taken.");
+        throw new Error("Никнейм уже занят.");
       }
 
       await pool.query(
@@ -752,7 +755,7 @@ export async function changePasswordByToken(
   if (!data) return null;
 
   if (!verifyPassword(currentPassword, data.passwordSalt, data.passwordHash)) {
-    throw new Error("Invalid current password.");
+    throw new Error("Текущий пароль введен неверно.");
   }
 
   const salt = crypto.randomBytes(16).toString("hex");
@@ -774,7 +777,7 @@ export async function changeEmailByToken(
   if (!data) return null;
 
   if (!verifyPassword(currentPassword, data.passwordSalt, data.passwordHash)) {
-    throw new Error("Invalid current password.");
+    throw new Error("Текущий пароль введен неверно.");
   }
 
   const emailNormalized = normalizeEmail(nextEmail);
@@ -783,7 +786,7 @@ export async function changeEmailByToken(
     [data.userId, emailNormalized],
   );
   if (conflict.rowCount) {
-    throw new Error("Email is already in use.");
+    throw new Error("Эта почта уже используется.");
   }
 
   await pool.query(
@@ -870,7 +873,7 @@ async function getRecentMatchHistoryByUserId(
       FROM auth_user_match_history
       WHERE user_id = $1
       ORDER BY finished_at DESC
-      LIMIT 20
+      LIMIT 5
     `,
     [userId],
   );
@@ -922,6 +925,9 @@ function buildBadgeList(input: {
       title: meta.title,
       description: meta.description,
       active: wins >= 50,
+      progressCurrent: Math.max(0, wins),
+      progressTarget: 50,
+      progressLabel: `${Math.max(0, wins)}/50 побед`,
     });
   }
 
@@ -930,6 +936,9 @@ function buildBadgeList(input: {
     title: "Победитель",
     description: "Доступен при общем проценте побед 90% и выше.",
     active: stats.totalWinRate >= 90,
+    progressCurrent: Math.max(0, Math.round(stats.totalWinRate)),
+    progressTarget: 90,
+    progressLabel: `${Math.max(0, Math.round(stats.totalWinRate))}% / 90%`,
   });
 
   badges.push({
@@ -937,6 +946,10 @@ function buildBadgeList(input: {
     title: "Легенда",
     description: "Игрок участвовал в эпохе Beta 0.4.5.",
     active: user.created_at.getTime() <= LEGEND_BETA_045_CUTOFF_UTC,
+    progressCurrent: user.created_at.getTime() <= LEGEND_BETA_045_CUTOFF_UTC ? 1 : 0,
+    progressTarget: 1,
+    progressLabel:
+      user.created_at.getTime() <= LEGEND_BETA_045_CUTOFF_UTC ? "Получен" : "Недоступен",
   });
 
   for (const [key, meta] of Object.entries(MANUAL_BADGE_META)) {
@@ -947,6 +960,9 @@ function buildBadgeList(input: {
       title: meta.title,
       description: meta.description,
       active: manualActive || implicitCreator,
+      progressCurrent: manualActive || implicitCreator ? 1 : 0,
+      progressTarget: 1,
+      progressLabel: manualActive || implicitCreator ? "Получен" : "Выдается вручную",
     });
   }
 
