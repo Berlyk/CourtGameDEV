@@ -1925,7 +1925,6 @@ function PlayerCard({
                 {player.selectedBadgeKey ? (
                   <span
                     className={`inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-zinc-600/80 px-1 shadow-[0_0_0_1px_rgba(0,0,0,0.28)] ${badgeTheme.icon}`}
-                    title={getBadgeTitleByKey(player.selectedBadgeKey)}
                   >
                     <BadgeGlyph badgeKey={player.selectedBadgeKey} className="h-3.5 w-3.5" />
                   </span>
@@ -2130,6 +2129,7 @@ export default function App() {
   const [badgePickerOpen, setBadgePickerOpen] = useState(false);
   const [profileExitConfirmOpen, setProfileExitConfirmOpen] = useState(false);
   const [viewPlayerProfileOpen, setViewPlayerProfileOpen] = useState(false);
+  const [viewProfileBadgeHintOpen, setViewProfileBadgeHintOpen] = useState(false);
   const [viewPlayerProfileLoading, setViewPlayerProfileLoading] = useState(false);
   const [viewPlayerProfileError, setViewPlayerProfileError] = useState("");
   const [viewPlayerProfile, setViewPlayerProfile] = useState<PublicUserProfile | null>(null);
@@ -2372,7 +2372,13 @@ export default function App() {
         : "";
 
     return (
-      <Dialog open={viewPlayerProfileOpen} onOpenChange={setViewPlayerProfileOpen}>
+      <Dialog
+        open={viewPlayerProfileOpen}
+        onOpenChange={(open) => {
+          setViewPlayerProfileOpen(open);
+          if (!open) setViewProfileBadgeHintOpen(false);
+        }}
+      >
         <DialogContent className="max-w-[420px] border-zinc-800 bg-zinc-950 text-zinc-100">
           <DialogHeader>
             <DialogTitle>Профиль игрока</DialogTitle>
@@ -2407,26 +2413,35 @@ export default function App() {
                         {viewPlayerProfile.nickname}
                       </div>
                       {viewPlayerProfile.selectedBadgeKey ? (
-                        <div
-                          className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
-                            getBadgeTheme(viewPlayerProfile.selectedBadgeKey).chip
-                          }`}
-                          title={
-                            viewPlayerProfile.badges?.find(
-                              (badge) => badge.key === viewPlayerProfile.selectedBadgeKey,
-                            )?.description ?? ""
-                          }
-                        >
-                          <BadgeGlyph
-                            badgeKey={viewPlayerProfile.selectedBadgeKey}
-                            className={`h-3.5 w-3.5 ${getBadgeTheme(viewPlayerProfile.selectedBadgeKey).iconOnly ?? "text-zinc-300"}`}
-                          />
-                          <span>
-                            {getBadgeTitleByKey(
-                              viewPlayerProfile.selectedBadgeKey,
-                              viewPlayerProfile.badges,
-                            )}
-                          </span>
+                        <div className="mt-2 relative inline-flex">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setViewProfileBadgeHintOpen((prev) => !prev)
+                            }
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                              getBadgeTheme(viewPlayerProfile.selectedBadgeKey).chip
+                            }`}
+                          >
+                            <BadgeGlyph
+                              badgeKey={viewPlayerProfile.selectedBadgeKey}
+                              className={`h-3.5 w-3.5 ${getBadgeTheme(viewPlayerProfile.selectedBadgeKey).iconOnly ?? "text-zinc-300"}`}
+                            />
+                            <span>
+                              {getBadgeTitleByKey(
+                                viewPlayerProfile.selectedBadgeKey,
+                                viewPlayerProfile.badges,
+                              )}
+                            </span>
+                          </button>
+                          {viewProfileBadgeHintOpen ? (
+                            <div className="absolute top-full left-0 z-30 mt-2 max-w-[260px] rounded-xl border border-zinc-700 bg-zinc-900/95 px-3 py-2 text-xs text-zinc-200 shadow-[0_10px_24px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+                              {viewPlayerProfile.badges?.find(
+                                (badge) => badge.key === viewPlayerProfile.selectedBadgeKey,
+                              )?.description ?? "Информация о бейдже отсутствует."}
+                              <span className="absolute -top-1.5 left-5 h-3 w-3 rotate-45 border-l border-t border-zinc-700 bg-zinc-900/95" />
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                       <div className="mt-2 text-xs text-zinc-300">
@@ -6869,7 +6884,6 @@ export default function App() {
                                 className={`inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-zinc-600/80 px-1 shadow-[0_0_0_1px_rgba(0,0,0,0.28)] ${
                                   getBadgeTheme(p.selectedBadgeKey).icon
                                 }`}
-                                title={getBadgeTitleByKey(p.selectedBadgeKey)}
                               >
                                 <BadgeGlyph badgeKey={p.selectedBadgeKey} className="h-3.5 w-3.5" />
                               </span>
