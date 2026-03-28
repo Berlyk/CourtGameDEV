@@ -1,6 +1,6 @@
 ﻿import {
   roleOrderByCount,
-} from "./gameData.js";
+} from "../lib/roleOrderConfig.js";
 
 function shuffle<T>(array: T[]): T[] {
   return [...array].sort(() => Math.random() - 0.5);

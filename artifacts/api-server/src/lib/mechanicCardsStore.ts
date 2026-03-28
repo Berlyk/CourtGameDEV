@@ -1,6 +1,6 @@
 ﻿import crypto from "node:crypto";
 import { pool } from "@workspace/db";
-import { mechanicPool as legacyMechanicPool } from "../socket/gameData.js";
+import { mechanicPool as legacyMechanicPool } from "./mechanics.backend.js";
 
 /*
   =================== КУДА ДОБАВЛЯТЬ НОВЫЕ КАРТЫ МЕХАНИК ===================
