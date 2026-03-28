@@ -128,6 +128,8 @@ const RECONNECT_PERSISTENT_STORAGE_KEY = "court_reconnect_persistent";
 const RANK_TOAST_PENDING_STORAGE_KEY = "court_rank_toast_pending";
 const GUEST_NAME_PREFIX = "Гость-";
 const PROFILE_BIO_MAX = 150;
+// ВРЕМЕННО: режим для проверки анимации рангового апа (1 успешный матч -> переход ранга в окне прогресса).
+const DEBUG_INSTANT_RANK_UP_ON_MATCH = true;
 
 const BADGE_ICONS: Record<string, LucideIcon> = {
   plaintiff: Scale,
@@ -2279,6 +2281,7 @@ export default function App() {
     toPoints: number;
     fromProgressPercent: number;
     toProgressPercent: number;
+    remainingToNext: number | null;
     rankUp: boolean;
   } | null>(null);
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
@@ -2436,12 +2439,15 @@ export default function App() {
       const nextRank = nextProfile.rank;
       if (!nextRank) return;
       const safePreviousRank = previousRank ?? myProfileRef.current?.rank ?? nextRank;
-      const delta = nextRank.points - safePreviousRank.points;
-      const rankUp = nextRank.level > safePreviousRank.level;
-      const nextRankKeyForDisplay =
-        !rankUp && nextRank.nextTitle
+      const rawDelta = nextRank.points - safePreviousRank.points;
+      const rankUpBase = nextRank.level > safePreviousRank.level;
+      const nextRankKeyBase =
+        !rankUpBase && nextRank.nextTitle
           ? getNextRankKey(nextRank.key) ?? nextRank.key
           : nextRank.key;
+      let delta = rawDelta;
+      let rankUp = rankUpBase;
+      let nextRankKeyForDisplay = nextRankKeyBase;
       const fallbackNextRankKey =
         getNextRankKey(nextRank.key) ?? getNextRankKey(safePreviousRank.key);
       const fallbackNextRankTitle = fallbackNextRankKey
@@ -2455,7 +2461,7 @@ export default function App() {
           : rankUp
             ? nextRank.title
             : getRankTitleByKey(nextRankKeyForDisplay);
-      const resolvedNextTitle =
+      let resolvedNextTitle =
         !rankUp &&
         nextRankTitleForDisplay.trim().toUpperCase() ===
           (safePreviousRank.title ?? "").trim().toUpperCase()
@@ -2467,10 +2473,40 @@ export default function App() {
         100,
         Math.max(0, (safePreviousRank.progressCurrent / prevTarget) * 100),
       );
-      const toProgressPercent = Math.min(
+      let toProgressPercent = Math.min(
         100,
         Math.max(0, (nextRank.progressCurrent / nextTarget) * 100),
       );
+      const debugLatestMatchWin = nextProfile.recentMatches?.[0]?.didWin === true;
+      const progressedByBar = Math.max(
+        0,
+        (nextRank.progressCurrent ?? 0) - (safePreviousRank.progressCurrent ?? 0),
+      );
+      if (delta <= 0 && progressedByBar > 0) {
+        delta = progressedByBar;
+      }
+      if (delta <= 0 && rankUp) {
+        delta = 1;
+      }
+      if (
+        DEBUG_INSTANT_RANK_UP_ON_MATCH &&
+        debugLatestMatchWin &&
+        !rankUp &&
+        fallbackNextRankKey
+      ) {
+        if (delta <= 0) {
+          delta = 1;
+        }
+        rankUp = true;
+        nextRankKeyForDisplay = fallbackNextRankKey;
+        resolvedNextTitle = getRankTitleByKey(fallbackNextRankKey);
+        toProgressPercent = 100;
+      }
+      const remainingToNext = rankUp
+        ? 0
+        : nextRank.nextTitle
+          ? Math.max(0, (nextRank.nextPoints ?? nextRank.points) - nextRank.points)
+          : null;
       setRankResultToast({
         fromKey: safePreviousRank.key,
         toKey: nextRankKeyForDisplay,
@@ -2481,6 +2517,7 @@ export default function App() {
         toPoints: nextRank.points,
         fromProgressPercent,
         toProgressPercent,
+        remainingToNext,
         rankUp,
       });
     },
@@ -5491,12 +5528,9 @@ export default function App() {
                 transition={{ type: "spring", stiffness: 190, damping: 17 }}
                 className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-red-500/45 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 sm:p-7 shadow-[0_30px_100px_rgba(0,0,0,0.75)]"
               >
-                <motion.div
+                <div
                   aria-hidden
-                  initial={{ opacity: 0.35, scale: 0.96 }}
-                  animate={{ opacity: [0.35, 0.6, 0.35], scale: [0.96, 1.02, 0.96] }}
-                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                  className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.16),transparent_58%),radial-gradient(circle_at_70%_18%,rgba(113,113,122,0.14),transparent_52%)]"
+                  className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.08),transparent_58%),radial-gradient(circle_at_70%_18%,rgba(113,113,122,0.12),transparent_52%)]"
                 />
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div>
@@ -5531,7 +5565,24 @@ export default function App() {
                       {rankResultToast.fromTitle}
                     </span>
                     <span className="text-zinc-500">→</span>
-                    <span
+                    <motion.span
+                      animate={
+                        rankResultToast.rankUp
+                          ? {
+                              scale: [1, 1.06, 1],
+                              boxShadow: [
+                                "0 0 0 rgba(248,113,113,0)",
+                                "0 0 22px rgba(248,113,113,0.42)",
+                                "0 0 0 rgba(248,113,113,0)",
+                              ],
+                            }
+                          : undefined
+                      }
+                      transition={
+                        rankResultToast.rankUp
+                          ? { duration: 1.1, repeat: Infinity, ease: "easeInOut" }
+                          : undefined
+                      }
                       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${getBadgeTheme(rankKeyToBadgeVisualKey(rankResultToast.toKey)).chip}`}
                     >
                       <BadgeGlyph
@@ -5539,23 +5590,34 @@ export default function App() {
                         className={`h-3.5 w-3.5 ${getBadgeTheme(rankKeyToBadgeVisualKey(rankResultToast.toKey)).iconOnly ?? "text-zinc-300"}`}
                       />
                       {rankResultToast.toTitle}
-                    </span>
+                    </motion.span>
                   </div>
-                  <div className="h-4 rounded-full bg-zinc-800 overflow-hidden border border-zinc-700">
+                  <div className="relative h-4 rounded-full bg-zinc-800 overflow-hidden border border-zinc-700">
                     <motion.div
                       initial={{ width: `${rankResultToast.fromProgressPercent}%` }}
                       animate={{ width: `${rankResultToast.toProgressPercent}%` }}
                       transition={{ duration: 1.35, ease: "easeInOut" }}
-                      className={`h-full rounded-full ${
+                      className={`relative h-full rounded-full ${
                         rankResultToast.delta >= 0
-                          ? "bg-gradient-to-r from-red-600 via-red-500 to-rose-400 shadow-[0_0_18px_rgba(248,113,113,0.6)]"
+                          ? "bg-gradient-to-r from-red-700 via-red-500 to-rose-300 shadow-[0_0_16px_rgba(248,113,113,0.4)]"
                           : "bg-gradient-to-r from-zinc-600 to-zinc-500"
                       }`}
-                    />
+                    >
+                      {rankResultToast.delta >= 0 && (
+                        <motion.span
+                          aria-hidden
+                          className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/35 to-transparent"
+                          animate={{ x: ["-120%", "240%"] }}
+                          transition={{ duration: 1.25, repeat: Infinity, ease: "linear" }}
+                        />
+                      )}
+                    </motion.div>
                   </div>
                   <div className="mt-3 flex items-center justify-between text-xs sm:text-sm">
                     <span className="text-zinc-400">
-                      Очки: {rankResultToast.fromPoints} → {rankResultToast.toPoints}
+                      {rankResultToast.remainingToNext === null
+                        ? "Максимальный ранг достигнут"
+                        : `До следующего ранга: ${rankResultToast.remainingToNext} очк.`}
                     </span>
                     <span
                       className={`font-semibold ${
@@ -5567,6 +5629,17 @@ export default function App() {
                         : `${rankResultToast.delta} очк. рейтинга`}
                     </span>
                   </div>
+                  {rankResultToast.rankUp && rankResultToast.toProgressPercent >= 100 ? (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5, duration: 0.35 }}
+                      className="mt-2 inline-flex items-center gap-2 rounded-full border border-red-400/45 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Получен новый ранг
+                    </motion.div>
+                  ) : null}
                 </div>
 
                 <div className="mt-5 flex justify-end">
