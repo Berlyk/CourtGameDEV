@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2223,7 +2224,8 @@ function ContextHelp({
 }
 
 function ScreenTransitionLoader({ open }: { open: boolean }) {
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <AnimatePresence>
       {open ? (
         <motion.div
@@ -2232,31 +2234,31 @@ function ScreenTransitionLoader({ open }: { open: boolean }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.16, ease: "easeInOut" }}
-          className="fixed inset-0 z-[260] grid place-items-center bg-[#09090d]"
+          className="fixed inset-0 z-[260] m-0 p-0 grid place-items-center bg-[#09090d]"
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.99 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: "easeInOut" }}
             className="relative flex flex-col items-center gap-4"
           >
             <motion.span
               aria-hidden
               className="absolute -inset-6 rounded-full bg-red-500/10 blur-2xl"
-              animate={{ opacity: [0.45, 0.72, 0.45], scale: [0.96, 1.04, 0.96] }}
+              animate={{ opacity: [0.45, 0.72, 0.45] }}
               transition={{ duration: 1.3, repeat: Infinity, ease: "easeInOut" }}
             />
             <motion.img
               src="/favicon.png"
               alt="CourtGame"
               className="relative z-10 h-32 w-32 select-none drop-shadow-[0_0_24px_rgba(248,113,113,0.42)]"
-              animate={{ rotate: [0, 5, 0, -5, 0], scale: [1, 1.02, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              animate={{ rotate: [0, 3, 0, -3, 0] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             />
             <motion.div
               className="relative z-10 h-2 w-40 overflow-hidden rounded-full bg-zinc-800"
-              initial={{ opacity: 0.7 }}
+              initial={{ opacity: 0.85 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.25 }}
             >
@@ -2269,7 +2271,8 @@ function ScreenTransitionLoader({ open }: { open: boolean }) {
           </motion.div>
         </motion.div>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 
