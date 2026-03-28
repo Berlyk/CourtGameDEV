@@ -2231,14 +2231,14 @@ function ScreenTransitionLoader({ open }: { open: boolean }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.22 }}
-          className="fixed inset-0 z-[260] grid place-items-center bg-[#09090d]/92 backdrop-blur-[2px]"
+          transition={{ duration: 0.38, ease: "easeInOut" }}
+          className="fixed inset-0 z-[260] grid place-items-center bg-[#09090d]"
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -8 }}
-            transition={{ duration: 0.28, ease: "easeOut" }}
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.97 }}
+            transition={{ duration: 0.42, ease: "easeInOut" }}
             className="relative flex flex-col items-center gap-4"
           >
             <motion.span
@@ -2250,7 +2250,7 @@ function ScreenTransitionLoader({ open }: { open: boolean }) {
             <motion.img
               src="/favicon.png"
               alt="CourtGame"
-              className="relative z-10 h-16 w-16 select-none drop-shadow-[0_0_18px_rgba(248,113,113,0.35)]"
+              className="relative z-10 h-24 w-24 select-none drop-shadow-[0_0_20px_rgba(248,113,113,0.4)]"
               animate={{ rotate: [0, 8, 0, -8, 0], y: [0, -2, 0] }}
               transition={{ duration: 1.25, repeat: Infinity, ease: "easeInOut" }}
             />
