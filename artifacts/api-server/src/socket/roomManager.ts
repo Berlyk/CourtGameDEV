@@ -1,6 +1,5 @@
 ﻿import {
   mechanicPool,
-  cases,
   roleOrderByCount,
 } from "./gameData.js";
 
@@ -147,6 +146,7 @@ export interface Room {
   code: string;
   roomName?: string;
   modeKey: RoomModeKey;
+  casePackKey?: string;
   maxPlayers: number;
   hostId: string;
   players: Player[];
@@ -174,6 +174,7 @@ export interface PublicMatchInfo {
   code: string;
   roomName?: string;
   modeKey: RoomModeKey;
+  casePackKey?: string;
   visibility: "public" | "private";
   hostName: string;
   playerCount: number;
@@ -188,6 +189,7 @@ export interface PublicMatchInfo {
 
 export interface CreateRoomOptions {
   modeKey?: RoomModeKey;
+  casePackKey?: string;
   visibility?: "public" | "private";
   password?: string;
   roomName?: string;
@@ -257,6 +259,10 @@ export function restoreRoomsFromSnapshots(snapshots: unknown[]): number {
       code: snapshot.code,
       roomName: typeof snapshot.roomName === "string" ? snapshot.roomName : undefined,
       modeKey: normalizeModeKey(snapshot.modeKey),
+      casePackKey:
+        typeof snapshot.casePackKey === "string"
+          ? normalizeCasePackKey(snapshot.casePackKey)
+          : "classic",
       maxPlayers:
         typeof snapshot.maxPlayers === "number"
           ? Math.max(3, Math.min(6, snapshot.maxPlayers))
@@ -358,6 +364,13 @@ function normalizeModeKey(modeKey: RoomModeKey | undefined): RoomModeKey {
   return "quick_flex";
 }
 
+function normalizeCasePackKey(casePackKey: string | undefined): string {
+  const raw = (casePackKey ?? "").trim().toLowerCase();
+  if (!raw) return "classic";
+  const safe = raw.replace(/[^a-z0-9_-]/g, "");
+  return safe || "classic";
+}
+
 function normalizeVenueLabel(label: string | undefined): string | undefined {
   if (!label) return undefined;
   const trimmed = label.trim();
@@ -372,6 +385,7 @@ function normalizeVenueUrl(url: string | undefined): string | undefined {
 
 export function createRoom(code: string, player: Player, options?: CreateRoomOptions): Room {
   const modeKey = normalizeModeKey(options?.modeKey);
+  const casePackKey = normalizeCasePackKey(options?.casePackKey);
   const maxPlayers = ROOM_MODE_MAX_PLAYERS[modeKey];
   const visibility =
     options?.visibility !== undefined
@@ -387,6 +401,7 @@ export function createRoom(code: string, player: Player, options?: CreateRoomOpt
     code,
     roomName,
     modeKey,
+    casePackKey,
     maxPlayers,
     hostId: player.id,
     players: [player],
@@ -748,6 +763,7 @@ export function listPublicMatches(): PublicMatchInfo[] {
         code: room.code,
         roomName: room.roomName,
         modeKey: room.modeKey,
+        casePackKey: room.casePackKey,
         visibility: room.visibility,
         hostName: hostPlayer?.name ?? "Host",
         playerCount: connectedPlayersCount,
@@ -990,9 +1006,10 @@ export function updatePlayerProfile(
   return room;
 }
 
-export function startGame(code: string): Room | null {
+export function startGame(code: string, selectedCase: any): Room | null {
   const room = rooms.get(code);
   if (!room) return null;
+  if (!selectedCase || typeof selectedCase !== "object") return null;
   if (room.modeKey === "quick_flex") {
     if (room.players.length < 3 || room.players.length > room.maxPlayers) {
       return null;
@@ -1001,19 +1018,9 @@ export function startGame(code: string): Room | null {
     return null;
   }
 
-const count = room.players.length;
-const availableCases = cases[count] || cases[3];
-
-console.log("=== START GAME ===");
-console.log("PLAYER COUNT:", count);
-console.log(
-  "AVAILABLE CASES:",
-  availableCases.map((c: any) => `${c.id} | ${c.title}`)
-);
-
-const selectedCase = pickRandom(availableCases)[0];
-const roleKeys = shuffle(roleOrderByCount[count]);
-const stages = buildStagesByPlayerCount(count);
+  const count = room.players.length;
+  const roleKeys = shuffle(roleOrderByCount[count]);
+  const stages = buildStagesByPlayerCount(count);
 
   if (room.isHostJudge) {
     const hostIndex = room.players.findIndex(p => p.id === room.hostId);
@@ -1025,13 +1032,19 @@ const stages = buildStagesByPlayerCount(count);
 
   const assignedPlayers: Player[] = room.players.map((player, index) => {
     const roleKey = roleKeys[index];
-    const roleData = selectedCase.roles[roleKey];
+    const roleData = selectedCase.roles?.[roleKey];
+    const safeFacts = Array.isArray(roleData?.facts)
+      ? roleData.facts.filter((item: unknown): item is string => typeof item === "string")
+      : [];
     return {
       ...player,
       roleKey,
-      roleTitle: roleData.title,
-      goal: roleData.goal,
-      facts: roleKey === "judge" ? [] : roleData.facts.map((text: string, i: number) => ({
+      roleTitle:
+        typeof roleData?.title === "string" && roleData.title.trim()
+          ? roleData.title
+          : roleKey,
+      goal: typeof roleData?.goal === "string" ? roleData.goal : "",
+      facts: roleKey === "judge" ? [] : safeFacts.map((text: string, i: number) => ({
         id: `${player.id}-fact-${i}`,
         text,
         revealed: false

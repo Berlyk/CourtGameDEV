@@ -32,6 +32,12 @@ import {
 } from "./roomManager.js";
 import { getUserByToken, recordMatchOutcome } from "../lib/authStore.js";
 import {
+  ensureCasePacksStorage,
+  ensureDefaultCasePackSeeded,
+  listCasePacks,
+  pickCaseForRoom,
+} from "../lib/casePacksStore.js";
+import {
   cleanupOldSnapshots,
   deleteRoomSnapshot,
   findBindingByUser,
@@ -290,6 +296,7 @@ function getRoomState(room: any, playerId: string) {
       code: room.code,
       roomName: room.roomName,
       modeKey: room.modeKey,
+      casePackKey: room.casePackKey,
       maxPlayers: room.maxPlayers,
       hostId: room.hostId,
       players: mapLobbyPlayers(room.players),
@@ -309,6 +316,7 @@ function getRoomState(room: any, playerId: string) {
     type: "game",
     code: room.code,
     roomName: room.roomName,
+    casePackKey: room.casePackKey,
     hostId: room.hostId,
     caseData: room.game.caseData,
     stages: room.game.stages,
@@ -412,6 +420,15 @@ export function setupSocket(httpServer: HttpServer) {
     }
     persistRoomSnapshot(room).catch(() => undefined);
   };
+
+  void (async () => {
+    try {
+      await ensureCasePacksStorage();
+      await ensureDefaultCasePackSeeded();
+    } catch (error) {
+      console.error("case packs bootstrap failed", error);
+    }
+  })();
 
   void (async () => {
     try {
@@ -613,6 +630,7 @@ export function setupSocket(httpServer: HttpServer) {
         hostId: room.hostId,
         roomName: room.roomName,
         modeKey: room.modeKey,
+        casePackKey: room.casePackKey,
         maxPlayers: room.maxPlayers,
         isHostJudge: room.isHostJudge,
         visibility: room.visibility,
@@ -703,6 +721,21 @@ export function setupSocket(httpServer: HttpServer) {
   }, 60_000);
 
   io.on("connection", (socket) => {
+    const emitCasePacksToSocket = async () => {
+      try {
+        const packs = await listCasePacks();
+        socket.emit("case_packs_updated", { packs });
+      } catch {
+        socket.emit("case_packs_updated", { packs: [] });
+      }
+    };
+
+    void emitCasePacksToSocket();
+
+    socket.on("list_case_packs", () => {
+      void emitCasePacksToSocket();
+    });
+
     socket.on("list_public_matches", () => {
       markMissingSocketPlayersDisconnected((socketId) => io.sockets.sockets.has(socketId));
       cleanupStaleRooms();
@@ -814,6 +847,7 @@ export function setupSocket(httpServer: HttpServer) {
               hostId: reclaimedByUser.room.hostId,
               roomName: reclaimedByUser.room.roomName,
               modeKey: reclaimedByUser.room.modeKey,
+              casePackKey: reclaimedByUser.room.casePackKey,
               maxPlayers: reclaimedByUser.room.maxPlayers,
               isHostJudge: reclaimedByUser.room.isHostJudge,
               visibility: reclaimedByUser.room.visibility,
@@ -855,6 +889,7 @@ export function setupSocket(httpServer: HttpServer) {
                 hostId: restoreResult.room.hostId,
                 roomName: restoreResult.room.roomName,
                 modeKey: restoreResult.room.modeKey,
+                casePackKey: restoreResult.room.casePackKey,
                 maxPlayers: restoreResult.room.maxPlayers,
                 isHostJudge: restoreResult.room.isHostJudge,
                 visibility: restoreResult.room.visibility,
@@ -908,6 +943,7 @@ export function setupSocket(httpServer: HttpServer) {
             hostId: reclaimed.room.hostId,
             roomName: reclaimed.room.roomName,
             modeKey: reclaimed.room.modeKey,
+            casePackKey: reclaimed.room.casePackKey,
             maxPlayers: reclaimed.room.maxPlayers,
             isHostJudge: reclaimed.room.isHostJudge,
             visibility: reclaimed.room.visibility,
@@ -986,6 +1022,7 @@ export function setupSocket(httpServer: HttpServer) {
         hostId: updatedRoom.hostId,
         roomName: updatedRoom.roomName,
         modeKey: updatedRoom.modeKey,
+        casePackKey: updatedRoom.casePackKey,
         maxPlayers: updatedRoom.maxPlayers,
         isHostJudge: updatedRoom.isHostJudge,
         visibility: updatedRoom.visibility,
@@ -1039,6 +1076,7 @@ export function setupSocket(httpServer: HttpServer) {
           hostId: room.hostId,
           roomName: room.roomName,
           modeKey: room.modeKey,
+          casePackKey: room.casePackKey,
           maxPlayers: room.maxPlayers,
           isHostJudge: room.isHostJudge,
           visibility: room.visibility,
@@ -1051,7 +1089,7 @@ export function setupSocket(httpServer: HttpServer) {
       emitPublicMatches(io);
     });
 
-    socket.on("start_game", ({ code, sessionToken }: { code: string; sessionToken?: string }) => {
+    socket.on("start_game", async ({ code, sessionToken }: { code: string; sessionToken?: string }) => {
       const roomCode = normalizeRoomCode(code);
       const room = getRoom(roomCode);
       if (!room) {
@@ -1082,7 +1120,13 @@ export function setupSocket(httpServer: HttpServer) {
         return;
       }
 
-      const updatedRoom = startGame(roomCode);
+      const selectedCase = await pickCaseForRoom(room.casePackKey, room.players.length);
+      if (!selectedCase) {
+        socket.emit("error", { message: "Для выбранного пака не найдено подходящих дел." });
+        return;
+      }
+
+      const updatedRoom = startGame(roomCode, selectedCase);
       if (!updatedRoom) {
         socket.emit("error", { message: "Не удалось начать игру." });
         return;
@@ -1117,6 +1161,7 @@ export function setupSocket(httpServer: HttpServer) {
         hostId: room.hostId,
         roomName: room.roomName,
         modeKey: room.modeKey,
+        casePackKey: room.casePackKey,
         maxPlayers: room.maxPlayers,
         isHostJudge,
         visibility: room.visibility,
@@ -1156,6 +1201,7 @@ export function setupSocket(httpServer: HttpServer) {
           hostId: room.hostId,
           roomName: room.roomName,
           modeKey: room.modeKey,
+          casePackKey: room.casePackKey,
           maxPlayers: room.maxPlayers,
           isHostJudge: room.isHostJudge,
           visibility: room.visibility,
@@ -1227,6 +1273,7 @@ export function setupSocket(httpServer: HttpServer) {
             hostId: updatedRoom.hostId,
             roomName: updatedRoom.roomName,
             modeKey: updatedRoom.modeKey,
+            casePackKey: updatedRoom.casePackKey,
             maxPlayers: updatedRoom.maxPlayers,
             isHostJudge: updatedRoom.isHostJudge,
             visibility: updatedRoom.visibility,
@@ -1731,6 +1778,7 @@ export function setupSocket(httpServer: HttpServer) {
             hostId: updatedRoom.hostId,
             roomName: updatedRoom.roomName,
             modeKey: updatedRoom.modeKey,
+            casePackKey: updatedRoom.casePackKey,
             maxPlayers: updatedRoom.maxPlayers,
             isHostJudge: updatedRoom.isHostJudge,
             visibility: updatedRoom.visibility,
@@ -2082,6 +2130,7 @@ export function setupSocket(httpServer: HttpServer) {
             hostId: updatedRoom.hostId,
             roomName: updatedRoom.roomName,
             modeKey: updatedRoom.modeKey,
+            casePackKey: updatedRoom.casePackKey,
             maxPlayers: updatedRoom.maxPlayers,
             isHostJudge: updatedRoom.isHostJudge,
             visibility: updatedRoom.visibility,
@@ -2126,6 +2175,7 @@ export function setupSocket(httpServer: HttpServer) {
               hostId: updatedRoom.hostId,
               roomName: updatedRoom.roomName,
               modeKey: updatedRoom.modeKey,
+              casePackKey: updatedRoom.casePackKey,
               maxPlayers: updatedRoom.maxPlayers,
               isHostJudge: updatedRoom.isHostJudge,
               visibility: updatedRoom.visibility,

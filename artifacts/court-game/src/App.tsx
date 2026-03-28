@@ -129,8 +129,6 @@ const RECONNECT_PERSISTENT_STORAGE_KEY = "court_reconnect_persistent";
 const RANK_TOAST_PENDING_STORAGE_KEY = "court_rank_toast_pending";
 const GUEST_NAME_PREFIX = "Гость-";
 const PROFILE_BIO_MAX = 150;
-// ВРЕМЕННО: режим для проверки анимации рангового апа (1 успешный матч -> переход ранга в окне прогресса).
-const DEBUG_INSTANT_RANK_UP_ON_MATCH = true;
 
 const BADGE_ICONS: Record<string, LucideIcon> = {
   plaintiff: Scale,
@@ -1382,6 +1380,7 @@ interface PublicMatchInfo {
   code: string;
   roomName?: string;
   modeKey: RoomModeKey;
+  casePackKey?: string;
   visibility: "public" | "private";
   hostName: string;
   playerCount: number;
@@ -1407,6 +1406,15 @@ interface AuthUser {
   hideAge: boolean;
   createdAt: number;
   selectedBadgeKey?: string;
+}
+
+interface CasePackInfo {
+  key: string;
+  title: string;
+  description: string;
+  isAdult?: boolean;
+  sortOrder?: number;
+  caseCount?: number;
 }
 
 interface PublicUserProfile {
@@ -1517,6 +1525,7 @@ interface RoomState {
   code: string;
   roomName?: string;
   modeKey?: RoomModeKey;
+  casePackKey?: string;
   maxPlayers?: number;
   hostId: string;
   players: PlayerInfo[];
@@ -2406,6 +2415,8 @@ export default function App() {
   const [joinPasswordVisible, setJoinPasswordVisible] = useState(false);
   const [createRoomName, setCreateRoomName] = useState("");
   const [createRoomMode, setCreateRoomMode] = useState<RoomModeKey>("civil_3");
+  const [createRoomPackKey, setCreateRoomPackKey] = useState("classic");
+  const [casePacks, setCasePacks] = useState<CasePackInfo[]>([]);
   const [createRoomPrivate, setCreateRoomPrivate] = useState(false);
   const [createVoiceUrl, setCreateVoiceUrl] = useState("");
   const [createRoomPassword, setCreateRoomPassword] = useState("");
@@ -2595,20 +2606,6 @@ export default function App() {
       }
       if (delta <= 0 && rankUp) {
         delta = 1;
-      }
-      if (
-        DEBUG_INSTANT_RANK_UP_ON_MATCH &&
-        latestMatchDidWin === true &&
-        !rankUp &&
-        fallbackNextRankKey
-      ) {
-        if (delta <= 0) {
-          delta = 1;
-        }
-        rankUp = true;
-        nextRankKeyForDisplay = fallbackNextRankKey;
-        resolvedNextTitle = getRankTitleByKey(fallbackNextRankKey);
-        toProgressPercent = 100;
       }
       const remainingToNext = rankUp
         ? 0
@@ -3030,6 +3027,7 @@ export default function App() {
   useEffect(() => {
     if (screen !== "home") return;
     socket.emit("list_public_matches");
+    socket.emit("list_case_packs");
   }, [socket, screen]);
 
   useEffect(() => {
@@ -3046,6 +3044,11 @@ export default function App() {
     if (screen !== "home" || homeTab !== "play" || playView !== "matches") return;
     socket.emit("list_public_matches");
   }, [socket, screen, homeTab, playView]);
+
+  useEffect(() => {
+    if (!createMatchDialogOpen) return;
+    socket.emit("list_case_packs");
+  }, [createMatchDialogOpen, socket]);
 
   useEffect(() => {
     if (screen !== "home") {
@@ -3259,6 +3262,7 @@ export default function App() {
         isHostJudge: hj,
         roomName,
         modeKey,
+        casePackKey,
         maxPlayers,
         visibility,
         venueLabel,
@@ -3271,6 +3275,7 @@ export default function App() {
         isHostJudge?: boolean;
         roomName?: string;
         modeKey?: RoomModeKey;
+        casePackKey?: string;
         maxPlayers?: number;
         visibility?: "public" | "private";
         venueLabel?: string;
@@ -3293,6 +3298,7 @@ export default function App() {
             hostId,
             roomName: roomName ?? prev.roomName,
             modeKey: modeKey ?? prev.modeKey,
+            casePackKey: casePackKey ?? prev.casePackKey,
             maxPlayers: maxPlayers ?? prev.maxPlayers,
             visibility: visibility ?? prev.visibility,
             venueLabel: venueLabel ?? prev.venueLabel,
@@ -3376,6 +3382,17 @@ export default function App() {
 
     socket.on("public_matches_updated", ({ matches }: { matches: PublicMatchInfo[] }) => {
       setPublicMatches(matches);
+    });
+    socket.on("case_packs_updated", ({ packs }: { packs: CasePackInfo[] }) => {
+      const safePacks = Array.isArray(packs) ? packs : [];
+      setCasePacks(safePacks);
+      if (safePacks.length > 0) {
+        setCreateRoomPackKey((prev) =>
+          prev && safePacks.some((pack) => pack.key === prev) ? prev : safePacks[0].key,
+        );
+      } else {
+        setCreateRoomPackKey("classic");
+      }
     });
 
     socket.on(
@@ -3684,6 +3701,7 @@ export default function App() {
       socket.off("game_players_updated");
       socket.off("game_profile_updated");
       socket.off("public_matches_updated");
+      socket.off("case_packs_updated");
       socket.off("lobby_chat_updated");
       socket.off("player_left");
       socket.off("player_rejoined");
@@ -3738,6 +3756,7 @@ export default function App() {
       authToken: authToken || undefined,
       options: {
         modeKey: createRoomMode,
+        casePackKey: createRoomPackKey || "classic",
         visibility: createRoomPrivate ? "private" : "public",
         roomName: createRoomName.trim() || undefined,
         venueUrl: createVoiceUrl.trim() || undefined,
@@ -3755,6 +3774,7 @@ export default function App() {
     authToken,
     sharedBanner,
     createRoomMode,
+    createRoomPackKey,
     createRoomPrivate,
     createRoomName,
     createVoiceUrl,
@@ -6564,6 +6584,47 @@ export default function App() {
                         ))}
                       </div>
                     </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="text-sm text-zinc-300">Пак дел</label>
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-3">
+                        {casePacks.length > 0 ? (
+                          <div className="grid gap-2">
+                            {casePacks.map((pack) => (
+                              <button
+                                key={pack.key}
+                                type="button"
+                                onClick={() => setCreateRoomPackKey(pack.key)}
+                                className={`rounded-xl border px-3 py-3 text-left transition-colors ${
+                                  createRoomPackKey === pack.key
+                                    ? "border-red-500/70 bg-red-600/15"
+                                    : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-sm font-semibold text-zinc-100">
+                                    {pack.title}
+                                  </div>
+                                  <div className="text-[11px] text-zinc-400">
+                                    {pack.caseCount ?? 0} дел
+                                  </div>
+                                </div>
+                                <div className="mt-1 text-xs text-zinc-400">
+                                  {pack.description}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-zinc-500">
+                            Загружаем паки дел...
+                          </div>
+                        )}
+                        <div className="mt-2 text-[11px] text-zinc-500">
+                          Пак не привязан к количеству игроков. Для каждого режима берутся дела
+                          из выбранного пака.
+                        </div>
+                      </div>
+                    </div>
                     <div className="md:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <div>
@@ -6623,6 +6684,7 @@ export default function App() {
                       setCreateRoomPrivate(false);
                       setCreateRoomPasswordVisible(false);
                       setCreateRoomMode("civil_3");
+                      setCreateRoomPackKey(casePacks[0]?.key ?? "classic");
                     }}
                     className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0 gap-2"
                   >
