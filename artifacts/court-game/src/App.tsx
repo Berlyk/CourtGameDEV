@@ -118,6 +118,7 @@ const AUTH_USER_STORAGE_KEY = "court_auth_user";
 const GUEST_NAME_STORAGE_KEY = "court_guest_name";
 const BANNER_STORAGE_KEY = "court_banner";
 const RECONNECT_PERSISTENT_STORAGE_KEY = "court_reconnect_persistent";
+const RANK_TOAST_PENDING_STORAGE_KEY = "court_rank_toast_pending";
 const GUEST_NAME_PREFIX = "Гость-";
 const PROFILE_BIO_MAX = 150;
 
@@ -136,6 +137,12 @@ const BADGE_ICONS: Record<string, LucideIcon> = {
   innovator: Wrench,
   moderator: Shield,
   admin: Shield,
+  rankNovice: Sparkles,
+  rankDebater: MessageSquare,
+  rankOrator: ScrollText,
+  rankStrategist: Wrench,
+  rankMaster: Crown,
+  rankVerdict: Gavel,
 };
 
 const BADGE_THEME: Record<
@@ -215,6 +222,36 @@ const BADGE_THEME: Record<
     chip: "border-purple-500/55 bg-purple-500/20 text-purple-200",
     icon: "bg-purple-500/35 text-purple-100",
     iconOnly: "text-purple-300",
+  },
+  rankNovice: {
+    chip: "border-slate-400/65 bg-slate-500/20 text-slate-100 shadow-[0_0_16px_rgba(148,163,184,0.25)]",
+    icon: "bg-slate-500/35 text-slate-50 shadow-[0_0_14px_rgba(148,163,184,0.4)]",
+    iconOnly: "text-slate-200 drop-shadow-[0_0_8px_rgba(203,213,225,0.55)]",
+  },
+  rankDebater: {
+    chip: "border-sky-400/65 bg-sky-500/20 text-sky-100 shadow-[0_0_16px_rgba(56,189,248,0.28)]",
+    icon: "bg-sky-500/35 text-sky-50 shadow-[0_0_14px_rgba(56,189,248,0.45)]",
+    iconOnly: "text-sky-200 drop-shadow-[0_0_8px_rgba(125,211,252,0.55)]",
+  },
+  rankOrator: {
+    chip: "border-violet-400/65 bg-violet-500/20 text-violet-100 shadow-[0_0_16px_rgba(168,85,247,0.28)]",
+    icon: "bg-violet-500/35 text-violet-50 shadow-[0_0_14px_rgba(168,85,247,0.45)]",
+    iconOnly: "text-violet-200 drop-shadow-[0_0_8px_rgba(196,181,253,0.55)]",
+  },
+  rankStrategist: {
+    chip: "border-emerald-400/65 bg-emerald-500/20 text-emerald-100 shadow-[0_0_16px_rgba(16,185,129,0.3)]",
+    icon: "bg-emerald-500/35 text-emerald-50 shadow-[0_0_14px_rgba(16,185,129,0.45)]",
+    iconOnly: "text-emerald-200 drop-shadow-[0_0_8px_rgba(110,231,183,0.55)]",
+  },
+  rankMaster: {
+    chip: "border-amber-400/70 bg-amber-500/20 text-amber-100 shadow-[0_0_18px_rgba(245,158,11,0.3)]",
+    icon: "bg-amber-500/35 text-amber-50 shadow-[0_0_16px_rgba(245,158,11,0.5)]",
+    iconOnly: "text-amber-200 drop-shadow-[0_0_8px_rgba(253,230,138,0.6)]",
+  },
+  rankVerdict: {
+    chip: "border-red-400/70 bg-red-500/20 text-red-100 shadow-[0_0_18px_rgba(239,68,68,0.32)]",
+    icon: "bg-red-500/35 text-red-50 shadow-[0_0_16px_rgba(239,68,68,0.5)]",
+    iconOnly: "text-red-200 drop-shadow-[0_0_8px_rgba(252,165,165,0.65)]",
   },
 };
 
@@ -1613,6 +1650,18 @@ function normalizeBadgeVisualKey(badgeKey?: string): string | undefined {
     defense_lawer: "defenseLawyer",
     plaintifflawyer: "plaintiffLawyer",
     defenselawyer: "defenseLawyer",
+    rank_novice: "rankNovice",
+    rank_debater: "rankDebater",
+    rank_orator: "rankOrator",
+    rank_strategist: "rankStrategist",
+    rank_master: "rankMaster",
+    rank_verdict: "rankVerdict",
+    novice: "rankNovice",
+    debater: "rankDebater",
+    orator: "rankOrator",
+    strategist: "rankStrategist",
+    master: "rankMaster",
+    verdict: "rankVerdict",
   };
   return roleAliases[roleKey] ?? roleKey;
 }
@@ -1870,9 +1919,33 @@ function BadgeGlyph({
   const visualKey = normalizeBadgeVisualKey(badgeKey);
   const Icon = visualKey ? BADGE_ICONS[visualKey] : undefined;
   if (!Icon) {
-    return <span className={className}>★</span>;
+    return (
+      <span className={`inline-flex items-center justify-center leading-none ${className}`}>
+        ★
+      </span>
+    );
   }
   return <Icon className={className} />;
+}
+
+function rankKeyToBadgeVisualKey(rankKey?: string): string | undefined {
+  if (!rankKey) return undefined;
+  const normalized = rankKey.trim().toLowerCase();
+  const map: Record<string, string> = {
+    novice: "rankNovice",
+    debater: "rankDebater",
+    orator: "rankOrator",
+    strategist: "rankStrategist",
+    master: "rankMaster",
+    verdict: "rankVerdict",
+    rank_novice: "rankNovice",
+    rank_debater: "rankDebater",
+    rank_orator: "rankOrator",
+    rank_strategist: "rankStrategist",
+    rank_master: "rankMaster",
+    rank_verdict: "rankVerdict",
+  };
+  return map[normalized];
 }
 
 function getBadgeTitleByKey(
@@ -1953,7 +2026,7 @@ function PlayerCard({
                 <span className="truncate">{player.name}</span>
                 {player.selectedBadgeKey ? (
                   <span
-                    className={`inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-zinc-600/80 px-1 shadow-[0_0_0_1px_rgba(0,0,0,0.28)] ${badgeTheme.icon}`}
+                    className={`inline-flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-md border border-zinc-600/80 shadow-[0_0_0_1px_rgba(0,0,0,0.28)] ${badgeTheme.icon}`}
                   >
                     <BadgeGlyph badgeKey={player.selectedBadgeKey} className="h-3.5 w-3.5" />
                   </span>
@@ -2322,6 +2395,53 @@ export default function App() {
     setReconnectPersistent(false);
   }, []);
 
+  const emitRankResultToast = useCallback(
+    (
+      nextProfile: PublicUserProfile,
+      previousRank?: PublicUserProfile["rank"] | null,
+    ) => {
+      const nextRank = nextProfile.rank;
+      if (!nextRank) return;
+      const safePreviousRank = previousRank ?? myProfileRef.current?.rank ?? nextRank;
+      const delta = nextRank.points - safePreviousRank.points;
+      const prevTarget = Math.max(1, safePreviousRank.progressTarget || 1);
+      const nextTarget = Math.max(1, nextRank.progressTarget || 1);
+      const fromProgressPercent = Math.min(
+        100,
+        Math.max(0, (safePreviousRank.progressCurrent / prevTarget) * 100),
+      );
+      const toProgressPercent = Math.min(
+        100,
+        Math.max(0, (nextRank.progressCurrent / nextTarget) * 100),
+      );
+      setRankResultToast({
+        fromTitle: safePreviousRank.title,
+        toTitle: nextRank.title,
+        delta,
+        fromPoints: safePreviousRank.points,
+        toPoints: nextRank.points,
+        fromProgressPercent,
+        toProgressPercent,
+        rankUp: nextRank.level > safePreviousRank.level,
+      });
+    },
+    [],
+  );
+
+  const syncRankResultAfterMatch = useCallback(
+    (previousRank?: PublicUserProfile["rank"] | null) => {
+      if (!authToken) return Promise.resolve();
+      return authRequest<{ profile: PublicUserProfile }>("/auth/profile", { token: authToken })
+        .then((payload) => {
+          setMyProfile(payload.profile);
+          emitRankResultToast(payload.profile, previousRank);
+          localStorage.removeItem(RANK_TOAST_PENDING_STORAGE_KEY);
+        })
+        .catch(() => undefined);
+    },
+    [authToken, emitRankResultToast],
+  );
+
   const startReconnectWindow = useCallback(
     (expiresAt?: number | null, persistent = false) => {
       const fallbackCode = room?.code ?? game?.code ?? localStorage.getItem("court_session");
@@ -2354,6 +2474,14 @@ export default function App() {
     },
     [clearReconnectWindow, game?.code, mySessionToken, room?.code],
   );
+
+  useEffect(() => {
+    if (screen !== "home" || !authToken) return;
+    const pending = localStorage.getItem(RANK_TOAST_PENDING_STORAGE_KEY);
+    if (!pending) return;
+    localStorage.removeItem(RANK_TOAST_PENDING_STORAGE_KEY);
+    void syncRankResultAfterMatch(myProfileRef.current?.rank);
+  }, [authToken, screen, syncRankResultAfterMatch]);
 
   const attemptSessionRejoin = useCallback(
     (source: "boot" | "connect" | "manual" = "manual") => {
@@ -3224,6 +3352,9 @@ export default function App() {
 
     socket.on("room_closed", () => {
       const previousRank = myProfileRef.current?.rank;
+      if (authToken) {
+        localStorage.setItem(RANK_TOAST_PENDING_STORAGE_KEY, "1");
+      }
       clearReconnectWindow();
       localStorage.removeItem("court_session");
       localStorage.removeItem("court_session_token");
@@ -3246,37 +3377,7 @@ export default function App() {
       setProfileMenuOpen(false);
       setCreateMatchDialogOpen(false);
       setScreen("home");
-      if (authToken) {
-        authRequest<{ profile: PublicUserProfile }>("/auth/profile", { token: authToken })
-          .then((payload) => {
-            setMyProfile(payload.profile);
-            const nextRank = payload.profile.rank;
-            if (!previousRank || !nextRank) return;
-            const delta = nextRank.points - previousRank.points;
-            if (delta === 0 && nextRank.key === previousRank.key) return;
-            const prevTarget = Math.max(1, previousRank.progressTarget || 1);
-            const nextTarget = Math.max(1, nextRank.progressTarget || 1);
-            const fromProgressPercent = Math.min(
-              100,
-              Math.max(0, (previousRank.progressCurrent / prevTarget) * 100),
-            );
-            const toProgressPercent = Math.min(
-              100,
-              Math.max(0, (nextRank.progressCurrent / nextTarget) * 100),
-            );
-            setRankResultToast({
-              fromTitle: previousRank.title,
-              toTitle: nextRank.title,
-              delta,
-              fromPoints: previousRank.points,
-              toPoints: nextRank.points,
-              fromProgressPercent,
-              toProgressPercent,
-              rankUp: nextRank.level > previousRank.level,
-            });
-          })
-          .catch(() => undefined);
-      }
+      void syncRankResultAfterMatch(previousRank);
     });
 
     socket.on("game_started", ({ state }: { state: any }) => {
@@ -3401,7 +3502,7 @@ export default function App() {
       socket.off("verdict_set");
       socket.off("error");
     };
-  }, [socket, avatar, authToken, clearReconnectWindow, sharedAvatar, startReconnectWindow]);
+  }, [socket, avatar, authToken, clearReconnectWindow, sharedAvatar, startReconnectWindow, syncRankResultAfterMatch]);
 
   const createQuickRoom = useCallback(() => {
     const name = playerName.trim() || getOrCreateGuestName();
@@ -4044,6 +4145,8 @@ export default function App() {
   }, [game, lawyerChatInput, lawyerChatPartner, mySessionToken, socket]);
 
   const returnHomeWithSession = useCallback(() => {
+    const previousRank = myProfileRef.current?.rank;
+    const finishedWithVerdict = !!game?.verdict;
     const shouldPreserveReconnect =
       !!game || !!(room && !(myId === room.hostId && room.players.length <= 1));
     if (shouldPreserveReconnect) {
@@ -4079,9 +4182,17 @@ export default function App() {
     setLobbyChatMessages([]);
     setProfileMenuOpen(false);
     setCreateMatchDialogOpen(false);
-  }, [clearReconnectWindow, game, myId, room, socket, startReconnectWindow]);
+    if (finishedWithVerdict) {
+      if (authToken) {
+        localStorage.setItem(RANK_TOAST_PENDING_STORAGE_KEY, "1");
+      }
+      void syncRankResultAfterMatch(previousRank);
+    }
+  }, [authToken, clearReconnectWindow, game, myId, room, socket, startReconnectWindow, syncRankResultAfterMatch]);
 
   const finalExit = useCallback(() => {
+    const previousRank = myProfileRef.current?.rank;
+    const finishedWithVerdict = !!game?.verdict;
     const shouldPreserveReconnect =
       !!game || !!(room && !(myId === room.hostId && room.players.length <= 1));
     if (shouldPreserveReconnect) {
@@ -4116,7 +4227,13 @@ export default function App() {
     setLobbyChatMessages([]);
     setProfileMenuOpen(false);
     setCreateMatchDialogOpen(false);
-  }, [clearReconnectWindow, game, myId, room, socket, startReconnectWindow]);
+    if (finishedWithVerdict) {
+      if (authToken) {
+        localStorage.setItem(RANK_TOAST_PENDING_STORAGE_KEY, "1");
+      }
+      void syncRankResultAfterMatch(previousRank);
+    }
+  }, [authToken, clearReconnectWindow, game, myId, room, socket, startReconnectWindow, syncRankResultAfterMatch]);
 
   const compressImage = useCallback(
     (inputDataUrl: string, maxSide: number): Promise<string> =>
@@ -4342,6 +4459,8 @@ export default function App() {
     const totalWins = profileData?.stats?.totalWins ?? 0;
     const totalWinRate = profileData?.stats?.totalWinRate ?? 0;
     const currentRank = profileData?.rank;
+    const currentRankVisualKey = rankKeyToBadgeVisualKey(currentRank?.key);
+    const currentRankTheme = getBadgeTheme(currentRankVisualKey);
     const rankProgressPercent = currentRank
       ? Math.max(
           0,
@@ -4391,7 +4510,7 @@ export default function App() {
       >
         <CourtAtmosphereBackground />
         <div className="max-w-7xl mx-auto">
-          <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100 overflow-hidden">
+          <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100 overflow-visible">
             <CardContent className="p-6 md:p-8 space-y-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -4494,7 +4613,7 @@ export default function App() {
                 onChange={handleAvatarChange}
               />
 
-              <div className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
+              <div className="grid items-start gap-4 xl:grid-cols-[1.35fr_1fr]">
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5">
                     <div className="text-lg font-semibold">Личная информация</div>
@@ -4651,13 +4770,29 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="self-start flex flex-col gap-4">
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5 space-y-3">
+                    <div className="text-lg font-semibold">Подписка</div>
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
+                      <div className="text-sm text-zinc-500">Текущий статус</div>
+                      <div className="mt-1 text-base font-semibold text-zinc-100">
+                        {profileData?.subscription?.label ?? "Нет подписки"}
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5 space-y-3">
                     <div className="text-lg font-semibold">Ранг</div>
                     <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-base font-semibold text-zinc-100">
-                          {currentRank?.title ?? "НОВИЧОК"}
+                        <div className="inline-flex items-center gap-2 text-base font-semibold text-zinc-100">
+                          <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${currentRankTheme.icon}`}>
+                            <BadgeGlyph
+                              badgeKey={currentRankVisualKey}
+                              className={`h-4 w-4 ${currentRankTheme.iconOnly ?? "text-zinc-300"}`}
+                            />
+                          </span>
+                          <span>{currentRank?.title ?? "НОВИЧОК"}</span>
                         </div>
                         <div className="text-xs text-zinc-400">
                           Очки: {currentRank?.points ?? 0}
@@ -4677,50 +4812,6 @@ export default function App() {
                             )} очк.`
                           : "Максимальный ранг достигнут"}
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5 space-y-3">
-                    <div className="text-lg font-semibold">Подписка</div>
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
-                      <div className="text-sm text-zinc-500">Текущий статус</div>
-                      <div className="mt-1 text-base font-semibold text-zinc-100">
-                        {profileData?.subscription?.label ?? "Нет подписки"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5">
-                    <div className="text-lg font-semibold">Статистика</div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-2 py-3">
-                        <div className="text-xs text-zinc-500">Матчей</div>
-                        <div className="mt-1 text-xl font-bold">{totalMatches}</div>
-                      </div>
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-2 py-3">
-                        <div className="text-xs text-zinc-500">Побед</div>
-                        <div className="mt-1 text-xl font-bold">{totalWins}</div>
-                      </div>
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-2 py-3">
-                        <div className="text-xs text-zinc-500">Winrate</div>
-                        <div className="mt-1 text-xl font-bold">{Math.round(totalWinRate)}%</div>
-                      </div>
-                    </div>
-                    <div className="mt-3 h-2 w-full rounded-full bg-zinc-800">
-                      <div
-                        className="h-2 rounded-full bg-red-500 transition-all"
-                        style={{ width: `${Math.max(0, Math.min(100, totalWinRate))}%` }}
-                      />
-                    </div>
-                    <div className="mt-4 space-y-2">
-                      <Button
-                        variant="outline"
-                        className="w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                        onClick={() => setProfileMatchesOpen(true)}
-                        disabled={(profileData?.recentMatches ?? []).length === 0}
-                      >
-                        Последние матчи
-                      </Button>
                     </div>
                   </div>
 
@@ -4754,8 +4845,8 @@ export default function App() {
                           </div>
                         </button>
                         {badgePickerOpen && (
-                          <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950 shadow-[0_16px_36px_rgba(0,0,0,0.45)]">
-                            <div className="max-h-52 overflow-y-auto p-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
+                          <div className="absolute bottom-full z-[120] mb-2 w-full overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950 shadow-[0_18px_44px_rgba(0,0,0,0.55)]">
+                            <div className="max-h-72 overflow-y-auto p-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
                               {activeBadges.map((badge) => (
                                 <button
                                   key={`select-${badge.key}`}
@@ -4788,6 +4879,40 @@ export default function App() {
                         onClick={() => setBadgeRulesOpen(true)}
                       >
                         Как получить бейджи
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5">
+                    <div className="text-lg font-semibold">Статистика</div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-2 py-3">
+                        <div className="text-xs text-zinc-500">Матчей</div>
+                        <div className="mt-1 text-xl font-bold">{totalMatches}</div>
+                      </div>
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-2 py-3">
+                        <div className="text-xs text-zinc-500">Побед</div>
+                        <div className="mt-1 text-xl font-bold">{totalWins}</div>
+                      </div>
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-2 py-3">
+                        <div className="text-xs text-zinc-500">Winrate</div>
+                        <div className="mt-1 text-xl font-bold">{Math.round(totalWinRate)}%</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 h-2 w-full rounded-full bg-zinc-800">
+                      <div
+                        className="h-2 rounded-full bg-red-500 transition-all"
+                        style={{ width: `${Math.max(0, Math.min(100, totalWinRate))}%` }}
+                      />
+                    </div>
+                    <div className="mt-4 space-y-2">
+                      <Button
+                        variant="outline"
+                        className="w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        onClick={() => setProfileMatchesOpen(true)}
+                        disabled={(profileData?.recentMatches ?? []).length === 0}
+                      >
+                        Последние матчи
                       </Button>
                     </div>
                   </div>
@@ -4858,56 +4983,8 @@ export default function App() {
               </DialogDescription>
             </DialogHeader>
             <div className="relative">
-              <div className="max-h-[60vh] overflow-y-auto pr-1 pb-2 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
-                <div className="-mx-1 rounded-md border-y border-zinc-800 bg-zinc-950/95 px-3 py-2 text-center text-xs uppercase tracking-[0.12em] text-zinc-400">
-                  Ранговые
-                </div>
-                {badges
-                  .filter((badge) => getBadgeCategory(badge) === "rank")
-                  .map((badge) => (
-                    <div
-                      key={`rules-${badge.key}`}
-                      className={`rounded-xl border px-3 py-3 ${getBadgeTheme(badge.key).chip}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-zinc-700/70 bg-black/30">
-                            <BadgeGlyph badgeKey={badge.key} className={`h-4 w-4 ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
-                          </span>
-                          <div className="text-sm font-semibold truncate">{badge.title}</div>
-                        </div>
-                        <div className="text-xs text-zinc-300">{badge.active ? "Доступен" : "Закрыт"}</div>
-                      </div>
-                      <div className="mt-2 text-xs text-zinc-300/90">{badge.description}</div>
-                      <div className="mt-2">
-                        <div className="flex items-center justify-between text-[11px] text-zinc-300/80">
-                          <span>Прогресс</span>
-                          <span>{badge.progressLabel ?? (badge.active ? "Получен" : "Не получен")}</span>
-                        </div>
-                        <div className="mt-1 h-1.5 w-full rounded-full bg-black/35">
-                          <div
-                            className={`h-1.5 rounded-full transition-all ${
-                              badge.active ? "bg-red-400" : "bg-zinc-500"
-                            }`}
-                            style={{
-                              width: `${Math.max(
-                                0,
-                                Math.min(
-                                  100,
-                                  badge.progressTarget && badge.progressTarget > 0
-                                    ? ((badge.progressCurrent ?? 0) / badge.progressTarget) * 100
-                                    : badge.active
-                                      ? 100
-                                      : 0,
-                                ),
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                <div className="mt-1 -mx-1 rounded-md border-y border-zinc-800 bg-zinc-950/95 px-3 py-2 text-center text-xs uppercase tracking-[0.12em] text-zinc-400">
+              <div className="max-h-[60vh] overflow-y-auto pr-1 pb-2 pt-1 space-y-4 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
+                <div className="relative z-20 rounded-lg border border-zinc-800 bg-zinc-950/95 px-3 py-2 text-center text-xs uppercase tracking-[0.12em] text-zinc-400">
                   Получаемые
                 </div>
                 {badges
@@ -4955,7 +5032,55 @@ export default function App() {
                       </div>
                     </div>
                   ))}
-                <div className="mt-1 -mx-1 rounded-md border-y border-zinc-800 bg-zinc-950/95 px-3 py-2 text-center text-xs uppercase tracking-[0.12em] text-zinc-400">
+                <div className="relative z-20 rounded-lg border border-zinc-800 bg-zinc-950/95 px-3 py-2 text-center text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Ранговые
+                </div>
+                {badges
+                  .filter((badge) => getBadgeCategory(badge) === "rank")
+                  .map((badge) => (
+                    <div
+                      key={`rules-${badge.key}`}
+                      className={`rounded-xl border px-3 py-3 ${getBadgeTheme(badge.key).chip}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-zinc-700/70 bg-black/30">
+                            <BadgeGlyph badgeKey={badge.key} className={`h-4 w-4 ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
+                          </span>
+                          <div className="text-sm font-semibold truncate">{badge.title}</div>
+                        </div>
+                        <div className="text-xs text-zinc-300">{badge.active ? "Доступен" : "Закрыт"}</div>
+                      </div>
+                      <div className="mt-2 text-xs text-zinc-300/90">{badge.description}</div>
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between text-[11px] text-zinc-300/80">
+                          <span>Прогресс</span>
+                          <span>{badge.progressLabel ?? (badge.active ? "Получен" : "Не получен")}</span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-full rounded-full bg-black/35">
+                          <div
+                            className={`h-1.5 rounded-full transition-all ${
+                              badge.active ? "bg-red-400" : "bg-zinc-500"
+                            }`}
+                            style={{
+                              width: `${Math.max(
+                                0,
+                                Math.min(
+                                  100,
+                                  badge.progressTarget && badge.progressTarget > 0
+                                    ? ((badge.progressCurrent ?? 0) / badge.progressTarget) * 100
+                                    : badge.active
+                                      ? 100
+                                      : 0,
+                                ),
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                <div className="relative z-20 rounded-lg border border-zinc-800 bg-zinc-950/95 px-3 py-2 text-center text-xs uppercase tracking-[0.12em] text-zinc-400">
                   Выдаваемые
                 </div>
                 {badges
@@ -5305,22 +5430,29 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[220] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4"
+              className="fixed inset-0 z-[220] flex items-center justify-center bg-black/75 backdrop-blur-[3px] p-4"
             >
               <motion.div
-                initial={{ opacity: 0, scale: 0.9, y: 16 }}
+                initial={{ opacity: 0, scale: 0.88, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                transition={{ type: "spring", stiffness: 180, damping: 18 }}
-                className="w-full max-w-xl rounded-2xl border border-red-500/40 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-5 sm:p-6 shadow-[0_25px_80px_rgba(0,0,0,0.65)]"
+                exit={{ opacity: 0, scale: 0.95, y: 14 }}
+                transition={{ type: "spring", stiffness: 190, damping: 17 }}
+                className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-red-500/45 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 sm:p-7 shadow-[0_30px_100px_rgba(0,0,0,0.75)]"
               >
+                <motion.div
+                  aria-hidden
+                  initial={{ opacity: 0.35, scale: 0.96 }}
+                  animate={{ opacity: [0.35, 0.6, 0.35], scale: [0.96, 1.02, 0.96] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                  className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.22),transparent_62%)]"
+                />
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div>
                     <div className="text-xs uppercase tracking-[0.2em] text-zinc-400">
                       Итоги матча
                     </div>
-                    <div className="mt-1 text-2xl sm:text-3xl font-bold text-zinc-100 flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-red-400" />
+                    <div className="mt-1 text-3xl sm:text-4xl font-extrabold text-zinc-100 flex items-center gap-2">
+                      <Sparkles className="w-6 h-6 text-red-400 drop-shadow-[0_0_10px_rgba(248,113,113,0.6)]" />
                       Прогресс ранга
                     </div>
                   </div>
@@ -5333,18 +5465,18 @@ export default function App() {
 
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4">
                   <div className="flex items-center justify-between gap-3 text-sm mb-3">
-                    <span className="font-semibold text-zinc-300">{rankResultToast.fromTitle}</span>
+                    <span className="font-semibold text-zinc-300 uppercase tracking-wide">{rankResultToast.fromTitle}</span>
                     <span className="text-zinc-500">→</span>
-                    <span className="font-semibold text-zinc-100">{rankResultToast.toTitle}</span>
+                    <span className="font-semibold text-zinc-100 uppercase tracking-wide">{rankResultToast.toTitle}</span>
                   </div>
-                  <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
+                  <div className="h-4 rounded-full bg-zinc-800 overflow-hidden border border-zinc-700">
                     <motion.div
                       initial={{ width: `${rankResultToast.fromProgressPercent}%` }}
                       animate={{ width: `${rankResultToast.toProgressPercent}%` }}
-                      transition={{ duration: 1.2, ease: "easeInOut" }}
+                      transition={{ duration: 1.35, ease: "easeInOut" }}
                       className={`h-full rounded-full ${
                         rankResultToast.delta >= 0
-                          ? "bg-gradient-to-r from-red-500 via-red-400 to-amber-300"
+                          ? "bg-gradient-to-r from-red-500 via-red-400 to-amber-300 shadow-[0_0_18px_rgba(248,113,113,0.6)]"
                           : "bg-gradient-to-r from-zinc-600 to-zinc-500"
                       }`}
                     />
@@ -7194,7 +7326,7 @@ export default function App() {
                             <span className="truncate">{p.name}</span>
                             {p.selectedBadgeKey ? (
                               <span
-                                className={`inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-zinc-600/80 px-1 shadow-[0_0_0_1px_rgba(0,0,0,0.28)] ${
+                                className={`inline-flex h-6 w-6 shrink-0 self-center items-center justify-center rounded-md border border-zinc-600/80 shadow-[0_0_0_1px_rgba(0,0,0,0.28)] ${
                                   getBadgeTheme(p.selectedBadgeKey).icon
                                 }`}
                               >
