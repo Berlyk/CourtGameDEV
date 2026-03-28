@@ -1,4 +1,8 @@
-﻿import { BACKEND_CASE_PACKS, type SimpleCase } from "./casePacks.backend.js";
+﻿import {
+  BACKEND_CASE_PACKS,
+  type CompactCase,
+  type RoleKey,
+} from "./casePacks.backend.js";
 
 export interface CasePackInfo {
   key: string;
@@ -18,6 +22,28 @@ export interface StoredCaseData {
   evidence: string[];
   roles: Record<string, { title: string; goal: string; facts: string[] }>;
 }
+
+const ROLE_TITLES: Record<RoleKey, string> = {
+  judge: "Судья",
+  plaintiff: "Истец",
+  defendant: "Ответчик",
+  prosecutor: "Прокурор",
+  defenseLawyer: "Адвокат ответчика",
+  plaintiffLawyer: "Адвокат истца",
+};
+
+const ROLE_GOALS: Record<RoleKey, string> = {
+  judge: "Вынести максимально точный вердикт на основе представленных улик и раскрытых фактов",
+  plaintiff:
+    "Доказать, что его требования обоснованы и добиться решения суда в свою пользу",
+  defendant: "Опровергнуть обвинения и добиться полного или частичного оправдания",
+  prosecutor:
+    "Доказать виновность ответчика и убедить суд в необходимости наказания",
+  defenseLawyer:
+    "Защитить ответчика, опровергнуть доводы обвинения и добиться оправдания или смягчения решения",
+  plaintiffLawyer:
+    "Усилить позицию истца, доказать обоснованность требований и склонить суд к решению в его пользу",
+};
 
 export function normalizeCasePackKey(input?: string | null): string {
   const raw = (input ?? "").trim().toLowerCase();
@@ -62,7 +88,29 @@ function pickRandom<T>(items: T[]): T | null {
   return items[index] ?? null;
 }
 
-function toStoredCaseData(source: SimpleCase, modePlayerCount: number): StoredCaseData {
+function buildRolesFromFacts(
+  facts: Partial<Record<RoleKey, string[]>>,
+): Record<string, { title: string; goal: string; facts: string[] }> {
+  const result: Record<string, { title: string; goal: string; facts: string[] }> = {};
+  const roleKeys = Object.keys(ROLE_TITLES) as RoleKey[];
+
+  for (const roleKey of roleKeys) {
+    const roleFactsRaw = facts[roleKey] ?? [];
+    const roleFacts = Array.isArray(roleFactsRaw)
+      ? roleFactsRaw.filter((item): item is string => typeof item === "string")
+      : [];
+
+    result[roleKey] = {
+      title: ROLE_TITLES[roleKey],
+      goal: ROLE_GOALS[roleKey],
+      facts: roleFacts,
+    };
+  }
+
+  return result;
+}
+
+function toStoredCaseData(source: CompactCase, modePlayerCount: number): StoredCaseData {
   return {
     id: source.key,
     mode: `Режим на ${modePlayerCount}`,
@@ -70,7 +118,7 @@ function toStoredCaseData(source: SimpleCase, modePlayerCount: number): StoredCa
     description: source.description,
     truth: source.truth,
     evidence: source.evidence,
-    roles: source.roles,
+    roles: buildRolesFromFacts(source.facts),
   };
 }
 
