@@ -476,6 +476,7 @@ const floatingHelpButtonVariants = {
 
 const HIDE_SCROLLBAR_CLASS =
   "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar-button]:hidden";
+const LOADER_LOGO_SRC = "/favicon.png";
 
 function CourtAtmosphereBackground() {
   return (
@@ -2235,70 +2236,84 @@ function ContextHelp({
 function ScreenTransitionLoader({ open }: { open: boolean }) {
   const [logoFailed, setLogoFailed] = useState(false);
   useEffect(() => {
-    if (!open) return;
+    if (typeof window === "undefined") return;
     const preload = new Image();
-    preload.src = "/favicon.png";
+    preload.decoding = "async";
+    preload.src = LOADER_LOGO_SRC;
     preload.onerror = () => setLogoFailed(true);
-  }, [open]);
+    // Держим ссылку на Image в window, чтобы logo не выгружался из памяти между экранами.
+    (window as any).__courtLoaderLogo = preload;
+  }, []);
   if (typeof document === "undefined") return null;
   return createPortal(
-    <AnimatePresence>
-      {open ? (
-        <motion.div
-          key="screen-transition-loader"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.16, ease: "easeInOut" }}
-          className="fixed inset-0 z-[260] m-0 p-0 grid place-items-center bg-[#09090d]"
-        >
+    <>
+      <img
+        src={LOADER_LOGO_SRC}
+        alt=""
+        aria-hidden
+        className="pointer-events-none fixed h-0 w-0 opacity-0"
+      />
+      <AnimatePresence>
+        {open ? (
           <motion.div
+            key="screen-transition-loader"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.18, ease: "easeInOut" }}
-            className="relative flex flex-col items-center gap-4"
+            transition={{ duration: 0.16, ease: "easeInOut" }}
+            className="fixed inset-0 z-[260] m-0 p-0 grid place-items-center bg-[#09090d]"
           >
-            <motion.span
-              aria-hidden
-              className="absolute -inset-6 rounded-full bg-red-500/10 blur-2xl"
-              animate={{ opacity: [0.45, 0.72, 0.45] }}
-              transition={{ duration: 1.3, repeat: Infinity, ease: "easeInOut" }}
-            />
-            {logoFailed ? (
-              <motion.div
-                className="relative z-10 grid h-32 w-32 place-items-center rounded-full border border-zinc-700 bg-zinc-900/80 text-zinc-100 drop-shadow-[0_0_24px_rgba(248,113,113,0.35)]"
-                animate={{ rotate: [0, 3, 0, -3, 0] }}
-                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <Scale className="h-12 w-12" />
-              </motion.div>
-            ) : (
-              <motion.img
-                src="/favicon.png"
-                alt="CourtGame"
-                className="relative z-10 h-32 w-32 select-none drop-shadow-[0_0_24px_rgba(248,113,113,0.42)]"
-                animate={{ rotate: [0, 3, 0, -3, 0] }}
-                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-                onError={() => setLogoFailed(true)}
-              />
-            )}
             <motion.div
-              className="relative z-10 h-2 w-40 overflow-hidden rounded-full bg-zinc-800"
-              initial={{ opacity: 0.85 }}
+              initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.25 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: "easeInOut" }}
+              className="relative flex flex-col items-center gap-4"
             >
               <motion.span
-                className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-red-300 to-transparent"
-                animate={{ x: ["-120%", "260%"] }}
-                transition={{ duration: 1.05, repeat: Infinity, ease: "linear" }}
+                aria-hidden
+                className="absolute -inset-6 rounded-full bg-red-500/10 blur-2xl"
+                animate={{ opacity: [0.45, 0.72, 0.45] }}
+                transition={{ duration: 1.3, repeat: Infinity, ease: "easeInOut" }}
               />
+              {logoFailed ? (
+                <motion.div
+                  className="relative z-10 grid h-32 w-32 place-items-center rounded-full border border-zinc-700 bg-zinc-900/80 text-zinc-100 drop-shadow-[0_0_24px_rgba(248,113,113,0.35)]"
+                  animate={{ rotate: [0, 3, 0, -3, 0] }}
+                  transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <Scale className="h-12 w-12" />
+                </motion.div>
+              ) : (
+                <motion.img
+                  src={LOADER_LOGO_SRC}
+                  alt="CourtGame"
+                  className="relative z-10 h-32 w-32 select-none drop-shadow-[0_0_24px_rgba(248,113,113,0.42)]"
+                  animate={{ rotate: [0, 3, 0, -3, 0] }}
+                  transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                  onError={() => setLogoFailed(true)}
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
+                />
+              )}
+              <motion.div
+                className="relative z-10 h-2 w-40 overflow-hidden rounded-full bg-zinc-800"
+                initial={{ opacity: 0.85 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.25 }}
+              >
+                <motion.span
+                  className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-red-300 to-transparent"
+                  animate={{ x: ["-120%", "260%"] }}
+                  transition={{ duration: 1.05, repeat: Infinity, ease: "linear" }}
+                />
+              </motion.div>
             </motion.div>
           </motion.div>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>,
+        ) : null}
+      </AnimatePresence>
+    </>,
     document.body,
   );
 }

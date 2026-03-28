@@ -97,7 +97,6 @@ export interface AuthUserPublicProfile {
 }
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const LEGEND_BETA_045_CUTOFF_UTC = Date.parse("2026-03-27T00:00:00.000Z");
 const RANK_DEFINITIONS: Array<{
   key: string;
   title: string;
@@ -1130,7 +1129,8 @@ function buildBadgeList(input: {
     progressLabel: winnerActive ? "Получен" : `${winnerCurrent}% / 90%`,
   });
 
-  const legendActive = isBerly || user.created_at.getTime() <= LEGEND_BETA_045_CUTOFF_UTC;
+  // "Легенда" теперь только вручную (в будущем: промокод/админ-выдача), без авто-выдачи.
+  const legendActive = manualBadgeMap.get("legend") ?? false;
   badges.push({
     key: "legend",
     title: "Легенда",
