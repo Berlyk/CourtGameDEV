@@ -37,6 +37,7 @@ import {
   Laptop,
   CalendarDays,
   Clock3,
+  Medal,
   Mic2,
   BrainCircuit,
   Swords,
@@ -143,7 +144,7 @@ const BADGE_ICONS: Record<string, LucideIcon> = {
   innovator: Wrench,
   moderator: Shield,
   admin: Shield,
-  rankNovice: CircleHelp,
+  rankNovice: Medal,
   rankDebater: BookOpenText,
   rankOrator: Mic2,
   rankStrategist: BrainCircuit,
@@ -2436,9 +2437,6 @@ export default function App() {
       if (!nextRank) return;
       const safePreviousRank = previousRank ?? myProfileRef.current?.rank ?? nextRank;
       const delta = nextRank.points - safePreviousRank.points;
-      if (delta === 0 && nextRank.level === safePreviousRank.level) {
-        return;
-      }
       const rankUp = nextRank.level > safePreviousRank.level;
       const nextRankKeyForDisplay =
         !rankUp && nextRank.nextTitle
@@ -2650,7 +2648,7 @@ export default function App() {
                     viewPlayerProfile.nickname,
                   )}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/10" />
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-t from-black/75 via-black/35 to-black/10" />
                   <div className="relative z-10 flex items-end gap-3">
                     <Avatar src={viewPlayerProfile.avatar ?? null} name={viewPlayerProfile.nickname} size={82} />
                     <div>
@@ -2679,6 +2677,13 @@ export default function App() {
                               )}
                             </span>
                           </button>
+                          {viewProfileBadgeHintOpen ? (
+                            <div className="absolute left-0 top-full z-30 mt-2 w-[min(84vw,320px)] rounded-xl border border-zinc-700 bg-zinc-900/95 px-3 py-2 text-sm leading-relaxed text-zinc-200 shadow-[0_10px_24px_rgba(0,0,0,0.45)] whitespace-pre-wrap break-words">
+                              {viewPlayerProfile.badges?.find(
+                                (badge) => badge.key === viewPlayerProfile.selectedBadgeKey,
+                              )?.description ?? "Информация о бейдже отсутствует."}
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                       <div className="mt-2 text-xs text-zinc-300">
@@ -2687,13 +2692,6 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                {viewProfileBadgeHintOpen && viewPlayerProfile.selectedBadgeKey ? (
-                  <div className="relative z-20 mx-3 mb-3 rounded-xl border border-zinc-700 bg-zinc-900/95 px-3 py-2 text-sm leading-relaxed text-zinc-200 shadow-[0_10px_24px_rgba(0,0,0,0.45)] whitespace-pre-wrap break-words">
-                    {viewPlayerProfile.badges?.find(
-                      (badge) => badge.key === viewPlayerProfile.selectedBadgeKey,
-                    )?.description ?? "Информация о бейдже отсутствует."}
-                  </div>
-                ) : null}
               </div>
               {(viewPlayerProfile.gender || typeof viewPlayerProfile.age === "number") && (
                 <div className="grid grid-cols-1 gap-3 text-sm">
