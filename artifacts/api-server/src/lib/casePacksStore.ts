@@ -1,39 +1,14 @@
 ﻿import crypto from "node:crypto";
 import { pool } from "@workspace/db";
-import { cases as legacyCases } from "../socket/gameData.js";
+import { TEMP_CASE_PACKS } from "./casePacks.temp.js";
 
 /*
   ======================= КУДА ДОБАВЛЯТЬ НОВЫЕ ПАКИ И ДЕЛА =======================
-  1) Создайте пак в таблице `case_packs` (key/title/description).
-  2) Добавьте дела в таблицу `case_pack_cases` с нужным pack_id и mode_player_count (3..6).
-  3) Игра при старте матча берет дело только из БД (по выбранному паку).
+  Редактируй ТОЛЬКО файл: src/lib/casePacks.temp.ts
 
-  Базовый пак `classic` заполняется автоматически из legacy cases (gameData.ts),
-  чтобы после миграции сохранить все существующие дела.
-*/
-
-/*
-  ПРОСТОЙ ПЛАН ДЛЯ ТЕБЯ:
-  ШАГ 1. Добавить пак:
-    INSERT INTO case_packs (id, key, title, description, is_adult, sort_order, active)
-    VALUES (gen_random_uuid(), 'my_pack', 'Мой пак', 'Описание пака', FALSE, 30, TRUE);
-
-  ШАГ 2. Добавить дело (пример для 4 игроков):
-    INSERT INTO case_pack_cases (
-      id, pack_id, mode_player_count, case_key, mode_label, title, description, truth, evidence, roles
-    )
-    VALUES (
-      gen_random_uuid(),
-      (SELECT id FROM case_packs WHERE key = 'my_pack'),
-      4,
-      'my_pack_case_1',
-      'Режим на 4',
-      'Название дела',
-      'Суть дела...',
-      'Истина...',
-      ARRAY['Улика 1', 'Улика 2'],
-      '{}'::jsonb
-    );
+  1) Добавь новый пак в массив TEMP_CASE_PACKS
+  2) Добавь дела в casesByPlayers -> 3/4/5/6
+  3) Перезапусти сервер (или деплой) — БД обновится автоматически
 */
 
 export interface CasePackInfo {
@@ -112,88 +87,106 @@ export async function ensureCasePacksStorage(): Promise<void> {
 export async function ensureDefaultCasePackSeeded(): Promise<void> {
   await ensureCasePacksStorage();
 
-  const insertPack = await pool.query<{ id: string }>(
-    `
-      INSERT INTO case_packs (id, key, title, description, is_adult, sort_order, active, updated_at)
-      VALUES ($1, 'classic', 'Классика', 'Базовый пак с существующими делами CourtGame.', FALSE, 10, TRUE, NOW())
-      ON CONFLICT (key)
-      DO UPDATE SET
-        title = EXCLUDED.title,
-        description = EXCLUDED.description,
-        updated_at = NOW()
-      RETURNING id
-    `,
-    [crypto.randomUUID()],
-  );
+  for (const pack of TEMP_CASE_PACKS) {
+    const packKey = normalizeCasePackKey(pack.key);
+    const insertPack = await pool.query<{ id: string }>(
+      `
+        INSERT INTO case_packs (id, key, title, description, is_adult, sort_order, active, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW())
+        ON CONFLICT (key)
+        DO UPDATE SET
+          title = EXCLUDED.title,
+          description = EXCLUDED.description,
+          is_adult = EXCLUDED.is_adult,
+          sort_order = EXCLUDED.sort_order,
+          active = TRUE,
+          updated_at = NOW()
+        RETURNING id
+      `,
+      [
+        crypto.randomUUID(),
+        packKey,
+        pack.title || packKey,
+        pack.description || "",
+        !!pack.isAdult,
+        Number.isFinite(pack.sortOrder) ? pack.sortOrder : 100,
+      ],
+    );
 
-  const classicPackId = insertPack.rows[0]?.id;
-  if (!classicPackId) return;
+    const packId = insertPack.rows[0]?.id;
+    if (!packId) continue;
 
-  for (const [countKey, list] of Object.entries(legacyCases)) {
-    const modePlayerCount = Number(countKey);
-    if (!Number.isFinite(modePlayerCount) || modePlayerCount < 3 || modePlayerCount > 6) {
-      continue;
-    }
+    for (const [countKey, list] of Object.entries(pack.casesByPlayers ?? {})) {
+      const modePlayerCount = Number(countKey);
+      if (!Number.isFinite(modePlayerCount) || modePlayerCount < 3 || modePlayerCount > 6) {
+        continue;
+      }
 
-    for (const rawCase of list as Array<any>) {
-      const caseKey =
-        typeof rawCase?.id === "string" && rawCase.id.trim()
-          ? rawCase.id.trim()
-          : crypto.randomUUID();
-      const safeTitle =
-        typeof rawCase?.title === "string" && rawCase.title.trim()
-          ? rawCase.title.trim()
-          : `Дело ${caseKey}`;
-      const safeDescription =
-        typeof rawCase?.description === "string" ? rawCase.description : "";
-      const safeTruth = typeof rawCase?.truth === "string" ? rawCase.truth : "";
-      const safeEvidence = Array.isArray(rawCase?.evidence)
-        ? rawCase.evidence.filter((item: unknown): item is string => typeof item === "string")
-        : [];
-      const safeRoles =
-        rawCase?.roles && typeof rawCase.roles === "object" ? rawCase.roles : {};
-      const safeModeLabel =
-        typeof rawCase?.mode === "string" ? rawCase.mode : `Режим на ${modePlayerCount}`;
+      for (let index = 0; index < (list as Array<any>).length; index += 1) {
+        const rawCase = (list as Array<any>)[index];
+        const caseKeyRaw =
+          typeof rawCase?.key === "string"
+            ? rawCase.key
+            : typeof rawCase?.id === "string"
+              ? rawCase.id
+              : `${packKey}_${modePlayerCount}_${index + 1}`;
+        const caseKey = caseKeyRaw.trim() || `${packKey}_${modePlayerCount}_${index + 1}`;
 
-      await pool.query(
-        `
-          INSERT INTO case_pack_cases (
-            id,
-            pack_id,
-            mode_player_count,
-            case_key,
-            mode_label,
-            title,
-            description,
-            truth,
-            evidence,
-            roles,
-            updated_at
-          )
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,NOW())
-          ON CONFLICT (pack_id, mode_player_count, case_key)
-          DO UPDATE SET
-            mode_label = EXCLUDED.mode_label,
-            title = EXCLUDED.title,
-            description = EXCLUDED.description,
-            truth = EXCLUDED.truth,
-            evidence = EXCLUDED.evidence,
-            roles = EXCLUDED.roles,
-            updated_at = NOW()
-        `,
-        [
-          crypto.randomUUID(),
-          classicPackId,
-          modePlayerCount,
-          caseKey,
-          safeModeLabel,
-          safeTitle,
-          safeDescription,
-          safeTruth,
-          safeEvidence,
-          JSON.stringify(safeRoles),
-        ],
-      );
+        const safeTitle =
+          typeof rawCase?.title === "string" && rawCase.title.trim()
+            ? rawCase.title.trim()
+            : `Дело ${caseKey}`;
+        const safeDescription =
+          typeof rawCase?.description === "string" ? rawCase.description : "";
+        const safeTruth = typeof rawCase?.truth === "string" ? rawCase.truth : "";
+        const safeEvidence = Array.isArray(rawCase?.evidence)
+          ? rawCase.evidence.filter((item: unknown): item is string => typeof item === "string")
+          : [];
+        const safeRoles =
+          rawCase?.roles && typeof rawCase.roles === "object" ? rawCase.roles : {};
+        const safeModeLabel =
+          typeof rawCase?.mode === "string" ? rawCase.mode : `Режим на ${modePlayerCount}`;
+
+        await pool.query(
+          `
+            INSERT INTO case_pack_cases (
+              id,
+              pack_id,
+              mode_player_count,
+              case_key,
+              mode_label,
+              title,
+              description,
+              truth,
+              evidence,
+              roles,
+              updated_at
+            )
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,NOW())
+            ON CONFLICT (pack_id, mode_player_count, case_key)
+            DO UPDATE SET
+              mode_label = EXCLUDED.mode_label,
+              title = EXCLUDED.title,
+              description = EXCLUDED.description,
+              truth = EXCLUDED.truth,
+              evidence = EXCLUDED.evidence,
+              roles = EXCLUDED.roles,
+              updated_at = NOW()
+          `,
+          [
+            crypto.randomUUID(),
+            packId,
+            modePlayerCount,
+            caseKey,
+            safeModeLabel,
+            safeTitle,
+            safeDescription,
+            safeTruth,
+            safeEvidence,
+            JSON.stringify(safeRoles),
+          ],
+        );
+      }
     }
   }
 }

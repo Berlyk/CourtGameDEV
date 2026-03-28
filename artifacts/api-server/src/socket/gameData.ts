@@ -1,4 +1,4 @@
-export const mechanicPool = [
+﻿export const mechanicPool = [
   {
     name: "Отвечай только ДА!",
     description:
@@ -5825,3 +5825,4 @@ export const roleOrderByCount: Record<number, string[]> = {
     "judge",
   ],
 };
+
