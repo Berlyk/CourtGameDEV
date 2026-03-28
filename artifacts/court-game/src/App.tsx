@@ -1981,6 +1981,31 @@ function getRankTitleByKey(rankKey?: string): string {
   return map[normalized ?? ""] ?? "РАНГ";
 }
 
+const RANK_PROGRESS_COLOR_BY_VISUAL_KEY: Record<string, string> = {
+  rankNovice: "#94a3b8",
+  rankDebater: "#38bdf8",
+  rankOrator: "#a78bfa",
+  rankStrategist: "#2dd4bf",
+  rankMaster: "#f87171",
+  rankVerdict: "#fb7185",
+};
+
+function getRankProgressVisual(fromRankKey?: string, toRankKey?: string): {
+  gradient: string;
+  glow: string;
+  shimmer: string;
+} {
+  const fromVisual = rankKeyToBadgeVisualKey(fromRankKey) ?? "rankNovice";
+  const toVisual = rankKeyToBadgeVisualKey(toRankKey) ?? fromVisual;
+  const fromColor = RANK_PROGRESS_COLOR_BY_VISUAL_KEY[fromVisual] ?? "#f43f5e";
+  const toColor = RANK_PROGRESS_COLOR_BY_VISUAL_KEY[toVisual] ?? fromColor;
+  return {
+    gradient: `linear-gradient(90deg, ${fromColor} 0%, ${toColor} 100%)`,
+    glow: `${toColor}66`,
+    shimmer: `${toColor}88`,
+  };
+}
+
 function getBadgeTitleByKey(
   badgeKey: string | undefined,
   badges?: Array<{ key: string; title: string }>,
@@ -2197,10 +2222,64 @@ function ContextHelp({
   );
 }
 
+function ScreenTransitionLoader({ open }: { open: boolean }) {
+  return (
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          key="screen-transition-loader"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.22 }}
+          className="fixed inset-0 z-[260] grid place-items-center bg-[#09090d]/92 backdrop-blur-[2px]"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -8 }}
+            transition={{ duration: 0.28, ease: "easeOut" }}
+            className="relative flex flex-col items-center gap-4"
+          >
+            <motion.span
+              aria-hidden
+              className="absolute -inset-6 rounded-full bg-red-500/10 blur-2xl"
+              animate={{ opacity: [0.45, 0.72, 0.45], scale: [0.96, 1.04, 0.96] }}
+              transition={{ duration: 1.3, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.img
+              src="/favicon.png"
+              alt="CourtGame"
+              className="relative z-10 h-16 w-16 select-none drop-shadow-[0_0_18px_rgba(248,113,113,0.35)]"
+              animate={{ rotate: [0, 8, 0, -8, 0], y: [0, -2, 0] }}
+              transition={{ duration: 1.25, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.div
+              className="relative z-10 h-1.5 w-28 overflow-hidden rounded-full bg-zinc-800"
+              initial={{ opacity: 0.7 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.25 }}
+            >
+              <motion.span
+                className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-red-300 to-transparent"
+                animate={{ x: ["-120%", "260%"] }}
+                transition={{ duration: 1.05, repeat: Infinity, ease: "linear" }}
+              />
+            </motion.div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState<"home" | "profile" | "room" | "game">(
     "home",
   );
+  const [screenTransitionLoading, setScreenTransitionLoading] = useState(false);
+  const prevScreenRef = useRef<"home" | "profile" | "room" | "game">("home");
+  const screenTransitionTimerRef = useRef<number | null>(null);
   const [homeTab, setHomeTab] = useState<HomeTab>("play");
   const [devlogPage, setDevlogPage] = useState(1);
   const [playView, setPlayView] = useState<"quick" | "matches">("quick");
@@ -2282,6 +2361,9 @@ export default function App() {
     fromProgressPercent: number;
     toProgressPercent: number;
     remainingToNext: number | null;
+    progressGradient: string;
+    progressGlow: string;
+    progressShimmer: string;
     rankUp: boolean;
   } | null>(null);
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
@@ -2404,6 +2486,27 @@ export default function App() {
     reconnectExpiresAt !== null
       ? Math.max(0, Math.ceil((reconnectExpiresAt - nowMs) / 1000))
       : 0;
+
+  useEffect(() => {
+    if (prevScreenRef.current === screen) return;
+    prevScreenRef.current = screen;
+    if (screenTransitionTimerRef.current !== null) {
+      window.clearTimeout(screenTransitionTimerRef.current);
+    }
+    setScreenTransitionLoading(true);
+    screenTransitionTimerRef.current = window.setTimeout(() => {
+      setScreenTransitionLoading(false);
+      screenTransitionTimerRef.current = null;
+    }, 620);
+  }, [screen]);
+
+  useEffect(() => {
+    return () => {
+      if (screenTransitionTimerRef.current !== null) {
+        window.clearTimeout(screenTransitionTimerRef.current);
+      }
+    };
+  }, []);
   const protestCooldownLeft = Math.max(
     0,
     Math.ceil((protestCooldownEndsAt - nowMs) / 1000),
@@ -2477,7 +2580,7 @@ export default function App() {
         100,
         Math.max(0, (nextRank.progressCurrent / nextTarget) * 100),
       );
-      const debugLatestMatchWin = nextProfile.recentMatches?.[0]?.didWin === true;
+      const latestMatchDidWin = nextProfile.recentMatches?.[0]?.didWin;
       const progressedByBar = Math.max(
         0,
         (nextRank.progressCurrent ?? 0) - (safePreviousRank.progressCurrent ?? 0),
@@ -2485,12 +2588,18 @@ export default function App() {
       if (delta <= 0 && progressedByBar > 0) {
         delta = progressedByBar;
       }
+      if (delta === 0 && latestMatchDidWin === false) {
+        delta = -1;
+      }
+      if (delta === 0 && latestMatchDidWin === true) {
+        delta = 1;
+      }
       if (delta <= 0 && rankUp) {
         delta = 1;
       }
       if (
         DEBUG_INSTANT_RANK_UP_ON_MATCH &&
-        debugLatestMatchWin &&
+        latestMatchDidWin === true &&
         !rankUp &&
         fallbackNextRankKey
       ) {
@@ -2507,6 +2616,10 @@ export default function App() {
         : nextRank.nextTitle
           ? Math.max(0, (nextRank.nextPoints ?? nextRank.points) - nextRank.points)
           : null;
+      const progressVisual = getRankProgressVisual(
+        safePreviousRank.key,
+        rankUp ? nextRankKeyForDisplay : nextRank.key,
+      );
       setRankResultToast({
         fromKey: safePreviousRank.key,
         toKey: nextRankKeyForDisplay,
@@ -2518,6 +2631,9 @@ export default function App() {
         fromProgressPercent,
         toProgressPercent,
         remainingToNext,
+        progressGradient: progressVisual.gradient,
+        progressGlow: progressVisual.glow,
+        progressShimmer: progressVisual.shimmer,
         rankUp,
       });
     },
@@ -5486,6 +5602,7 @@ export default function App() {
           </DialogContent>
         </Dialog>
         {renderPublicProfileDialog()}
+        <ScreenTransitionLoader open={screenTransitionLoading} />
       </motion.div>
     );
   }
@@ -5597,23 +5714,32 @@ export default function App() {
                       initial={{ width: `${rankResultToast.fromProgressPercent}%` }}
                       animate={{ width: `${rankResultToast.toProgressPercent}%` }}
                       transition={{ duration: 2.2, ease: [0.22, 1, 0.36, 1] }}
-                      className={`relative h-full rounded-full ${
-                        rankResultToast.delta >= 0
-                          ? "bg-gradient-to-r from-red-700 via-red-500 to-rose-300 shadow-[0_0_12px_rgba(248,113,113,0.35)]"
-                          : "bg-gradient-to-r from-zinc-600 to-zinc-500"
-                      }`}
+                      className="relative h-full rounded-full"
+                      style={{
+                        backgroundImage:
+                          rankResultToast.delta >= 0
+                            ? rankResultToast.progressGradient
+                            : "linear-gradient(90deg, #52525b 0%, #71717a 100%)",
+                        boxShadow:
+                          rankResultToast.delta >= 0
+                            ? `0 0 12px ${rankResultToast.progressGlow}`
+                            : "0 0 10px rgba(113,113,122,0.28)",
+                      }}
                     >
                       {rankResultToast.delta >= 0 && (
                         <>
                           <motion.span
                             aria-hidden
-                            className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                            className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/24 to-transparent"
                             animate={{ x: ["-120%", "240%"] }}
                             transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
                           />
                           <motion.span
                             aria-hidden
-                            className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/22 to-transparent"
+                            className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent to-transparent"
+                            style={{
+                              backgroundImage: `linear-gradient(90deg, transparent 0%, ${rankResultToast.progressShimmer} 50%, transparent 100%)`,
+                            }}
                             animate={{ x: ["-120%", "240%"] }}
                             transition={{ duration: 2.2, repeat: Infinity, ease: "linear", delay: 1.1 }}
                           />
@@ -6679,6 +6805,7 @@ export default function App() {
           </div>
         )}
         {renderPublicProfileDialog()}
+        <ScreenTransitionLoader open={screenTransitionLoading} />
       </motion.div>
     );
   }
@@ -6961,6 +7088,7 @@ export default function App() {
           />
         </div>
         {renderPublicProfileDialog()}
+        <ScreenTransitionLoader open={screenTransitionLoading} />
       </motion.div>
     );
   }
@@ -8207,6 +8335,7 @@ export default function App() {
           />
         </div>
         {renderPublicProfileDialog()}
+        <ScreenTransitionLoader open={screenTransitionLoading} />
       </motion.div>
     );
   }
