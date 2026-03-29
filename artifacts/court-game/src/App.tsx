@@ -6633,6 +6633,9 @@ export default function App() {
                                       <span className="inline-flex shrink-0 items-center rounded-full border border-red-400/50 bg-red-500/20 px-2 py-0.5 text-[11px] font-semibold text-red-100 shadow-[0_0_16px_rgba(239,68,68,0.35)]">
                                         {availableCreateCaseCount} дел
                                       </span>
+                                      <span className="inline-flex shrink-0 items-center rounded-full border border-zinc-600/80 bg-zinc-800/70 px-2 py-0.5 text-[11px] font-semibold text-zinc-200">
+                                        Закрыто: {lockedCreateCaseCount}
+                                      </span>
                                     </div>
                                   </div>
                                   <ChevronDown
@@ -6641,8 +6644,8 @@ export default function App() {
                                 </div>
                               </button>
                               {createPackMenuOpen ? (
-                                <div className="absolute left-0 right-0 z-[80] mt-2 rounded-xl border border-zinc-700 bg-zinc-950/95 p-2 shadow-[0_20px_40px_rgba(0,0,0,0.5)] backdrop-blur">
-                                  <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
+                                <div className="absolute bottom-full left-0 right-0 z-[80] mb-2 rounded-xl border border-zinc-700 bg-zinc-950/95 p-2 shadow-[0_20px_40px_rgba(0,0,0,0.5)] backdrop-blur">
+                                  <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
                                     {casePacks.map((pack) => {
                                       const isLocked = pack.key !== (freeCreatePack?.key ?? "classic");
                                       return (
@@ -6684,24 +6687,6 @@ export default function App() {
                                         </button>
                                       );
                                     })}
-                                  </div>
-                                  <div className="mt-2 grid grid-cols-2 gap-2">
-                                    <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-2">
-                                      <div className="text-[10px] uppercase tracking-[0.12em] text-red-300/80">
-                                        Доступно
-                                      </div>
-                                      <div className="mt-1 text-base font-bold text-white">
-                                        {availableCreateCaseCount}
-                                      </div>
-                                    </div>
-                                    <div className="rounded-lg border border-zinc-600/80 bg-zinc-900/70 px-2.5 py-2">
-                                      <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-400">
-                                        Недоступно
-                                      </div>
-                                      <div className="mt-1 text-base font-bold text-zinc-100">
-                                        {lockedCreateCaseCount}
-                                      </div>
-                                    </div>
                                   </div>
                                 </div>
                               ) : null}
@@ -7144,14 +7129,13 @@ export default function App() {
                       <div className="text-zinc-100 font-medium mt-1">
                         {roomModeMeta.title}
                       </div>
-                      <div className="text-xs text-zinc-400 mt-1">{roomModeMeta.subtitle}</div>
-                    </div>
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-                      <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">
-                        Выбранный пак
-                      </div>
-                      <div className="mt-1 inline-flex items-center rounded-full border border-red-400/55 bg-red-500/20 px-2 py-0.5 text-xs font-semibold text-red-100 shadow-[0_0_14px_rgba(239,68,68,0.35)]">
-                        {roomPackTitle}
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <div className="text-xs text-zinc-400">{roomModeMeta.subtitle}</div>
+                        <span className="text-xs text-zinc-500">•</span>
+                        <span className="text-xs text-zinc-400">Пак</span>
+                        <div className="inline-flex items-center rounded-full border border-red-400/55 bg-red-500/20 px-2 py-0.5 text-xs font-semibold text-red-100 shadow-[0_0_14px_rgba(239,68,68,0.35)]">
+                          {roomPackTitle}
+                        </div>
                       </div>
                     </div>
                     <div className="text-zinc-400 pt-2">
