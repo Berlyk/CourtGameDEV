@@ -2431,6 +2431,7 @@ export default function App() {
   const [createRoomName, setCreateRoomName] = useState("");
   const [createRoomMode, setCreateRoomMode] = useState<RoomModeKey>("civil_3");
   const [createRoomPackKey, setCreateRoomPackKey] = useState("classic");
+  const [createPackMenuOpen, setCreatePackMenuOpen] = useState(false);
   const [casePacks, setCasePacks] = useState<CasePackInfo[]>([]);
   const [createRoomPrivate, setCreateRoomPrivate] = useState(false);
   const [createVoiceUrl, setCreateVoiceUrl] = useState("");
@@ -2526,8 +2527,15 @@ export default function App() {
   const sharedBanner = banner;
   const isAuthenticated = !!authUser && !!authToken;
   const selectedCreateMode = getRoomModeMeta(createRoomMode);
+  const freeCreatePack = casePacks.find((pack) => pack.key === "classic") ?? casePacks[0] ?? null;
   const selectedCreatePack =
-    casePacks.find((pack) => pack.key === createRoomPackKey) ?? casePacks[0] ?? null;
+    casePacks.find((pack) => pack.key === createRoomPackKey) ?? freeCreatePack;
+  const lockedCreatePacks = casePacks.filter((pack) => pack.key !== (freeCreatePack?.key ?? "classic"));
+  const availableCreateCaseCount = Math.max(0, freeCreatePack?.caseCount ?? 0);
+  const lockedCreateCaseCount = lockedCreatePacks.reduce(
+    (sum, pack) => sum + Math.max(0, pack.caseCount ?? 0),
+    0,
+  );
   const reconnectSecondsLeft =
     reconnectExpiresAt !== null
       ? Math.max(0, Math.ceil((reconnectExpiresAt - nowMs) / 1000))
@@ -3404,9 +3412,9 @@ export default function App() {
       const safePacks = Array.isArray(packs) ? packs : [];
       setCasePacks(safePacks);
       if (safePacks.length > 0) {
-        setCreateRoomPackKey((prev) =>
-          prev && safePacks.some((pack) => pack.key === prev) ? prev : safePacks[0].key,
-        );
+        const defaultPackKey =
+          safePacks.find((pack) => pack.key === "classic")?.key ?? safePacks[0].key;
+        setCreateRoomPackKey(defaultPackKey);
       } else {
         setCreateRoomPackKey("classic");
       }
@@ -6531,6 +6539,7 @@ export default function App() {
                 setCreateMatchDialogOpen(open);
                 if (!open) {
                   setCreateRoomPasswordVisible(false);
+                  setCreatePackMenuOpen(false);
                 }
               }}
             >
@@ -6607,25 +6616,102 @@ export default function App() {
                         {casePacks.length > 0 ? (
                           <div className="space-y-2">
                             <div className="relative">
-                              <select
-                                value={selectedCreatePack?.key ?? createRoomPackKey}
-                                onChange={(e) => setCreateRoomPackKey(e.target.value)}
-                                className="h-11 w-full appearance-none rounded-xl border border-zinc-700 bg-zinc-900 px-3 pr-10 text-sm text-zinc-100 outline-none transition-colors focus:border-red-500/60"
+                              <button
+                                type="button"
+                                onClick={() => setCreatePackMenuOpen((prev) => !prev)}
+                                className="w-full rounded-xl border border-zinc-700 bg-zinc-950/80 px-3 py-3 text-left transition-colors hover:border-zinc-600"
                               >
-                                {casePacks.map((pack) => (
-                                  <option key={pack.key} value={pack.key}>
-                                    {pack.title} ({pack.caseCount ?? 0} дел)
-                                  </option>
-                                ))}
-                              </select>
-                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-400">
+                                      Выбранный пак
+                                    </div>
+                                    <div className="mt-1 flex items-center gap-2">
+                                      <span className="truncate text-sm font-semibold text-zinc-100">
+                                        {selectedCreatePack?.title ?? "Пак не выбран"}
+                                      </span>
+                                      <span className="inline-flex shrink-0 items-center rounded-full border border-red-400/50 bg-red-500/20 px-2 py-0.5 text-[11px] font-semibold text-red-100 shadow-[0_0_16px_rgba(239,68,68,0.35)]">
+                                        {availableCreateCaseCount} дел
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <ChevronDown
+                                    className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${createPackMenuOpen ? "rotate-180" : ""}`}
+                                  />
+                                </div>
+                              </button>
+                              {createPackMenuOpen ? (
+                                <div className="absolute left-0 right-0 z-[80] mt-2 rounded-xl border border-zinc-700 bg-zinc-950/95 p-2 shadow-[0_20px_40px_rgba(0,0,0,0.5)] backdrop-blur">
+                                  <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
+                                    {casePacks.map((pack) => {
+                                      const isLocked = pack.key !== (freeCreatePack?.key ?? "classic");
+                                      return (
+                                        <button
+                                          key={pack.key}
+                                          type="button"
+                                          disabled={isLocked}
+                                          onClick={() => {
+                                            setCreateRoomPackKey(pack.key);
+                                            setCreatePackMenuOpen(false);
+                                          }}
+                                          className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                                            isLocked
+                                              ? "cursor-not-allowed border-zinc-800 bg-zinc-900/40 opacity-90"
+                                              : "border-red-500/60 bg-red-600/15 hover:bg-red-600/20"
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <div className="flex min-w-0 items-center gap-2">
+                                              {isLocked ? (
+                                                <Lock className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+                                              ) : (
+                                                <Sparkles className="h-3.5 w-3.5 shrink-0 text-red-300" />
+                                              )}
+                                              <span className="truncate text-sm font-medium text-zinc-100">
+                                                {pack.title}
+                                              </span>
+                                            </div>
+                                            <div
+                                              className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                                                isLocked
+                                                  ? "border-zinc-600/80 bg-zinc-800/70 text-zinc-200 shadow-[0_0_14px_rgba(161,161,170,0.25)]"
+                                                  : "border-red-400/55 bg-red-500/20 text-red-100 shadow-[0_0_18px_rgba(239,68,68,0.4)]"
+                                              }`}
+                                            >
+                                              {pack.caseCount ?? 0} дел
+                                            </div>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="mt-2 grid grid-cols-2 gap-2">
+                                    <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-2">
+                                      <div className="text-[10px] uppercase tracking-[0.12em] text-red-300/80">
+                                        Доступно
+                                      </div>
+                                      <div className="mt-1 text-base font-bold text-white">
+                                        {availableCreateCaseCount}
+                                      </div>
+                                    </div>
+                                    <div className="rounded-lg border border-zinc-600/80 bg-zinc-900/70 px-2.5 py-2">
+                                      <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-400">
+                                        Недоступно
+                                      </div>
+                                      <div className="mt-1 text-base font-bold text-zinc-100">
+                                        {lockedCreateCaseCount}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                             <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-3 py-2.5">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="text-sm font-semibold text-zinc-100">
                                   {selectedCreatePack?.title ?? "Пак не выбран"}
                                 </div>
-                                <div className="text-[11px] text-zinc-400">
+                                <div className="inline-flex items-center rounded-full border border-red-400/55 bg-red-500/20 px-2 py-0.5 text-[11px] font-semibold text-red-100 shadow-[0_0_16px_rgba(239,68,68,0.35)]">
                                   {selectedCreatePack?.caseCount ?? 0} дел
                                 </div>
                               </div>
@@ -6704,7 +6790,8 @@ export default function App() {
                       setCreateRoomPrivate(false);
                       setCreateRoomPasswordVisible(false);
                       setCreateRoomMode("civil_3");
-                      setCreateRoomPackKey(casePacks[0]?.key ?? "classic");
+                      setCreateRoomPackKey(freeCreatePack?.key ?? "classic");
+                      setCreatePackMenuOpen(false);
                     }}
                     className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0 gap-2"
                   >
