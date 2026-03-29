@@ -6649,14 +6649,14 @@ export default function App() {
                                         <button
                                           key={pack.key}
                                           type="button"
-                                          disabled={isLocked}
                                           onClick={() => {
+                                            if (isLocked) return;
                                             setCreateRoomPackKey(pack.key);
                                             setCreatePackMenuOpen(false);
                                           }}
                                           className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
                                             isLocked
-                                              ? "cursor-not-allowed border-zinc-800 bg-zinc-900/40 opacity-90"
+                                              ? "border-zinc-800 bg-zinc-900/40 opacity-90 hover:bg-zinc-900/55"
                                               : "border-red-500/60 bg-red-600/15 hover:bg-red-600/20"
                                           }`}
                                         >
@@ -6706,29 +6706,12 @@ export default function App() {
                                 </div>
                               ) : null}
                             </div>
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-3 py-2.5">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="text-sm font-semibold text-zinc-100">
-                                  {selectedCreatePack?.title ?? "Пак не выбран"}
-                                </div>
-                                <div className="inline-flex items-center rounded-full border border-red-400/55 bg-red-500/20 px-2 py-0.5 text-[11px] font-semibold text-red-100 shadow-[0_0_16px_rgba(239,68,68,0.35)]">
-                                  {selectedCreatePack?.caseCount ?? 0} дел
-                                </div>
-                              </div>
-                              <div className="mt-1 text-xs text-zinc-400">
-                                {selectedCreatePack?.description ?? "Описание пака недоступно."}
-                              </div>
-                            </div>
                           </div>
                         ) : (
                           <div className="text-xs text-zinc-500">
                             Загружаем паки дел...
                           </div>
                         )}
-                        <div className="mt-2 text-[11px] text-zinc-500">
-                          Пак не привязан к количеству игроков. Для каждого режима берутся дела
-                          из выбранного пака.
-                        </div>
                       </div>
                     </div>
                     <div className="md:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3">
@@ -6978,6 +6961,8 @@ export default function App() {
 
   if (screen === "room" && room) {
     const roomModeMeta = getRoomModeMeta(room.modeKey, room.maxPlayers ?? 6);
+    const roomPackMeta = casePacks.find((pack) => pack.key === (room.casePackKey ?? "classic"));
+    const roomPackTitle = roomPackMeta?.title ?? (room.casePackKey ? room.casePackKey.toUpperCase() : "КЛАССИКА");
     const roomMaxPlayers = room.maxPlayers ?? roomModeMeta.maxPlayers;
     const isQuickRoomMode = room.modeKey === "quick_flex";
     const canStartRoomNow = isQuickRoomMode
@@ -7039,6 +7024,9 @@ export default function App() {
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
                       {roomModeMeta.title}
+                    </Badge>
+                    <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
+                      Пак: {roomPackTitle}
                     </Badge>
                     <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
                       {room.visibility === "private" ? "Приватная" : "Публичная"}
@@ -7157,6 +7145,14 @@ export default function App() {
                         {roomModeMeta.title}
                       </div>
                       <div className="text-xs text-zinc-400 mt-1">{roomModeMeta.subtitle}</div>
+                    </div>
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                      <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">
+                        Выбранный пак
+                      </div>
+                      <div className="mt-1 inline-flex items-center rounded-full border border-red-400/55 bg-red-500/20 px-2 py-0.5 text-xs font-semibold text-red-100 shadow-[0_0_14px_rgba(239,68,68,0.35)]">
+                        {roomPackTitle}
+                      </div>
                     </div>
                     <div className="text-zinc-400 pt-2">
                       Ведущий запускает игру, сайт случайно выбирает подходящее
