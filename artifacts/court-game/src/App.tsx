@@ -129,6 +129,7 @@ const RECONNECT_PERSISTENT_STORAGE_KEY = "court_reconnect_persistent";
 const RANK_TOAST_PENDING_STORAGE_KEY = "court_rank_toast_pending";
 const GUEST_NAME_PREFIX = "Гость-";
 const PROFILE_BIO_MAX = 150;
+const PACK_PAYWALL_PREVIEW_ENABLED = false;
 
 const BADGE_ICONS: Record<string, LucideIcon> = {
   plaintiff: Scale,
@@ -2527,11 +2528,19 @@ export default function App() {
   const sharedBanner = banner;
   const isAuthenticated = !!authUser && !!authToken;
   const selectedCreateMode = getRoomModeMeta(createRoomMode);
-  const freeCreatePack = casePacks.find((pack) => pack.key === "classic") ?? casePacks[0] ?? null;
+  const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
+  const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
   const selectedCreatePack =
     casePacks.find((pack) => pack.key === createRoomPackKey) ?? freeCreatePack;
-  const lockedCreatePacks = casePacks.filter((pack) => pack.key !== (freeCreatePack?.key ?? "classic"));
-  const availableCreateCaseCount = Math.max(0, freeCreatePack?.caseCount ?? 0);
+  const lockedCreatePacks = PACK_PAYWALL_PREVIEW_ENABLED
+    ? casePacks.filter((pack) => pack.key !== baseCreatePackKey)
+    : [];
+  const availableCreateCaseCount = Math.max(
+    0,
+    PACK_PAYWALL_PREVIEW_ENABLED
+      ? freeCreatePack?.caseCount ?? 0
+      : selectedCreatePack?.caseCount ?? 0,
+  );
   const lockedCreateCaseCount = lockedCreatePacks.reduce(
     (sum, pack) => sum + Math.max(0, pack.caseCount ?? 0),
     0,
@@ -3412,9 +3421,13 @@ export default function App() {
       const safePacks = Array.isArray(packs) ? packs : [];
       setCasePacks(safePacks);
       if (safePacks.length > 0) {
-        const defaultPackKey =
-          safePacks.find((pack) => pack.key === "classic")?.key ?? safePacks[0].key;
-        setCreateRoomPackKey(defaultPackKey);
+        const defaultPackKey = safePacks.find((pack) => pack.key === "classic")?.key ?? safePacks[0].key;
+        setCreateRoomPackKey((prev) => {
+          if (!PACK_PAYWALL_PREVIEW_ENABLED && prev && safePacks.some((pack) => pack.key === prev)) {
+            return prev;
+          }
+          return defaultPackKey;
+        });
       } else {
         setCreateRoomPackKey("classic");
       }
@@ -6633,9 +6646,11 @@ export default function App() {
                                       <span className="inline-flex shrink-0 items-center rounded-full border border-red-400/50 bg-red-500/20 px-2 py-0.5 text-[11px] font-semibold text-red-100 shadow-[0_0_16px_rgba(239,68,68,0.35)]">
                                         {availableCreateCaseCount} дел
                                       </span>
-                                      <span className="inline-flex shrink-0 items-center rounded-full border border-zinc-600/80 bg-zinc-800/70 px-2 py-0.5 text-[11px] font-semibold text-zinc-200">
-                                        Закрыто: {lockedCreateCaseCount}
-                                      </span>
+                                      {PACK_PAYWALL_PREVIEW_ENABLED ? (
+                                        <span className="inline-flex shrink-0 items-center rounded-full border border-zinc-600/80 bg-zinc-800/70 px-2 py-0.5 text-[11px] font-semibold text-zinc-200">
+                                          Закрыто: {lockedCreateCaseCount}
+                                        </span>
+                                      ) : null}
                                     </div>
                                   </div>
                                   <ChevronDown
@@ -6647,7 +6662,9 @@ export default function App() {
                                 <div className="absolute bottom-full left-0 right-0 z-[80] mb-2 rounded-xl border border-zinc-700 bg-zinc-950/95 p-2 shadow-[0_20px_40px_rgba(0,0,0,0.5)] backdrop-blur">
                                   <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
                                     {casePacks.map((pack) => {
-                                      const isLocked = pack.key !== (freeCreatePack?.key ?? "classic");
+                                      const isLocked =
+                                        PACK_PAYWALL_PREVIEW_ENABLED
+                                          && pack.key !== baseCreatePackKey;
                                       return (
                                         <button
                                           key={pack.key}
@@ -6758,7 +6775,11 @@ export default function App() {
                       setCreateRoomPrivate(false);
                       setCreateRoomPasswordVisible(false);
                       setCreateRoomMode("civil_3");
-                      setCreateRoomPackKey(freeCreatePack?.key ?? "classic");
+                      setCreateRoomPackKey(
+                        PACK_PAYWALL_PREVIEW_ENABLED
+                          ? freeCreatePack?.key ?? "classic"
+                          : selectedCreatePack?.key ?? freeCreatePack?.key ?? "classic",
+                      );
                       setCreatePackMenuOpen(false);
                     }}
                     className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0 gap-2"
