@@ -4,6 +4,7 @@ import {
   addLobbyChatMessage,
   createRoom,
   joinRoom,
+  joinRoomAsLobbyWitness,
   joinRunningGameAsWitness,
   isJoinPasswordValid,
   rejoinRoom,
@@ -280,6 +281,8 @@ function mapLobbyPlayers(players: any[]) {
     avatar: p.avatar,
     banner: p.banner,
     selectedBadgeKey: p.selectedBadgeKey ?? undefined,
+    roleKey: p.roleKey ?? undefined,
+    roleTitle: p.roleTitle ?? undefined,
     warningCount: typeof p?.warningCount === "number" ? p.warningCount : 0,
     disconnectedUntil:
       typeof p?.disconnectedUntil === "number" ? p.disconnectedUntil : undefined,
@@ -1006,7 +1009,36 @@ export function setupSocket(httpServer: HttpServer) {
       }
 
       if (room.players.length >= room.maxPlayers) {
-        socket.emit("error", { message: `Комната заполнена (максимум ${room.maxPlayers} игроков).` });
+        const witnessRoom = joinRoomAsLobbyWitness(roomCode, player, password);
+        if (!witnessRoom) {
+          socket.emit("error", { message: `Комната заполнена (максимум ${room.maxPlayers} игроков).` });
+          return;
+        }
+
+        socketToRoom.set(socket.id, { roomCode, playerId, sessionToken });
+        socket.join(roomCode);
+        socket.emit("room_joined", {
+          playerId,
+          sessionToken,
+          state: getRoomState(witnessRoom, playerId),
+        });
+
+        socket.to(roomCode).emit("room_updated", {
+          players: mapLobbyPlayers(witnessRoom.players),
+          hostId: witnessRoom.hostId,
+          roomName: witnessRoom.roomName,
+          modeKey: witnessRoom.modeKey,
+          casePackKey: witnessRoom.casePackKey,
+          maxPlayers: witnessRoom.maxPlayers,
+          isHostJudge: witnessRoom.isHostJudge,
+          visibility: witnessRoom.visibility,
+          venueLabel: witnessRoom.venueLabel,
+          venueUrl: witnessRoom.venueUrl,
+          requiresPassword: !!witnessRoom.password,
+          lobbyChat: witnessRoom.lobbyChat,
+        });
+        emitPublicMatches(io);
+        persistRoom(roomCode);
         return;
       }
 
@@ -1113,21 +1145,22 @@ export function setupSocket(httpServer: HttpServer) {
         socket.emit("error", { message: "Только ведущий может начать игру." });
         return;
       }
+      const activePlayers = room.players.filter((player: any) => player.roleKey !== "witness");
       if (room.modeKey === "quick_flex") {
-        if (room.players.length < 3 || room.players.length > room.maxPlayers) {
+        if (activePlayers.length < 3 || activePlayers.length > room.maxPlayers) {
           socket.emit("error", {
             message: `Для старта быстрой комнаты нужно от 3 до ${room.maxPlayers} игроков.`,
           });
           return;
         }
-      } else if (room.players.length !== room.maxPlayers) {
+      } else if (activePlayers.length !== room.maxPlayers) {
         socket.emit("error", {
           message: `Для старта нужно ровно ${room.maxPlayers} игроков.`,
         });
         return;
       }
 
-      const selectedCase = await pickCaseForRoom(room.casePackKey, room.players.length);
+      const selectedCase = await pickCaseForRoom(room.casePackKey, activePlayers.length);
       if (!selectedCase) {
         socket.emit("error", { message: "Для выбранного пака не найдено подходящих дел." });
         return;

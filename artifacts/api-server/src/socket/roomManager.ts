@@ -498,6 +498,30 @@ export function joinRoom(code: string, player: Player, password?: string): Room 
   return room;
 }
 
+export function joinRoomAsLobbyWitness(
+  code: string,
+  player: Player,
+  password?: string,
+): Room | null {
+  const room = rooms.get(code);
+  if (!room) return null;
+  if (room.started) return null;
+  if (room.players.length < room.maxPlayers) return null;
+  if (!isJoinPasswordValid(code, password)) return null;
+
+  const witnessPlayer: Player = {
+    ...player,
+    roleKey: "witness",
+    roleTitle: "Свидетель",
+    goal: "Наблюдать за процессом суда и, по требованию судьи, давать показания.",
+    facts: [],
+    cards: [],
+  };
+
+  room.players.push(witnessPlayer);
+  return room;
+}
+
 export function joinRunningGameAsWitness(code: string, player: Player): Room | null {
   const room = rooms.get(code);
   if (!room?.game) return null;
@@ -1014,27 +1038,30 @@ export function startGame(
   if (!room) return null;
   if (!selectedCase || typeof selectedCase !== "object") return null;
   if (!Array.isArray(mechanicCards) || mechanicCards.length === 0) return null;
+  const mainPlayers = room.players.filter((player) => player.roleKey !== "witness");
+  const lobbyWitnesses = room.players.filter((player) => player.roleKey === "witness");
+
   if (room.modeKey === "quick_flex") {
-    if (room.players.length < 3 || room.players.length > room.maxPlayers) {
+    if (mainPlayers.length < 3 || mainPlayers.length > room.maxPlayers) {
       return null;
     }
-  } else if (room.players.length !== room.maxPlayers) {
+  } else if (mainPlayers.length !== room.maxPlayers) {
     return null;
   }
 
-  const count = room.players.length;
+  const count = mainPlayers.length;
   const roleKeys = shuffle(roleOrderByCount[count]);
   const stages = buildStagesByPlayerCount(count);
 
   if (room.isHostJudge) {
-    const hostIndex = room.players.findIndex(p => p.id === room.hostId);
+    const hostIndex = mainPlayers.findIndex(p => p.id === room.hostId);
     const judgeRoleIndex = roleKeys.indexOf("judge");
     if (hostIndex !== -1 && judgeRoleIndex !== -1 && hostIndex !== judgeRoleIndex) {
       [roleKeys[hostIndex], roleKeys[judgeRoleIndex]] = [roleKeys[judgeRoleIndex], roleKeys[hostIndex]];
     }
   }
 
-  const assignedPlayers: Player[] = room.players.map((player, index) => {
+  const assignedPlayers: Player[] = mainPlayers.map((player, index) => {
     const roleKey = roleKeys[index];
     const roleData = selectedCase.roles?.[roleKey];
     const safeFacts = Array.isArray(roleData?.facts)
@@ -1060,10 +1087,18 @@ export function startGame(
       }))
     };
   });
+  const witnessPlayers: Player[] = lobbyWitnesses.map((player) => ({
+    ...player,
+    roleKey: "witness",
+    roleTitle: "Свидетель",
+    goal: "Наблюдать за процессом суда и, по требованию судьи, давать показания.",
+    facts: [],
+    cards: [],
+  }));
 
   room.game = {
     caseData: selectedCase,
-    players: assignedPlayers,
+    players: [...assignedPlayers, ...witnessPlayers],
     stages,
     stageIndex: 0,
     revealedFacts: [],
