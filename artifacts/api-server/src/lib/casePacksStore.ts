@@ -49,14 +49,14 @@ const ROLE_GOALS: Record<RoleKey, string> = {
 let ensurePromise: Promise<void> | null = null;
 
 const STATIC_PACKS_FALLBACK: CasePackInfo[] = [
-  { key: "classic", title: "КЛАССИКА", description: "Базовый пак дел.", isAdult: false, sortOrder: 10, caseCount: 0 },
-  { key: "medieval", title: "СРЕДНЕВЕКОВЬЕ", description: "Религия и традиции важнее доказательств.", isAdult: false, sortOrder: 20, caseCount: 0 },
-  { key: "hard", title: "ОСОБО ТЯЖКИЕ", description: "Жесткие дела с серьезными последствиями.", isAdult: false, sortOrder: 30, caseCount: 0 },
-  { key: "cyberpunk_2077", title: "CYBERPUNK 2077", description: "Технологии, импланты и корпорации.", isAdult: false, sortOrder: 40, caseCount: 0 },
-  { key: "wild_west", title: "ДИКИЙ ЗАПАД", description: "Слабый контроль закона, где многое решается силой.", isAdult: false, sortOrder: 50, caseCount: 0 },
-  { key: "the_boys", title: "The Boys", description: "Супергерои и последствия их действий.", isAdult: false, sortOrder: 60, caseCount: 0 },
-  { key: "adult_18_plus", title: "18+", description: "Дела с чувствительными и спорными темами.", isAdult: true, sortOrder: 70, caseCount: 0 },
-  { key: "ancient_rome", title: "ДРЕВНИЙ РИМ", description: "Статус и власть влияют на закон и решения суда.", isAdult: false, sortOrder: 80, caseCount: 0 },
+  { key: "classic", title: "КЛАССИКА", description: "Базовый пак дел.", isAdult: false, sortOrder: 10, caseCount: 240 },
+  { key: "medieval", title: "СРЕДНЕВЕКОВЬЕ", description: "Религия и традиции важнее доказательств.", isAdult: false, sortOrder: 20, caseCount: 120 },
+  { key: "hard", title: "ОСОБО ТЯЖКИЕ", description: "Жесткие дела с серьезными последствиями.", isAdult: false, sortOrder: 30, caseCount: 102 },
+  { key: "cyberpunk_2077", title: "CYBERPUNK 2077", description: "Технологии, импланты и корпорации.", isAdult: false, sortOrder: 40, caseCount: 102 },
+  { key: "wild_west", title: "ДИКИЙ ЗАПАД", description: "Слабый контроль закона, где многое решается силой.", isAdult: false, sortOrder: 50, caseCount: 78 },
+  { key: "the_boys", title: "The Boys", description: "Супергерои и последствия их действий.", isAdult: false, sortOrder: 60, caseCount: 84 },
+  { key: "adult_18_plus", title: "18+", description: "Дела с чувствительными и спорными темами.", isAdult: true, sortOrder: 70, caseCount: 84 },
+  { key: "ancient_rome", title: "ДРЕВНИЙ РИМ", description: "Статус и власть влияют на закон и решения суда.", isAdult: false, sortOrder: 80, caseCount: 84 },
 ];
 
 export function normalizeCasePackKey(input?: string | null): string {

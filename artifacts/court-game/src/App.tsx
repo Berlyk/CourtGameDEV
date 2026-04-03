@@ -130,6 +130,13 @@ const RANK_TOAST_PENDING_STORAGE_KEY = "court_rank_toast_pending";
 const GUEST_NAME_PREFIX = "Гость-";
 const PROFILE_BIO_MAX = 150;
 const PACK_PAYWALL_PREVIEW_ENABLED = false;
+const PACK_PREVIEW_LOCKED_TITLES = new Set(["THE BOYS", "18+"]);
+
+function isPackPreviewLocked(pack: { key?: string; title?: string } | null | undefined): boolean {
+  if (!pack) return false;
+  const title = (pack.title ?? "").trim().toUpperCase();
+  return PACK_PREVIEW_LOCKED_TITLES.has(title);
+}
 
 function getCasePackVisual(packKey: string | undefined, packTitle: string | undefined): {
   card: string;
@@ -2617,9 +2624,10 @@ export default function App() {
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
   const selectedCreatePack =
     casePacks.find((pack) => pack.key === createRoomPackKey) ?? freeCreatePack;
+  const selectedCreatePackLocked = isPackPreviewLocked(selectedCreatePack);
   const availableCreateCaseCount = Math.max(
     0,
-    PACK_PAYWALL_PREVIEW_ENABLED
+    PACK_PAYWALL_PREVIEW_ENABLED || selectedCreatePackLocked
       ? freeCreatePack?.caseCount ?? 0
       : selectedCreatePack?.caseCount ?? 0,
   );
@@ -3495,8 +3503,11 @@ export default function App() {
       if (safePacks.length > 0) {
         const defaultPackKey = safePacks.find((pack) => pack.key === "classic")?.key ?? safePacks[0].key;
         setCreateRoomPackKey((prev) => {
-          if (!PACK_PAYWALL_PREVIEW_ENABLED && prev && safePacks.some((pack) => pack.key === prev)) {
-            return prev;
+          if (!PACK_PAYWALL_PREVIEW_ENABLED && prev) {
+            const prevPack = safePacks.find((pack) => pack.key === prev);
+            if (prevPack && !isPackPreviewLocked(prevPack)) {
+              return prev;
+            }
           }
           return defaultPackKey;
         });
@@ -3853,6 +3864,11 @@ export default function App() {
 
   const createRoomFromPanel = useCallback(() => {
     const name = playerName.trim() || getOrCreateGuestName();
+    if (selectedCreatePackLocked) {
+      setError("Этот пак временно недоступен.");
+      setTimeout(() => setError(""), 2500);
+      return false;
+    }
     if (createRoomPrivate && !createRoomPassword.trim()) {
       setError("Для приватной комнаты задайте пароль.");
       setTimeout(() => setError(""), 3000);
@@ -3885,6 +3901,7 @@ export default function App() {
     sharedBanner,
     createRoomMode,
     createRoomPackKey,
+    selectedCreatePackLocked,
     createRoomPrivate,
     createRoomName,
     createVoiceUrl,
@@ -6663,7 +6680,9 @@ export default function App() {
                     </div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {casePacks.map((pack) => {
-                        const isLocked = PACK_PAYWALL_PREVIEW_ENABLED && pack.key !== baseCreatePackKey;
+                        const isLocked =
+                          (PACK_PAYWALL_PREVIEW_ENABLED && pack.key !== baseCreatePackKey) ||
+                          isPackPreviewLocked(pack);
                         const visual = getCasePackVisual(pack.key, pack.title);
                         const displayTitle = getCasePackTitleDisplay(pack.title);
                         const cardClass = `${visual.card} ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
@@ -6898,7 +6917,7 @@ export default function App() {
                       setCreateRoomPasswordVisible(false);
                       setCreateRoomMode("civil_3");
                       setCreateRoomPackKey(
-                        PACK_PAYWALL_PREVIEW_ENABLED
+                        PACK_PAYWALL_PREVIEW_ENABLED || selectedCreatePackLocked
                           ? freeCreatePack?.key ?? "classic"
                           : selectedCreatePack?.key ?? freeCreatePack?.key ?? "classic",
                       );
