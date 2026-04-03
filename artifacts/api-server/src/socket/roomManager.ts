@@ -214,6 +214,25 @@ const ROOM_MODE_MAX_PLAYERS: Record<RoomModeKey, number> = {
 const rooms = new Map<string, Room>();
 const ROOM_HARD_TTL_MS = 24 * 60 * 60 * 1000;
 const MATCH_TTL_MS = 2.5 * 60 * 60 * 1000;
+const MAX_WITNESS_PLAYERS = 2;
+
+function getWitnessRoleTitle(room: Room): string {
+  const witnesses = room.players.filter((player) => player.roleKey === "witness");
+  const plaintiffWitnesses = witnesses.filter((player) =>
+    (player.roleTitle ?? "").toLowerCase().includes("истца"),
+  ).length;
+  const defendantWitnesses = witnesses.filter((player) =>
+    (player.roleTitle ?? "").toLowerCase().includes("ответчика"),
+  ).length;
+  return plaintiffWitnesses <= defendantWitnesses
+    ? "Свидетель истца"
+    : "Свидетель ответчика";
+}
+
+function getSupportRoleForJoin(room: Room): "witness" | "observer" {
+  const witnesses = room.players.filter((player) => player.roleKey === "witness").length;
+  return witnesses < MAX_WITNESS_PLAYERS ? "witness" : "observer";
+}
 
 function normalizeLoadedPlayer(player: any): Player | null {
   if (!player || typeof player.id !== "string" || typeof player.name !== "string") {
@@ -509,11 +528,16 @@ export function joinRoomAsLobbyWitness(
   if (room.players.length < room.maxPlayers) return null;
   if (!isJoinPasswordValid(code, password)) return null;
 
+  const supportRole = getSupportRoleForJoin(room);
   const witnessPlayer: Player = {
     ...player,
-    roleKey: "witness",
-    roleTitle: "Свидетель",
-    goal: "Наблюдать за процессом суда и, по требованию судьи, давать показания.",
+    roleKey: supportRole,
+    roleTitle:
+      supportRole === "witness" ? getWitnessRoleTitle(room) : "Наблюдатель",
+    goal:
+      supportRole === "witness"
+        ? "Наблюдать за процессом суда и, по требованию судьи, давать показания."
+        : "Наблюдать за процессом суда без участия в механиках и действиях сторон.",
     facts: [],
     cards: [],
   };
@@ -526,11 +550,16 @@ export function joinRunningGameAsWitness(code: string, player: Player): Room | n
   const room = rooms.get(code);
   if (!room?.game) return null;
 
+  const supportRole = getSupportRoleForJoin(room);
   const witnessPlayer: Player = {
     ...player,
-    roleKey: "witness",
-    roleTitle: "\u0421\u0432\u0438\u0434\u0435\u0442\u0435\u043b\u044c",
-    goal: "\u041d\u0430\u0431\u043b\u044e\u0434\u0430\u0442\u044c \u0437\u0430 \u043f\u0440\u043e\u0446\u0435\u0441\u0441\u043e\u043c \u0441\u0443\u0434\u0430 \u0438, \u043f\u043e \u0442\u0440\u0435\u0431\u043e\u0432\u0430\u043d\u0438\u044e \u0441\u0443\u0434\u044c\u0438, \u0434\u0430\u0432\u0430\u0442\u044c \u043f\u043e\u043a\u0430\u0437\u0430\u043d\u0438\u044f \u0432\u043e \u0432\u0440\u0435\u043c\u044f \u043f\u0435\u0440\u0435\u043a\u0440\u0451\u0441\u0442\u043d\u043e\u0433\u043e \u0434\u043e\u043f\u0440\u043e\u0441\u0430.",
+    roleKey: supportRole,
+    roleTitle:
+      supportRole === "witness" ? getWitnessRoleTitle(room) : "Наблюдатель",
+    goal:
+      supportRole === "witness"
+        ? "Наблюдать за процессом суда и, по требованию судьи, давать показания."
+        : "Наблюдать за процессом суда без участия в механиках и действиях сторон.",
     facts: [],
     cards: []
   };
@@ -1038,8 +1067,11 @@ export function startGame(
   if (!room) return null;
   if (!selectedCase || typeof selectedCase !== "object") return null;
   if (!Array.isArray(mechanicCards) || mechanicCards.length === 0) return null;
-  const mainPlayers = room.players.filter((player) => player.roleKey !== "witness");
+  const mainPlayers = room.players.filter(
+    (player) => player.roleKey !== "witness" && player.roleKey !== "observer",
+  );
   const lobbyWitnesses = room.players.filter((player) => player.roleKey === "witness");
+  const lobbyObservers = room.players.filter((player) => player.roleKey === "observer");
 
   if (room.modeKey === "quick_flex") {
     if (mainPlayers.length < 3 || mainPlayers.length > room.maxPlayers) {
@@ -1090,15 +1122,23 @@ export function startGame(
   const witnessPlayers: Player[] = lobbyWitnesses.map((player) => ({
     ...player,
     roleKey: "witness",
-    roleTitle: "Свидетель",
+    roleTitle: player.roleTitle || "Свидетель",
     goal: "Наблюдать за процессом суда и, по требованию судьи, давать показания.",
+    facts: [],
+    cards: [],
+  }));
+  const observerPlayers: Player[] = lobbyObservers.map((player) => ({
+    ...player,
+    roleKey: "observer",
+    roleTitle: "Наблюдатель",
+    goal: "Наблюдать за процессом суда без участия в механиках и действиях сторон.",
     facts: [],
     cards: [],
   }));
 
   room.game = {
     caseData: selectedCase,
-    players: [...assignedPlayers, ...witnessPlayers],
+    players: [...assignedPlayers, ...witnessPlayers, ...observerPlayers],
     stages,
     stageIndex: 0,
     revealedFacts: [],

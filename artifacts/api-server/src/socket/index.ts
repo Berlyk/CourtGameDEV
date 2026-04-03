@@ -55,6 +55,33 @@ function randomCode(): string {
   return Math.random().toString(36).slice(2, 7).toUpperCase();
 }
 
+const usedGuestNumbers = new Set<number>();
+
+function pickGuestNumber(existingNames: string[] = []): number {
+  const occupied = new Set<number>();
+  for (const name of existingNames) {
+    const match = /^Гость\s*-\s*(\d+)$/i.exec((name ?? "").trim());
+    if (match) {
+      occupied.add(Number(match[1]));
+    }
+  }
+
+  for (let i = 0; i < 20000; i += 1) {
+    const next = Math.floor(10000 + Math.random() * 90000);
+    if (!usedGuestNumbers.has(next) && !occupied.has(next)) {
+      usedGuestNumbers.add(next);
+      return next;
+    }
+  }
+  const fallback = Date.now() % 100000;
+  usedGuestNumbers.add(fallback);
+  return fallback;
+}
+
+function createGuestName(existingNames: string[] = []): string {
+  return `Гость-${pickGuestNumber(existingNames)}`;
+}
+
 const PREPARATION_STAGE_MARKER = "подготов";
 const CROSS_EXAMINATION_STAGE_MARKERS = ["перекрест", "допрос"];
 const OPENING_STAGE_MARKERS = ["выступлен", "вступительн"];
@@ -78,7 +105,8 @@ type CanonicalRole =
   | "defenseLawyer"
   | "prosecutor"
   | "judge"
-  | "witness";
+  | "witness"
+  | "observer";
 
 function resolveExpectedVerdictFromTruth(truthRaw: string | undefined): string {
   const truth = (truthRaw ?? "").toLowerCase().replace(/ё/g, "е");
@@ -103,6 +131,7 @@ function normalizeRoleKey(roleKey: string | undefined): CanonicalRole | null {
     prosecutor: "prosecutor",
     judge: "judge",
     witness: "witness",
+    observer: "observer",
   };
   return alias[normalized] ?? null;
 }
@@ -325,6 +354,7 @@ function getRoomState(room: any, playerId: string) {
     code: room.code,
     roomName: room.roomName,
     casePackKey: room.casePackKey,
+    venueUrl: room.venueUrl,
     hostId: room.hostId,
     caseData: room.game.caseData,
     stages: room.game.stages,
@@ -777,10 +807,13 @@ export function setupSocket(httpServer: HttpServer) {
           typeof authToken === "string" && authToken.trim()
             ? await getUserByToken(authToken.trim())
             : null;
+        const normalizedPlayerName = authUser
+          ? (playerName || authUser.nickname || "Игрок 1").trim() || authUser.nickname
+          : createGuestName();
         const player = {
           id: playerId,
           userId: authUser?.id,
-          name: playerName || "Игрок 1",
+          name: normalizedPlayerName,
           socketId: socket.id,
           sessionToken,
           avatar: avatar || authUser?.avatar || undefined,
@@ -808,12 +841,21 @@ export function setupSocket(httpServer: HttpServer) {
         typeof authToken === "string" && authToken.trim()
           ? await getUserByToken(authToken.trim())
           : null;
+      const existingNames = room
+        ? [
+            ...room.players.map((player: any) => player.name),
+            ...(room.game?.players ?? []).map((player: any) => player.name),
+          ]
+        : [];
+      const effectiveName = authUser
+        ? (trimmedName || authUser.nickname || "Игрок").trim()
+        : createGuestName(existingNames);
 
       if (!room) {
         socket.emit("error", { message: "\u041a\u043e\u043c\u043d\u0430\u0442\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u043a\u043e\u0434." });
         return;
       }
-      if (!trimmedName) {
+      if (!authUser && !effectiveName) {
         socket.emit("error", { message: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043d\u0438\u043a\u043d\u0435\u0439\u043c \u043f\u0435\u0440\u0435\u0434 \u0432\u0445\u043e\u0434\u043e\u043c." });
         return;
       }
@@ -919,7 +961,7 @@ export function setupSocket(httpServer: HttpServer) {
       // If a player with this nickname disconnected earlier, reclaim their slot/role.
       const reclaimed = reclaimDisconnectedPlayerByName(
         roomCode,
-        trimmedName,
+        effectiveName,
         socket.id,
         avatar,
       );
@@ -967,8 +1009,8 @@ export function setupSocket(httpServer: HttpServer) {
         return;
       }
 
-      if (isNameTaken(roomCode, trimmedName)) {
-        socket.emit("error", { message: `\u041d\u0438\u043a\u043d\u0435\u0439\u043c \u00ab${trimmedName}\u00bb \u0443\u0436\u0435 \u0437\u0430\u043d\u044f\u0442 \u0432 \u044d\u0442\u043e\u0439 \u043a\u043e\u043c\u043d\u0430\u0442\u0435.` });
+      if (isNameTaken(roomCode, effectiveName)) {
+        socket.emit("error", { message: `\u041d\u0438\u043a\u043d\u0435\u0439\u043c \u00ab${effectiveName}\u00bb \u0443\u0436\u0435 \u0437\u0430\u043d\u044f\u0442 \u0432 \u044d\u0442\u043e\u0439 \u043a\u043e\u043c\u043d\u0430\u0442\u0435.` });
         return;
       }
 
@@ -977,7 +1019,7 @@ export function setupSocket(httpServer: HttpServer) {
       const player = {
         id: playerId,
         userId: authUser?.id,
-        name: trimmedName,
+        name: effectiveName,
         socketId: socket.id,
         sessionToken,
         avatar: avatar || authUser?.avatar || undefined,
@@ -1145,7 +1187,9 @@ export function setupSocket(httpServer: HttpServer) {
         socket.emit("error", { message: "Только ведущий может начать игру." });
         return;
       }
-      const activePlayers = room.players.filter((player: any) => player.roleKey !== "witness");
+      const activePlayers = room.players.filter(
+        (player: any) => player.roleKey !== "witness" && player.roleKey !== "observer",
+      );
       if (room.modeKey === "quick_flex") {
         if (activePlayers.length < 3 || activePlayers.length > room.maxPlayers) {
           socket.emit("error", {
@@ -1496,9 +1540,9 @@ export function setupSocket(httpServer: HttpServer) {
           });
           return;
         }
-        if (actorRole === "witness") {
+        if (actorRole === "witness" || actorRole === "observer") {
           socket.emit("error", {
-            message: "Свидетель не может заявлять протест.",
+            message: "Свидетели и наблюдатели не могут заявлять протест.",
           });
           return;
         }
@@ -1687,8 +1731,9 @@ export function setupSocket(httpServer: HttpServer) {
           socket.emit("error", { message: "Игрок не найден." });
           return;
         }
-        if (normalizeRoleKey(targetPlayer.roleKey) === "judge") {
-          socket.emit("error", { message: "Судье нельзя выдать предупреждение." });
+        const targetRole = normalizeRoleKey(targetPlayer.roleKey);
+        if (targetRole === "judge" || targetRole === "observer") {
+          socket.emit("error", { message: "Этому игроку нельзя выдавать предупреждение." });
           return;
         }
 
@@ -1746,8 +1791,9 @@ export function setupSocket(httpServer: HttpServer) {
           socket.emit("error", { message: "Игрок не найден." });
           return;
         }
-        if (normalizeRoleKey(targetPlayer.roleKey) === "judge") {
-          socket.emit("error", { message: "Судью нельзя изменять предупреждения." });
+        const targetRole = normalizeRoleKey(targetPlayer.roleKey);
+        if (targetRole === "judge" || targetRole === "observer") {
+          socket.emit("error", { message: "Этому игроку нельзя изменять предупреждения." });
           return;
         }
 

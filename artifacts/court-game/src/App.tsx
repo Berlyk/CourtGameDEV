@@ -138,6 +138,16 @@ function isPackPreviewLocked(pack: { key?: string; title?: string } | null | und
   return PACK_PREVIEW_LOCKED_TITLES.has(title);
 }
 
+function isPackLockedForPreview(
+  pack: { key?: string; title?: string } | null | undefined,
+  paywallPreviewEnabled: boolean,
+  basePackKey: string,
+): boolean {
+  if (!pack) return false;
+  if (paywallPreviewEnabled && pack.key !== basePackKey) return true;
+  return isPackPreviewLocked(pack);
+}
+
 function getCasePackVisual(packKey: string | undefined, packTitle: string | undefined): {
   card: string;
   countChip: string;
@@ -363,7 +373,31 @@ const RULES_INTRO_TEXT =
   "Добро пожаловать на сайт CourtGame. Соблюдайте правила для комфортной и справедливой игры.";
 
 function generateGuestName(): string {
-  const randomPart = Math.floor(1000 + Math.random() * 9000);
+  const usedRaw = localStorage.getItem("court_guest_numbers_used");
+  let parsed: unknown[] = [];
+  if (usedRaw) {
+    try {
+      parsed = JSON.parse(usedRaw);
+    } catch {
+      parsed = [];
+    }
+  }
+  const used = new Set<number>(
+    parsed.filter((value): value is number => Number.isFinite(value)),
+  );
+  let randomPart = 0;
+  for (let i = 0; i < 10000; i += 1) {
+    const candidate = Math.floor(10000 + Math.random() * 90000);
+    if (!used.has(candidate)) {
+      randomPart = candidate;
+      break;
+    }
+  }
+  if (!randomPart) {
+    randomPart = Date.now() % 100000;
+  }
+  used.add(randomPart);
+  localStorage.setItem("court_guest_numbers_used", JSON.stringify([...used].slice(-5000)));
   return `${GUEST_NAME_PREFIX}${randomPart}`;
 }
 
@@ -1607,6 +1641,7 @@ interface GameState {
   me: MyPlayer | null;
   code: string;
   hostId: string;
+  venueUrl?: string;
 }
 
 interface RoomState {
@@ -1687,6 +1722,7 @@ const ROLE_TITLES: Record<string, string> = {
   prosecutor: "Прокурор",
   judge: "Судья",
   witness: "Свидетель",
+  observer: "Наблюдатель",
 };
 
 function getGenderLabel(gender: PublicUserProfile["gender"]): string {
@@ -2150,7 +2186,13 @@ function PlayerCard({
       ? Math.max(0, player.disconnectedUntil - nowTs)
       : 0;
   const isDisconnected = disconnectRemainingMs > 0;
-  const isGuaranteedWitness = player.roleKey === "witness";
+  const playerRoleLabel = isHost
+    ? "Ведущий комнаты"
+    : player.roleKey === "witness"
+      ? "Свидетель"
+      : player.roleKey === "observer"
+        ? "Наблюдатель"
+        : "Игрок";
   const disconnectProgress = isDisconnected
     ? 1 - Math.min(1, disconnectRemainingMs / RECONNECT_GRACE_MS)
     : 1;
@@ -2190,13 +2232,8 @@ function PlayerCard({
                 ) : null}
               </div>
               <div className="text-sm text-zinc-400">
-                {isHost ? "Ведущий комнаты" : "Игрок"}
+                {playerRoleLabel}
               </div>
-              {isGuaranteedWitness ? (
-                <div className="mt-1 inline-flex items-center rounded-full border border-sky-500/50 bg-sky-500/20 px-2 py-0.5 text-[11px] font-semibold text-sky-100">
-                  Гарантированный свидетель
-                </div>
-              ) : null}
             </div>
           </button>
           <div className="relative z-10 flex items-center gap-2">
@@ -2218,15 +2255,6 @@ function PlayerCard({
                 </span>
               </motion.div>
             )}
-            <Badge
-              className={
-                isHost
-                  ? "bg-red-600 text-white border-0"
-                  : "bg-zinc-800 text-zinc-100 border border-zinc-700"
-              }
-            >
-              {isHost ? "Host" : "Игрок"}
-            </Badge>
             {canKick && onKick && (
               <Button
                 size="sm"
@@ -2517,6 +2545,7 @@ export default function App() {
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false);
   const [publicMatches, setPublicMatches] = useState<PublicMatchInfo[]>([]);
   const [joinPasswordDialogOpen, setJoinPasswordDialogOpen] = useState(false);
+  const [observerListDialogOpen, setObserverListDialogOpen] = useState(false);
   const [joinPasswordDialogMatch, setJoinPasswordDialogMatch] = useState<PublicMatchInfo | null>(null);
   const [joinPasswordInput, setJoinPasswordInput] = useState("");
   const [joinPasswordDialogError, setJoinPasswordDialogError] = useState("");
@@ -6614,15 +6643,6 @@ export default function App() {
                                   >
                                     Войти
                                   </Button>
-                                  {match.venueUrl && (
-                                    <Button
-                                      variant="outline"
-                                      className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                                      onClick={() => openVoiceLink(match.venueUrl)}
-                                    >
-                                      Войс
-                                    </Button>
-                                  )}
                                 </div>
                               </div>
                             </motion.div>
@@ -6679,10 +6699,27 @@ export default function App() {
                       </Button>
                     </div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {casePacks.map((pack) => {
-                        const isLocked =
-                          (PACK_PAYWALL_PREVIEW_ENABLED && pack.key !== baseCreatePackKey) ||
-                          isPackPreviewLocked(pack);
+                      {[...casePacks]
+                        .sort((a, b) => {
+                          const aLocked = isPackLockedForPreview(
+                            a,
+                            PACK_PAYWALL_PREVIEW_ENABLED,
+                            baseCreatePackKey,
+                          );
+                          const bLocked = isPackLockedForPreview(
+                            b,
+                            PACK_PAYWALL_PREVIEW_ENABLED,
+                            baseCreatePackKey,
+                          );
+                          if (aLocked !== bLocked) return aLocked ? 1 : -1;
+                          return (a.sortOrder ?? 100) - (b.sortOrder ?? 100);
+                        })
+                        .map((pack) => {
+                        const isLocked = isPackLockedForPreview(
+                          pack,
+                          PACK_PAYWALL_PREVIEW_ENABLED,
+                          baseCreatePackKey,
+                        );
                         const visual = getCasePackVisual(pack.key, pack.title);
                         const displayTitle = getCasePackTitleDisplay(pack.title);
                         const cardClass = `${visual.card} ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
@@ -6703,11 +6740,11 @@ export default function App() {
                               {visual.vibe}
                             </div>
                             {isLocked && (
-                              <div className="pointer-events-none absolute inset-0 rounded-2xl bg-zinc-950/70">
-                                <span className="absolute left-3 top-2 text-zinc-400/80">⛓</span>
-                                <span className="absolute right-3 top-2 text-zinc-400/80">⛓</span>
-                                <span className="absolute left-3 bottom-2 text-zinc-400/80">⛓</span>
-                                <span className="absolute right-3 bottom-2 text-zinc-400/80">⛓</span>
+                              <div className="pointer-events-none absolute inset-0 rounded-2xl bg-zinc-950/74">
+                                <span className="absolute left-0 top-0 h-px w-[60%] origin-left rotate-[33deg] bg-zinc-300/45" />
+                                <span className="absolute right-0 top-0 h-px w-[60%] origin-right -rotate-[33deg] bg-zinc-300/45" />
+                                <span className="absolute left-0 bottom-0 h-px w-[60%] origin-left -rotate-[33deg] bg-zinc-300/45" />
+                                <span className="absolute right-0 bottom-0 h-px w-[60%] origin-right rotate-[33deg] bg-zinc-300/45" />
                                 <span className="absolute inset-0 flex items-center justify-center">
                                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-500/70 bg-zinc-900/90 text-zinc-200 shadow-[0_0_18px_rgba(0,0,0,0.45)]">
                                     <Lock className="h-5 w-5" />
@@ -7112,13 +7149,17 @@ export default function App() {
     const roomPackMeta = casePacks.find((pack) => pack.key === (room.casePackKey ?? "classic"));
     const roomPackTitle = roomPackMeta?.title ?? (room.casePackKey ? room.casePackKey.toUpperCase() : "КЛАССИКА");
     const roomMaxPlayers = room.maxPlayers ?? roomModeMeta.maxPlayers;
+    const lobbyObservers = room.players.filter((player) => player.roleKey === "observer");
     const isQuickRoomMode = room.modeKey === "quick_flex";
+    const activeLobbyPlayersCount = room.players.filter(
+      (player) => player.roleKey !== "witness" && player.roleKey !== "observer",
+    ).length;
     const canStartRoomNow = isQuickRoomMode
-      ? room.players.length >= 3 && room.players.length <= roomMaxPlayers
-      : room.players.length === roomMaxPlayers;
+      ? activeLobbyPlayersCount >= 3 && activeLobbyPlayersCount <= roomMaxPlayers
+      : activeLobbyPlayersCount === roomMaxPlayers;
     const neededPlayersForStart = isQuickRoomMode
-      ? Math.max(0, 3 - room.players.length)
-      : Math.max(0, roomMaxPlayers - room.players.length);
+      ? Math.max(0, 3 - activeLobbyPlayersCount)
+      : Math.max(0, roomMaxPlayers - activeLobbyPlayersCount);
     return (
       <motion.div
         key="room"
@@ -7129,6 +7170,19 @@ export default function App() {
         className="relative isolate min-h-screen bg-[#0b0b0f] text-zinc-100 p-4 sm:p-6 md:p-10"
       >
         <CourtAtmosphereBackground />
+        {lobbyObservers.length > 0 && (
+          <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setObserverListDialogOpen(true)}
+              className="h-9 rounded-lg border-zinc-700 bg-zinc-900/85 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 gap-1.5 px-3"
+            >
+              <Eye className="h-4 w-4" />
+              {lobbyObservers.length}
+            </Button>
+          </div>
+        )}
         <div className="max-w-6xl mx-auto space-y-6">
           <AnimatePresence>
             {error && (
@@ -7403,6 +7457,26 @@ export default function App() {
           />
         </div>
         {renderPublicProfileDialog()}
+        <Dialog open={observerListDialogOpen} onOpenChange={setObserverListDialogOpen}>
+          <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Наблюдатели
+              </DialogTitle>
+              <DialogDescription className="text-zinc-400">
+                Сейчас наблюдают: {lobbyObservers.length}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              {lobbyObservers.map((player) => (
+                <div key={player.id} className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-200">
+                  {player.name}
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
         <ScreenTransitionLoader open={globalBlockingLoading} />
       </motion.div>
     );
@@ -7417,7 +7491,9 @@ export default function App() {
     const hasGameAdminAccess = gameControlPlayerId === game.hostId;
     const isJudge = game.me.roleKey === "judge";
     const isWitness = game.me.roleKey === "witness";
-    const isObserverRole = isJudge || isWitness;
+    const isSpectator = game.me.roleKey === "observer";
+    const isObserverRole = isJudge || isWitness || isSpectator;
+    const gameObservers = game.players.filter((player) => player.roleKey === "observer");
     const visibleFacts = game.revealedFacts.slice(-3);
     const visibleCards = game.usedCards.slice(-3);
     const latestRevealedFactId =
@@ -7459,6 +7535,7 @@ export default function App() {
     const canUseProtest =
       !isJudge &&
       !isWitness &&
+      !isSpectator &&
       !game.finished &&
       !hasActiveProtest &&
       isCrossExaminationStage &&
@@ -7479,7 +7556,10 @@ export default function App() {
     const isProtestRejectedAnnouncement =
       influenceAnnouncement?.kind === "protest" && /ОТКЛОНЕН/i.test(announcementTitle);
     const warningTargets = game.players.filter(
-      (player) => player.id !== game.me!.id && player.roleKey !== "judge",
+      (player) =>
+        player.id !== game.me!.id &&
+        player.roleKey !== "judge" &&
+        player.roleKey !== "observer",
     );
     return (
       <motion.div
@@ -7490,6 +7570,32 @@ export default function App() {
         className="relative isolate min-h-screen overflow-x-hidden bg-[#0b0b0f] text-zinc-100 p-4 sm:p-6 md:p-10"
       >
         <CourtAtmosphereBackground />
+        {gameObservers.length > 0 && (
+          <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setObserverListDialogOpen(true)}
+              className="h-9 rounded-lg border-zinc-700 bg-zinc-900/85 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 gap-1.5 px-3"
+            >
+              <Eye className="h-4 w-4" />
+              {gameObservers.length}
+            </Button>
+          </div>
+        )}
+        {game.venueUrl && (
+          <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => openVoiceLink(game.venueUrl)}
+              className="h-9 rounded-lg border-zinc-700 bg-zinc-900/85 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 gap-1.5 px-3"
+            >
+              <Mic2 className="h-4 w-4" />
+              Войс
+            </Button>
+          </div>
+        )}
         <AnimatePresence>
           {showFactHistory && (
             <motion.div
@@ -8650,6 +8756,26 @@ export default function App() {
           />
         </div>
         {renderPublicProfileDialog()}
+        <Dialog open={observerListDialogOpen} onOpenChange={setObserverListDialogOpen}>
+          <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Наблюдатели
+              </DialogTitle>
+              <DialogDescription className="text-zinc-400">
+                Сейчас наблюдают: {gameObservers.length}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              {gameObservers.map((player) => (
+                <div key={player.id} className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-200">
+                  {player.name}
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
         <ScreenTransitionLoader open={globalBlockingLoading} />
       </motion.div>
     );
