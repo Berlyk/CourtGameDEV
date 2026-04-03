@@ -6629,7 +6629,7 @@ export default function App() {
               }}
             >
               <DialogContent
-                className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-2xl h-[88vh] max-h-[860px] overflow-hidden border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2"
+                className="flex w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-2xl h-[92vh] max-h-[940px] flex-col overflow-hidden border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2"
               >
                 <DialogHeader className="space-y-1">
                   <DialogTitle>Создать матч</DialogTitle>
@@ -6640,7 +6640,7 @@ export default function App() {
                   </DialogDescription>
                 </DialogHeader>
                 {createPackCatalogOpen ? (
-                  <div className="flex h-[calc(88vh-170px)] max-h-[670px] min-h-0 flex-col gap-3">
+                  <div className="mt-1 flex min-h-0 flex-1 flex-col gap-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Button
                         type="button"
@@ -6661,7 +6661,7 @@ export default function App() {
                         Создать пак
                       </Button>
                     </div>
-                    <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2">
                       {casePacks.map((pack) => {
                         const isLocked = PACK_PAYWALL_PREVIEW_ENABLED && pack.key !== baseCreatePackKey;
                         const visual = getCasePackVisual(pack.key, pack.title);
@@ -6722,8 +6722,8 @@ export default function App() {
                     </div>
                   </div>
                 ) : (
-                <div className="flex h-[calc(88vh-170px)] max-h-[670px] min-h-0 flex-col gap-3">
-                  <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 via-zinc-900/80 to-zinc-900 px-4 py-3">
+                <div className="mt-1 flex min-h-0 flex-1 flex-col gap-3">
+                  <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 via-zinc-900/80 to-zinc-900 px-4 py-2.5">
                     <div className="text-xs uppercase tracking-[0.12em] text-zinc-400">
                       Выбранный режим
                     </div>
@@ -6734,7 +6734,7 @@ export default function App() {
                       На {selectedCreateMode.maxPlayers} игроков
                     </div>
                   </div>
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-2.5 md:grid-cols-2">
                     <div className="space-y-2 md:col-span-2">
                       <label className="text-sm text-zinc-300">Название комнаты</label>
                       <Input
@@ -6761,7 +6761,7 @@ export default function App() {
                             key={mode.key}
                             type="button"
                             onClick={() => setCreateRoomMode(mode.key)}
-                            className={`text-left rounded-xl border px-3 py-3 transition-colors ${
+                            className={`text-left rounded-xl border px-3 py-2.5 transition-colors ${
                               createRoomMode === mode.key
                                 ? "border-red-500/70 bg-red-600/15"
                                 : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
@@ -6782,7 +6782,7 @@ export default function App() {
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <label className="text-sm text-zinc-300">Пак дел</label>
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-3">
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-2.5">
                         {casePacks.length > 0 ? (
                           <div className="space-y-2">
                             <div className="rounded-xl border border-zinc-700 bg-zinc-950/80 px-3 py-3">
@@ -6802,7 +6802,7 @@ export default function App() {
                               type="button"
                               variant="outline"
                               onClick={() => setCreatePackCatalogOpen(true)}
-                              className="h-10 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                              className="h-9 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                             >
                               Открыть каталог паков
                             </Button>
@@ -6822,7 +6822,7 @@ export default function App() {
                         )}
                       </div>
                     </div>
-                    <div className="md:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-3">
+                    <div className="md:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-2.5">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-medium text-zinc-100">
@@ -6888,7 +6888,7 @@ export default function App() {
                       );
                       setCreatePackCatalogOpen(false);
                     }}
-                    className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0 gap-2"
+                    className="mt-auto w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0 gap-2"
                   >
                     <UserPlus className="w-4 h-4" />
                     Создать комнату
