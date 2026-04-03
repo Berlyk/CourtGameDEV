@@ -157,6 +157,10 @@ authRouter.patch("/auth/profile", async (req, res) => {
       req.body?.selectedBadgeKey === null || typeof req.body?.selectedBadgeKey === "string"
         ? req.body.selectedBadgeKey
         : undefined;
+    const preferredRole =
+      req.body?.preferredRole === null || typeof req.body?.preferredRole === "string"
+        ? req.body.preferredRole
+        : undefined;
     const updatedUser = await updateProfileByToken(token, {
       nickname,
       avatar,
@@ -169,6 +173,16 @@ authRouter.patch("/auth/profile", async (req, res) => {
       birthDate,
       hideAge,
       selectedBadgeKey,
+      preferredRole:
+        preferredRole === "judge" ||
+        preferredRole === "plaintiff" ||
+        preferredRole === "defendant" ||
+        preferredRole === "defenseLawyer" ||
+        preferredRole === "prosecutor" ||
+        preferredRole === "plaintiffLawyer" ||
+        preferredRole === null
+          ? preferredRole
+          : undefined,
     });
     if (!updatedUser) {
       return res.status(401).json({ message: "Сессия недействительна." });

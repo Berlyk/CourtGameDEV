@@ -80,6 +80,14 @@ type RoomModeKey =
   | "criminal_5"
   | "company_6";
 
+type AssignableRole =
+  | "judge"
+  | "plaintiff"
+  | "defendant"
+  | "defenseLawyer"
+  | "prosecutor"
+  | "plaintiffLawyer";
+
 const ROOM_MODE_OPTIONS: Array<{
   key: RoomModeKey;
   title: string;
@@ -111,6 +119,22 @@ const ROOM_MODE_OPTIONS: Array<{
     maxPlayers: 6,
   },
 ];
+
+const ASSIGNABLE_ROLE_TITLES: Record<AssignableRole, string> = {
+  judge: "Судья",
+  plaintiff: "Истец",
+  defendant: "Ответчик",
+  defenseLawyer: "Адвокат ответчика",
+  prosecutor: "Прокурор",
+  plaintiffLawyer: "Адвокат истца",
+};
+
+const ROLE_KEYS_BY_PLAYERS: Record<number, AssignableRole[]> = {
+  3: ["judge", "plaintiff", "defendant"],
+  4: ["judge", "plaintiff", "defendant", "defenseLawyer"],
+  5: ["judge", "plaintiff", "defendant", "defenseLawyer", "prosecutor"],
+  6: ["judge", "plaintiff", "defendant", "defenseLawyer", "prosecutor", "plaintiffLawyer"],
+};
 
 const QUICK_ROOM_MODE = {
   key: "quick_flex" as RoomModeKey,
@@ -1419,9 +1443,14 @@ interface PlayerInfo {
   id: string;
   userId?: string;
   name: string;
+  isBot?: boolean;
   avatar?: string;
   banner?: string;
   selectedBadgeKey?: string;
+  preferredRole?: AssignableRole | null;
+  lobbyAssignedRole?: AssignableRole | null;
+  roleAssignmentSource?: "auto_preference" | "manual" | "random" | null;
+  rolePreferenceStatus?: "idle" | "assigned" | "conflict" | "unavailable";
   roleKey?: string;
   roleTitle?: string;
   warningCount?: number;
@@ -1528,6 +1557,7 @@ interface AuthUser {
   hideAge: boolean;
   createdAt: number;
   selectedBadgeKey?: string;
+  preferredRole?: AssignableRole;
 }
 
 interface CasePackInfo {
@@ -1583,6 +1613,7 @@ interface PublicUserProfile {
     progressLabel?: string;
   }>;
   selectedBadgeKey?: string;
+  preferredRole?: AssignableRole;
   recentMatches?: Array<{
     roomCode: string;
     verdict: string;
@@ -1654,6 +1685,7 @@ interface RoomState {
   players: PlayerInfo[];
   started: boolean;
   isHostJudge?: boolean;
+  usePreferredRoles?: boolean;
   visibility?: "public" | "private";
   venueLabel?: string;
   venueUrl?: string;
@@ -2025,6 +2057,19 @@ function isNicknameTakenError(message: string): boolean {
   );
 }
 
+function getLobbyAssignableRoles(
+  modeKey: RoomModeKey | undefined,
+  activePlayersCount: number,
+  maxPlayers: number,
+): AssignableRole[] {
+  if (modeKey === "quick_flex") {
+    const count = Math.max(3, Math.min(maxPlayers, activePlayersCount));
+    return ROLE_KEYS_BY_PLAYERS[count] ?? ROLE_KEYS_BY_PLAYERS[3];
+  }
+  const modeMeta = getRoomModeMeta(modeKey, maxPlayers);
+  return ROLE_KEYS_BY_PLAYERS[modeMeta.maxPlayers] ?? ROLE_KEYS_BY_PLAYERS[3];
+}
+
 function isEmailTakenError(message: string): boolean {
   const normalized = message.toLowerCase();
   return (
@@ -2167,6 +2212,7 @@ function getBadgeCategory(badge: {
 function PlayerCard({
   player,
   isHost,
+  showLobbyAssignedRole = false,
   canKick = false,
   onKick,
   onOpenProfile,
@@ -2174,6 +2220,7 @@ function PlayerCard({
 }: {
   player: PlayerInfo;
   isHost: boolean;
+  showLobbyAssignedRole?: boolean;
   canKick?: boolean;
   onKick?: () => void;
   onOpenProfile?: (userId?: string) => void;
@@ -2188,11 +2235,25 @@ function PlayerCard({
   const isDisconnected = disconnectRemainingMs > 0;
   const playerRoleLabel = isHost
     ? "Ведущий комнаты"
+    : showLobbyAssignedRole && player.lobbyAssignedRole
+      ? ASSIGNABLE_ROLE_TITLES[player.lobbyAssignedRole]
+    : showLobbyAssignedRole
+      ? "Случайная"
     : player.roleKey === "witness"
       ? "Свидетель"
       : player.roleKey === "observer"
         ? "Наблюдатель"
         : "Игрок";
+  const roleSourceLabel =
+    showLobbyAssignedRole && !isHost
+      ? player.roleAssignmentSource === "auto_preference"
+        ? "авто"
+        : player.roleAssignmentSource === "manual"
+          ? "вручную"
+          : player.roleAssignmentSource === "random"
+            ? "случайная"
+            : ""
+      : "";
   const disconnectProgress = isDisconnected
     ? 1 - Math.min(1, disconnectRemainingMs / RECONNECT_GRACE_MS)
     : 1;
@@ -2232,7 +2293,7 @@ function PlayerCard({
                 ) : null}
               </div>
               <div className="text-sm text-zinc-400">
-                {playerRoleLabel}
+                {roleSourceLabel ? `${playerRoleLabel} • ${roleSourceLabel}` : playerRoleLabel}
               </div>
             </div>
           </button>
@@ -2489,6 +2550,7 @@ export default function App() {
   const [profileBio, setProfileBio] = useState("");
   const [profileGender, setProfileGender] = useState<"" | "male" | "female" | "other">("");
   const [profileBirthDate, setProfileBirthDate] = useState("");
+  const [preferredRoleDraft, setPreferredRoleDraft] = useState<AssignableRole | "">("");
   const [profileNicknameError, setProfileNicknameError] = useState("");
   const [profileBirthDateError, setProfileBirthDateError] = useState("");
   const [profileHideAge, setProfileHideAge] = useState(false);
@@ -2546,6 +2608,7 @@ export default function App() {
   const [publicMatches, setPublicMatches] = useState<PublicMatchInfo[]>([]);
   const [joinPasswordDialogOpen, setJoinPasswordDialogOpen] = useState(false);
   const [observerListDialogOpen, setObserverListDialogOpen] = useState(false);
+  const [adminBotCount, setAdminBotCount] = useState(1);
   const [joinPasswordDialogMatch, setJoinPasswordDialogMatch] = useState<PublicMatchInfo | null>(null);
   const [joinPasswordInput, setJoinPasswordInput] = useState("");
   const [joinPasswordDialogError, setJoinPasswordDialogError] = useState("");
@@ -2648,6 +2711,7 @@ export default function App() {
   const sharedAvatar = avatar;
   const sharedBanner = banner;
   const isAuthenticated = !!authUser && !!authToken;
+  const isCreatorAdmin = (authUser?.login ?? "").trim().toLowerCase() === "berly";
   const selectedCreateMode = getRoomModeMeta(createRoomMode);
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
@@ -3123,6 +3187,7 @@ export default function App() {
     );
     setProfileBirthDate(formatIsoDateToRu(authUser.birthDate));
     setProfileHideAge(!!authUser.hideAge);
+    setPreferredRoleDraft(authUser.preferredRole ?? "");
   }, [authUser]);
 
   useEffect(() => {
@@ -3407,6 +3472,7 @@ export default function App() {
         modeKey,
         casePackKey,
         maxPlayers,
+        usePreferredRoles,
         visibility,
         venueLabel,
         venueUrl,
@@ -3420,6 +3486,7 @@ export default function App() {
         modeKey?: RoomModeKey;
         casePackKey?: string;
         maxPlayers?: number;
+        usePreferredRoles?: boolean;
         visibility?: "public" | "private";
         venueLabel?: string;
         venueUrl?: string;
@@ -3443,6 +3510,7 @@ export default function App() {
             modeKey: modeKey ?? prev.modeKey,
             casePackKey: casePackKey ?? prev.casePackKey,
             maxPlayers: maxPlayers ?? prev.maxPlayers,
+            usePreferredRoles: usePreferredRoles ?? prev.usePreferredRoles,
             visibility: visibility ?? prev.visibility,
             venueLabel: venueLabel ?? prev.venueLabel,
             venueUrl: venueUrl ?? prev.venueUrl,
@@ -4006,6 +4074,7 @@ export default function App() {
           birthDate: normalizedBirthDate || null,
           hideAge: profileHideAge,
           selectedBadgeKey: selectedBadgeKey || null,
+          preferredRole: preferredRoleDraft || null,
         },
       });
       setAuthUser(payload.user);
@@ -4033,6 +4102,7 @@ export default function App() {
           avatar: profileAvatarDraft,
           banner: profileBannerDraft,
           selectedBadgeKey: selectedBadgeKey || null,
+          preferredRole: preferredRoleDraft || null,
         });
       }
       await reloadMyProfile();
@@ -4059,6 +4129,7 @@ export default function App() {
     profileBio,
     profileGender,
     profileHideAge,
+    preferredRoleDraft,
     reloadMyProfile,
     selectedBadgeKey,
     profileAvatarDraft,
@@ -4222,6 +4293,7 @@ export default function App() {
     localStorage.setItem("court_nickname", user.nickname);
     setPlayerName(user.nickname);
     setProfileNicknameDraft(user.nickname);
+    setPreferredRoleDraft(user.preferredRole ?? "");
     if (user.avatar) {
       setAvatar(user.avatar);
       localStorage.setItem("court_avatar", user.avatar);
@@ -4240,6 +4312,7 @@ export default function App() {
         name: user.nickname,
         avatar: user.avatar ?? null,
         banner: user.banner ?? null,
+        preferredRole: user.preferredRole ?? null,
       });
     }
     setScreen("profile");
@@ -4385,6 +4458,33 @@ export default function App() {
       isHostJudge: checked,
     });
   }, [socket, room, roomControlSessionToken]);
+
+  const togglePreferredRoles = useCallback((checked: boolean) => {
+    if (!room || !roomControlSessionToken) return;
+    socket.emit("set_use_preferred_roles", {
+      code: room.code,
+      sessionToken: roomControlSessionToken,
+      usePreferredRoles: checked,
+    });
+  }, [socket, room, roomControlSessionToken]);
+
+  const chooseLobbyRole = useCallback((roleKey: AssignableRole | null) => {
+    if (!room || !mySessionToken) return;
+    socket.emit("choose_lobby_role", {
+      code: room.code,
+      sessionToken: mySessionToken,
+      roleKey,
+    });
+  }, [socket, room, mySessionToken]);
+
+  const addAdminBots = useCallback(() => {
+    if (!room || !authToken || !isCreatorAdmin || roomControlPlayerId !== room.hostId) return;
+    socket.emit("admin_add_bots", {
+      code: room.code,
+      authToken,
+      count: Math.max(1, Math.min(6, adminBotCount)),
+    });
+  }, [socket, room, authToken, isCreatorAdmin, roomControlPlayerId, adminBotCount]);
 
   const kickPlayerFromRoom = useCallback(
     (targetPlayerId: string) => {
@@ -4866,10 +4966,11 @@ export default function App() {
           ? authUser.gender
           : "") ||
       profileBirthDate !== formatIsoDateToRu(authUser?.birthDate) ||
-      profileHideAge !== !!authUser?.hideAge ||
-      (profileAvatarDraft ?? null) !== (avatar ?? null) ||
-      (profileBannerDraft ?? null) !== (banner ?? null) ||
-      (selectedBadgeKey || "") !== (baseSelectedBadgeKey || "");
+            profileHideAge !== !!authUser?.hideAge ||
+            (profileAvatarDraft ?? null) !== (avatar ?? null) ||
+            (profileBannerDraft ?? null) !== (banner ?? null) ||
+            (selectedBadgeKey || "") !== (baseSelectedBadgeKey || "") ||
+            (preferredRoleDraft || "") !== (authUser?.preferredRole || "");
     const requestLeaveProfile = async () => {
       if (profileActionLoading) return;
       if (!hasUnsavedProfileChanges) {
@@ -5099,6 +5200,39 @@ export default function App() {
                           <div className="text-xs text-zinc-500">Возраст в профиле будет скрыт.</div>
                         </div>
                         <Switch checked={profileHideAge} onCheckedChange={setProfileHideAge} />
+                      </div>
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2">
+                        <div className="text-sm text-zinc-100">Предпочитаемая роль</div>
+                        <div className="text-xs text-zinc-500">
+                          Автовыбор в лобби, если ведущий включит распределение ролей.
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPreferredRoleDraft("")}
+                            className={`h-8 rounded-lg border px-2.5 text-xs transition-colors ${
+                              preferredRoleDraft === ""
+                                ? "border-red-500 bg-red-600 text-white"
+                                : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                            }`}
+                          >
+                            Без предпочтения
+                          </button>
+                          {(Object.keys(ASSIGNABLE_ROLE_TITLES) as AssignableRole[]).map((roleKey) => (
+                            <button
+                              key={roleKey}
+                              type="button"
+                              onClick={() => setPreferredRoleDraft(roleKey)}
+                              className={`h-8 rounded-lg border px-2.5 text-xs transition-colors ${
+                                preferredRoleDraft === roleKey
+                                  ? "border-red-500 bg-red-600 text-white"
+                                  : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                              }`}
+                            >
+                              {ASSIGNABLE_ROLE_TITLES[roleKey]}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
@@ -7149,14 +7283,30 @@ export default function App() {
     const roomPackMeta = casePacks.find((pack) => pack.key === (room.casePackKey ?? "classic"));
     const roomPackTitle = roomPackMeta?.title ?? (room.casePackKey ? room.casePackKey.toUpperCase() : "КЛАССИКА");
     const roomMaxPlayers = room.maxPlayers ?? roomModeMeta.maxPlayers;
+    const usePreferredRoles = !!room.usePreferredRoles;
     const lobbyObservers = room.players.filter((player) => player.roleKey === "observer");
     const isQuickRoomMode = room.modeKey === "quick_flex";
-    const activeLobbyPlayersCount = room.players.filter(
+    const activeLobbyPlayers = room.players.filter(
       (player) => player.roleKey !== "witness" && player.roleKey !== "observer",
-    ).length;
+    );
+    const activeLobbyPlayersCount = activeLobbyPlayers.length;
+    const lobbyAssignableRoles = getLobbyAssignableRoles(
+      room.modeKey,
+      activeLobbyPlayersCount,
+      roomMaxPlayers,
+    );
+    const occupiedLobbyRoles = new Set<AssignableRole>(
+      activeLobbyPlayers
+        .map((player) => player.lobbyAssignedRole)
+        .filter((role): role is AssignableRole => !!role),
+    );
+    const myLobbyPlayer = room.players.find((player) => player.id === myId) ?? null;
     const canStartRoomNow = isQuickRoomMode
       ? activeLobbyPlayersCount >= 3 && activeLobbyPlayersCount <= roomMaxPlayers
       : activeLobbyPlayersCount === roomMaxPlayers;
+    const allLobbyRolesAssigned = usePreferredRoles
+      ? lobbyAssignableRoles.every((role) => occupiedLobbyRoles.has(role))
+      : true;
     const neededPlayersForStart = isQuickRoomMode
       ? Math.max(0, 3 - activeLobbyPlayersCount)
       : Math.max(0, roomMaxPlayers - activeLobbyPlayersCount);
@@ -7300,6 +7450,7 @@ export default function App() {
                           key={player.id}
                           player={player}
                           isHost={player.id === room.hostId}
+                          showLobbyAssignedRole={usePreferredRoles}
                           canKick={myId === room.hostId && player.id !== room.hostId}
                           onKick={() => kickPlayerFromRoom(player.id)}
                           onOpenProfile={openUserProfile}
@@ -7308,6 +7459,66 @@ export default function App() {
                       ))}
                     </AnimatePresence>
                   </div>
+                  {usePreferredRoles &&
+                    myLobbyPlayer &&
+                    myLobbyPlayer.roleKey !== "witness" &&
+                    myLobbyPlayer.roleKey !== "observer" && (
+                      <div className="mt-3 rounded-2xl border border-zinc-800 bg-zinc-900/70 px-3 py-3">
+                        <div className="text-sm font-semibold text-zinc-100">Моя роль в лобби</div>
+                        <div className="mt-1 text-xs text-zinc-400">
+                          {myLobbyPlayer.lobbyAssignedRole
+                            ? `Назначено: ${ASSIGNABLE_ROLE_TITLES[myLobbyPlayer.lobbyAssignedRole]}`
+                            : "Сейчас: Случайная"}
+                        </div>
+                        {myLobbyPlayer.rolePreferenceStatus === "conflict" && (
+                          <div className="mt-1 text-xs text-amber-300">
+                            Предпочитаемая роль занята. Выберите другую из свободных.
+                          </div>
+                        )}
+                        {myLobbyPlayer.rolePreferenceStatus === "unavailable" && (
+                          <div className="mt-1 text-xs text-amber-300">
+                            Предпочитаемая роль недоступна в этом режиме.
+                          </div>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => chooseLobbyRole(null)}
+                            className={`h-8 rounded-lg border px-2.5 text-xs transition-colors ${
+                              !myLobbyPlayer.lobbyAssignedRole
+                                ? "border-red-500 bg-red-600 text-white"
+                                : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                            }`}
+                          >
+                            Случайная
+                          </button>
+                          {lobbyAssignableRoles.map((roleKey) => {
+                            const occupiedByOther = activeLobbyPlayers.some(
+                              (player) =>
+                                player.id !== myLobbyPlayer.id && player.lobbyAssignedRole === roleKey,
+                            );
+                            const isSelected = myLobbyPlayer.lobbyAssignedRole === roleKey;
+                            return (
+                              <button
+                                key={roleKey}
+                                type="button"
+                                disabled={occupiedByOther && !isSelected}
+                                onClick={() => chooseLobbyRole(roleKey)}
+                                className={`h-8 rounded-lg border px-2.5 text-xs transition-colors ${
+                                  isSelected
+                                    ? "border-red-500 bg-red-600 text-white"
+                                    : occupiedByOther
+                                      ? "border-zinc-800 bg-zinc-900 text-zinc-600 cursor-not-allowed"
+                                      : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                                }`}
+                              >
+                                {ASSIGNABLE_ROLE_TITLES[roleKey]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   {neededPlayersForStart > 0 && (
                     <div className="absolute inset-x-0 bottom-1 text-center text-sm text-zinc-500">
                       Ожидание игроков... (нужно ещё минимум {neededPlayersForStart})
@@ -7361,6 +7572,49 @@ export default function App() {
                         );
                       })()}
                     </div>
+                    {myId === room.hostId && (
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm text-zinc-100">Распределение ролей в лобби</div>
+                            <div className="text-xs text-zinc-500">
+                              Игроки заранее выбирают роли, конфликты решаются автоматически.
+                            </div>
+                          </div>
+                          <Switch
+                            checked={usePreferredRoles}
+                            onCheckedChange={togglePreferredRoles}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {myId === room.hostId && isCreatorAdmin && (
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                        <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Админ-панель</div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            max={6}
+                            value={adminBotCount}
+                            onChange={(e) => setAdminBotCount(Math.max(1, Math.min(6, Number(e.target.value) || 1)))}
+                            className="h-8 w-20 rounded-lg border-zinc-700 bg-zinc-900 text-zinc-100"
+                          />
+                          <Button
+                            type="button"
+                            onClick={addAdminBots}
+                            className="h-8 rounded-lg bg-red-600 px-3 text-xs text-white hover:bg-red-500"
+                          >
+                            Добавить ботов
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {usePreferredRoles && !allLobbyRolesAssigned && (
+                      <div className="text-xs text-amber-300">
+                        Для старта нужно занять все роли текущего режима.
+                      </div>
+                    )}
                     <div className="text-zinc-400 pt-2">
                       Ведущий запускает игру, сайт случайно выбирает подходящее
                       дело и распределяет роли.
@@ -7370,7 +7624,7 @@ export default function App() {
                         className="mt-3 h-10 rounded-xl gap-2 bg-red-600 hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
                         onClick={startGame}
                         disabled={
-                          startGameLoading || !canStartRoomNow
+                          startGameLoading || !canStartRoomNow || !allLobbyRolesAssigned
                         }
                       >
                         <Play className="w-4 h-4" />

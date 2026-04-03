@@ -1,5 +1,12 @@
 ﻿import crypto from "node:crypto";
 import { pool } from "@workspace/db";
+export type PreferredRole =
+  | "judge"
+  | "plaintiff"
+  | "defendant"
+  | "defenseLawyer"
+  | "prosecutor"
+  | "plaintiffLawyer";
 
 export interface AuthUserPublic {
   id: string;
@@ -14,6 +21,7 @@ export interface AuthUserPublic {
   hideAge: boolean;
   createdAt: number;
   selectedBadgeKey?: string;
+  preferredRole?: PreferredRole;
 }
 
 export interface UserRoleStats {
@@ -92,6 +100,7 @@ export interface AuthUserPublicProfile {
   stats: UserStatsSummary;
   badges: UserBadgeView[];
   selectedBadgeKey?: string;
+  preferredRole?: PreferredRole;
   recentMatches: UserMatchHistoryView[];
   subscription: UserSubscriptionView;
 }
@@ -254,6 +263,7 @@ function toPublicUser(row: {
   birth_date: Date | null;
   hide_age: boolean | null;
   selected_badge_key?: string | null;
+  preferred_role?: string | null;
   created_at: Date;
 }): AuthUserPublic {
   return {
@@ -272,6 +282,15 @@ function toPublicUser(row: {
     hideAge: !!row.hide_age,
     createdAt: row.created_at.getTime(),
     selectedBadgeKey: row.selected_badge_key ?? undefined,
+    preferredRole:
+      row.preferred_role === "judge" ||
+      row.preferred_role === "plaintiff" ||
+      row.preferred_role === "defendant" ||
+      row.preferred_role === "defenseLawyer" ||
+      row.preferred_role === "prosecutor" ||
+      row.preferred_role === "plaintiffLawyer"
+        ? row.preferred_role
+        : undefined,
   };
 }
 
@@ -296,6 +315,7 @@ function toPublicProfile(row: {
   gender: string | null;
   birth_date: Date | null;
   hide_age: boolean | null;
+  preferred_role?: string | null;
   created_at: Date;
 }): AuthUserPublicProfile {
   const age = computeAge(row.birth_date);
@@ -313,6 +333,15 @@ function toPublicProfile(row: {
     hideAge: !!row.hide_age,
     age: row.hide_age ? undefined : age,
     createdAt: row.created_at.getTime(),
+    preferredRole:
+      row.preferred_role === "judge" ||
+      row.preferred_role === "plaintiff" ||
+      row.preferred_role === "defendant" ||
+      row.preferred_role === "defenseLawyer" ||
+      row.preferred_role === "prosecutor" ||
+      row.preferred_role === "plaintiffLawyer"
+        ? row.preferred_role
+        : undefined,
     rank: {
       key: "novice",
       title: "НОВИЧОК",
@@ -373,6 +402,7 @@ async function ensureTables(): Promise<void> {
           gender TEXT,
           birth_date DATE,
           hide_age BOOLEAN NOT NULL DEFAULT FALSE,
+          preferred_role TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
       `);
@@ -400,6 +430,10 @@ async function ensureTables(): Promise<void> {
       await pool.query(`
         ALTER TABLE auth_users
           ADD COLUMN IF NOT EXISTS selected_badge_key TEXT;
+      `);
+      await pool.query(`
+        ALTER TABLE auth_users
+          ADD COLUMN IF NOT EXISTS preferred_role TEXT;
       `);
 
       await pool.query(`
@@ -533,6 +567,7 @@ export async function registerAccount(input: {
     birth_date: Date | null;
     hide_age: boolean | null;
     selected_badge_key: string | null;
+    preferred_role: string | null;
     created_at: Date;
   }>(
     `
@@ -549,7 +584,7 @@ export async function registerAccount(input: {
         accepted_rules_at
       )
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-      RETURNING id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, created_at
+      RETURNING id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, created_at
     `,
     [
       userId,
@@ -609,12 +644,13 @@ export async function loginAccount(input: {
     birth_date: Date | null;
     hide_age: boolean | null;
     selected_badge_key: string | null;
+    preferred_role: string | null;
     created_at: Date;
     password_salt: string;
     password_hash: string;
   }>(
     `
-      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, created_at, password_salt, password_hash
+      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, created_at, password_salt, password_hash
       FROM auth_users
       WHERE login_normalized = $1 OR email_normalized = $1
       LIMIT 1
@@ -655,10 +691,11 @@ export async function getUserByToken(token: string): Promise<AuthUserPublic | nu
     birth_date: Date | null;
     hide_age: boolean | null;
     selected_badge_key: string | null;
+    preferred_role: string | null;
     created_at: Date;
   }>(
     `
-      SELECT u.id, u.login, u.email, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.selected_badge_key, u.created_at
+      SELECT u.id, u.login, u.email, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.selected_badge_key, u.preferred_role, u.created_at
       FROM auth_sessions s
       JOIN auth_users u ON u.id = s.user_id
       WHERE s.token = $1
@@ -687,6 +724,7 @@ export async function updateProfileByToken(
     birthDate?: string | null;
     hideAge?: boolean;
     selectedBadgeKey?: string | null;
+    preferredRole?: PreferredRole | null;
   },
 ): Promise<AuthUserPublic | null> {
   await cleanupSessions();
@@ -819,6 +857,22 @@ export async function updateProfileByToken(
     ]);
   }
 
+  if (profile.preferredRole !== undefined) {
+    const preferredRole =
+      profile.preferredRole === "judge" ||
+      profile.preferredRole === "plaintiff" ||
+      profile.preferredRole === "defendant" ||
+      profile.preferredRole === "defenseLawyer" ||
+      profile.preferredRole === "prosecutor" ||
+      profile.preferredRole === "plaintiffLawyer"
+        ? profile.preferredRole
+        : null;
+    await pool.query(`UPDATE auth_users SET preferred_role = $1 WHERE id = $2`, [
+      preferredRole,
+      userId,
+    ]);
+  }
+
   const userResult = await pool.query<{
     id: string;
     login: string;
@@ -831,10 +885,11 @@ export async function updateProfileByToken(
     birth_date: Date | null;
     hide_age: boolean | null;
     selected_badge_key: string | null;
+    preferred_role: string | null;
     created_at: Date;
   }>(
     `
-      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, created_at
+      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, created_at
       FROM auth_users
       WHERE id = $1
       LIMIT 1
@@ -1176,10 +1231,11 @@ export async function getProfileByToken(
     birth_date: Date | null;
     hide_age: boolean | null;
     selected_badge_key: string | null;
+    preferred_role: string | null;
     created_at: Date;
   }>(
     `
-      SELECT u.id, u.login, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.selected_badge_key, u.created_at
+      SELECT u.id, u.login, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.selected_badge_key, u.preferred_role, u.created_at
       FROM auth_sessions s
       JOIN auth_users u ON u.id = s.user_id
       WHERE s.token = $1
@@ -1239,10 +1295,11 @@ export async function getPublicUserProfileById(
     birth_date: Date | null;
     hide_age: boolean | null;
     selected_badge_key: string | null;
+    preferred_role: string | null;
     created_at: Date;
   }>(
     `
-      SELECT id, login, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, created_at
+      SELECT id, login, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, created_at
       FROM auth_users
       WHERE id = $1
       LIMIT 1
@@ -1453,4 +1510,5 @@ export async function recordMatchOutcome(input: {
     );
   }
 }
+
 

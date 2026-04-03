@@ -85,7 +85,12 @@ export interface Player {
   id: string;
   userId?: string;
   name: string;
+  isBot?: boolean;
   selectedBadgeKey?: string;
+  preferredRole?: AssignableRole | null;
+  lobbyAssignedRole?: AssignableRole | null;
+  roleAssignmentSource?: "auto_preference" | "manual" | "random" | null;
+  rolePreferenceStatus?: "idle" | "assigned" | "conflict" | "unavailable";
   socketId: string;
   sessionToken?: string;
   disconnectedUntil?: number;
@@ -152,6 +157,7 @@ export interface Room {
   game: GameState | null;
   started: boolean;
   isHostJudge: boolean;
+  usePreferredRoles: boolean;
   visibility: "public" | "private";
   password?: string;
   venueLabel?: string;
@@ -194,7 +200,16 @@ export interface CreateRoomOptions {
   roomName?: string;
   venueLabel?: string;
   venueUrl?: string;
+  usePreferredRoles?: boolean;
 }
+
+export type AssignableRole =
+  | "judge"
+  | "plaintiff"
+  | "defendant"
+  | "defenseLawyer"
+  | "prosecutor"
+  | "plaintiffLawyer";
 
 export type RoomModeKey =
   | "quick_flex"
@@ -234,6 +249,132 @@ function getSupportRoleForJoin(room: Room): "witness" | "observer" {
   return witnesses < MAX_WITNESS_PLAYERS ? "witness" : "observer";
 }
 
+function getAssignableRolesForCount(playerCount: number): AssignableRole[] {
+  return roleOrderByCount[playerCount] as AssignableRole[];
+}
+
+function getActiveLobbyPlayers(room: Room): Player[] {
+  return room.players.filter(
+    (player) => player.roleKey !== "witness" && player.roleKey !== "observer",
+  );
+}
+
+function getRequiredRolesForRoom(room: Room): AssignableRole[] {
+  const activePlayers = getActiveLobbyPlayers(room);
+  const count =
+    room.modeKey === "quick_flex"
+      ? Math.max(3, Math.min(room.maxPlayers, activePlayers.length))
+      : room.maxPlayers;
+  return getAssignableRolesForCount(count);
+}
+
+function clearLobbyRoleState(player: Player) {
+  player.lobbyAssignedRole = null;
+  player.roleAssignmentSource = null;
+  player.rolePreferenceStatus = "idle";
+}
+
+function assignLobbyRole(
+  player: Player,
+  role: AssignableRole,
+  source: "auto_preference" | "manual" | "random",
+) {
+  player.lobbyAssignedRole = role;
+  player.roleAssignmentSource = source;
+  player.rolePreferenceStatus = "assigned";
+}
+
+function rebalanceLobbyRoleAssignments(room: Room) {
+  const requiredRoles = new Set<AssignableRole>(getRequiredRolesForRoom(room));
+  const activePlayers = getActiveLobbyPlayers(room);
+  if (!room.usePreferredRoles) {
+    activePlayers.forEach(clearLobbyRoleState);
+    return;
+  }
+
+  const occupiedRoles = new Set<AssignableRole>();
+  const manualAssigned = new Set<string>();
+
+  activePlayers.forEach((player) => {
+    const currentRole = player.lobbyAssignedRole;
+    if (currentRole && requiredRoles.has(currentRole) && !occupiedRoles.has(currentRole)) {
+      assignLobbyRole(
+        player,
+        currentRole,
+        player.roleAssignmentSource === "manual" ? "manual" : "auto_preference",
+      );
+      occupiedRoles.add(currentRole);
+      if (player.roleAssignmentSource === "manual") {
+        manualAssigned.add(player.id);
+      }
+      return;
+    }
+    clearLobbyRoleState(player);
+  });
+
+  if (room.isHostJudge) {
+    const host = activePlayers.find((player) => player.id === room.hostId);
+    if (host && requiredRoles.has("judge")) {
+      if (host.lobbyAssignedRole && host.lobbyAssignedRole !== "judge") {
+        clearLobbyRoleState(host);
+      }
+      if (!occupiedRoles.has("judge")) {
+        assignLobbyRole(host, "judge", "manual");
+        occupiedRoles.add("judge");
+        manualAssigned.add(host.id);
+      }
+    }
+  }
+
+  const byRole = new Map<AssignableRole, Player[]>();
+  activePlayers.forEach((player) => {
+    if (manualAssigned.has(player.id)) return;
+    if (player.lobbyAssignedRole) return;
+    const pref = player.preferredRole;
+    if (!pref) {
+      player.rolePreferenceStatus = "idle";
+      return;
+    }
+    if (!requiredRoles.has(pref)) {
+      player.rolePreferenceStatus = "unavailable";
+      return;
+    }
+    const list = byRole.get(pref) ?? [];
+    list.push(player);
+    byRole.set(pref, list);
+  });
+
+  for (const role of requiredRoles) {
+    if (occupiedRoles.has(role)) continue;
+    const candidates = byRole.get(role) ?? [];
+    if (!candidates.length) continue;
+    if (candidates.length === 1) {
+      assignLobbyRole(candidates[0], role, "auto_preference");
+      occupiedRoles.add(role);
+      continue;
+    }
+    const pickedIndex = Math.floor(Math.random() * candidates.length);
+    const winner = candidates[pickedIndex];
+    assignLobbyRole(winner, role, "auto_preference");
+    occupiedRoles.add(role);
+    candidates.forEach((player, index) => {
+      if (index !== pickedIndex && !player.lobbyAssignedRole) {
+        player.rolePreferenceStatus = "conflict";
+      }
+    });
+  }
+
+  activePlayers.forEach((player) => {
+    if (player.lobbyAssignedRole) return;
+    if (player.rolePreferenceStatus === "conflict" || player.rolePreferenceStatus === "unavailable") {
+      player.roleAssignmentSource = "random";
+      return;
+    }
+    player.rolePreferenceStatus = "idle";
+    player.roleAssignmentSource = "random";
+  });
+}
+
 function normalizeLoadedPlayer(player: any): Player | null {
   if (!player || typeof player.id !== "string" || typeof player.name !== "string") {
     return null;
@@ -242,6 +383,26 @@ function normalizeLoadedPlayer(player: any): Player | null {
     id: player.id,
     userId: typeof player.userId === "string" ? player.userId : undefined,
     name: player.name,
+    isBot: !!player.isBot,
+    preferredRole:
+      typeof player.preferredRole === "string" ? (player.preferredRole as AssignableRole) : null,
+    lobbyAssignedRole:
+      typeof player.lobbyAssignedRole === "string"
+        ? (player.lobbyAssignedRole as AssignableRole)
+        : null,
+    roleAssignmentSource:
+      player.roleAssignmentSource === "auto_preference" ||
+      player.roleAssignmentSource === "manual" ||
+      player.roleAssignmentSource === "random"
+        ? player.roleAssignmentSource
+        : null,
+    rolePreferenceStatus:
+      player.rolePreferenceStatus === "idle" ||
+      player.rolePreferenceStatus === "assigned" ||
+      player.rolePreferenceStatus === "conflict" ||
+      player.rolePreferenceStatus === "unavailable"
+        ? player.rolePreferenceStatus
+        : "idle",
     socketId: typeof player.socketId === "string" ? player.socketId : "",
     sessionToken:
       typeof player.sessionToken === "string" ? player.sessionToken : undefined,
@@ -293,6 +454,7 @@ export function restoreRoomsFromSnapshots(snapshots: unknown[]): number {
       game: null,
       started: !!snapshot.started,
       isHostJudge: !!snapshot.isHostJudge,
+      usePreferredRoles: !!snapshot.usePreferredRoles,
       visibility: normalizeVisibility(snapshot.visibility),
       password:
         typeof snapshot.password === "string" && snapshot.password.trim()
@@ -351,6 +513,10 @@ export function restoreRoomsFromSnapshots(snapshots: unknown[]): number {
                 : Date.now() + MATCH_TTL_MS,
       };
       loadedRoom.started = true;
+    }
+
+    if (!loadedRoom.started) {
+      rebalanceLobbyRoleAssignments(loadedRoom);
     }
 
     rooms.set(loadedRoom.code, loadedRoom);
@@ -426,6 +592,7 @@ export function createRoom(code: string, player: Player, options?: CreateRoomOpt
     game: null,
     started: false,
     isHostJudge: false,
+    usePreferredRoles: !!options?.usePreferredRoles,
     visibility,
     password,
     venueLabel,
@@ -433,6 +600,7 @@ export function createRoom(code: string, player: Player, options?: CreateRoomOpt
     createdAt: Date.now(),
     lobbyChat: [],
   };
+  rebalanceLobbyRoleAssignments(room);
   rooms.set(code, room);
   return room;
 }
@@ -441,6 +609,92 @@ export function setHostJudge(code: string, isHostJudge: boolean): Room | null {
   const room = rooms.get(code);
   if (!room) return null;
   room.isHostJudge = isHostJudge;
+  rebalanceLobbyRoleAssignments(room);
+  return room;
+}
+
+export function setUsePreferredRoles(code: string, usePreferredRoles: boolean): Room | null {
+  const room = rooms.get(code);
+  if (!room || room.started) return null;
+  room.usePreferredRoles = !!usePreferredRoles;
+  rebalanceLobbyRoleAssignments(room);
+  return room;
+}
+
+export function chooseLobbyRole(
+  code: string,
+  playerId: string,
+  role: AssignableRole | null,
+): { room: Room; ok: true } | { room: Room; ok: false; reason: string } | null {
+  const room = rooms.get(code);
+  if (!room || room.started || !room.usePreferredRoles) return null;
+  const player = room.players.find((entry) => entry.id === playerId);
+  if (!player) return null;
+  if (player.roleKey === "witness" || player.roleKey === "observer") {
+    return { room, ok: false, reason: "Свидетели и наблюдатели не выбирают роль." };
+  }
+
+  const requiredRoles = getRequiredRolesForRoom(room);
+  const requiredSet = new Set(requiredRoles);
+  if (role && !requiredSet.has(role)) {
+    return { room, ok: false, reason: "Эта роль недоступна для текущего режима." };
+  }
+
+  const occupied = new Set<AssignableRole>();
+  getActiveLobbyPlayers(room).forEach((entry) => {
+    if (entry.id === player.id) return;
+    if (entry.lobbyAssignedRole && requiredSet.has(entry.lobbyAssignedRole)) {
+      occupied.add(entry.lobbyAssignedRole);
+    }
+  });
+
+  if (role && occupied.has(role)) {
+    rebalanceLobbyRoleAssignments(room);
+    return { room, ok: false, reason: "Роль уже занята другим игроком." };
+  }
+
+  if (role) {
+    assignLobbyRole(player, role, "manual");
+  } else {
+    clearLobbyRoleState(player);
+    player.roleAssignmentSource = "random";
+  }
+
+  rebalanceLobbyRoleAssignments(room);
+  return { room, ok: true };
+}
+
+export function addAdminBotsToRoom(
+  code: string,
+  count: number,
+): Room | null {
+  const room = rooms.get(code);
+  if (!room || room.started) return null;
+  const safeCount = Math.max(1, Math.min(6, Math.floor(count)));
+  for (let i = 0; i < safeCount; i += 1) {
+    const botId = crypto.randomUUID();
+    const existingNumbers = new Set(
+      room.players
+        .map((player) => {
+          const match = /^Бот-(\d+)$/i.exec((player.name ?? "").trim());
+          return match ? Number(match[1]) : null;
+        })
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value)),
+    );
+    let num = 1;
+    while (existingNumbers.has(num)) num += 1;
+    room.players.push({
+      id: botId,
+      name: `Бот-${num}`,
+      isBot: true,
+      socketId: `bot:${botId}`,
+      preferredRole: null,
+      lobbyAssignedRole: null,
+      roleAssignmentSource: "random",
+      rolePreferenceStatus: "idle",
+    });
+  }
+  rebalanceLobbyRoleAssignments(room);
   return room;
 }
 
@@ -514,6 +768,7 @@ export function joinRoom(code: string, player: Player, password?: string): Room 
   if (room.players.length >= room.maxPlayers) return null;
   if (!isJoinPasswordValid(code, password)) return null;
   room.players.push(player);
+  rebalanceLobbyRoleAssignments(room);
   return room;
 }
 
@@ -543,6 +798,7 @@ export function joinRoomAsLobbyWitness(
   };
 
   room.players.push(witnessPlayer);
+  rebalanceLobbyRoleAssignments(room);
   return room;
 }
 
@@ -771,6 +1027,8 @@ export function removePlayer(code: string, playerId: string): Room | null {
     }
   }
 
+  rebalanceLobbyRoleAssignments(room);
+
   return room;
 }
 
@@ -928,6 +1186,7 @@ export function markMissingSocketPlayersDisconnected(
   let updatedPlayers = 0;
 
   const normalizePlayer = (player: Player) => {
+    if (player.isBot) return;
     const socketId = player.socketId?.trim() ?? "";
     if (!socketId) return;
     if (isSocketAlive(socketId)) return;
@@ -991,6 +1250,7 @@ export function updatePlayerProfile(
     avatar?: string | null;
     banner?: string | null;
     selectedBadgeKey?: string | null;
+    preferredRole?: AssignableRole | null;
   },
 ): Room | null {
   const room = rooms.get(code);
@@ -1000,12 +1260,14 @@ export function updatePlayerProfile(
   const normalizedAvatar = profile.avatar || undefined;
   const normalizedBanner = profile.banner || undefined;
   const normalizedBadgeKey = profile.selectedBadgeKey || undefined;
+  const normalizedPreferredRole = profile.preferredRole ?? null;
   const hasName = !!normalizedName;
   const hasAvatar = profile.avatar !== undefined;
   const hasBanner = profile.banner !== undefined;
   const hasBadge = profile.selectedBadgeKey !== undefined;
+  const hasPreferredRole = profile.preferredRole !== undefined;
 
-  if (!hasName && !hasAvatar && !hasBanner && !hasBadge) return room;
+  if (!hasName && !hasAvatar && !hasBanner && !hasBadge && !hasPreferredRole) return room;
 
   const applyProfile = (player: Player) => {
     if (hasName && normalizedName) {
@@ -1019,6 +1281,9 @@ export function updatePlayerProfile(
     }
     if (hasBadge) {
       player.selectedBadgeKey = normalizedBadgeKey;
+    }
+    if (hasPreferredRole) {
+      player.preferredRole = normalizedPreferredRole;
     }
   };
 
@@ -1055,7 +1320,33 @@ export function updatePlayerProfile(
       : entry,
   );
 
+  rebalanceLobbyRoleAssignments(room);
+
   return room;
+}
+
+export function validateLobbyRolesBeforeStart(
+  room: Room,
+): { ok: true } | { ok: false; reason: string } {
+  if (!room.usePreferredRoles) return { ok: true };
+  const activePlayers = getActiveLobbyPlayers(room);
+  const requiredRoles = getRequiredRolesForRoom(room);
+  const assigned = new Map<AssignableRole, string>();
+  for (const player of activePlayers) {
+    const role = player.lobbyAssignedRole;
+    if (!role) continue;
+    if (!requiredRoles.includes(role)) {
+      return { ok: false, reason: "Назначена роль, недоступная для выбранного режима." };
+    }
+    if (assigned.has(role)) {
+      return { ok: false, reason: "Одна и та же роль назначена нескольким игрокам." };
+    }
+    assigned.set(role, player.id);
+  }
+  if (assigned.size !== requiredRoles.length) {
+    return { ok: false, reason: "Не все обязательные роли заняты. Выберите роли перед стартом." };
+  }
+  return { ok: true };
 }
 
 export function startGame(
@@ -1082,19 +1373,42 @@ export function startGame(
   }
 
   const count = mainPlayers.length;
-  const roleKeys = shuffle(roleOrderByCount[count]);
+  const baseRoleKeys = roleOrderByCount[count] as AssignableRole[];
   const stages = buildStagesByPlayerCount(count);
 
-  if (room.isHostJudge) {
-    const hostIndex = mainPlayers.findIndex(p => p.id === room.hostId);
-    const judgeRoleIndex = roleKeys.indexOf("judge");
-    if (hostIndex !== -1 && judgeRoleIndex !== -1 && hostIndex !== judgeRoleIndex) {
-      [roleKeys[hostIndex], roleKeys[judgeRoleIndex]] = [roleKeys[judgeRoleIndex], roleKeys[hostIndex]];
+  const roleByPlayerId = new Map<string, AssignableRole>();
+  if (room.usePreferredRoles) {
+    const remainingRoles = [...baseRoleKeys];
+    mainPlayers.forEach((player) => {
+      const role = player.lobbyAssignedRole;
+      if (!role) return;
+      const idx = remainingRoles.indexOf(role);
+      if (idx < 0) return;
+      roleByPlayerId.set(player.id, role);
+      remainingRoles.splice(idx, 1);
+    });
+    const unassigned = shuffle(mainPlayers.filter((player) => !roleByPlayerId.has(player.id)));
+    unassigned.forEach((player, index) => {
+      const role = remainingRoles[index];
+      if (role) roleByPlayerId.set(player.id, role);
+    });
+  } else {
+    const roleKeys = shuffle(baseRoleKeys);
+    if (room.isHostJudge) {
+      const hostIndex = mainPlayers.findIndex((player) => player.id === room.hostId);
+      const judgeRoleIndex = roleKeys.indexOf("judge");
+      if (hostIndex !== -1 && judgeRoleIndex !== -1 && hostIndex !== judgeRoleIndex) {
+        [roleKeys[hostIndex], roleKeys[judgeRoleIndex]] = [roleKeys[judgeRoleIndex], roleKeys[hostIndex]];
+      }
     }
+    mainPlayers.forEach((player, index) => {
+      const role = roleKeys[index];
+      if (role) roleByPlayerId.set(player.id, role);
+    });
   }
 
-  const assignedPlayers: Player[] = mainPlayers.map((player, index) => {
-    const roleKey = roleKeys[index];
+  const assignedPlayers: Player[] = mainPlayers.map((player) => {
+    const roleKey = roleByPlayerId.get(player.id) ?? "plaintiff";
     const roleData = selectedCase.roles?.[roleKey];
     const safeFacts = Array.isArray(roleData?.facts)
       ? roleData.facts.filter((item: unknown): item is string => typeof item === "string")

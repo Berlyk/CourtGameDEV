@@ -24,11 +24,16 @@ import {
   getRoom,
   deleteRoom,
   setHostJudge,
+  setUsePreferredRoles,
+  chooseLobbyRole,
+  addAdminBotsToRoom,
+  validateLobbyRolesBeforeStart,
   updatePlayerAvatar,
   updatePlayerProfile,
   cleanupStaleRooms,
   restoreRoomsFromSnapshots,
   markMissingSocketPlayersDisconnected,
+  type AssignableRole,
   type CreateRoomOptions,
 } from "./roomManager.js";
 import { getUserByToken, recordMatchOutcome } from "../lib/authStore.js";
@@ -278,9 +283,27 @@ function mapGamePlayers(players: any[]) {
     id: p.id,
     userId: p.userId ?? undefined,
     name: p.name,
+    isBot: !!p.isBot,
     avatar: p.avatar,
     banner: p.banner,
     selectedBadgeKey: p.selectedBadgeKey ?? undefined,
+    preferredRole:
+      typeof p?.preferredRole === "string" ? p.preferredRole : null,
+    lobbyAssignedRole:
+      typeof p?.lobbyAssignedRole === "string" ? p.lobbyAssignedRole : null,
+    roleAssignmentSource:
+      p?.roleAssignmentSource === "auto_preference" ||
+      p?.roleAssignmentSource === "manual" ||
+      p?.roleAssignmentSource === "random"
+        ? p.roleAssignmentSource
+        : null,
+    rolePreferenceStatus:
+      p?.rolePreferenceStatus === "idle" ||
+      p?.rolePreferenceStatus === "assigned" ||
+      p?.rolePreferenceStatus === "conflict" ||
+      p?.rolePreferenceStatus === "unavailable"
+        ? p.rolePreferenceStatus
+        : "idle",
     roleKey: p.roleKey,
     roleTitle: p.roleTitle,
     warningCount: typeof p?.warningCount === "number" ? p.warningCount : 0,
@@ -307,9 +330,27 @@ function mapLobbyPlayers(players: any[]) {
     id: p.id,
     userId: p.userId ?? undefined,
     name: p.name,
+    isBot: !!p.isBot,
     avatar: p.avatar,
     banner: p.banner,
     selectedBadgeKey: p.selectedBadgeKey ?? undefined,
+    preferredRole:
+      typeof p?.preferredRole === "string" ? p.preferredRole : null,
+    lobbyAssignedRole:
+      typeof p?.lobbyAssignedRole === "string" ? p.lobbyAssignedRole : null,
+    roleAssignmentSource:
+      p?.roleAssignmentSource === "auto_preference" ||
+      p?.roleAssignmentSource === "manual" ||
+      p?.roleAssignmentSource === "random"
+        ? p.roleAssignmentSource
+        : null,
+    rolePreferenceStatus:
+      p?.rolePreferenceStatus === "idle" ||
+      p?.rolePreferenceStatus === "assigned" ||
+      p?.rolePreferenceStatus === "conflict" ||
+      p?.rolePreferenceStatus === "unavailable"
+        ? p.rolePreferenceStatus
+        : "idle",
     roleKey: p.roleKey ?? undefined,
     roleTitle: p.roleTitle ?? undefined,
     warningCount: typeof p?.warningCount === "number" ? p.warningCount : 0,
@@ -339,6 +380,7 @@ function getRoomState(room: any, playerId: string) {
       players: mapLobbyPlayers(room.players),
       started: room.started,
       isHostJudge: room.isHostJudge,
+      usePreferredRoles: !!room.usePreferredRoles,
       visibility: room.visibility,
       venueLabel: room.venueLabel,
       venueUrl: room.venueUrl,
@@ -394,6 +436,24 @@ function emitPublicMatches(io: SocketIOServer) {
   io.emit("public_matches_updated", {
     matches: listPublicMatches(),
   });
+}
+
+function buildRoomUpdatePayload(room: any) {
+  return {
+    players: mapLobbyPlayers(room.players),
+    hostId: room.hostId,
+    roomName: room.roomName,
+    modeKey: room.modeKey,
+    casePackKey: room.casePackKey,
+    maxPlayers: room.maxPlayers,
+    isHostJudge: room.isHostJudge,
+    usePreferredRoles: !!room.usePreferredRoles,
+    visibility: room.visibility,
+    venueLabel: room.venueLabel,
+    venueUrl: room.venueUrl,
+    requiresPassword: !!room.password,
+    lobbyChat: room.lobbyChat,
+  };
 }
 
 export function setupSocket(httpServer: HttpServer) {
@@ -665,20 +725,7 @@ export function setupSocket(httpServer: HttpServer) {
         players: mapGamePlayers(room.game.players),
       });
     } else {
-      io.to(roomCode).emit("room_updated", {
-        players: mapLobbyPlayers(room.players),
-        hostId: room.hostId,
-        roomName: room.roomName,
-        modeKey: room.modeKey,
-        casePackKey: room.casePackKey,
-        maxPlayers: room.maxPlayers,
-        isHostJudge: room.isHostJudge,
-        visibility: room.visibility,
-        venueLabel: room.venueLabel,
-        venueUrl: room.venueUrl,
-        requiresPassword: !!room.password,
-        lobbyChat: room.lobbyChat,
-      });
+      io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(room));
     }
     emitPublicMatches(io);
     persistRoom(roomCode);
@@ -750,6 +797,14 @@ export function setupSocket(httpServer: HttpServer) {
     return socketInfo.playerId;
   };
 
+  const isCreatorAdmin = async (authToken?: string): Promise<boolean> => {
+    const token = typeof authToken === "string" ? authToken.trim() : "";
+    if (!token) return false;
+    const user = await getUserByToken(token);
+    if (!user) return false;
+    return user.login.trim().toLowerCase() === "berly";
+  };
+
   setInterval(() => {
     markMissingSocketPlayersDisconnected((socketId) => io.sockets.sockets.has(socketId));
     const removed = cleanupStaleRooms();
@@ -814,11 +869,16 @@ export function setupSocket(httpServer: HttpServer) {
           id: playerId,
           userId: authUser?.id,
           name: normalizedPlayerName,
+          isBot: false,
           socketId: socket.id,
           sessionToken,
           avatar: avatar || authUser?.avatar || undefined,
           banner: banner || authUser?.banner || undefined,
           selectedBadgeKey: authUser?.selectedBadgeKey || undefined,
+          preferredRole: (authUser?.preferredRole as AssignableRole | undefined) ?? null,
+          lobbyAssignedRole: null,
+          roleAssignmentSource: "random" as const,
+          rolePreferenceStatus: "idle" as const,
         };
       const room = createRoom(code, player, options);
 
@@ -894,20 +954,7 @@ export function setupSocket(httpServer: HttpServer) {
               players: mapGamePlayers(reclaimedByUser.room.game.players),
             });
           } else {
-            io.to(roomCode).emit("room_updated", {
-              players: mapLobbyPlayers(reclaimedByUser.room.players),
-              hostId: reclaimedByUser.room.hostId,
-              roomName: reclaimedByUser.room.roomName,
-              modeKey: reclaimedByUser.room.modeKey,
-              casePackKey: reclaimedByUser.room.casePackKey,
-              maxPlayers: reclaimedByUser.room.maxPlayers,
-              isHostJudge: reclaimedByUser.room.isHostJudge,
-              visibility: reclaimedByUser.room.visibility,
-              venueLabel: reclaimedByUser.room.venueLabel,
-              venueUrl: reclaimedByUser.room.venueUrl,
-              requiresPassword: !!reclaimedByUser.room.password,
-              lobbyChat: reclaimedByUser.room.lobbyChat,
-            });
+            io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(reclaimedByUser.room));
           }
           emitPublicMatches(io);
           persistRoom(roomCode);
@@ -936,20 +983,7 @@ export function setupSocket(httpServer: HttpServer) {
                 players: mapGamePlayers(restoreResult.room.game.players),
               });
             } else {
-              io.to(roomCode).emit("room_updated", {
-                players: mapLobbyPlayers(restoreResult.room.players),
-                hostId: restoreResult.room.hostId,
-                roomName: restoreResult.room.roomName,
-                modeKey: restoreResult.room.modeKey,
-                casePackKey: restoreResult.room.casePackKey,
-                maxPlayers: restoreResult.room.maxPlayers,
-                isHostJudge: restoreResult.room.isHostJudge,
-                visibility: restoreResult.room.visibility,
-                venueLabel: restoreResult.room.venueLabel,
-                venueUrl: restoreResult.room.venueUrl,
-                requiresPassword: !!restoreResult.room.password,
-                lobbyChat: restoreResult.room.lobbyChat,
-              });
+              io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(restoreResult.room));
             }
             emitPublicMatches(io);
             persistRoom(roomCode);
@@ -990,20 +1024,7 @@ export function setupSocket(httpServer: HttpServer) {
             players: mapGamePlayers(reclaimed.room.game.players),
           });
         } else {
-          io.to(roomCode).emit("room_updated", {
-            players: mapLobbyPlayers(reclaimed.room.players),
-            hostId: reclaimed.room.hostId,
-            roomName: reclaimed.room.roomName,
-            modeKey: reclaimed.room.modeKey,
-            casePackKey: reclaimed.room.casePackKey,
-            maxPlayers: reclaimed.room.maxPlayers,
-            isHostJudge: reclaimed.room.isHostJudge,
-            visibility: reclaimed.room.visibility,
-            venueLabel: reclaimed.room.venueLabel,
-            venueUrl: reclaimed.room.venueUrl,
-            requiresPassword: !!reclaimed.room.password,
-            lobbyChat: reclaimed.room.lobbyChat,
-          });
+          io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(reclaimed.room));
         }
         emitPublicMatches(io);
         return;
@@ -1020,11 +1041,16 @@ export function setupSocket(httpServer: HttpServer) {
         id: playerId,
         userId: authUser?.id,
         name: effectiveName,
+        isBot: false,
         socketId: socket.id,
         sessionToken,
         avatar: avatar || authUser?.avatar || undefined,
         banner: banner || authUser?.banner || undefined,
         selectedBadgeKey: authUser?.selectedBadgeKey || undefined,
+        preferredRole: (authUser?.preferredRole as AssignableRole | undefined) ?? null,
+        lobbyAssignedRole: null,
+        roleAssignmentSource: "random" as const,
+        rolePreferenceStatus: "idle" as const,
       };
 
       if (room.started) {
@@ -1065,20 +1091,7 @@ export function setupSocket(httpServer: HttpServer) {
           state: getRoomState(witnessRoom, playerId),
         });
 
-        socket.to(roomCode).emit("room_updated", {
-          players: mapLobbyPlayers(witnessRoom.players),
-          hostId: witnessRoom.hostId,
-          roomName: witnessRoom.roomName,
-          modeKey: witnessRoom.modeKey,
-          casePackKey: witnessRoom.casePackKey,
-          maxPlayers: witnessRoom.maxPlayers,
-          isHostJudge: witnessRoom.isHostJudge,
-          visibility: witnessRoom.visibility,
-          venueLabel: witnessRoom.venueLabel,
-          venueUrl: witnessRoom.venueUrl,
-          requiresPassword: !!witnessRoom.password,
-          lobbyChat: witnessRoom.lobbyChat,
-        });
+        socket.to(roomCode).emit("room_updated", buildRoomUpdatePayload(witnessRoom));
         emitPublicMatches(io);
         persistRoom(roomCode);
         return;
@@ -1098,20 +1111,7 @@ export function setupSocket(httpServer: HttpServer) {
         state: getRoomState(updatedRoom, playerId)
       });
 
-      socket.to(roomCode).emit("room_updated", {
-        players: mapLobbyPlayers(updatedRoom.players),
-        hostId: updatedRoom.hostId,
-        roomName: updatedRoom.roomName,
-        modeKey: updatedRoom.modeKey,
-        casePackKey: updatedRoom.casePackKey,
-        maxPlayers: updatedRoom.maxPlayers,
-        isHostJudge: updatedRoom.isHostJudge,
-        visibility: updatedRoom.visibility,
-        venueLabel: updatedRoom.venueLabel,
-        venueUrl: updatedRoom.venueUrl,
-        requiresPassword: !!updatedRoom.password,
-        lobbyChat: updatedRoom.lobbyChat,
-      });
+      socket.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
       emitPublicMatches(io);
       persistRoom(roomCode);
     });
@@ -1152,20 +1152,7 @@ export function setupSocket(httpServer: HttpServer) {
           players: mapGamePlayers(room.game.players),
         });
       } else {
-        io.to(roomCode).emit("room_updated", {
-          players: mapLobbyPlayers(room.players),
-          hostId: room.hostId,
-          roomName: room.roomName,
-          modeKey: room.modeKey,
-          casePackKey: room.casePackKey,
-          maxPlayers: room.maxPlayers,
-          isHostJudge: room.isHostJudge,
-          visibility: room.visibility,
-          venueLabel: room.venueLabel,
-          venueUrl: room.venueUrl,
-          requiresPassword: !!room.password,
-          lobbyChat: room.lobbyChat,
-        });
+        io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(room));
       }
       emitPublicMatches(io);
     });
@@ -1201,6 +1188,12 @@ export function setupSocket(httpServer: HttpServer) {
         socket.emit("error", {
           message: `Для старта нужно ровно ${room.maxPlayers} игроков.`,
         });
+        return;
+      }
+
+      const roleValidation = validateLobbyRolesBeforeStart(room);
+      if (!roleValidation.ok) {
+        socket.emit("error", { message: roleValidation.reason });
         return;
       }
 
@@ -1246,21 +1239,101 @@ export function setupSocket(httpServer: HttpServer) {
       });
       if (!actorId || room.hostId !== actorId) return;
       setHostJudge(roomCode, isHostJudge);
-      socket.to(roomCode).emit("room_updated", {
-        players: mapLobbyPlayers(room.players),
-        hostId: room.hostId,
-        roomName: room.roomName,
-        modeKey: room.modeKey,
-        casePackKey: room.casePackKey,
-        maxPlayers: room.maxPlayers,
-        isHostJudge,
-        visibility: room.visibility,
-        venueLabel: room.venueLabel,
-        venueUrl: room.venueUrl,
-        requiresPassword: !!room.password,
-        lobbyChat: room.lobbyChat,
-      });
+      io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(room));
     });
+
+    socket.on(
+      "set_use_preferred_roles",
+      ({
+        code,
+        usePreferredRoles,
+        sessionToken,
+      }: {
+        code: string;
+        usePreferredRoles: boolean;
+        sessionToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room) return;
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken,
+        });
+        if (!actorId || room.hostId !== actorId) {
+          socket.emit("error", { message: "Только ведущий может менять эту настройку." });
+          return;
+        }
+        const updated = setUsePreferredRoles(roomCode, !!usePreferredRoles);
+        if (!updated) return;
+        io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updated));
+        persistRoom(roomCode);
+      },
+    );
+
+    socket.on(
+      "choose_lobby_role",
+      ({
+        code,
+        roleKey,
+        sessionToken,
+      }: {
+        code: string;
+        roleKey?: AssignableRole | null;
+        sessionToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room || room.started) return;
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken,
+        });
+        if (!actorId) return;
+        const result = chooseLobbyRole(roomCode, actorId, roleKey ?? null);
+        if (!result) return;
+        if (!result.ok) {
+          socket.emit("error", { message: result.reason });
+        }
+        io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(result.room));
+        persistRoom(roomCode);
+      },
+    );
+
+    socket.on(
+      "admin_add_bots",
+      async ({
+        code,
+        count,
+        authToken,
+      }: {
+        code: string;
+        count?: number;
+        authToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room || room.started) return;
+        const actorInfo = socketToRoom.get(socket.id);
+        if (!actorInfo || actorInfo.roomCode !== roomCode || actorInfo.playerId !== room.hostId) {
+          socket.emit("error", { message: "Добавлять ботов может только ведущий комнаты." });
+          return;
+        }
+        if (!(await isCreatorAdmin(authToken))) {
+          socket.emit("error", { message: "Нет доступа к админ-инструментам." });
+          return;
+        }
+        const updated = addAdminBotsToRoom(roomCode, Number.isFinite(count) ? Number(count) : 1);
+        if (!updated) return;
+        io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updated));
+        emitPublicMatches(io);
+        persistRoom(roomCode);
+      },
+    );
 
     socket.on(
       "update_avatar",
@@ -1286,20 +1359,7 @@ export function setupSocket(httpServer: HttpServer) {
           return;
         }
 
-        io.to(roomCode).emit("room_updated", {
-          players: mapLobbyPlayers(room.players),
-          hostId: room.hostId,
-          roomName: room.roomName,
-          modeKey: room.modeKey,
-          casePackKey: room.casePackKey,
-          maxPlayers: room.maxPlayers,
-          isHostJudge: room.isHostJudge,
-          visibility: room.visibility,
-          venueLabel: room.venueLabel,
-          venueUrl: room.venueUrl,
-          requiresPassword: !!room.password,
-          lobbyChat: room.lobbyChat,
-        });
+        io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(room));
       }
     );
 
@@ -1311,6 +1371,7 @@ export function setupSocket(httpServer: HttpServer) {
         avatar,
         banner,
         selectedBadgeKey,
+        preferredRole,
         sessionToken,
       }: {
         code: string;
@@ -1318,6 +1379,7 @@ export function setupSocket(httpServer: HttpServer) {
         avatar?: string | null;
         banner?: string | null;
         selectedBadgeKey?: string | null;
+        preferredRole?: AssignableRole | null;
         sessionToken?: string;
       }) => {
         const roomCode = normalizeRoomCode(code);
@@ -1345,6 +1407,7 @@ export function setupSocket(httpServer: HttpServer) {
           avatar,
           banner,
           selectedBadgeKey,
+          preferredRole: preferredRole ?? undefined,
         });
         if (!updatedRoom) return;
 
@@ -1358,20 +1421,7 @@ export function setupSocket(httpServer: HttpServer) {
             });
           });
         } else {
-          io.to(roomCode).emit("room_updated", {
-            players: mapLobbyPlayers(updatedRoom.players),
-            hostId: updatedRoom.hostId,
-            roomName: updatedRoom.roomName,
-            modeKey: updatedRoom.modeKey,
-            casePackKey: updatedRoom.casePackKey,
-            maxPlayers: updatedRoom.maxPlayers,
-            isHostJudge: updatedRoom.isHostJudge,
-            visibility: updatedRoom.visibility,
-            venueLabel: updatedRoom.venueLabel,
-            venueUrl: updatedRoom.venueUrl,
-            requiresPassword: !!updatedRoom.password,
-            lobbyChat: updatedRoom.lobbyChat,
-          });
+          io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
         }
 
         io.to(roomCode).emit("lobby_chat_updated", {
@@ -1865,20 +1915,7 @@ export function setupSocket(httpServer: HttpServer) {
         }
 
         if (updatedRoom) {
-          io.to(roomCode).emit("room_updated", {
-            players: mapLobbyPlayers(updatedRoom.players),
-            hostId: updatedRoom.hostId,
-            roomName: updatedRoom.roomName,
-            modeKey: updatedRoom.modeKey,
-            casePackKey: updatedRoom.casePackKey,
-            maxPlayers: updatedRoom.maxPlayers,
-            isHostJudge: updatedRoom.isHostJudge,
-            visibility: updatedRoom.visibility,
-            venueLabel: updatedRoom.venueLabel,
-            venueUrl: updatedRoom.venueUrl,
-            requiresPassword: !!updatedRoom.password,
-            lobbyChat: updatedRoom.lobbyChat,
-          });
+          io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
         } else {
           cleanupRoomCaches(roomCode);
         }
@@ -2218,18 +2255,7 @@ export function setupSocket(httpServer: HttpServer) {
             persistent: isRegisteredPlayer,
           });
           socket.to(info.roomCode).emit("room_updated", {
-            players: mapLobbyPlayers(updatedRoom.players),
-            hostId: updatedRoom.hostId,
-            roomName: updatedRoom.roomName,
-            modeKey: updatedRoom.modeKey,
-            casePackKey: updatedRoom.casePackKey,
-            maxPlayers: updatedRoom.maxPlayers,
-            isHostJudge: updatedRoom.isHostJudge,
-            visibility: updatedRoom.visibility,
-            venueLabel: updatedRoom.venueLabel,
-            venueUrl: updatedRoom.venueUrl,
-            requiresPassword: !!updatedRoom.password,
-            lobbyChat: updatedRoom.lobbyChat,
+            ...buildRoomUpdatePayload(updatedRoom),
           });
           const connectedPlayersCount = updatedRoom.players.filter(
             (player: any) =>
@@ -2263,18 +2289,7 @@ export function setupSocket(httpServer: HttpServer) {
           const updatedRoom = removePlayer(info.roomCode, info.playerId);
           if (updatedRoom) {
             socket.to(info.roomCode).emit("room_updated", {
-              players: mapLobbyPlayers(updatedRoom.players),
-              hostId: updatedRoom.hostId,
-              roomName: updatedRoom.roomName,
-              modeKey: updatedRoom.modeKey,
-              casePackKey: updatedRoom.casePackKey,
-              maxPlayers: updatedRoom.maxPlayers,
-              isHostJudge: updatedRoom.isHostJudge,
-              visibility: updatedRoom.visibility,
-              venueLabel: updatedRoom.venueLabel,
-              venueUrl: updatedRoom.venueUrl,
-              requiresPassword: !!updatedRoom.password,
-              lobbyChat: updatedRoom.lobbyChat,
+              ...buildRoomUpdatePayload(updatedRoom),
             });
             const connectedPlayersCount = updatedRoom.players.filter(
               (player: any) =>
