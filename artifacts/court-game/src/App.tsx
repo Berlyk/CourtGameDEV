@@ -6629,7 +6629,7 @@ export default function App() {
               }}
             >
               <DialogContent
-                className={`w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-2xl max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
+                className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-2xl h-[88vh] max-h-[860px] overflow-hidden border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2"
               >
                 <DialogHeader className="space-y-1">
                   <DialogTitle>Создать матч</DialogTitle>
@@ -6640,7 +6640,7 @@ export default function App() {
                   </DialogDescription>
                 </DialogHeader>
                 {createPackCatalogOpen ? (
-                  <div className="space-y-4">
+                  <div className="flex h-[calc(88vh-170px)] max-h-[670px] min-h-0 flex-col gap-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Button
                         type="button"
@@ -6661,7 +6661,7 @@ export default function App() {
                         Создать пак
                       </Button>
                     </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-1 gap-2 sm:grid-cols-2">
                       {casePacks.map((pack) => {
                         const isLocked = PACK_PAYWALL_PREVIEW_ENABLED && pack.key !== baseCreatePackKey;
                         const visual = getCasePackVisual(pack.key, pack.title);
@@ -6700,7 +6700,7 @@ export default function App() {
                         );
                         if (isLocked) {
                           return (
-                            <div key={pack.key} className={`relative overflow-hidden rounded-2xl border px-3 py-2.5 ${cardClass}`}>
+                            <div key={pack.key} className={`relative overflow-hidden rounded-2xl border px-3 py-2 ${cardClass}`}>
                               {content}
                             </div>
                           );
@@ -6713,7 +6713,7 @@ export default function App() {
                               setCreateRoomPackKey(pack.key);
                               setCreatePackCatalogOpen(false);
                             }}
-                            className={`relative overflow-hidden rounded-2xl border px-3 py-2.5 text-left transition-all hover:brightness-105 ${cardClass}`}
+                            className={`relative overflow-hidden rounded-2xl border px-3 py-2 text-left transition-all hover:brightness-105 ${cardClass}`}
                           >
                             {content}
                           </button>
@@ -6722,7 +6722,7 @@ export default function App() {
                     </div>
                   </div>
                 ) : (
-                <div className="space-y-4">
+                <div className="flex h-[calc(88vh-170px)] max-h-[670px] min-h-0 flex-col gap-3">
                   <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 via-zinc-900/80 to-zinc-900 px-4 py-3">
                     <div className="text-xs uppercase tracking-[0.12em] text-zinc-400">
                       Выбранный режим
@@ -6734,7 +6734,7 @@ export default function App() {
                       На {selectedCreateMode.maxPlayers} игроков
                     </div>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-2 md:col-span-2">
                       <label className="text-sm text-zinc-300">Название комнаты</label>
                       <Input
