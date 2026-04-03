@@ -6842,21 +6842,26 @@ export default function App() {
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-2 md:col-span-2">
+                      <div className="space-y-2 md:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-2.5">
                         <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm text-zinc-300">Пароль комнаты</label>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              setCreateRoomPrivate(false);
-                              setCreateRoomPassword("");
-                              setCreateRoomPasswordVisible(false);
+                          <div>
+                            <div className="text-sm font-medium text-zinc-100">
+                              Пароль комнаты
+                            </div>
+                            <div className="text-xs text-zinc-500">
+                              Для входа в комнату потребуется пароль.
+                            </div>
+                          </div>
+                          <Switch
+                            checked={createRoomPrivate}
+                            onCheckedChange={(checked) => {
+                              setCreateRoomPrivate(checked);
+                              if (!checked) {
+                                setCreateRoomPassword("");
+                                setCreateRoomPasswordVisible(false);
+                              }
                             }}
-                            className="h-8 rounded-lg border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 px-2.5 text-xs"
-                          >
-                            Убрать пароль
-                          </Button>
+                          />
                         </div>
                         <div className="relative">
                           <Input
