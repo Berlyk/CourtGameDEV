@@ -2238,17 +2238,17 @@ function PlayerCard({
       ? Math.max(0, player.disconnectedUntil - nowTs)
       : 0;
   const isDisconnected = disconnectRemainingMs > 0;
-  const playerRoleLabel = isHost
-    ? "Ведущий комнаты"
-    : showLobbyAssignedRole && player.lobbyAssignedRole
+  const playerRoleLabel = showLobbyAssignedRole
+    ? player.lobbyAssignedRole
       ? ASSIGNABLE_ROLE_TITLES[player.lobbyAssignedRole]
-    : showLobbyAssignedRole
-      ? "Случайная"
-    : player.roleKey === "witness"
-      ? "Свидетель"
-      : player.roleKey === "observer"
-        ? "Наблюдатель"
-        : "Игрок";
+      : "Случайная"
+    : isHost
+      ? "Ведущий комнаты"
+      : player.roleKey === "witness"
+        ? "Свидетель"
+        : player.roleKey === "observer"
+          ? "Наблюдатель"
+          : "Игрок";
   const roleSourceLabel =
     showLobbyAssignedRole && !isHost
       ? player.roleAssignmentSource === "auto_preference"
@@ -2268,7 +2268,13 @@ function PlayerCard({
   const doorColor = `rgb(${red}, ${green}, ${blue})`;
   return (
     <motion.div variants={cardVariants} initial="initial" animate="animate">
-      <Card className="rounded-2xl shadow-sm bg-zinc-900/90 border-zinc-800 text-zinc-100">
+      <Card
+        className={`rounded-2xl shadow-sm bg-zinc-900/90 text-zinc-100 ${
+          isHost
+            ? "border-red-500/35 shadow-[0_0_20px_rgba(239,68,68,0.18)]"
+            : "border-zinc-800"
+        }`}
+      >
         <CardContent className="relative overflow-hidden p-4 pt-5 flex items-center justify-between gap-3">
           <div
             className="pointer-events-none absolute inset-[6px] rounded-[16px] opacity-85"
@@ -2567,6 +2573,7 @@ export default function App() {
   const [profileGender, setProfileGender] = useState<"" | "male" | "female" | "other">("");
   const [profileBirthDate, setProfileBirthDate] = useState("");
   const [preferredRoleDraft, setPreferredRoleDraft] = useState<AssignableRole | "">("");
+  const [preferredRolePickerOpen, setPreferredRolePickerOpen] = useState(false);
   const [profileNicknameError, setProfileNicknameError] = useState("");
   const [profileBirthDateError, setProfileBirthDateError] = useState("");
   const [profileHideAge, setProfileHideAge] = useState(false);
@@ -4540,6 +4547,7 @@ export default function App() {
 
   const togglePreferredRoles = useCallback((checked: boolean) => {
     if (!room || !roomControlSessionToken) return;
+    setRoom((prev) => (prev ? { ...prev, usePreferredRoles: checked } : prev));
     socket.emit("set_use_preferred_roles", {
       code: room.code,
       sessionToken: roomControlSessionToken,
@@ -5280,28 +5288,6 @@ export default function App() {
                         </div>
                         <Switch checked={profileHideAge} onCheckedChange={setProfileHideAge} />
                       </div>
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2">
-                        <div className="text-sm text-zinc-100">Предпочитаемая роль</div>
-                        <div className="text-xs text-zinc-500">
-                          Используется в лобби, если ведущий включает выбор ролей.
-                        </div>
-                        <div className="mt-2">
-                          <select
-                            value={preferredRoleDraft}
-                            onChange={(e) =>
-                              setPreferredRoleDraft((e.target.value as AssignableRole | "") || "")
-                            }
-                            className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 outline-none transition focus:border-red-500/60"
-                          >
-                            <option value="">Без предпочтения</option>
-                            {(Object.keys(ASSIGNABLE_ROLE_TITLES) as AssignableRole[]).map((roleKey) => (
-                              <option key={roleKey} value={roleKey}>
-                                {ASSIGNABLE_ROLE_TITLES[roleKey]}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -5496,6 +5482,77 @@ export default function App() {
                       >
                         Последние матчи
                       </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5">
+                    <div className="text-lg font-semibold">Предпочитаемая роль</div>
+                    <div className="mt-1 text-sm text-zinc-500">
+                      Роль по умолчанию для лобби с включенным выбором ролей.
+                    </div>
+                    <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/55 p-2">
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setPreferredRolePickerOpen((prev) => !prev)}
+                          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-left text-zinc-100 transition-colors hover:bg-zinc-800"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800/80">
+                                <Shield className="h-3.5 w-3.5 text-zinc-200" />
+                              </span>
+                              <span className="truncate text-sm font-semibold">
+                                {preferredRoleDraft
+                                  ? ASSIGNABLE_ROLE_TITLES[preferredRoleDraft]
+                                  : "Без предпочтения"}
+                              </span>
+                            </div>
+                            <ChevronDown
+                              className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${
+                                preferredRolePickerOpen ? "rotate-180" : ""
+                              }`}
+                            />
+                          </div>
+                        </button>
+                        {preferredRolePickerOpen && (
+                          <div className="absolute top-full z-[170] mt-2 w-full overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950 shadow-[0_18px_44px_rgba(0,0,0,0.55)]">
+                            <div className="max-h-[280px] overflow-y-auto p-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPreferredRoleDraft("");
+                                  setPreferredRolePickerOpen(false);
+                                }}
+                                className={`w-full rounded-md border px-2.5 py-2 text-left transition-colors ${
+                                  preferredRoleDraft === ""
+                                    ? "border-red-500 bg-red-600/20 text-red-200"
+                                    : "border-zinc-800 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
+                                }`}
+                              >
+                                <span className="text-sm font-semibold">Без предпочтения</span>
+                              </button>
+                              {(Object.keys(ASSIGNABLE_ROLE_TITLES) as AssignableRole[]).map((roleKey) => (
+                                <button
+                                  key={`preferred-${roleKey}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setPreferredRoleDraft(roleKey);
+                                    setPreferredRolePickerOpen(false);
+                                  }}
+                                  className={`mt-1 w-full rounded-md border px-2.5 py-2 text-left transition-colors ${
+                                    preferredRoleDraft === roleKey
+                                      ? "border-red-500 bg-red-600/20 text-red-200"
+                                      : "border-zinc-800 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
+                                  }`}
+                                >
+                                  <span className="text-sm font-semibold">{ASSIGNABLE_ROLE_TITLES[roleKey]}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -6943,10 +7000,34 @@ export default function App() {
                             </div>
                             {isLocked && (
                               <div className="pointer-events-none absolute inset-0 rounded-2xl bg-zinc-950/74">
-                                <span className="absolute left-0 top-0 h-px w-[60%] origin-left rotate-[33deg] bg-zinc-300/45" />
-                                <span className="absolute right-0 top-0 h-px w-[60%] origin-right -rotate-[33deg] bg-zinc-300/45" />
-                                <span className="absolute left-0 bottom-0 h-px w-[60%] origin-left -rotate-[33deg] bg-zinc-300/45" />
-                                <span className="absolute right-0 bottom-0 h-px w-[60%] origin-right rotate-[33deg] bg-zinc-300/45" />
+                                <span
+                                  className="absolute left-[1%] top-[19%] h-[3px] w-[52%] origin-left rotate-[24deg] rounded-full"
+                                  style={{
+                                    background:
+                                      "repeating-radial-gradient(circle at 3px 50%, rgba(228,228,231,0.72) 0 2px, rgba(24,24,27,0.95) 2px 4px)",
+                                  }}
+                                />
+                                <span
+                                  className="absolute right-[1%] top-[19%] h-[3px] w-[52%] origin-right -rotate-[24deg] rounded-full"
+                                  style={{
+                                    background:
+                                      "repeating-radial-gradient(circle at 3px 50%, rgba(228,228,231,0.72) 0 2px, rgba(24,24,27,0.95) 2px 4px)",
+                                  }}
+                                />
+                                <span
+                                  className="absolute left-[1%] bottom-[19%] h-[3px] w-[52%] origin-left -rotate-[24deg] rounded-full"
+                                  style={{
+                                    background:
+                                      "repeating-radial-gradient(circle at 3px 50%, rgba(228,228,231,0.72) 0 2px, rgba(24,24,27,0.95) 2px 4px)",
+                                  }}
+                                />
+                                <span
+                                  className="absolute right-[1%] bottom-[19%] h-[3px] w-[52%] origin-right rotate-[24deg] rounded-full"
+                                  style={{
+                                    background:
+                                      "repeating-radial-gradient(circle at 3px 50%, rgba(228,228,231,0.72) 0 2px, rgba(24,24,27,0.95) 2px 4px)",
+                                  }}
+                                />
                                 <span className="absolute inset-0 flex items-center justify-center">
                                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-500/70 bg-zinc-900/90 text-zinc-200 shadow-[0_0_18px_rgba(0,0,0,0.45)]">
                                     <Lock className="h-5 w-5" />
@@ -7464,52 +7545,61 @@ export default function App() {
                   Предпочитаемая роль недоступна в этом режиме.
                 </div>
               )}
-              <div className="grid gap-2">
+              <div className="grid gap-3">
                 <button
                   type="button"
                   onClick={() => {
                     chooseLobbyRole(null);
                     setLobbyRoleDialogOpen(false);
                   }}
-                  className={`rounded-xl border px-3 py-2 text-left transition ${
+                  className={`rounded-2xl border px-4 py-3 text-left transition ${
                     !myLobbyPlayer.lobbyAssignedRole
-                      ? "border-red-500 bg-red-600/20 text-white"
+                      ? "border-red-500 bg-red-600/20 text-white shadow-[0_0_18px_rgba(239,68,68,0.25)]"
                       : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
                   }`}
                 >
-                  <div className="text-sm font-medium">Случайная</div>
-                  <div className="text-xs text-zinc-400">Система выдаст свободную роль при старте.</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold">Случайная</div>
+                      <div className="text-xs text-zinc-400">Система выдаст свободную роль при старте.</div>
+                    </div>
+                    <span className="rounded-full border border-zinc-700 bg-zinc-900/70 px-2 py-0.5 text-[11px] text-zinc-300">
+                      Авто
+                    </span>
+                  </div>
                 </button>
-                {lobbyAssignableRoles.map((roleKey) => {
-                  const owner = occupiedLobbyRolesByPlayer.get(roleKey);
-                  const occupiedByOther = !!owner && owner.id !== myLobbyPlayer.id;
-                  const isSelected = myLobbyPlayer.lobbyAssignedRole === roleKey;
-                  return (
-                    <button
-                      key={roleKey}
-                      type="button"
-                      disabled={occupiedByOther}
-                      onClick={() => {
-                        chooseLobbyRole(roleKey);
-                        setLobbyRoleDialogOpen(false);
-                      }}
-                      className={`rounded-xl border px-3 py-2 text-left transition ${
-                        isSelected
-                          ? "border-red-500 bg-red-600/20 text-white"
-                          : occupiedByOther
-                            ? "border-zinc-800 bg-zinc-900/60 text-zinc-500"
-                            : "border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium">{ASSIGNABLE_ROLE_TITLES[roleKey]}</span>
-                        <span className="text-xs text-zinc-400">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {lobbyAssignableRoles.map((roleKey) => {
+                    const owner = occupiedLobbyRolesByPlayer.get(roleKey);
+                    const occupiedByOther = !!owner && owner.id !== myLobbyPlayer.id;
+                    const isSelected = myLobbyPlayer.lobbyAssignedRole === roleKey;
+                    return (
+                      <button
+                        key={roleKey}
+                        type="button"
+                        disabled={occupiedByOther}
+                        onClick={() => {
+                          chooseLobbyRole(roleKey);
+                          setLobbyRoleDialogOpen(false);
+                        }}
+                        className={`rounded-2xl border px-3 py-3 text-left transition ${
+                          isSelected
+                            ? "border-red-500 bg-red-600/20 text-white shadow-[0_0_18px_rgba(239,68,68,0.25)]"
+                            : occupiedByOther
+                              ? "border-zinc-800 bg-zinc-900/60 text-zinc-500"
+                              : "border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                        }`}
+                      >
+                        <div className="text-sm font-semibold leading-snug">
+                          {ASSIGNABLE_ROLE_TITLES[roleKey]}
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-400">
                           {occupiedByOther ? `Занято: ${owner?.name ?? "игрок"}` : "Свободно"}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </DialogContent>
           </Dialog>
@@ -7610,16 +7700,27 @@ export default function App() {
                 title="Игроки в комнате"
                 icon={<UserPlus className="w-5 h-5" />}
                 action={myId === room.hostId ? (
-                  <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-zinc-700 bg-zinc-800/70">
-                    <label htmlFor="host-judge" className="text-base font-semibold text-zinc-200 cursor-pointer select-none">
-                      Я - Судья
-                    </label>
-                    <Switch
-                      id="host-judge"
-                      checked={isHostJudge}
-                      onCheckedChange={toggleHostJudge}
-                      className="scale-110"
-                    />
+                  <div className="flex flex-col gap-2 rounded-2xl border border-zinc-700 bg-zinc-800/70 px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <label htmlFor="host-judge" className="text-sm font-semibold text-zinc-200 cursor-pointer select-none">
+                        Я - Судья
+                      </label>
+                      <Switch
+                        id="host-judge"
+                        checked={isHostJudge}
+                        onCheckedChange={toggleHostJudge}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <label htmlFor="lobby-role-pick" className="text-sm font-semibold text-zinc-200 cursor-pointer select-none">
+                        Выбор ролей
+                      </label>
+                      <Switch
+                        id="lobby-role-pick"
+                        checked={usePreferredRoles}
+                        onCheckedChange={togglePreferredRoles}
+                      />
+                    </div>
                   </div>
                 ) : undefined}
               >
@@ -7706,22 +7807,6 @@ export default function App() {
                         );
                       })()}
                     </div>
-                    {myId === room.hostId && (
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="text-sm text-zinc-100">Распределение ролей в лобби</div>
-                            <div className="text-xs text-zinc-500">
-                              Игроки заранее выбирают роли, конфликты решаются автоматически.
-                            </div>
-                          </div>
-                          <Switch
-                            checked={usePreferredRoles}
-                            onCheckedChange={togglePreferredRoles}
-                          />
-                        </div>
-                      </div>
-                    )}
                     <div className="text-zinc-400 pt-2">
                       Ведущий запускает игру, сайт случайно выбирает подходящее
                       дело и распределяет роли.

@@ -1175,6 +1175,7 @@ export function setupSocket(httpServer: HttpServer) {
         socket.emit("error", { message: "Только ведущий может начать игру." });
         return;
       }
+      markMissingSocketPlayersDisconnected((socketId) => io.sockets.sockets.has(socketId));
       const preparedRoom = removeDisconnectedLobbyPlayersBeforeStart(roomCode) ?? room;
       io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(preparedRoom));
       const activePlayers = preparedRoom.players.filter(
