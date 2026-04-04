@@ -7574,6 +7574,7 @@ export default function App() {
     });
     const myLobbyPlayer = room.players.find((player) => player.id === myId) ?? null;
     const hostTransferCandidates = room.players.filter((player) => player.id !== room.hostId);
+    const hasRoomHostControl = roomControlPlayerId === room.hostId;
     const canStartRoomNow = isQuickRoomMode
       ? activeLobbyPlayersCount >= 3 && activeLobbyPlayersCount <= roomMaxPlayers
       : activeLobbyPlayersCount === roomMaxPlayers;
@@ -7603,7 +7604,7 @@ export default function App() {
             </Button>
           </div>
         )}
-        {myId === room.hostId && isCreatorAdmin && (
+        {hasRoomHostControl && isCreatorAdmin && (
           <>
             <button
               type="button"
@@ -7727,7 +7728,7 @@ export default function App() {
             </DialogContent>
           </Dialog>
         )}
-        {myId === room.hostId && (
+        {hasRoomHostControl && (
           <Dialog open={roomManageOpen} onOpenChange={setRoomManageOpen}>
             <DialogContent
               className={`rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto ${HIDE_SCROLLBAR_CLASS}`}
@@ -8101,7 +8102,7 @@ export default function App() {
               <InfoBlock
                 title="Игроки в комнате"
                 icon={<UserPlus className="w-5 h-5" />}
-                action={myId === room.hostId ? (
+                action={hasRoomHostControl ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -8132,7 +8133,7 @@ export default function App() {
                                 }
                               : null
                           }
-                          canKick={myId === room.hostId && player.id !== room.hostId}
+                          canKick={hasRoomHostControl && player.id !== room.hostId}
                           onKick={() => kickPlayerFromRoom(player.id)}
                           onOpenProfile={openUserProfile}
                           nowTs={nowMs}
@@ -8197,7 +8198,7 @@ export default function App() {
                       Ведущий запускает игру, сайт случайно выбирает подходящее
                       дело и распределяет роли.
                     </div>
-                    {myId === room.hostId && (
+                    {hasRoomHostControl && (
                       <Button
                         className="mt-3 h-10 rounded-xl gap-2 bg-red-600 hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
                         onClick={startGame}
