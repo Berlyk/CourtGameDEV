@@ -25,6 +25,8 @@ import {
   deleteRoom,
   setHostJudge,
   setUsePreferredRoles,
+  updateRoomManagement,
+  transferRoomHost,
   chooseLobbyRole,
   addAdminBotsToRoom,
   validateLobbyRolesBeforeStart,
@@ -62,6 +64,11 @@ function randomCode(): string {
 }
 
 const usedGuestNumbers = new Set<number>();
+const MECHANIC_CARDS_FALLBACK: Array<{ name: string; description: string }> = [
+  { name: "Протест", description: "Остановите ход выступления и зафиксируйте спорный момент." },
+  { name: "Тишина", description: "На короткое время запретите перебивать и спорить." },
+  { name: "Уточнение", description: "Запросите короткий конкретный ответ по сути аргумента." },
+];
 
 function pickGuestNumber(existingNames: string[] = []): number {
   const occupied = new Set<number>();
@@ -382,6 +389,15 @@ function getRoomState(room: any, playerId: string) {
       started: room.started,
       isHostJudge: room.isHostJudge,
       usePreferredRoles: !!room.usePreferredRoles,
+      allowWitnesses: room.allowWitnesses !== false,
+      maxObservers: typeof room.maxObservers === "number" ? room.maxObservers : 6,
+      openingSpeechTimerSec:
+        typeof room.openingSpeechTimerSec === "number" ? room.openingSpeechTimerSec : null,
+      closingSpeechTimerSec:
+        typeof room.closingSpeechTimerSec === "number" ? room.closingSpeechTimerSec : null,
+      protestLimitEnabled: !!room.protestLimitEnabled,
+      maxProtestsPerPlayer:
+        typeof room.maxProtestsPerPlayer === "number" ? room.maxProtestsPerPlayer : null,
       visibility: room.visibility,
       venueLabel: room.venueLabel,
       venueUrl: room.venueUrl,
@@ -416,6 +432,13 @@ function getRoomState(room: any, playerId: string) {
       typeof room.game.matchExpiresAt === "number"
         ? room.game.matchExpiresAt
         : null,
+    openingSpeechTimerSec:
+      typeof room.game.openingSpeechTimerSec === "number" ? room.game.openingSpeechTimerSec : null,
+    closingSpeechTimerSec:
+      typeof room.game.closingSpeechTimerSec === "number" ? room.game.closingSpeechTimerSec : null,
+    protestLimitEnabled: !!room.game.protestLimitEnabled,
+    maxProtestsPerPlayer:
+      typeof room.game.maxProtestsPerPlayer === "number" ? room.game.maxProtestsPerPlayer : null,
     players: mapGamePlayers(room.game.players),
     me: myPlayer ? {
       id: myPlayer.id,
@@ -449,6 +472,15 @@ function buildRoomUpdatePayload(room: any) {
     maxPlayers: room.maxPlayers,
     isHostJudge: room.isHostJudge,
     usePreferredRoles: !!room.usePreferredRoles,
+    allowWitnesses: room.allowWitnesses !== false,
+    maxObservers: typeof room.maxObservers === "number" ? room.maxObservers : 6,
+    openingSpeechTimerSec:
+      typeof room.openingSpeechTimerSec === "number" ? room.openingSpeechTimerSec : null,
+    closingSpeechTimerSec:
+      typeof room.closingSpeechTimerSec === "number" ? room.closingSpeechTimerSec : null,
+    protestLimitEnabled: !!room.protestLimitEnabled,
+    maxProtestsPerPlayer:
+      typeof room.maxProtestsPerPlayer === "number" ? room.maxProtestsPerPlayer : null,
     visibility: room.visibility,
     venueLabel: room.venueLabel,
     venueUrl: room.venueUrl,
@@ -1159,6 +1191,7 @@ export function setupSocket(httpServer: HttpServer) {
     });
 
     socket.on("start_game", async ({ code, sessionToken }: { code: string; sessionToken?: string }) => {
+      try {
       const roomCode = normalizeRoomCode(code);
       const room = getRoom(roomCode);
       if (!room) {
@@ -1207,10 +1240,9 @@ export function setupSocket(httpServer: HttpServer) {
         return;
       }
 
-      const mechanicCards = await pickMechanicCardsForRoom(3);
+      let mechanicCards = await pickMechanicCardsForRoom(3);
       if (!mechanicCards.length) {
-        socket.emit("error", { message: "Не найдены карты механик для старта матча." });
-        return;
+        mechanicCards = MECHANIC_CARDS_FALLBACK;
       }
 
       const updatedRoom = startGame(roomCode, selectedCase, mechanicCards);
@@ -1229,6 +1261,10 @@ export function setupSocket(httpServer: HttpServer) {
         }
       });
       emitPublicMatches(io);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Не удалось начать игру.";
+        socket.emit("error", { message: message || "Не удалось начать игру." });
+      }
     });
 
     socket.on("set_host_judge", ({ code, isHostJudge, sessionToken }: { code: string; isHostJudge: boolean; sessionToken?: string }) => {
@@ -1273,6 +1309,89 @@ export function setupSocket(httpServer: HttpServer) {
         const updated = setUsePreferredRoles(roomCode, !!usePreferredRoles);
         if (!updated) return;
         io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updated));
+        persistRoom(roomCode);
+      },
+    );
+
+    socket.on(
+      "update_room_management",
+      ({
+        code,
+        sessionToken,
+        patch,
+      }: {
+        code: string;
+        sessionToken?: string;
+        patch: {
+          modeKey?: "quick_flex" | "civil_3" | "criminal_4" | "criminal_5" | "company_6";
+          casePackKey?: string;
+          visibility?: "public" | "private";
+          password?: string | null;
+          allowWitnesses?: boolean;
+          maxObservers?: number;
+          openingSpeechTimerSec?: number | null;
+          closingSpeechTimerSec?: number | null;
+          protestLimitEnabled?: boolean;
+          maxProtestsPerPlayer?: number | null;
+        };
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room || room.started) return;
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken,
+        });
+        if (!actorId || room.hostId !== actorId) {
+          socket.emit("error", { message: "Только ведущий может менять настройки комнаты." });
+          return;
+        }
+        const result = updateRoomManagement(roomCode, patch ?? {});
+        if (!result) return;
+        if (!result.ok) {
+          socket.emit("error", { message: result.reason });
+          return;
+        }
+        io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(result.room));
+        emitPublicMatches(io);
+        persistRoom(roomCode);
+      },
+    );
+
+    socket.on(
+      "transfer_room_host",
+      ({
+        code,
+        targetPlayerId,
+        sessionToken,
+      }: {
+        code: string;
+        targetPlayerId: string;
+        sessionToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room || room.started) return;
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken,
+        });
+        if (!actorId || room.hostId !== actorId) {
+          socket.emit("error", { message: "Только текущий ведущий может передать комнату." });
+          return;
+        }
+        const result = transferRoomHost(roomCode, targetPlayerId);
+        if (!result) return;
+        if (!result.ok) {
+          socket.emit("error", { message: result.reason });
+          return;
+        }
+        io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(result.room));
+        emitPublicMatches(io);
         persistRoom(roomCode);
       },
     );
@@ -1608,6 +1727,21 @@ export function setupSocket(httpServer: HttpServer) {
           return;
         }
 
+        if (room.game.protestLimitEnabled) {
+          const limit =
+            typeof room.game.maxProtestsPerPlayer === "number"
+              ? Math.max(1, room.game.maxProtestsPerPlayer)
+              : 1;
+          const usageMap = room.game.protestUsageByPlayer ?? {};
+          const used = Math.max(0, Number(usageMap[actor.id] ?? 0));
+          if (used >= limit) {
+            socket.emit("error", {
+              message: `Лимит протестов исчерпан (${used}/${limit}).`,
+            });
+            return;
+          }
+        }
+
         const stageName = getCurrentStageName(room.game.stages, room.game.stageIndex);
         if (!isCrossExaminationStage(stageName)) {
           socket.emit("error", {
@@ -1642,6 +1776,11 @@ export function setupSocket(httpServer: HttpServer) {
           actorRoleTitle: actor.roleTitle || actor.name,
           createdAt: now,
         };
+        if (room.game.protestLimitEnabled) {
+          const usageMap = room.game.protestUsageByPlayer ?? {};
+          usageMap[actor.id] = Math.max(0, Number(usageMap[actor.id] ?? 0)) + 1;
+          room.game.protestUsageByPlayer = usageMap;
+        }
         emitProtestState(roomCode, room);
       },
     );

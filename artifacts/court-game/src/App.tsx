@@ -1669,6 +1669,10 @@ interface GameState {
   verdictEvaluation: string;
   verdictCloseAt?: number | null;
   matchExpiresAt?: number | null;
+  openingSpeechTimerSec?: number | null;
+  closingSpeechTimerSec?: number | null;
+  protestLimitEnabled?: boolean;
+  maxProtestsPerPlayer?: number | null;
   me: MyPlayer | null;
   code: string;
   hostId: string;
@@ -1686,6 +1690,12 @@ interface RoomState {
   started: boolean;
   isHostJudge?: boolean;
   usePreferredRoles?: boolean;
+  allowWitnesses?: boolean;
+  maxObservers?: number;
+  openingSpeechTimerSec?: number | null;
+  closingSpeechTimerSec?: number | null;
+  protestLimitEnabled?: boolean;
+  maxProtestsPerPlayer?: number | null;
   visibility?: "public" | "private";
   venueLabel?: string;
   venueUrl?: string;
@@ -2255,9 +2265,7 @@ function PlayerCard({
         ? "авто"
         : player.roleAssignmentSource === "manual"
           ? "вручную"
-          : player.roleAssignmentSource === "random"
-            ? "случайная"
-            : ""
+          : ""
       : "";
   const disconnectProgress = isDisconnected
     ? 1 - Math.min(1, disconnectRemainingMs / RECONNECT_GRACE_MS)
@@ -2271,7 +2279,7 @@ function PlayerCard({
       <Card
         className={`rounded-2xl shadow-sm bg-zinc-900/90 text-zinc-100 ${
           isHost
-            ? "border-red-500/35 shadow-[0_0_20px_rgba(239,68,68,0.18)]"
+            ? "border-red-500/25 shadow-[0_0_12px_rgba(239,68,68,0.1)]"
             : "border-zinc-800"
         }`}
       >
@@ -2631,6 +2639,16 @@ export default function App() {
   const [publicMatches, setPublicMatches] = useState<PublicMatchInfo[]>([]);
   const [joinPasswordDialogOpen, setJoinPasswordDialogOpen] = useState(false);
   const [observerListDialogOpen, setObserverListDialogOpen] = useState(false);
+  const [roomManageOpen, setRoomManageOpen] = useState(false);
+  const [manageAllowWitnesses, setManageAllowWitnesses] = useState(true);
+  const [manageMaxObservers, setManageMaxObservers] = useState(6);
+  const [manageOpeningTimerEnabled, setManageOpeningTimerEnabled] = useState(false);
+  const [manageOpeningTimerSec, setManageOpeningTimerSec] = useState(60);
+  const [manageClosingTimerEnabled, setManageClosingTimerEnabled] = useState(false);
+  const [manageClosingTimerSec, setManageClosingTimerSec] = useState(60);
+  const [manageProtestLimitEnabled, setManageProtestLimitEnabled] = useState(false);
+  const [manageProtestLimit, setManageProtestLimit] = useState(2);
+  const [manageTransferHostId, setManageTransferHostId] = useState("");
   const [adminBotCount, setAdminBotCount] = useState(1);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [adminFabPos, setAdminFabPos] = useState<{ x: number; y: number }>({ x: 20, y: 20 });
@@ -2677,6 +2695,8 @@ export default function App() {
   const [influenceNotes, setInfluenceNotes] = useState("");
   const [protestCooldownEndsAt, setProtestCooldownEndsAt] = useState(0);
   const [silenceCooldownEndsAt, setSilenceCooldownEndsAt] = useState(0);
+  const [speechTimerDeadlineAt, setSpeechTimerDeadlineAt] = useState<number | null>(null);
+  const [speechTimerLabel, setSpeechTimerLabel] = useState("");
   const [influenceAnnouncement, setInfluenceAnnouncement] =
     useState<InfluenceAnnouncement | null>(null);
 
@@ -2740,6 +2760,7 @@ export default function App() {
   const myProfileRef = useRef<PublicUserProfile | null>(null);
   const influenceAnnouncementTimerRef = useRef<number | null>(null);
   const lastAutoRejoinAttemptAtRef = useRef(0);
+  const speechTimerStageRef = useRef<string>("");
   const socket = getSocket();
   const activeRoomCode = room?.code ?? game?.code ?? null;
   const sharedAvatar = avatar;
@@ -2833,6 +2854,23 @@ export default function App() {
       setLobbyRoleDialogOpen(false);
     }
   }, [screen]);
+
+  useEffect(() => {
+    if (!room) return;
+    setManageAllowWitnesses(room.allowWitnesses !== false);
+    setManageMaxObservers(
+      Math.max(0, Math.min(6, Number.isFinite(room.maxObservers ?? NaN) ? Number(room.maxObservers) : 6)),
+    );
+    const openingSec = typeof room.openingSpeechTimerSec === "number" ? room.openingSpeechTimerSec : 60;
+    const closingSec = typeof room.closingSpeechTimerSec === "number" ? room.closingSpeechTimerSec : 60;
+    setManageOpeningTimerEnabled(typeof room.openingSpeechTimerSec === "number");
+    setManageOpeningTimerSec(Math.max(15, Math.min(180, openingSec)));
+    setManageClosingTimerEnabled(typeof room.closingSpeechTimerSec === "number");
+    setManageClosingTimerSec(Math.max(15, Math.min(180, closingSec)));
+    setManageProtestLimitEnabled(!!room.protestLimitEnabled);
+    const protestLimit = typeof room.maxProtestsPerPlayer === "number" ? room.maxProtestsPerPlayer : 2;
+    setManageProtestLimit(Math.max(1, Math.min(10, protestLimit)));
+  }, [room]);
   const notesStorageKey =
     game && game.me ? `court_notes_${game.code}_${game.me.id}` : null;
 
@@ -3446,6 +3484,43 @@ export default function App() {
   }, [screen, game?.code, game?.me?.id, mySessionToken, socket]);
 
   useEffect(() => {
+    if (screen !== "game" || !game || !game.me) {
+      setSpeechTimerDeadlineAt(null);
+      setSpeechTimerLabel("");
+      speechTimerStageRef.current = "";
+      return;
+    }
+    const stages = game.stages && game.stages.length > 0 ? game.stages : DEFAULT_GAME_STAGES;
+    const stageName = stages[game.stageIndex] ?? "";
+    const stageKey = `${game.code}:${game.stageIndex}:${game.me.roleKey ?? ""}`;
+    const roleKey = game.me.roleKey ?? "";
+    const isOpeningStage = isRoleOpeningSpeechStageName(roleKey, stageName);
+    const isClosingStage = isRoleSpeechStageName(roleKey, stageName) && isClosingSpeechStageName(stageName);
+    let timerSec: number | null = null;
+    let label = "";
+    if (isOpeningStage && typeof game.openingSpeechTimerSec === "number") {
+      timerSec = game.openingSpeechTimerSec;
+      label = "Таймер вступительной речи";
+    } else if (isClosingStage && typeof game.closingSpeechTimerSec === "number") {
+      timerSec = game.closingSpeechTimerSec;
+      label = "Таймер заключительной речи";
+    }
+    if (!timerSec) {
+      setSpeechTimerDeadlineAt(null);
+      setSpeechTimerLabel("");
+      speechTimerStageRef.current = "";
+      return;
+    }
+    if (speechTimerStageRef.current !== stageKey) {
+      speechTimerStageRef.current = stageKey;
+      setSpeechTimerDeadlineAt(Date.now() + timerSec * 1000);
+      setSpeechTimerLabel(label);
+    } else {
+      setSpeechTimerLabel(label);
+    }
+  }, [screen, game]);
+
+  useEffect(() => {
     socket.on(
       "room_joined",
       ({
@@ -3559,6 +3634,12 @@ export default function App() {
         casePackKey,
         maxPlayers,
         usePreferredRoles,
+        allowWitnesses,
+        maxObservers,
+        openingSpeechTimerSec,
+        closingSpeechTimerSec,
+        protestLimitEnabled,
+        maxProtestsPerPlayer,
         visibility,
         venueLabel,
         venueUrl,
@@ -3573,6 +3654,12 @@ export default function App() {
         casePackKey?: string;
         maxPlayers?: number;
         usePreferredRoles?: boolean;
+        allowWitnesses?: boolean;
+        maxObservers?: number;
+        openingSpeechTimerSec?: number | null;
+        closingSpeechTimerSec?: number | null;
+        protestLimitEnabled?: boolean;
+        maxProtestsPerPlayer?: number | null;
         visibility?: "public" | "private";
         venueLabel?: string;
         venueUrl?: string;
@@ -3597,6 +3684,16 @@ export default function App() {
             casePackKey: casePackKey ?? prev.casePackKey,
             maxPlayers: maxPlayers ?? prev.maxPlayers,
             usePreferredRoles: usePreferredRoles ?? prev.usePreferredRoles,
+            allowWitnesses: allowWitnesses ?? prev.allowWitnesses,
+            maxObservers: maxObservers ?? prev.maxObservers,
+            openingSpeechTimerSec:
+              openingSpeechTimerSec !== undefined ? openingSpeechTimerSec : prev.openingSpeechTimerSec,
+            closingSpeechTimerSec:
+              closingSpeechTimerSec !== undefined ? closingSpeechTimerSec : prev.closingSpeechTimerSec,
+            protestLimitEnabled:
+              protestLimitEnabled !== undefined ? protestLimitEnabled : prev.protestLimitEnabled,
+            maxProtestsPerPlayer:
+              maxProtestsPerPlayer !== undefined ? maxProtestsPerPlayer : prev.maxProtestsPerPlayer,
             visibility: visibility ?? prev.visibility,
             venueLabel: venueLabel ?? prev.venueLabel,
             venueUrl: venueUrl ?? prev.venueUrl,
@@ -4563,6 +4660,24 @@ export default function App() {
       roleKey,
     });
   }, [socket, room, mySessionToken]);
+
+  const updateRoomManagementSettings = useCallback((patch: Record<string, unknown>) => {
+    if (!room || !roomControlSessionToken) return;
+    socket.emit("update_room_management", {
+      code: room.code,
+      sessionToken: roomControlSessionToken,
+      patch,
+    });
+  }, [socket, room, roomControlSessionToken]);
+
+  const transferRoomHostTo = useCallback((targetPlayerId: string) => {
+    if (!room || !roomControlSessionToken || !targetPlayerId || targetPlayerId === room.hostId) return;
+    socket.emit("transfer_room_host", {
+      code: room.code,
+      targetPlayerId,
+      sessionToken: roomControlSessionToken,
+    });
+  }, [socket, room, roomControlSessionToken]);
 
   const addAdminBots = useCallback(() => {
     if (!room || !authToken || !isCreatorAdmin || roomControlPlayerId !== room.hostId) return;
@@ -7451,6 +7566,7 @@ export default function App() {
       }
     });
     const myLobbyPlayer = room.players.find((player) => player.id === myId) ?? null;
+    const hostTransferCandidates = room.players.filter((player) => player.id !== room.hostId);
     const canStartRoomNow = isQuickRoomMode
       ? activeLobbyPlayersCount >= 3 && activeLobbyPlayersCount <= roomMaxPlayers
       : activeLobbyPlayersCount === roomMaxPlayers;
@@ -7604,6 +7720,248 @@ export default function App() {
             </DialogContent>
           </Dialog>
         )}
+        {myId === room.hostId && (
+          <Dialog open={roomManageOpen} onOpenChange={setRoomManageOpen}>
+            <DialogContent className="rounded-2xl border-zinc-800 bg-zinc-950 text-zinc-100 sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Управление комнатой</DialogTitle>
+                <DialogDescription className="text-zinc-400">
+                  Настройки ведущего для текущего лобби.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium text-zinc-100">Я - Судья</div>
+                    <Switch checked={isHostJudge} onCheckedChange={toggleHostJudge} />
+                  </div>
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium text-zinc-100">Выбор ролей</div>
+                    <Switch checked={usePreferredRoles} onCheckedChange={togglePreferredRoles} />
+                  </div>
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="text-xs text-zinc-500">Режим</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {ROOM_MODE_OPTIONS.map((mode) => (
+                      <button
+                        key={`manage-mode-${mode.key}`}
+                        type="button"
+                        onClick={() => updateRoomManagementSettings({ modeKey: mode.key })}
+                        className={`rounded-lg border px-2 py-1.5 text-left text-xs transition ${
+                          room.modeKey === mode.key
+                            ? "border-red-500 bg-red-600/20 text-zinc-100"
+                            : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                        }`}
+                      >
+                        {mode.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="text-xs text-zinc-500">Пак дел</div>
+                  <div className="mt-2 max-h-36 overflow-y-auto space-y-1 pr-1">
+                    {casePacks.map((pack) => (
+                      <button
+                        key={`manage-pack-${pack.key}`}
+                        type="button"
+                        onClick={() => updateRoomManagementSettings({ casePackKey: pack.key })}
+                        className={`w-full rounded-lg border px-2 py-1.5 text-left text-xs transition ${
+                          (room.casePackKey ?? "classic") === pack.key
+                            ? "border-red-500 bg-red-600/20 text-zinc-100"
+                            : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                        }`}
+                      >
+                        {getCasePackTitleDisplay(pack.title)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium text-zinc-100">Свидетели</div>
+                    <Switch
+                      checked={manageAllowWitnesses}
+                      onCheckedChange={(checked) => {
+                        setManageAllowWitnesses(checked);
+                        updateRoomManagementSettings({ allowWitnesses: checked });
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="text-xs text-zinc-500">Наблюдатели: {manageMaxObservers}</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={6}
+                    step={1}
+                    value={manageMaxObservers}
+                    onChange={(e) => {
+                      const next = Math.max(0, Math.min(6, Number(e.target.value) || 0));
+                      setManageMaxObservers(next);
+                      updateRoomManagementSettings({ maxObservers: next });
+                    }}
+                    className="mt-2 h-2 w-full accent-red-500"
+                  />
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium text-zinc-100">Таймер вступления</div>
+                    <Switch
+                      checked={manageOpeningTimerEnabled}
+                      onCheckedChange={(checked) => {
+                        setManageOpeningTimerEnabled(checked);
+                        updateRoomManagementSettings({
+                          openingSpeechTimerSec: checked ? manageOpeningTimerSec : null,
+                        });
+                      }}
+                    />
+                  </div>
+                  {manageOpeningTimerEnabled && (
+                    <div className="mt-2">
+                      <div className="text-xs text-zinc-500">{manageOpeningTimerSec} сек.</div>
+                      <input
+                        type="range"
+                        min={15}
+                        max={180}
+                        step={5}
+                        value={manageOpeningTimerSec}
+                        onChange={(e) => {
+                          const next = Math.max(15, Math.min(180, Number(e.target.value) || 60));
+                          setManageOpeningTimerSec(next);
+                          updateRoomManagementSettings({ openingSpeechTimerSec: next });
+                        }}
+                        className="mt-1 h-2 w-full accent-red-500"
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium text-zinc-100">Таймер заключения</div>
+                    <Switch
+                      checked={manageClosingTimerEnabled}
+                      onCheckedChange={(checked) => {
+                        setManageClosingTimerEnabled(checked);
+                        updateRoomManagementSettings({
+                          closingSpeechTimerSec: checked ? manageClosingTimerSec : null,
+                        });
+                      }}
+                    />
+                  </div>
+                  {manageClosingTimerEnabled && (
+                    <div className="mt-2">
+                      <div className="text-xs text-zinc-500">{manageClosingTimerSec} сек.</div>
+                      <input
+                        type="range"
+                        min={15}
+                        max={180}
+                        step={5}
+                        value={manageClosingTimerSec}
+                        onChange={(e) => {
+                          const next = Math.max(15, Math.min(180, Number(e.target.value) || 60));
+                          setManageClosingTimerSec(next);
+                          updateRoomManagementSettings({ closingSpeechTimerSec: next });
+                        }}
+                        className="mt-1 h-2 w-full accent-red-500"
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium text-zinc-100">Лимит протестов</div>
+                    <Switch
+                      checked={manageProtestLimitEnabled}
+                      onCheckedChange={(checked) => {
+                        setManageProtestLimitEnabled(checked);
+                        updateRoomManagementSettings({
+                          protestLimitEnabled: checked,
+                          maxProtestsPerPlayer: checked ? manageProtestLimit : null,
+                        });
+                      }}
+                    />
+                  </div>
+                  {manageProtestLimitEnabled && (
+                    <div className="mt-2">
+                      <div className="text-xs text-zinc-500">{manageProtestLimit} на игрока</div>
+                      <input
+                        type="range"
+                        min={1}
+                        max={10}
+                        step={1}
+                        value={manageProtestLimit}
+                        onChange={(e) => {
+                          const next = Math.max(1, Math.min(10, Number(e.target.value) || 1));
+                          setManageProtestLimit(next);
+                          updateRoomManagementSettings({
+                            protestLimitEnabled: true,
+                            maxProtestsPerPlayer: next,
+                          });
+                        }}
+                        className="mt-1 h-2 w-full accent-red-500"
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-medium text-zinc-100">Приватная</div>
+                    <Switch
+                      checked={room.visibility === "private"}
+                      onCheckedChange={(checked) =>
+                        updateRoomManagementSettings({ visibility: checked ? "private" : "public" })
+                      }
+                    />
+                  </div>
+                  {room.visibility === "private" && (
+                    <div className="mt-2 flex gap-2">
+                      <Input
+                        placeholder="Пароль"
+                        type="password"
+                        className="h-9 rounded-lg border-zinc-700 bg-zinc-900 text-zinc-100"
+                        onBlur={(e) =>
+                          updateRoomManagementSettings({
+                            password: e.target.value.trim() ? e.target.value.trim() : null,
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+                  <div className="text-xs text-zinc-500">Передать хоста</div>
+                  <div className="mt-2 flex gap-2">
+                    <select
+                      value={manageTransferHostId}
+                      onChange={(e) => setManageTransferHostId(e.target.value)}
+                      className="h-9 flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 text-sm text-zinc-100"
+                    >
+                      <option value="">Выбрать игрока</option>
+                      {hostTransferCandidates.map((player) => (
+                        <option key={`host-candidate-${player.id}`} value={player.id}>
+                          {player.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      className="h-9 rounded-lg bg-red-600 px-3 text-xs text-white hover:bg-red-500"
+                      onClick={() => transferRoomHostTo(manageTransferHostId)}
+                      disabled={!manageTransferHostId}
+                    >
+                      Передать
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
         <div className="max-w-6xl mx-auto space-y-6">
           <AnimatePresence>
             {error && (
@@ -7700,28 +8058,14 @@ export default function App() {
                 title="Игроки в комнате"
                 icon={<UserPlus className="w-5 h-5" />}
                 action={myId === room.hostId ? (
-                  <div className="flex flex-col gap-2 rounded-2xl border border-zinc-700 bg-zinc-800/70 px-3 py-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <label htmlFor="host-judge" className="text-sm font-semibold text-zinc-200 cursor-pointer select-none">
-                        Я - Судья
-                      </label>
-                      <Switch
-                        id="host-judge"
-                        checked={isHostJudge}
-                        onCheckedChange={toggleHostJudge}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <label htmlFor="lobby-role-pick" className="text-sm font-semibold text-zinc-200 cursor-pointer select-none">
-                        Выбор ролей
-                      </label>
-                      <Switch
-                        id="lobby-role-pick"
-                        checked={usePreferredRoles}
-                        onCheckedChange={togglePreferredRoles}
-                      />
-                    </div>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 rounded-xl border-zinc-700 bg-zinc-800/75 px-4 text-zinc-100 hover:bg-zinc-700"
+                    onClick={() => setRoomManageOpen(true)}
+                  >
+                    Управление
+                  </Button>
                 ) : undefined}
               >
                 <div className="relative flex min-h-[460px] lg:min-h-[660px] flex-col pb-12">
@@ -7739,9 +8083,7 @@ export default function App() {
                             player.roleKey !== "witness" &&
                             player.roleKey !== "observer"
                               ? {
-                                  label: player.lobbyAssignedRole
-                                    ? ASSIGNABLE_ROLE_TITLES[player.lobbyAssignedRole]
-                                    : "Случайная",
+                                  label: "Выбрать роль",
                                   onClick: () => setLobbyRoleDialogOpen(true),
                                 }
                               : null
@@ -7991,6 +8333,10 @@ export default function App() {
     const matchHoursLeft = Math.floor(matchMsLeft / (60 * 60 * 1000));
     const matchMinutesLeft = Math.floor((matchMsLeft % (60 * 60 * 1000)) / (60 * 1000));
     const matchSecondsLeft = Math.floor((matchMsLeft % (60 * 1000)) / 1000);
+    const speechMsLeft =
+      typeof speechTimerDeadlineAt === "number" ? Math.max(0, speechTimerDeadlineAt - nowMs) : null;
+    const speechSecondsLeft =
+      speechMsLeft !== null ? Math.max(0, Math.ceil(speechMsLeft / 1000)) : null;
     const canUseJudgeSilence = isJudge && !game.finished && silenceCooldownLeft <= 0;
     const canUseJudgeWarning = isJudge && !game.finished;
     const isCardAnnouncement = influenceAnnouncement?.kind === "card";
@@ -8038,6 +8384,19 @@ export default function App() {
               <Mic2 className="h-4 w-4" />
               Войс
             </Button>
+          </div>
+        )}
+        {speechSecondsLeft !== null && speechTimerLabel && (
+          <div className="fixed inset-0 z-[72] pointer-events-none flex items-center justify-center px-4">
+            <div className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-950/95 px-5 py-4 text-center shadow-[0_22px_66px_rgba(0,0,0,0.72)]">
+              <div className="text-xs uppercase tracking-[0.14em] text-zinc-400">{speechTimerLabel}</div>
+              <div className={`mt-2 text-5xl font-black tabular-nums ${speechSecondsLeft === 0 ? "text-red-400" : "text-zinc-100"}`}>
+                {speechSecondsLeft}
+              </div>
+              <div className="mt-1 text-xs text-zinc-500">
+                Окно исчезнет при смене этапа.
+              </div>
+            </div>
           </div>
         )}
         <AnimatePresence>

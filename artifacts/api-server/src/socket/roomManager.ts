@@ -144,6 +144,11 @@ export interface GameState {
   verdictCloseAt?: number | null;
   matchStartedAt?: number;
   matchExpiresAt?: number;
+  openingSpeechTimerSec?: number | null;
+  closingSpeechTimerSec?: number | null;
+  protestLimitEnabled?: boolean;
+  maxProtestsPerPlayer?: number | null;
+  protestUsageByPlayer?: Record<string, number>;
 }
 
 export interface Room {
@@ -162,6 +167,12 @@ export interface Room {
   password?: string;
   venueLabel?: string;
   venueUrl?: string;
+  allowWitnesses: boolean;
+  maxObservers: number;
+  openingSpeechTimerSec: number | null;
+  closingSpeechTimerSec: number | null;
+  protestLimitEnabled: boolean;
+  maxProtestsPerPlayer: number | null;
   createdAt: number;
   lobbyChat: LobbyChatMessage[];
 }
@@ -201,6 +212,12 @@ export interface CreateRoomOptions {
   venueLabel?: string;
   venueUrl?: string;
   usePreferredRoles?: boolean;
+  allowWitnesses?: boolean;
+  maxObservers?: number;
+  openingSpeechTimerSec?: number | null;
+  closingSpeechTimerSec?: number | null;
+  protestLimitEnabled?: boolean;
+  maxProtestsPerPlayer?: number | null;
 }
 
 export type AssignableRole =
@@ -230,6 +247,7 @@ const rooms = new Map<string, Room>();
 const ROOM_HARD_TTL_MS = 24 * 60 * 60 * 1000;
 const MATCH_TTL_MS = 2.5 * 60 * 60 * 1000;
 const MAX_WITNESS_PLAYERS = 2;
+const MAX_OBSERVERS_LIMIT = 6;
 
 function getWitnessRoleTitle(room: Room): string {
   const witnesses = room.players.filter((player) => player.roleKey === "witness");
@@ -245,8 +263,17 @@ function getWitnessRoleTitle(room: Room): string {
 }
 
 function getSupportRoleForJoin(room: Room): "witness" | "observer" {
+  if (!room.allowWitnesses) return "observer";
   const witnesses = room.players.filter((player) => player.roleKey === "witness").length;
   return witnesses < MAX_WITNESS_PLAYERS ? "witness" : "observer";
+}
+
+function canAddSupportRole(room: Room, supportRole: "witness" | "observer"): boolean {
+  if (supportRole === "observer") {
+    const observers = room.players.filter((player) => player.roleKey === "observer").length;
+    return observers < room.maxObservers;
+  }
+  return true;
 }
 
 function getAssignableRolesForCount(playerCount: number): AssignableRole[] {
@@ -463,6 +490,12 @@ export function restoreRoomsFromSnapshots(snapshots: unknown[]): number {
       venueLabel:
         typeof snapshot.venueLabel === "string" ? snapshot.venueLabel : undefined,
       venueUrl: typeof snapshot.venueUrl === "string" ? snapshot.venueUrl : undefined,
+      allowWitnesses: snapshot.allowWitnesses !== false,
+      maxObservers: normalizeObserverLimit(snapshot.maxObservers),
+      openingSpeechTimerSec: normalizeSpeechTimerSeconds(snapshot.openingSpeechTimerSec),
+      closingSpeechTimerSec: normalizeSpeechTimerSeconds(snapshot.closingSpeechTimerSec),
+      protestLimitEnabled: !!snapshot.protestLimitEnabled,
+      maxProtestsPerPlayer: normalizeProtestLimit(snapshot.maxProtestsPerPlayer),
       createdAt:
         typeof snapshot.createdAt === "number" ? snapshot.createdAt : Date.now(),
       lobbyChat: Array.isArray(snapshot.lobbyChat) ? snapshot.lobbyChat : [],
@@ -511,6 +544,14 @@ export function restoreRoomsFromSnapshots(snapshots: unknown[]): number {
               : typeof snapshot.createdAt === "number"
                 ? snapshot.createdAt + MATCH_TTL_MS
                 : Date.now() + MATCH_TTL_MS,
+        openingSpeechTimerSec: normalizeSpeechTimerSeconds(snapshot.game.openingSpeechTimerSec),
+        closingSpeechTimerSec: normalizeSpeechTimerSeconds(snapshot.game.closingSpeechTimerSec),
+        protestLimitEnabled: !!snapshot.game.protestLimitEnabled,
+        maxProtestsPerPlayer: normalizeProtestLimit(snapshot.game.maxProtestsPerPlayer),
+        protestUsageByPlayer:
+          snapshot.game.protestUsageByPlayer && typeof snapshot.game.protestUsageByPlayer === "object"
+            ? (snapshot.game.protestUsageByPlayer as Record<string, number>)
+            : {},
       };
       loadedRoom.started = true;
     }
@@ -581,6 +622,12 @@ export function createRoom(code: string, player: Player, options?: CreateRoomOpt
   const roomName = normalizeRoomName(options?.roomName);
   const venueLabel = normalizeVenueLabel(options?.venueLabel);
   const venueUrl = normalizeVenueUrl(options?.venueUrl);
+  const allowWitnesses = options?.allowWitnesses !== false;
+  const maxObservers = normalizeObserverLimit(options?.maxObservers);
+  const openingSpeechTimerSec = normalizeSpeechTimerSeconds(options?.openingSpeechTimerSec);
+  const closingSpeechTimerSec = normalizeSpeechTimerSeconds(options?.closingSpeechTimerSec);
+  const protestLimitEnabled = !!options?.protestLimitEnabled;
+  const maxProtestsPerPlayer = normalizeProtestLimit(options?.maxProtestsPerPlayer);
   const room: Room = {
     code,
     roomName,
@@ -597,12 +644,39 @@ export function createRoom(code: string, player: Player, options?: CreateRoomOpt
     password,
     venueLabel,
     venueUrl,
+    allowWitnesses,
+    maxObservers,
+    openingSpeechTimerSec,
+    closingSpeechTimerSec,
+    protestLimitEnabled,
+    maxProtestsPerPlayer,
     createdAt: Date.now(),
     lobbyChat: [],
   };
   rebalanceLobbyRoleAssignments(room);
   rooms.set(code, room);
   return room;
+}
+
+function normalizeObserverLimit(raw: unknown): number {
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return MAX_OBSERVERS_LIMIT;
+  return Math.max(0, Math.min(MAX_OBSERVERS_LIMIT, Math.floor(parsed)));
+}
+
+function normalizeSpeechTimerSeconds(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return null;
+  const clamped = Math.max(15, Math.min(180, Math.floor(parsed)));
+  return clamped;
+}
+
+function normalizeProtestLimit(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(1, Math.min(10, Math.floor(parsed)));
 }
 
 export function setHostJudge(code: string, isHostJudge: boolean): Room | null {
@@ -619,6 +693,96 @@ export function setUsePreferredRoles(code: string, usePreferredRoles: boolean): 
   room.usePreferredRoles = !!usePreferredRoles;
   rebalanceLobbyRoleAssignments(room);
   return room;
+}
+
+export function transferRoomHost(
+  code: string,
+  targetPlayerId: string,
+): { room: Room; ok: true } | { room: Room; ok: false; reason: string } | null {
+  const room = rooms.get(code);
+  if (!room || room.started) return null;
+  const target = room.players.find((player) => player.id === targetPlayerId);
+  if (!target) {
+    return { room, ok: false, reason: "Игрок не найден в лобби." };
+  }
+  room.hostId = target.id;
+  return { room, ok: true };
+}
+
+export function updateRoomManagement(
+  code: string,
+  patch: {
+    modeKey?: RoomModeKey;
+    casePackKey?: string;
+    visibility?: "public" | "private";
+    password?: string | null;
+    allowWitnesses?: boolean;
+    maxObservers?: number;
+    openingSpeechTimerSec?: number | null;
+    closingSpeechTimerSec?: number | null;
+    protestLimitEnabled?: boolean;
+    maxProtestsPerPlayer?: number | null;
+  },
+): { room: Room; ok: true } | { room: Room; ok: false; reason: string } | null {
+  const room = rooms.get(code);
+  if (!room || room.started) return null;
+
+  if (patch.modeKey !== undefined) {
+    const nextMode = normalizeModeKey(patch.modeKey);
+    const nextMaxPlayers = ROOM_MODE_MAX_PLAYERS[nextMode];
+    const activeMainPlayers = getActiveLobbyPlayers(room).length;
+    if (activeMainPlayers > nextMaxPlayers) {
+      return {
+        room,
+        ok: false,
+        reason: `Слишком много игроков для режима (${activeMainPlayers}/${nextMaxPlayers}).`,
+      };
+    }
+    room.modeKey = nextMode;
+    room.maxPlayers = nextMaxPlayers;
+  }
+
+  if (patch.casePackKey !== undefined) {
+    room.casePackKey = normalizeCasePackKey(patch.casePackKey);
+  }
+
+  if (patch.visibility !== undefined) {
+    room.visibility = normalizeVisibility(patch.visibility);
+    if (room.visibility === "public") {
+      room.password = undefined;
+    }
+  }
+
+  if (patch.password !== undefined) {
+    room.password = normalizeRoomPassword(patch.password ?? undefined);
+  }
+
+  if (patch.allowWitnesses !== undefined) {
+    room.allowWitnesses = !!patch.allowWitnesses;
+  }
+
+  if (patch.maxObservers !== undefined) {
+    room.maxObservers = normalizeObserverLimit(patch.maxObservers);
+  }
+
+  if (patch.openingSpeechTimerSec !== undefined) {
+    room.openingSpeechTimerSec = normalizeSpeechTimerSeconds(patch.openingSpeechTimerSec);
+  }
+
+  if (patch.closingSpeechTimerSec !== undefined) {
+    room.closingSpeechTimerSec = normalizeSpeechTimerSeconds(patch.closingSpeechTimerSec);
+  }
+
+  if (patch.protestLimitEnabled !== undefined) {
+    room.protestLimitEnabled = !!patch.protestLimitEnabled;
+  }
+
+  if (patch.maxProtestsPerPlayer !== undefined) {
+    room.maxProtestsPerPlayer = normalizeProtestLimit(patch.maxProtestsPerPlayer);
+  }
+
+  rebalanceLobbyRoleAssignments(room);
+  return { room, ok: true };
 }
 
 export function chooseLobbyRole(
@@ -784,6 +948,7 @@ export function joinRoomAsLobbyWitness(
   if (!isJoinPasswordValid(code, password)) return null;
 
   const supportRole = getSupportRoleForJoin(room);
+  if (!canAddSupportRole(room, supportRole)) return null;
   const witnessPlayer: Player = {
     ...player,
     roleKey: supportRole,
@@ -807,6 +972,7 @@ export function joinRunningGameAsWitness(code: string, player: Player): Room | n
   if (!room?.game) return null;
 
   const supportRole = getSupportRoleForJoin(room);
+  if (!canAddSupportRole(room, supportRole)) return null;
   const witnessPlayer: Player = {
     ...player,
     roleKey: supportRole,
@@ -1037,8 +1203,9 @@ export function removeDisconnectedLobbyPlayersBeforeStart(code: string): Room | 
   if (!room || room.started || room.game) return room ?? null;
   const beforeCount = room.players.length;
   room.players = room.players.filter((player) => {
-    if (player.isBot) return true;
     const socketId = player.socketId?.trim() ?? "";
+    const isBotByName = /^бот-\d+$/i.test((player.name ?? "").trim());
+    if (player.isBot || socketId.startsWith("bot:") || isBotByName) return true;
     return socketId.length > 0;
   });
   if (room.players.length !== beforeCount) {
@@ -1482,6 +1649,11 @@ export function startGame(
     verdictCloseAt: null,
     matchStartedAt: Date.now(),
     matchExpiresAt: Date.now() + MATCH_TTL_MS,
+    openingSpeechTimerSec: room.openingSpeechTimerSec,
+    closingSpeechTimerSec: room.closingSpeechTimerSec,
+    protestLimitEnabled: room.protestLimitEnabled,
+    maxProtestsPerPlayer: room.maxProtestsPerPlayer,
+    protestUsageByPlayer: {},
   };
   room.started = true;
   return room;
