@@ -29,8 +29,6 @@ type RoleKey =
   | "plaintiffLawyer";
 
 type ColumnNames = {
-  packsKey: "key" | "pack_key";
-  casesPackKey: "pack_key" | "case_pack_key";
   casesEvidenceExpr: string;
   casesFactsExpr: string;
 };
@@ -157,18 +155,11 @@ async function resolveColumns(): Promise<ColumnNames> {
   if (columnsPromise) return columnsPromise;
 
   columnsPromise = (async () => {
-    const hasPackKeyInPacks = await columnExists("case_packs", "pack_key");
-    const hasKeyInPacks = await columnExists("case_packs", "key");
-    const hasPackKeyInCases = await columnExists("case_pack_cases", "pack_key");
-    const hasCasePackKeyInCases = await columnExists("case_pack_cases", "case_pack_key");
     const hasEvidenceJsonInCases = await columnExists("case_pack_cases", "evidence_json");
     const hasEvidenceInCases = await columnExists("case_pack_cases", "evidence");
     const hasFactsJsonInCases = await columnExists("case_pack_cases", "facts_json");
     const hasFactsInCases = await columnExists("case_pack_cases", "facts");
 
-    const packsKey: "key" | "pack_key" = hasKeyInPacks || !hasPackKeyInPacks ? "key" : "pack_key";
-    const casesPackKey: "pack_key" | "case_pack_key" =
-      hasPackKeyInCases || !hasCasePackKeyInCases ? "pack_key" : "case_pack_key";
     const casesEvidenceExpr = hasEvidenceJsonInCases
       ? "evidence_json"
       : hasEvidenceInCases
@@ -181,8 +172,6 @@ async function resolveColumns(): Promise<ColumnNames> {
         : "'{}'::jsonb";
 
     return {
-      packsKey,
-      casesPackKey,
       casesEvidenceExpr,
       casesFactsExpr,
     };
@@ -231,17 +220,15 @@ async function ensureTablesInternal(): Promise<void> {
   await pool.query(`
     DO $$
     BEGIN
-      IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = current_schema() AND table_name = 'case_packs' AND column_name = 'pack_key'
-      )
-      AND NOT EXISTS (
+      IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = current_schema() AND table_name = 'case_packs' AND column_name = 'key'
       ) THEN
         EXECUTE 'ALTER TABLE case_packs ADD COLUMN key TEXT';
-        EXECUTE 'UPDATE case_packs SET key = pack_key WHERE key IS NULL';
       END IF;
+
+      EXECUTE 'UPDATE case_packs cp SET key = COALESCE(cp.key, NULLIF(to_jsonb(cp)->>''pack_key'', '''')) WHERE cp.key IS NULL';
+      EXECUTE 'UPDATE case_packs cp SET key = ''pack-'' || SUBSTRING(cp.id::text, 1, 8) WHERE cp.key IS NULL';
 
       IF EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -348,26 +335,31 @@ function titleFromPackKey(packKey: string): string {
 }
 
 async function ensurePackRowsFromCases(attempt = 0): Promise<void> {
-  const columns = await resolveColumns();
-  const insertColumns = `${columns.packsKey}, title, description, is_adult, sort_order, updated_at`;
-  const insertValues = "$2, $3, $4, FALSE, 100, NOW()";
-  const updateSet = "updated_at = NOW()";
+  await resolveColumns();
 
   try {
-    const keysResult = await pool.query<{ pack_key: string }>(`
-      SELECT DISTINCT ${columns.casesPackKey} AS pack_key
-      FROM case_pack_cases
-      WHERE TRUE
+    const keysResult = await pool.query<{ pack_key: string | null }>(`
+      SELECT DISTINCT
+        COALESCE(
+          NULLIF(to_jsonb(c)->>'pack_key', ''),
+          NULLIF(to_jsonb(c)->>'case_pack_key', '')
+        ) AS pack_key
+      FROM case_pack_cases c
+      WHERE COALESCE(
+        NULLIF(to_jsonb(c)->>'pack_key', ''),
+        NULLIF(to_jsonb(c)->>'case_pack_key', '')
+      ) IS NOT NULL
     `);
 
     for (const row of keysResult.rows) {
+      if (!row.pack_key) continue;
       const key = normalizeCasePackKey(row.pack_key);
       await pool.query(
         `
-          INSERT INTO case_packs (id, ${insertColumns})
-          VALUES ($1, ${insertValues})
-          ON CONFLICT (${columns.packsKey})
-          DO UPDATE SET ${updateSet}
+          INSERT INTO case_packs (id, key, title, description, is_adult, sort_order, updated_at)
+          VALUES ($1, $2, $3, $4, FALSE, 100, NOW())
+          ON CONFLICT (key)
+          DO UPDATE SET updated_at = NOW()
         `,
         [crypto.randomUUID(), key, titleFromPackKey(key), "Пак дел из базы данных."],
       );
@@ -431,7 +423,7 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
       // ignore
     }
 
-    const columns = await resolveColumns();
+    await resolveColumns();
     const dbResult = await pool.query<{
       key: string;
       title: string;
@@ -441,7 +433,7 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
       case_count: string;
     }>(`
       SELECT
-        p.${columns.packsKey} AS key,
+        p.key AS key,
         p.title,
         p.description,
         p.is_adult,
@@ -449,9 +441,12 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
         COUNT(c.id)::text AS case_count
       FROM case_packs p
       LEFT JOIN case_pack_cases c
-        ON c.${columns.casesPackKey} = p.${columns.packsKey}
+        ON COALESCE(
+          NULLIF(to_jsonb(c)->>'pack_key', ''),
+          NULLIF(to_jsonb(c)->>'case_pack_key', '')
+        ) = p.key
       WHERE TRUE
-      GROUP BY p.${columns.packsKey}, p.title, p.description, p.is_adult, p.sort_order
+      GROUP BY p.key, p.title, p.description, p.is_adult, p.sort_order
       ORDER BY p.sort_order ASC, p.title ASC
     `);
 
@@ -480,7 +475,14 @@ async function pickCaseFromPackDb(
   modePlayerCount: number,
   attempt = 0,
 ): Promise<StoredCaseData | null> {
-  await ensureCasePacksStorage();
+  try {
+    await ensureCasePacksStorage();
+  } catch (error) {
+    // Не блокируем старт матча, если автопроверка схемы БД упала на legacy-колонках.
+    if (!isUndefinedColumnError(error)) {
+      throw error;
+    }
+  }
   const columns = await resolveColumns();
   const safeCount = modePlayerCount as 3 | 4 | 5 | 6;
 
@@ -501,8 +503,11 @@ async function pickCaseFromPackDb(
           truth,
           ${columns.casesEvidenceExpr} AS evidence_json,
           ${columns.casesFactsExpr} AS facts_json
-        FROM case_pack_cases
-        WHERE ${columns.casesPackKey} = $1
+        FROM case_pack_cases c
+        WHERE COALESCE(
+          NULLIF(to_jsonb(c)->>'pack_key', ''),
+          NULLIF(to_jsonb(c)->>'case_pack_key', '')
+        ) = $1
           AND mode_player_count = $2
         ORDER BY RANDOM()
         LIMIT 1
@@ -537,20 +542,91 @@ async function pickCaseFromPackDb(
   }
 }
 
+async function pickAnyCaseByModeFallback(
+  modePlayerCount: number,
+): Promise<StoredCaseData | null> {
+  const safeCount = modePlayerCount as 3 | 4 | 5 | 6;
+  const result = await pool.query<{
+    case_key: string;
+    title: string;
+    description: string;
+    truth: string;
+    evidence_json: unknown;
+    facts_json: unknown;
+  }>(
+    `
+      SELECT
+        COALESCE(
+          NULLIF(to_jsonb(c)->>'case_key', ''),
+          NULLIF(to_jsonb(c)->>'id', ''),
+          'fallback-case'
+        ) AS case_key,
+        COALESCE(NULLIF(to_jsonb(c)->>'title', ''), 'Дело') AS title,
+        COALESCE(NULLIF(to_jsonb(c)->>'description', ''), 'Описание недоступно.') AS description,
+        COALESCE(NULLIF(to_jsonb(c)->>'truth', ''), 'Истина недоступна.') AS truth,
+        COALESCE(
+          to_jsonb(c)->'evidence_json',
+          to_jsonb(c)->'evidence',
+          '[]'::jsonb
+        ) AS evidence_json,
+        COALESCE(
+          to_jsonb(c)->'facts_json',
+          to_jsonb(c)->'facts',
+          '{}'::jsonb
+        ) AS facts_json
+      FROM case_pack_cases c
+      WHERE COALESCE(NULLIF(to_jsonb(c)->>'mode_player_count', ''), '0')::int = $1
+      ORDER BY RANDOM()
+      LIMIT 1
+    `,
+    [safeCount],
+  );
+
+  if (!result.rowCount) return null;
+  const row = result.rows[0];
+  const facts =
+    row.facts_json && typeof row.facts_json === "object"
+      ? (row.facts_json as Partial<Record<RoleKey, string[]>>)
+      : {};
+
+  return {
+    id: row.case_key,
+    mode: `Режим на ${safeCount}`,
+    title: row.title,
+    description: row.description,
+    truth: row.truth,
+    evidence: Array.isArray(row.evidence_json)
+      ? row.evidence_json.filter((item): item is string => typeof item === "string")
+      : [],
+    roles: buildRolesFromFacts(facts),
+  };
+}
+
 export async function pickCaseForRoom(
   packKeyInput: string | undefined,
   modePlayerCount: number,
 ): Promise<StoredCaseData | null> {
-  const packKey = normalizeCasePackKey(packKeyInput);
+  try {
+    const packKey = normalizeCasePackKey(packKeyInput);
 
-  let selected = await pickCaseFromPackDb(packKey, modePlayerCount);
-  if (selected) return selected;
-
-  if (packKey !== "classic") {
-    selected = await pickCaseFromPackDb("classic", modePlayerCount);
+    let selected = await pickCaseFromPackDb(packKey, modePlayerCount);
     if (selected) return selected;
+
+    if (packKey !== "classic") {
+      selected = await pickCaseFromPackDb("classic", modePlayerCount);
+      if (selected) return selected;
+    }
+
+    selected = await pickCaseFromPackDb("classic", 3);
+    if (selected) return selected;
+  } catch (error) {
+    if (!isUndefinedColumnError(error)) {
+      throw error;
+    }
   }
 
-  return pickCaseFromPackDb("classic", 3);
+  const fallbackByMode = await pickAnyCaseByModeFallback(modePlayerCount);
+  if (fallbackByMode) return fallbackByMode;
+  return pickAnyCaseByModeFallback(3);
 }
 
