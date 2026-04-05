@@ -334,6 +334,13 @@ function titleFromPackKey(packKey: string): string {
     .join(" ");
 }
 
+function resolveOfficialModeTitle(playerCount: 3 | 4 | 5 | 6): string {
+  if (playerCount === 3) return "Гражданский спор / Трудовой спор";
+  if (playerCount === 4) return "Уголовное дело";
+  if (playerCount === 5) return "Уголовное дело";
+  return "Суд на компанию";
+}
+
 async function ensurePackRowsFromCases(attempt = 0): Promise<void> {
   await resolveColumns();
 
@@ -524,7 +531,7 @@ async function pickCaseFromPackDb(
 
     return {
       id: row.case_key,
-      mode: `Режим на ${safeCount}`,
+      mode: resolveOfficialModeTitle(safeCount),
       title: row.title,
       description: row.description,
       truth: row.truth,
@@ -591,7 +598,7 @@ async function pickAnyCaseByModeFallback(
 
   return {
     id: row.case_key,
-    mode: `Режим на ${safeCount}`,
+    mode: resolveOfficialModeTitle(safeCount),
     title: row.title,
     description: row.description,
     truth: row.truth,
