@@ -1186,6 +1186,17 @@ export function removePlayer(code: string, playerId: string): Room | null {
     return null;
   }
 
+  const allPlayersAfterRemoval = room.game ? room.game.players : room.players;
+  const hasAnyHumanPlayer = allPlayersAfterRemoval.some((player) => {
+    const byName = /^бот-\d+$/i.test((player.name ?? "").trim());
+    const bySocket = (player.socketId ?? "").trim().startsWith("bot:");
+    return !player.isBot && !byName && !bySocket;
+  });
+  if (!hasAnyHumanPlayer) {
+    rooms.delete(code);
+    return null;
+  }
+
   if (room.hostId === playerId) {
     const nextHostId = room.players[0]?.id ?? room.game?.players[0]?.id;
     if (nextHostId) {
@@ -1254,7 +1265,12 @@ export function listPublicMatches(): PublicMatchInfo[] {
         room.game?.players.find((p: any) => p.id === room.hostId);
       const playerSource = room.game ? room.game.players : room.players;
       const connectedPlayersCount = playerSource.filter(
-        (p: any) => typeof p?.socketId === "string" && p.socketId.trim().length > 0,
+        (p: any) =>
+          typeof p?.socketId === "string" &&
+          p.socketId.trim().length > 0 &&
+          !p.isBot &&
+          !/^бот-\d+$/i.test((p?.name ?? "").trim()) &&
+          !p.socketId.trim().startsWith("bot:"),
       ).length;
 
       return {

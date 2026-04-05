@@ -448,9 +448,15 @@ function getRoomModeMeta(modeKey: RoomModeKey | undefined, fallbackMaxPlayers = 
   if (modeKey && ROOM_MODE_BY_KEY[modeKey]) {
     return ROOM_MODE_BY_KEY[modeKey];
   }
+  const fallbackTitle =
+    fallbackMaxPlayers <= 3
+      ? "Гражданский спор / Трудовой спор"
+      : fallbackMaxPlayers <= 5
+        ? "Уголовное дело"
+        : "Суд на компанию";
   return {
     key: "company_6" as RoomModeKey,
-    title: `Режим на ${fallbackMaxPlayers} игроков`,
+    title: fallbackTitle,
     subtitle: "Параметры режима определяются хостом.",
     maxPlayers: fallbackMaxPlayers,
   };
@@ -4695,6 +4701,16 @@ export default function App() {
     });
   }, [socket, room, authToken, isCreatorAdmin, roomControlPlayerId, adminBotCount]);
 
+  const controlAdminPlayer = useCallback((targetPlayerId: string) => {
+    if (!room || !authToken || !isCreatorAdmin || roomControlPlayerId !== room.hostId) return;
+    if (!targetPlayerId) return;
+    socket.emit("admin_control_player", {
+      code: room.code,
+      targetPlayerId,
+      authToken,
+    });
+  }, [socket, room, authToken, isCreatorAdmin, roomControlPlayerId]);
+
   const kickPlayerFromRoom = useCallback(
     (targetPlayerId: string) => {
       if (!room || !roomControlSessionToken || roomControlPlayerId !== room.hostId) return;
@@ -5410,6 +5426,74 @@ export default function App() {
                         </div>
                         <Switch checked={profileHideAge} onCheckedChange={setProfileHideAge} />
                       </div>
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-2.5">
+                        <div className="px-1">
+                          <div className="text-sm text-zinc-100">Предпочитаемая роль</div>
+                          <div className="text-xs text-zinc-500">Роль по умолчанию для лобби с выбором ролей.</div>
+                        </div>
+                        <div className="relative mt-2">
+                          <button
+                            type="button"
+                            onClick={() => setPreferredRolePickerOpen((prev) => !prev)}
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-left text-zinc-100 transition-colors hover:bg-zinc-800"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800/80">
+                                  <Shield className="h-3.5 w-3.5 text-zinc-200" />
+                                </span>
+                                <span className="truncate text-sm font-semibold">
+                                  {preferredRoleDraft
+                                    ? ASSIGNABLE_ROLE_TITLES[preferredRoleDraft]
+                                    : "Без предпочтения"}
+                                </span>
+                              </div>
+                              <ChevronDown
+                                className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${
+                                  preferredRolePickerOpen ? "rotate-180" : ""
+                                }`}
+                              />
+                            </div>
+                          </button>
+                          {preferredRolePickerOpen && (
+                            <div className="absolute top-full z-[170] mt-2 w-full overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950 shadow-[0_18px_44px_rgba(0,0,0,0.55)]">
+                              <div className="max-h-[280px] overflow-y-auto p-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPreferredRoleDraft("");
+                                    setPreferredRolePickerOpen(false);
+                                  }}
+                                  className={`w-full rounded-md border px-2.5 py-2 text-left transition-colors ${
+                                    preferredRoleDraft === ""
+                                      ? "border-red-500 bg-red-600/20 text-red-200"
+                                      : "border-zinc-800 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
+                                  }`}
+                                >
+                                  <span className="text-sm font-semibold">Без предпочтения</span>
+                                </button>
+                                {(Object.keys(ASSIGNABLE_ROLE_TITLES) as AssignableRole[]).map((roleKey) => (
+                                  <button
+                                    key={`preferred-${roleKey}`}
+                                    type="button"
+                                    onClick={() => {
+                                      setPreferredRoleDraft(roleKey);
+                                      setPreferredRolePickerOpen(false);
+                                    }}
+                                    className={`mt-1 w-full rounded-md border px-2.5 py-2 text-left transition-colors ${
+                                      preferredRoleDraft === roleKey
+                                        ? "border-red-500 bg-red-600/20 text-red-200"
+                                        : "border-zinc-800 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
+                                    }`}
+                                  >
+                                    <span className="text-sm font-semibold">{ASSIGNABLE_ROLE_TITLES[roleKey]}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -5604,77 +5688,6 @@ export default function App() {
                       >
                         Последние матчи
                       </Button>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5">
-                    <div className="text-lg font-semibold">Предпочитаемая роль</div>
-                    <div className="mt-1 text-sm text-zinc-500">
-                      Роль по умолчанию для лобби с включенным выбором ролей.
-                    </div>
-                    <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/55 p-2">
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setPreferredRolePickerOpen((prev) => !prev)}
-                          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-left text-zinc-100 transition-colors hover:bg-zinc-800"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800/80">
-                                <Shield className="h-3.5 w-3.5 text-zinc-200" />
-                              </span>
-                              <span className="truncate text-sm font-semibold">
-                                {preferredRoleDraft
-                                  ? ASSIGNABLE_ROLE_TITLES[preferredRoleDraft]
-                                  : "Без предпочтения"}
-                              </span>
-                            </div>
-                            <ChevronDown
-                              className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${
-                                preferredRolePickerOpen ? "rotate-180" : ""
-                              }`}
-                            />
-                          </div>
-                        </button>
-                        {preferredRolePickerOpen && (
-                          <div className="absolute top-full z-[170] mt-2 w-full overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950 shadow-[0_18px_44px_rgba(0,0,0,0.55)]">
-                            <div className="max-h-[280px] overflow-y-auto p-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPreferredRoleDraft("");
-                                  setPreferredRolePickerOpen(false);
-                                }}
-                                className={`w-full rounded-md border px-2.5 py-2 text-left transition-colors ${
-                                  preferredRoleDraft === ""
-                                    ? "border-red-500 bg-red-600/20 text-red-200"
-                                    : "border-zinc-800 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
-                                }`}
-                              >
-                                <span className="text-sm font-semibold">Без предпочтения</span>
-                              </button>
-                              {(Object.keys(ASSIGNABLE_ROLE_TITLES) as AssignableRole[]).map((roleKey) => (
-                                <button
-                                  key={`preferred-${roleKey}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setPreferredRoleDraft(roleKey);
-                                    setPreferredRolePickerOpen(false);
-                                  }}
-                                  className={`mt-1 w-full rounded-md border px-2.5 py-2 text-left transition-colors ${
-                                    preferredRoleDraft === roleKey
-                                      ? "border-red-500 bg-red-600/20 text-red-200"
-                                      : "border-zinc-800 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
-                                  }`}
-                                >
-                                  <span className="text-sm font-semibold">{ASSIGNABLE_ROLE_TITLES[roleKey]}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
 
@@ -7574,6 +7587,9 @@ export default function App() {
     });
     const myLobbyPlayer = room.players.find((player) => player.id === myId) ?? null;
     const hostTransferCandidates = room.players.filter((player) => player.id !== room.hostId);
+    const adminBotPlayers = room.players.filter(
+      (player) => player.isBot || /^бот-\d+$/i.test((player.name ?? "").trim()),
+    );
     const hasRoomHostControl = roomControlPlayerId === room.hostId;
     const canStartRoomNow = isQuickRoomMode
       ? activeLobbyPlayersCount >= 3 && activeLobbyPlayersCount <= roomMaxPlayers
@@ -7619,13 +7635,41 @@ export default function App() {
             </button>
             {adminPanelOpen && (
               <div
-                className="fixed z-[79] w-[220px] rounded-2xl border border-zinc-700 bg-zinc-950/96 p-3 shadow-2xl shadow-black/70"
+                className="fixed z-[79] w-[280px] rounded-2xl border border-zinc-700 bg-zinc-950/96 p-3 shadow-2xl shadow-black/70"
                 style={{
-                  left: Math.max(8, Math.min(window.innerWidth - 228, adminFabPos.x + 56)),
-                  top: Math.max(8, Math.min(window.innerHeight - 180, adminFabPos.y)),
+                  left: Math.max(8, Math.min(window.innerWidth - 288, adminFabPos.x + 56)),
+                  top: Math.max(8, Math.min(window.innerHeight - 340, adminFabPos.y)),
                 }}
               >
                 <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Админ</div>
+                <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-2">
+                  <div className="text-[11px] text-zinc-500">Боты в комнате</div>
+                  {adminBotPlayers.length === 0 ? (
+                    <div className="mt-1 text-xs text-zinc-400">Ботов пока нет.</div>
+                  ) : (
+                    <div className={`mt-1 max-h-28 space-y-1 overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
+                      {adminBotPlayers.map((bot) => (
+                        <button
+                          key={`admin-bot-control-${bot.id}`}
+                          type="button"
+                          onClick={() => controlAdminPlayer(bot.id)}
+                          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-left text-xs font-semibold text-zinc-100 transition hover:border-red-500/70 hover:bg-zinc-800"
+                        >
+                          Зайти за {bot.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {myId !== room.hostId && (
+                    <button
+                      type="button"
+                      onClick={() => controlAdminPlayer(room.hostId)}
+                      className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-red-500/70 hover:bg-zinc-800"
+                    >
+                      Вернуться к ведущему
+                    </button>
+                  )}
+                </div>
                 <div className="mt-2 flex items-center gap-2">
                   <Input
                     type="number"
@@ -7640,7 +7684,7 @@ export default function App() {
                     onClick={addAdminBots}
                     className="h-9 flex-1 rounded-lg bg-red-600 px-3 text-xs text-white hover:bg-red-500"
                   >
-                    Добавить
+                    Добавить ботов
                   </Button>
                 </div>
               </div>

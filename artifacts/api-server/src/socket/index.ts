@@ -1459,6 +1459,61 @@ export function setupSocket(httpServer: HttpServer) {
     );
 
     socket.on(
+      "admin_control_player",
+      async ({
+        code,
+        targetPlayerId,
+        authToken,
+      }: {
+        code: string;
+        targetPlayerId?: string;
+        authToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room || !targetPlayerId) return;
+
+        const actorInfo = socketToRoom.get(socket.id);
+        if (!actorInfo || actorInfo.roomCode !== roomCode || actorInfo.playerId !== room.hostId) {
+          socket.emit("error", { message: "Управлять ботами может только ведущий комнаты." });
+          return;
+        }
+        if (!(await isCreatorAdmin(authToken))) {
+          socket.emit("error", { message: "Нет доступа к админ-инструментам." });
+          return;
+        }
+
+        const lobbyTarget = room.players.find((player: any) => player.id === targetPlayerId);
+        const gameTarget = room.game?.players.find((player: any) => player.id === targetPlayerId);
+        const target = gameTarget ?? lobbyTarget;
+        if (!target) {
+          socket.emit("error", { message: "Игрок не найден." });
+          return;
+        }
+
+        if (!target.sessionToken || !target.sessionToken.trim()) {
+          target.sessionToken = crypto.randomUUID();
+        }
+        if (lobbyTarget) {
+          lobbyTarget.sessionToken = target.sessionToken;
+        }
+        if (gameTarget) {
+          gameTarget.sessionToken = target.sessionToken;
+        }
+
+        socket.emit("room_joined", {
+          playerId: target.id,
+          sessionToken: target.sessionToken,
+          state: getRoomState(room, target.id),
+        });
+        if (room.game) {
+          emitLawyerChatStateToSocket(socket.id, roomCode, target.id);
+        }
+        persistRoom(roomCode);
+      },
+    );
+
+    socket.on(
       "update_avatar",
       ({ code, avatar, sessionToken }: { code: string; avatar?: string | null; sessionToken?: string }) => {
         if (!avatar) return;

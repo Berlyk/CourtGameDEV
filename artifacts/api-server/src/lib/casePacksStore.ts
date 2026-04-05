@@ -116,6 +116,10 @@ const STATIC_PACKS_FALLBACK: CasePackInfo[] = [
   },
 ];
 
+const STATIC_PACKS_BY_KEY = new Map<string, CasePackInfo>(
+  STATIC_PACKS_FALLBACK.map((pack) => [pack.key, pack]),
+);
+
 export function normalizeCasePackKey(input?: string | null): string {
   const raw = (input ?? "").trim().toLowerCase();
   if (!raw) return "classic";
@@ -422,51 +426,55 @@ function buildRolesFromFacts(
 }
 
 export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
-  try {
-    await ensureCasePacksStorage();
-    try {
-      await ensurePackRowsFromCases();
-    } catch {
-      // ignore
-    }
+  const merged = new Map<string, CasePackInfo>(
+    STATIC_PACKS_FALLBACK.map((pack) => [pack.key, { ...pack }]),
+  );
 
-    await resolveColumns();
+  try {
     const dbResult = await pool.query<{
-      key: string;
-      title: string;
-      description: string;
-      is_adult: boolean;
-      sort_order: number;
+      pack_key: string;
       case_count: string;
     }>(`
       SELECT
-        p.key AS key,
-        p.title,
-        p.description,
-        p.is_adult,
-        p.sort_order,
-        COUNT(c.id)::text AS case_count
-      FROM case_packs p
-      LEFT JOIN case_pack_cases c
-        ON COALESCE(
+        COALESCE(
           NULLIF(to_jsonb(c)->>'pack_key', ''),
-          NULLIF(to_jsonb(c)->>'case_pack_key', '')
-        ) = p.key
-      WHERE TRUE
-      GROUP BY p.key, p.title, p.description, p.is_adult, p.sort_order
-      ORDER BY p.sort_order ASC, p.title ASC
+          NULLIF(to_jsonb(c)->>'case_pack_key', ''),
+          'classic'
+        ) AS pack_key,
+        COUNT(c.*)::text AS case_count
+      FROM case_pack_cases c
+      WHERE COALESCE(NULLIF(to_jsonb(c)->>'active', ''), 'true') <> 'false'
+      GROUP BY 1
     `);
 
-    const mapped = dbResult.rows.map((row) => ({
-      key: normalizeCasePackKey(row.key),
-      title: row.title,
-      description: row.description,
-      isAdult: !!row.is_adult,
-      sortOrder: Number.isFinite(row.sort_order) ? row.sort_order : 100,
-      caseCount: Math.max(0, Number(row.case_count ?? "0") || 0),
-    }));
+    dbResult.rows.forEach((row) => {
+      const key = normalizeCasePackKey(row.pack_key);
+      const dbCount = Math.max(0, Number(row.case_count ?? "0") || 0);
+      const fallbackPack = STATIC_PACKS_BY_KEY.get(key);
+      const existing = merged.get(key);
+      const resolvedCount = Math.max(
+        dbCount,
+        fallbackPack?.caseCount ?? 0,
+        existing?.caseCount ?? 0,
+      );
 
-    if (mapped.length > 0) return mapped;
+      if (existing) {
+        merged.set(key, {
+          ...existing,
+          caseCount: resolvedCount,
+        });
+        return;
+      }
+
+      merged.set(key, {
+        key,
+        title: fallbackPack?.title ?? titleFromPackKey(key),
+        description: fallbackPack?.description ?? "Пак дел из базы данных.",
+        isAdult: fallbackPack?.isAdult ?? false,
+        sortOrder: fallbackPack?.sortOrder ?? 200,
+        caseCount: resolvedCount,
+      });
+    });
   } catch (error) {
     if (attempt === 0 && isUndefinedColumnError(error)) {
       columnsPromise = null;
@@ -474,7 +482,9 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
     }
   }
 
-  return STATIC_PACKS_FALLBACK;
+  return [...merged.values()].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"),
+  );
 }
 
 async function pickCaseFromPackDb(
@@ -482,15 +492,6 @@ async function pickCaseFromPackDb(
   modePlayerCount: number,
   attempt = 0,
 ): Promise<StoredCaseData | null> {
-  try {
-    await ensureCasePacksStorage();
-  } catch (error) {
-    // Не блокируем старт матча, если автопроверка схемы БД упала на legacy-колонках.
-    if (!isUndefinedColumnError(error)) {
-      throw error;
-    }
-  }
-  const columns = await resolveColumns();
   const safeCount = modePlayerCount as 3 | 4 | 5 | 6;
 
   try {
@@ -504,18 +505,31 @@ async function pickCaseFromPackDb(
     }>(
       `
         SELECT
-          case_key,
-          title,
-          description,
-          truth,
-          ${columns.casesEvidenceExpr} AS evidence_json,
-          ${columns.casesFactsExpr} AS facts_json
+          COALESCE(
+            NULLIF(to_jsonb(c)->>'case_key', ''),
+            NULLIF(to_jsonb(c)->>'id', ''),
+            'fallback-case'
+          ) AS case_key,
+          COALESCE(NULLIF(to_jsonb(c)->>'title', ''), 'Дело') AS title,
+          COALESCE(NULLIF(to_jsonb(c)->>'description', ''), 'Описание недоступно.') AS description,
+          COALESCE(NULLIF(to_jsonb(c)->>'truth', ''), 'Истина недоступна.') AS truth,
+          COALESCE(
+            to_jsonb(c)->'evidence_json',
+            to_jsonb(c)->'evidence',
+            '[]'::jsonb
+          ) AS evidence_json,
+          COALESCE(
+            to_jsonb(c)->'facts_json',
+            to_jsonb(c)->'facts',
+            '{}'::jsonb
+          ) AS facts_json
         FROM case_pack_cases c
         WHERE COALESCE(
           NULLIF(to_jsonb(c)->>'pack_key', ''),
           NULLIF(to_jsonb(c)->>'case_pack_key', '')
         ) = $1
-          AND mode_player_count = $2
+          AND COALESCE(NULLIF(to_jsonb(c)->>'mode_player_count', ''), '0')::int = $2
+          AND COALESCE(NULLIF(to_jsonb(c)->>'active', ''), 'true') <> 'false'
         ORDER BY RANDOM()
         LIMIT 1
       `,
@@ -545,7 +559,7 @@ async function pickCaseFromPackDb(
       columnsPromise = null;
       return pickCaseFromPackDb(packKey, modePlayerCount, 1);
     }
-    throw error;
+    return null;
   }
 }
 
@@ -626,14 +640,16 @@ export async function pickCaseForRoom(
 
     selected = await pickCaseFromPackDb("classic", 3);
     if (selected) return selected;
-  } catch (error) {
-    if (!isUndefinedColumnError(error)) {
-      throw error;
-    }
+  } catch {
+    // Переходим к безопасному fallback, чтобы матч не блокировался из-за legacy-схемы.
   }
 
-  const fallbackByMode = await pickAnyCaseByModeFallback(modePlayerCount);
-  if (fallbackByMode) return fallbackByMode;
-  return pickAnyCaseByModeFallback(3);
+  try {
+    const fallbackByMode = await pickAnyCaseByModeFallback(modePlayerCount);
+    if (fallbackByMode) return fallbackByMode;
+    return await pickAnyCaseByModeFallback(3);
+  } catch {
+    return null;
+  }
 }
 
