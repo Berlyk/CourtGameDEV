@@ -124,7 +124,7 @@ function normalizePackAliasLabel(value: string | undefined | null): string {
   return (value ?? "")
     .trim()
     .toLowerCase()
-    .replace(/ё/g, "е")
+    .replace(/\u0451/g, "\u0435")
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
 }
@@ -133,7 +133,7 @@ function sanitizeCasePackKey(value: string | undefined | null): string {
   const raw = (value ?? "").trim().toLowerCase();
   if (!raw) return "";
   return raw
-    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/[^\p{L}\p{N}]+/gu, "_")
     .replace(/^_+|_+$/g, "")
     .replace(/_{2,}/g, "_");
 }
@@ -757,21 +757,33 @@ export async function pickCaseForRoom(
   packKeyInput: string | undefined,
   modePlayerCount: number,
 ): Promise<StoredCaseData | null> {
+  const hasExplicitPackSelection = !!(packKeyInput ?? "").trim();
+
   try {
     const packKey = normalizeCasePackKey(packKeyInput);
+    const strictPackMatchRequired = hasExplicitPackSelection && packKey !== "classic";
 
     let selected = await pickCaseFromPackDb(packKey, modePlayerCount);
     if (selected) return selected;
 
-    if (packKey !== "classic") {
-      selected = await pickCaseFromPackDb("classic", modePlayerCount);
-      if (selected) return selected;
+    if (strictPackMatchRequired) {
+      return null;
     }
+
+    selected = await pickCaseFromPackDb("classic", modePlayerCount);
+    if (selected) return selected;
 
     selected = await pickCaseFromPackDb("classic", 3);
     if (selected) return selected;
   } catch {
+    if (hasExplicitPackSelection) {
+      return null;
+    }
     // Переходим к безопасному fallback, чтобы матч не блокировался из-за legacy-схемы.
+  }
+
+  if (hasExplicitPackSelection) {
+    return null;
   }
 
   try {

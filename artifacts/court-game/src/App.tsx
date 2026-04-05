@@ -7615,7 +7615,6 @@ export default function App() {
     const neededPlayersForStart = isQuickRoomMode
       ? Math.max(0, 3 - activeLobbyPlayersCount)
       : Math.max(0, roomMaxPlayers - activeLobbyPlayersCount);
-    const protestLimitFillPercent = ((manageProtestLimit - 1) / 9) * 100;
     return (
       <motion.div
         key="room"
@@ -7794,7 +7793,7 @@ export default function App() {
         {hasRoomHostControl && (
           <Dialog open={roomManageOpen} onOpenChange={setRoomManageOpen}>
             <DialogContent
-              className="rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.78)_rgba(24,24,27,0.32)] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/35 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500"
+              className="rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.28)_transparent] [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/40 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/55"
             >
               <DialogHeader>
                 <DialogTitle>Управление комнатой</DialogTitle>
@@ -7998,12 +7997,10 @@ export default function App() {
                     />
                   </div>
                   {manageProtestLimitEnabled && (
-                    <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-950/55 px-3 py-2.5">
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <div className="text-xs text-zinc-500">На игрока</div>
-                        <div className="rounded-full border border-red-500/35 bg-red-600/12 px-2.5 py-0.5 text-xs font-semibold text-zinc-100">
-                          {manageProtestLimit}
-                        </div>
+                    <div className="mt-2">
+                      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                        <span className="text-zinc-500">На игрока</span>
+                        <span className="font-semibold text-zinc-200">{manageProtestLimit}</span>
                       </div>
                       <input
                         type="range"
@@ -8014,26 +8011,50 @@ export default function App() {
                         onChange={(e) => {
                           const next = Math.max(1, Math.min(10, Number(e.target.value) || 1));
                           setManageProtestLimit(next);
+                        }}
+                        onPointerUp={(e) => {
+                          const next = Math.max(1, Math.min(10, Number(e.currentTarget.value) || 1));
                           updateRoomManagementSettings({
                             protestLimitEnabled: true,
                             maxProtestsPerPlayer: next,
                           });
                         }}
-                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-transparent
-                          [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-full
-                          [&::-moz-range-track]:h-2 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-transparent
-                          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:-mt-1
-                          [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
-                          [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border
-                          [&::-webkit-slider-thumb]:border-red-300/70 [&::-webkit-slider-thumb]:bg-red-500
-                          [&::-webkit-slider-thumb]:shadow-[0_0_0_3px_rgba(239,68,68,0.2),0_0_14px_rgba(239,68,68,0.38)]
-                          [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full
-                          [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-red-300/70 [&::-moz-range-thumb]:bg-red-500"
-                        style={{
-                          background: `linear-gradient(90deg, rgba(248,113,113,0.96) 0%, rgba(239,68,68,0.96) ${protestLimitFillPercent}%, rgba(63,63,70,0.82) ${protestLimitFillPercent}%, rgba(63,63,70,0.82) 100%)`,
+                        onTouchEnd={(e) => {
+                          const next = Math.max(1, Math.min(10, Number(e.currentTarget.value) || 1));
+                          updateRoomManagementSettings({
+                            protestLimitEnabled: true,
+                            maxProtestsPerPlayer: next,
+                          });
                         }}
+                        onKeyUp={(e) => {
+                          if (
+                            e.key !== "ArrowLeft" &&
+                            e.key !== "ArrowRight" &&
+                            e.key !== "ArrowUp" &&
+                            e.key !== "ArrowDown" &&
+                            e.key !== "Home" &&
+                            e.key !== "End"
+                          ) {
+                            return;
+                          }
+                          const target = e.currentTarget as HTMLInputElement;
+                          const next = Math.max(1, Math.min(10, Number(target.value) || 1));
+                          updateRoomManagementSettings({
+                            protestLimitEnabled: true,
+                            maxProtestsPerPlayer: next,
+                          });
+                        }}
+                        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-zinc-700/65 accent-red-500
+                          [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-zinc-700/65
+                          [&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-zinc-700/65
+                          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:-mt-[5px]
+                          [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full
+                          [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-red-300/60 [&::-webkit-slider-thumb]:bg-red-500
+                          [&::-webkit-slider-thumb]:shadow-[0_0_0_2px_rgba(239,68,68,0.22),0_0_8px_rgba(239,68,68,0.22)]
+                          [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full
+                          [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-red-300/60 [&::-moz-range-thumb]:bg-red-500"
                       />
-                      <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
+                      <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-600">
                         <span>1</span>
                         <span>10</span>
                       </div>
@@ -9757,7 +9778,7 @@ export default function App() {
             </InfoBlock>
           </div>
           {matchExpiresAt !== null && !game.finished && (
-            <div className="fixed right-5 bottom-[0.1rem] sm:bottom-[0.15rem] left-auto z-30 rounded-xl border border-zinc-700/80 bg-zinc-950/85 px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-zinc-200 shadow-[0_8px_22px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+            <div className="fixed right-5 bottom-[0.45rem] sm:bottom-[0.6rem] left-auto z-30 rounded-xl border border-zinc-700/80 bg-zinc-950/85 px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-zinc-200 shadow-[0_8px_22px_rgba(0,0,0,0.45)] backdrop-blur-sm">
               <span className="sm:hidden inline-flex items-center gap-2">
                 <Clock3 className="h-3.5 w-3.5 text-zinc-300" />
                 <span className="text-red-300">
@@ -9782,7 +9803,7 @@ export default function App() {
             onOpenChange={setContextHelpOpen}
             query={contextHelpQuery}
             onQueryChange={setContextHelpQuery}
-            floatingOffsetClass="bottom-[2.9rem] sm:bottom-[3.05rem]"
+            floatingOffsetClass="bottom-[4.1rem] sm:bottom-[4.25rem]"
           />
         </div>
         {renderPublicProfileDialog()}
