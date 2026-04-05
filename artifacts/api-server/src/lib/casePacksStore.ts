@@ -31,6 +31,8 @@ type RoleKey =
 type ColumnNames = {
   packsKey: "key" | "pack_key";
   casesPackKey: "pack_key" | "case_pack_key";
+  casesEvidenceExpr: string;
+  casesFactsExpr: string;
 };
 
 const ROLE_TITLES: Record<RoleKey, string> = {
@@ -47,8 +49,10 @@ const ROLE_GOALS: Record<RoleKey, string> = {
   plaintiff: "Доказать, что его требования обоснованы и добиться решения суда в свою пользу.",
   defendant: "Опровергнуть обвинения и добиться полного или частичного оправдания.",
   prosecutor: "Доказать виновность ответчика и убедить суд в необходимости наказания.",
-  defenseLawyer: "Защитить ответчика, опровергнуть доводы обвинения и добиться оправдания или смягчения решения.",
-  plaintiffLawyer: "Усилить позицию истца, доказать обоснованность требований и склонить суд к решению в его пользу.",
+  defenseLawyer:
+    "Защитить ответчика, опровергнуть доводы обвинения и добиться оправдания или смягчения решения.",
+  plaintiffLawyer:
+    "Усилить позицию истца, доказать обоснованность требований и склонить суд к решению в его пользу.",
 };
 
 let ensurePromise: Promise<void> | null = null;
@@ -157,12 +161,31 @@ async function resolveColumns(): Promise<ColumnNames> {
     const hasKeyInPacks = await columnExists("case_packs", "key");
     const hasPackKeyInCases = await columnExists("case_pack_cases", "pack_key");
     const hasCasePackKeyInCases = await columnExists("case_pack_cases", "case_pack_key");
+    const hasEvidenceJsonInCases = await columnExists("case_pack_cases", "evidence_json");
+    const hasEvidenceInCases = await columnExists("case_pack_cases", "evidence");
+    const hasFactsJsonInCases = await columnExists("case_pack_cases", "facts_json");
+    const hasFactsInCases = await columnExists("case_pack_cases", "facts");
 
     const packsKey: "key" | "pack_key" = hasKeyInPacks || !hasPackKeyInPacks ? "key" : "pack_key";
     const casesPackKey: "pack_key" | "case_pack_key" =
       hasPackKeyInCases || !hasCasePackKeyInCases ? "pack_key" : "case_pack_key";
+    const casesEvidenceExpr = hasEvidenceJsonInCases
+      ? "evidence_json"
+      : hasEvidenceInCases
+        ? "to_jsonb(evidence)"
+        : "'[]'::jsonb";
+    const casesFactsExpr = hasFactsJsonInCases
+      ? "facts_json"
+      : hasFactsInCases
+        ? "to_jsonb(facts)"
+        : "'{}'::jsonb";
 
-    return { packsKey, casesPackKey };
+    return {
+      packsKey,
+      casesPackKey,
+      casesEvidenceExpr,
+      casesFactsExpr,
+    };
   })().catch((error) => {
     columnsPromise = null;
     throw error;
@@ -257,6 +280,32 @@ async function ensureTablesInternal(): Promise<void> {
           EXECUTE 'UPDATE case_pack_cases SET facts_json = COALESCE(to_jsonb(facts), ''{}''::jsonb)';
         END IF;
       END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = ANY(current_schemas(true)) AND table_name = 'case_packs' AND column_name = 'active'
+      ) THEN
+        EXECUTE 'ALTER TABLE case_packs ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE';
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = ANY(current_schemas(true)) AND table_name = 'case_packs' AND column_name = 'is_active'
+        ) THEN
+          EXECUTE 'UPDATE case_packs SET active = COALESCE(is_active, TRUE)';
+        END IF;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = ANY(current_schemas(true)) AND table_name = 'case_pack_cases' AND column_name = 'active'
+      ) THEN
+        EXECUTE 'ALTER TABLE case_pack_cases ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE';
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = ANY(current_schemas(true)) AND table_name = 'case_pack_cases' AND column_name = 'is_active'
+        ) THEN
+          EXECUTE 'UPDATE case_pack_cases SET active = COALESCE(is_active, TRUE)';
+        END IF;
+      END IF;
     END $$;
   `);
 
@@ -279,12 +328,12 @@ async function ensureTablesInternal(): Promise<void> {
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = ANY(current_schemas(true)) AND table_name = 'case_pack_cases' AND column_name = 'pack_key'
       ) THEN
-        EXECUTE 'CREATE INDEX IF NOT EXISTS case_pack_cases_pack_mode_idx ON case_pack_cases(pack_key, mode_player_count, active)';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS case_pack_cases_pack_mode_idx ON case_pack_cases(pack_key, mode_player_count)';
       ELSIF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = ANY(current_schemas(true)) AND table_name = 'case_pack_cases' AND column_name = 'case_pack_key'
       ) THEN
-        EXECUTE 'CREATE INDEX IF NOT EXISTS case_pack_cases_case_pack_mode_idx ON case_pack_cases(case_pack_key, mode_player_count, active)';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS case_pack_cases_case_pack_mode_idx ON case_pack_cases(case_pack_key, mode_player_count)';
       END IF;
     END $$;
   `);
@@ -305,22 +354,25 @@ function titleFromPackKey(packKey: string): string {
 
 async function ensurePackRowsFromCases(attempt = 0): Promise<void> {
   const columns = await resolveColumns();
+  const insertColumns = `${columns.packsKey}, title, description, is_adult, sort_order, updated_at`;
+  const insertValues = "$2, $3, $4, FALSE, 100, NOW()";
+  const updateSet = "updated_at = NOW()";
 
   try {
     const keysResult = await pool.query<{ pack_key: string }>(`
       SELECT DISTINCT ${columns.casesPackKey} AS pack_key
       FROM case_pack_cases
-      WHERE active = TRUE
+      WHERE TRUE
     `);
 
     for (const row of keysResult.rows) {
       const key = normalizeCasePackKey(row.pack_key);
       await pool.query(
         `
-          INSERT INTO case_packs (id, ${columns.packsKey}, title, description, is_adult, sort_order, active, updated_at)
-          VALUES ($1, $2, $3, $4, FALSE, 100, TRUE, NOW())
+          INSERT INTO case_packs (id, ${insertColumns})
+          VALUES ($1, ${insertValues})
           ON CONFLICT (${columns.packsKey})
-          DO UPDATE SET active = TRUE, updated_at = NOW()
+          DO UPDATE SET ${updateSet}
         `,
         [crypto.randomUUID(), key, titleFromPackKey(key), "Пак дел из базы данных."],
       );
@@ -403,8 +455,7 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
       FROM case_packs p
       LEFT JOIN case_pack_cases c
         ON c.${columns.casesPackKey} = p.${columns.packsKey}
-        AND c.active = TRUE
-      WHERE p.active = TRUE
+      WHERE TRUE
       GROUP BY p.${columns.packsKey}, p.title, p.description, p.is_adult, p.sort_order
       ORDER BY p.sort_order ASC, p.title ASC
     `);
@@ -448,10 +499,15 @@ async function pickCaseFromPackDb(
       facts_json: unknown;
     }>(
       `
-        SELECT case_key, title, description, truth, evidence_json, facts_json
+        SELECT
+          case_key,
+          title,
+          description,
+          truth,
+          ${columns.casesEvidenceExpr} AS evidence_json,
+          ${columns.casesFactsExpr} AS facts_json
         FROM case_pack_cases
-        WHERE active = TRUE
-          AND ${columns.casesPackKey} = $1
+        WHERE ${columns.casesPackKey} = $1
           AND mode_player_count = $2
         ORDER BY RANDOM()
         LIMIT 1
@@ -502,3 +558,4 @@ export async function pickCaseForRoom(
 
   return pickCaseFromPackDb("classic", 3);
 }
+
