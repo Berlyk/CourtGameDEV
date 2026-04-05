@@ -255,7 +255,7 @@ function getCasePackTitleDisplay(title: string | undefined): string {
   if (normalized.toUpperCase() === "ОСОБО ТЯЖКИЕ ПРЕСТУПЛЕНИЯ") {
     return "ОСОБО ТЯЖКИЕ";
   }
-  return normalized || "ПАК";
+  return (normalized || "ПАК").toUpperCase();
 }
 
 const BADGE_ICONS: Record<string, LucideIcon> = {
@@ -2261,7 +2261,7 @@ function PlayerCard({
   }) => void;
   nowTs: number;
 }) {
-  const canOpenProfile = !!onOpenProfile;
+  const canOpenProfile = !!player.userId && !!onOpenProfile;
   const badgeTheme = getBadgeTheme(player.selectedBadgeKey);
   const disconnectRemainingMs =
     typeof player.disconnectedUntil === "number"
@@ -2908,8 +2908,6 @@ export default function App() {
     setManageProtestLimitEnabled(!!room.protestLimitEnabled);
     const protestLimit = typeof room.maxProtestsPerPlayer === "number" ? room.maxProtestsPerPlayer : 2;
     setManageProtestLimit(Math.max(1, Math.min(10, protestLimit)));
-    setManageRoomPassword("");
-    setManageRoomPasswordVisible(false);
   }, [room]);
   const notesStorageKey =
     game && game.me ? `court_notes_${game.code}_${game.me.id}` : null;
@@ -4456,43 +4454,10 @@ export default function App() {
       banner?: string;
       selectedBadgeKey?: string;
     }) => {
-      if (payload.userId) {
-        void openUserProfile(payload.userId);
-        return;
-      }
-      setViewPlayerProfileOpen(true);
-      setViewPlayerProfileLoading(false);
-      setViewPlayerProfileError("");
-      setViewProfileBadgeHintOpen(false);
-      setViewPlayerProfile({
-        id: payload.playerId || `guest-${Date.now()}`,
-        nickname: payload.name || "Гость",
-        avatar: payload.avatar,
-        banner: payload.banner,
-        bio: "Гостевой профиль. Полная статистика доступна только для зарегистрированных игроков.",
-        hideAge: true,
-        createdAt: Date.now(),
-        stats: {
-          totalMatches: 0,
-          totalWins: 0,
-          totalWinRate: 0,
-          roleStats: [],
-        },
-        selectedBadgeKey: payload.selectedBadgeKey,
-        badges: payload.selectedBadgeKey
-          ? [
-              {
-                key: payload.selectedBadgeKey,
-                title: getBadgeTitleByKey(payload.selectedBadgeKey, myProfile?.badges),
-                description: "Детали доступны в полном профиле зарегистрированного игрока.",
-                active: true,
-                category: "manual",
-              },
-            ]
-          : [],
-      });
+      if (!payload.userId) return;
+      void openUserProfile(payload.userId);
     },
-    [openUserProfile, myProfile?.badges],
+    [openUserProfile],
   );
 
   const sendLobbyChatMessage = useCallback(() => {
@@ -7650,6 +7615,7 @@ export default function App() {
     const neededPlayersForStart = isQuickRoomMode
       ? Math.max(0, 3 - activeLobbyPlayersCount)
       : Math.max(0, roomMaxPlayers - activeLobbyPlayersCount);
+    const protestLimitFillPercent = ((manageProtestLimit - 1) / 9) * 100;
     return (
       <motion.div
         key="room"
@@ -7828,7 +7794,7 @@ export default function App() {
         {hasRoomHostControl && (
           <Dialog open={roomManageOpen} onOpenChange={setRoomManageOpen}>
             <DialogContent
-              className={`rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto ${HIDE_SCROLLBAR_CLASS}`}
+              className="rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.78)_rgba(24,24,27,0.32)] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/35 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500"
             >
               <DialogHeader>
                 <DialogTitle>Управление комнатой</DialogTitle>
@@ -8032,44 +7998,45 @@ export default function App() {
                     />
                   </div>
                   {manageProtestLimitEnabled && (
-                    <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-950/55 px-2.5 py-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 rounded-lg border-zinc-700 bg-zinc-900 px-2.5 text-zinc-100 hover:bg-zinc-800"
-                        onClick={() => {
-                          const next = Math.max(1, manageProtestLimit - 1);
-                          setManageProtestLimit(next);
-                          updateRoomManagementSettings({
-                            protestLimitEnabled: true,
-                            maxProtestsPerPlayer: next,
-                          });
-                        }}
-                        disabled={manageProtestLimit <= 1}
-                      >
-                        −
-                      </Button>
-                      <div className="rounded-full border border-red-500/35 bg-red-600/12 px-3 py-1 text-xs font-semibold text-zinc-100">
-                        {manageProtestLimit} на игрока
+                    <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-950/55 px-3 py-2.5">
+                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <div className="text-xs text-zinc-500">На игрока</div>
+                        <div className="rounded-full border border-red-500/35 bg-red-600/12 px-2.5 py-0.5 text-xs font-semibold text-zinc-100">
+                          {manageProtestLimit}
+                        </div>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 rounded-lg border-zinc-700 bg-zinc-900 px-2.5 text-zinc-100 hover:bg-zinc-800"
-                        onClick={() => {
-                          const next = Math.min(10, manageProtestLimit + 1);
+                      <input
+                        type="range"
+                        min={1}
+                        max={10}
+                        step={1}
+                        value={manageProtestLimit}
+                        onChange={(e) => {
+                          const next = Math.max(1, Math.min(10, Number(e.target.value) || 1));
                           setManageProtestLimit(next);
                           updateRoomManagementSettings({
                             protestLimitEnabled: true,
                             maxProtestsPerPlayer: next,
                           });
                         }}
-                        disabled={manageProtestLimit >= 10}
-                      >
-                        +
-                      </Button>
+                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-transparent
+                          [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-full
+                          [&::-moz-range-track]:h-2 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-transparent
+                          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:-mt-1
+                          [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
+                          [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border
+                          [&::-webkit-slider-thumb]:border-red-300/70 [&::-webkit-slider-thumb]:bg-red-500
+                          [&::-webkit-slider-thumb]:shadow-[0_0_0_3px_rgba(239,68,68,0.2),0_0_14px_rgba(239,68,68,0.38)]
+                          [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full
+                          [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-red-300/70 [&::-moz-range-thumb]:bg-red-500"
+                        style={{
+                          background: `linear-gradient(90deg, rgba(248,113,113,0.96) 0%, rgba(239,68,68,0.96) ${protestLimitFillPercent}%, rgba(63,63,70,0.82) ${protestLimitFillPercent}%, rgba(63,63,70,0.82) 100%)`,
+                        }}
+                      />
+                      <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
+                        <span>1</span>
+                        <span>10</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -8254,13 +8221,16 @@ export default function App() {
                 <div className="relative flex min-h-[460px] lg:min-h-[660px] flex-col pb-12">
                   <div className="grid gap-3">
                     <AnimatePresence>
-                      {room.players.map((player) => (
+                      {room.players.map((player) => {
+                        const resolvedUserId =
+                          player.userId ?? knownUserIdByPlayerIdRef.current[player.id];
+                        return (
                         <div key={player.id} className="relative">
                           {player.id === room.hostId ? (
                             <div className="pointer-events-none absolute inset-x-8 -bottom-1 h-8 rounded-full bg-red-500/16 blur-xl" />
                           ) : null}
                           <PlayerCard
-                            player={player}
+                            player={{ ...player, userId: resolvedUserId }}
                             isHost={player.id === room.hostId}
                             showLobbyAssignedRole={usePreferredRoles}
                             rolePickerButton={
@@ -8280,7 +8250,8 @@ export default function App() {
                             nowTs={nowMs}
                           />
                         </div>
-                      ))}
+                        );
+                      })}
                     </AnimatePresence>
                   </div>
                   {neededPlayersForStart > 0 && (
@@ -9061,16 +9032,22 @@ export default function App() {
                       return (
                       <div
                         key={p.id}
-                        className="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/60 px-2.5 py-1.5 flex items-center justify-between text-sm cursor-pointer hover:border-zinc-700"
+                        className={`relative overflow-hidden rounded-xl border bg-zinc-900/60 px-2.5 py-1.5 flex items-center justify-between text-sm ${
+                          profileUserId
+                            ? "cursor-pointer border-zinc-800 hover:border-zinc-700"
+                            : "border-zinc-800"
+                        }`}
                         onClick={() =>
-                          openUserProfileFromPlayer({
-                            playerId: p.id,
-                            userId: profileUserId,
-                            name: p.name,
-                            avatar: p.avatar,
-                            banner: p.banner,
-                            selectedBadgeKey: p.selectedBadgeKey,
-                          })
+                          profileUserId
+                            ? openUserProfileFromPlayer({
+                                playerId: p.id,
+                                userId: profileUserId,
+                                name: p.name,
+                                avatar: p.avatar,
+                                banner: p.banner,
+                                selectedBadgeKey: p.selectedBadgeKey,
+                              })
+                            : undefined
                         }
                       >
                         <div
@@ -9079,7 +9056,13 @@ export default function App() {
                         />
                         <div className="pointer-events-none absolute inset-0 bg-black/35" />
                         <div className="relative z-10 flex items-center gap-2 min-w-0">
-                          <div className="inline-flex items-center gap-2 min-w-0 rounded-md px-1 py-0.5 text-left text-zinc-300 hover:text-zinc-100 transition-colors">
+                          <div
+                            className={`inline-flex items-center gap-2 min-w-0 rounded-md px-1 py-0.5 text-left ${
+                              profileUserId
+                                ? "text-zinc-300 hover:text-zinc-100 transition-colors"
+                                : "text-zinc-400"
+                            }`}
+                          >
                             <Avatar src={p.avatar ?? null} name={p.name} size={32} />
                             <span className="truncate">{p.name}</span>
                             {p.selectedBadgeKey ? (
@@ -9774,7 +9757,7 @@ export default function App() {
             </InfoBlock>
           </div>
           {matchExpiresAt !== null && !game.finished && (
-            <div className="fixed right-5 bottom-[0.45rem] sm:bottom-[0.55rem] left-auto z-30 rounded-xl border border-zinc-700/80 bg-zinc-950/85 px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-zinc-200 shadow-[0_8px_22px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+            <div className="fixed right-5 bottom-[0.1rem] sm:bottom-[0.15rem] left-auto z-30 rounded-xl border border-zinc-700/80 bg-zinc-950/85 px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-zinc-200 shadow-[0_8px_22px_rgba(0,0,0,0.45)] backdrop-blur-sm">
               <span className="sm:hidden inline-flex items-center gap-2">
                 <Clock3 className="h-3.5 w-3.5 text-zinc-300" />
                 <span className="text-red-300">
@@ -9799,7 +9782,7 @@ export default function App() {
             onOpenChange={setContextHelpOpen}
             query={contextHelpQuery}
             onQueryChange={setContextHelpQuery}
-            floatingOffsetClass="bottom-[2.55rem] sm:bottom-[2.7rem]"
+            floatingOffsetClass="bottom-[2.9rem] sm:bottom-[3.05rem]"
           />
         </div>
         {renderPublicProfileDialog()}

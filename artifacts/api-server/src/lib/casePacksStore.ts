@@ -120,13 +120,62 @@ const STATIC_PACKS_BY_KEY = new Map<string, CasePackInfo>(
   STATIC_PACKS_FALLBACK.map((pack) => [pack.key, pack]),
 );
 
-export function normalizeCasePackKey(input?: string | null): string {
-  const raw = (input ?? "").trim().toLowerCase();
-  if (!raw) return "classic";
-  const safe = raw
+function normalizePackAliasLabel(value: string | undefined | null): string {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function sanitizeCasePackKey(value: string | undefined | null): string {
+  const raw = (value ?? "").trim().toLowerCase();
+  if (!raw) return "";
+  return raw
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .replace(/_{2,}/g, "_");
+}
+
+const KNOWN_PACK_ALIAS_MAP = new Map<string, string>();
+
+function registerPackAlias(alias: string, targetKey: string): void {
+  const normalized = normalizePackAliasLabel(alias);
+  if (!normalized) return;
+  KNOWN_PACK_ALIAS_MAP.set(normalized, targetKey);
+}
+
+for (const pack of STATIC_PACKS_FALLBACK) {
+  registerPackAlias(pack.key, pack.key);
+  registerPackAlias(pack.title, pack.key);
+  registerPackAlias(pack.key.replace(/[_-]+/g, " "), pack.key);
+}
+
+registerPackAlias("классика", "classic");
+registerPackAlias("средневековье", "medieval");
+registerPackAlias("особо тяжкие", "hard");
+registerPackAlias("особо тяжкие преступления", "hard");
+registerPackAlias("cyberpunk 2077", "cyberpunk_2077");
+registerPackAlias("дикий запад", "wild_west");
+registerPackAlias("the boys", "the_boys");
+registerPackAlias("18+", "adult_18_plus");
+registerPackAlias("18 plus", "adult_18_plus");
+registerPackAlias("adult 18 plus", "adult_18_plus");
+registerPackAlias("древний рим", "ancient_rome");
+
+function resolveKnownPackKey(value: string | undefined | null): string | null {
+  const direct = KNOWN_PACK_ALIAS_MAP.get(normalizePackAliasLabel(value));
+  if (direct) return direct;
+  const safe = sanitizeCasePackKey(value);
+  if (!safe) return null;
+  return KNOWN_PACK_ALIAS_MAP.get(normalizePackAliasLabel(safe)) ?? null;
+}
+
+export function normalizeCasePackKey(input?: string | null): string {
+  const known = resolveKnownPackKey(input);
+  if (known) return known;
+  const safe = sanitizeCasePackKey(input);
   return safe || "classic";
 }
 
@@ -459,7 +508,10 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
     `);
 
     dbResult.rows.forEach((row) => {
-      const key = normalizeCasePackKey(row.pack_key);
+      const key =
+        resolveKnownPackKey(row.pack_key) ||
+        sanitizeCasePackKey(row.pack_key) ||
+        "classic";
       const dbCount = Math.max(0, Number(row.case_count ?? "0") || 0);
       const fallbackPack = STATIC_PACKS_BY_KEY.get(key);
       const existing = merged.get(key);
@@ -509,6 +561,7 @@ async function pickCaseFromPackDb(
     const packRows = await pool.query<{
       pack_id: string | null;
       pack_key: string | null;
+      pack_title: string | null;
     }>(`
       SELECT
         COALESCE(
@@ -518,13 +571,21 @@ async function pickCaseFromPackDb(
         COALESCE(
           NULLIF(to_jsonb(cp)->>'key', ''),
           NULLIF(to_jsonb(cp)->>'pack_key', '')
-        ) AS pack_key
+        ) AS pack_key,
+        COALESCE(
+          NULLIF(to_jsonb(cp)->>'title', ''),
+          NULLIF(to_jsonb(cp)->>'pack_title', '')
+        ) AS pack_title
       FROM case_packs cp
     `);
     const packKeyById = new Map<string, string>();
     for (const row of packRows.rows) {
       const id = (row.pack_id ?? "").trim();
-      const key = normalizeCasePackKey(row.pack_key);
+      const key =
+        resolveKnownPackKey(row.pack_key) ||
+        resolveKnownPackKey(row.pack_title) ||
+        sanitizeCasePackKey(row.pack_key) ||
+        sanitizeCasePackKey(row.pack_title);
       if (id && key) {
         packKeyById.set(id, key);
       }
@@ -583,8 +644,13 @@ async function pickCaseFromPackDb(
       const keys = new Set<string>();
 
       const addKey = (value: string | null | undefined) => {
-        const normalized = normalizeCasePackKey(value);
-        if (normalized) keys.add(normalized);
+        const known = resolveKnownPackKey(value);
+        if (known) {
+          keys.add(known);
+          return;
+        }
+        const safe = sanitizeCasePackKey(value);
+        if (safe) keys.add(safe);
       };
 
       addKey(row.pack_key_raw);
