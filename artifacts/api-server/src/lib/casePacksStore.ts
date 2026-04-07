@@ -410,6 +410,53 @@ function isUndefinedColumnError(error: unknown): boolean {
   return code === "42703" || /column\s+"?.+"?\s+does\s+not\s+exist/i.test(message);
 }
 
+function quoteIdent(identifier: string): string {
+  return `"${identifier.replace(/"/g, "\"\"")}"`;
+}
+
+async function relaxLegacyCasePackCasesConstraints(): Promise<void> {
+  const canonicalColumns = new Set([
+    "id",
+    "case_pack_id",
+    "case_key",
+    "mode_player_count",
+    "title",
+    "description",
+    "truth",
+    "evidence_json",
+    "facts_json",
+    "sort_order",
+    "active",
+    "created_at",
+    "updated_at",
+  ]);
+
+  const columns = await pool.query<{
+    column_name: string;
+    is_nullable: string;
+  }>(`
+    SELECT column_name, is_nullable
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'case_pack_cases'
+  `);
+
+  for (const column of columns.rows) {
+    const columnName = (column.column_name ?? "").trim();
+    if (!columnName) continue;
+    if (canonicalColumns.has(columnName)) continue;
+    if ((column.is_nullable ?? "").toUpperCase() !== "NO") continue;
+
+    try {
+      await pool.query(
+        `ALTER TABLE case_pack_cases ALTER COLUMN ${quoteIdent(columnName)} DROP NOT NULL`,
+      );
+    } catch {
+      // noop: если колонка системная/ограничение нельзя снять, просто идем дальше
+    }
+  }
+}
+
 async function ensureTablesInternal(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS case_packs (
@@ -676,6 +723,7 @@ async function ensureTablesInternal(): Promise<void> {
     CREATE INDEX IF NOT EXISTS case_pack_cases_case_pack_id_mode_idx ON case_pack_cases(case_pack_id, mode_player_count);
   `);
 
+  await relaxLegacyCasePackCasesConstraints();
   await syncCasePacksFromImportFile();
 }
 
