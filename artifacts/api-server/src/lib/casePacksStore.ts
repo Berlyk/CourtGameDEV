@@ -243,7 +243,7 @@ async function syncCasePacksFromImportFile(): Promise<void> {
       const packId = packUpsert.rows[0]?.id;
       if (!packId) continue;
 
-      await pool.query(`UPDATE case_pack_cases SET active = FALSE WHERE case_pack_id = $1`, [packId]);
+      await pool.query(`DELETE FROM case_pack_cases WHERE case_pack_id = $1`, [packId]);
 
       const usedCaseKeys = new Set<string>();
       for (const playerCount of [3, 4, 5, 6] as const) {
@@ -281,17 +281,6 @@ async function syncCasePacksFromImportFile(): Promise<void> {
                 updated_at
               )
               VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, TRUE, NOW(), NOW())
-              ON CONFLICT (case_pack_id, case_key) DO UPDATE
-              SET
-                mode_player_count = EXCLUDED.mode_player_count,
-                title = EXCLUDED.title,
-                description = EXCLUDED.description,
-                truth = EXCLUDED.truth,
-                evidence_json = EXCLUDED.evidence_json,
-                facts_json = EXCLUDED.facts_json,
-                sort_order = EXCLUDED.sort_order,
-                active = TRUE,
-                updated_at = NOW()
             `,
             [
               crypto.randomUUID(),
@@ -568,7 +557,6 @@ async function ensureTablesInternal(): Promise<void> {
 
   await pool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS case_packs_key_uidx ON case_packs(key);
-    CREATE UNIQUE INDEX IF NOT EXISTS case_pack_cases_pack_case_uidx ON case_pack_cases(case_pack_id, case_key);
     CREATE INDEX IF NOT EXISTS case_pack_cases_mode_idx ON case_pack_cases(mode_player_count);
     CREATE INDEX IF NOT EXISTS case_pack_cases_case_pack_id_mode_idx ON case_pack_cases(case_pack_id, mode_player_count);
   `);
@@ -737,6 +725,7 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
       ensurePromise = null;
       return listCasePacks(1);
     }
+    console.error("listCasePacks failed", error);
     return [];
   }
 }
@@ -821,6 +810,7 @@ async function pickCaseFromPackDb(
       ensurePromise = null;
       return pickCaseFromPackDb(packKey, modePlayerCount, 1);
     }
+    console.error("pickCaseFromPackDb failed", error);
     return null;
   }
 }
