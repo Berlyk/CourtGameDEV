@@ -5019,6 +5019,30 @@ export default function App() {
     [],
   );
 
+  const readFileAsDataUrl = useCallback(
+    (file: File): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const dataUrl = (ev.target?.result as string) || "";
+          if (dataUrl) {
+            resolve(dataUrl);
+            return;
+          }
+          reject(new Error("Не удалось прочитать изображение."));
+        };
+        reader.onerror = () => reject(new Error("Не удалось прочитать изображение."));
+        reader.readAsDataURL(file);
+      }),
+    [],
+  );
+
+  const isGifUpload = useCallback((file: File) => {
+    const fileType = (file.type || "").toLowerCase();
+    const fileName = (file.name || "").toLowerCase();
+    return fileType === "image/gif" || fileName.endsWith(".gif");
+  }, []);
+
   const openImageCropper = useCallback(
     (file: File, target: CropTarget) => {
       const reader = new FileReader();
@@ -5144,23 +5168,47 @@ export default function App() {
   }, [imageCropMaxOffsetX, imageCropMaxOffsetY]);
 
   const handleAvatarChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      if (isGifUpload(file)) {
+        try {
+          const gifDataUrl = await readFileAsDataUrl(file);
+          setProfileAvatarDraft(gifDataUrl);
+        } catch {
+          setError("Не удалось загрузить GIF-аватар.");
+          setTimeout(() => setError(""), 3000);
+        } finally {
+          e.target.value = "";
+        }
+        return;
+      }
       openImageCropper(file, "avatar");
       e.target.value = "";
     },
-    [openImageCropper],
+    [isGifUpload, openImageCropper, readFileAsDataUrl],
   );
 
   const handleBannerChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
+      if (isGifUpload(file)) {
+        try {
+          const gifDataUrl = await readFileAsDataUrl(file);
+          setProfileBannerDraft(gifDataUrl);
+        } catch {
+          setError("Не удалось загрузить GIF-баннер.");
+          setTimeout(() => setError(""), 3000);
+        } finally {
+          e.target.value = "";
+        }
+        return;
+      }
       openImageCropper(file, "banner");
       e.target.value = "";
     },
-    [openImageCropper],
+    [isGifUpload, openImageCropper, readFileAsDataUrl],
   );
 
   const copyCode = useCallback((code: string) => {
