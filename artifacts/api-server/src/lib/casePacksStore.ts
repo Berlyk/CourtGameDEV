@@ -1,9 +1,4 @@
-import crypto from "node:crypto";
-import { pool } from "@workspace/db";
-import {
-  BACKEND_CASE_PACKS,
-  type CompactCasePack,
-} from "./casePacksImportData.js";
+﻿import { pool } from "@workspace/db";
 
 export interface CasePackInfo {
   key: string;
@@ -33,37 +28,26 @@ type RoleKey =
   | "plaintiffLawyer";
 
 const ROLE_TITLES: Record<RoleKey, string> = {
-  judge: "Судья",
-  plaintiff: "Истец",
-  defendant: "Ответчик",
-  prosecutor: "Прокурор",
-  defenseLawyer: "Адвокат ответчика",
-  plaintiffLawyer: "Адвокат истца",
+  judge: "РЎСѓРґСЊСЏ",
+  plaintiff: "РСЃС‚РµС†",
+  defendant: "РћС‚РІРµС‚С‡РёРє",
+  prosecutor: "РџСЂРѕРєСѓСЂРѕСЂ",
+  defenseLawyer: "РђРґРІРѕРєР°С‚ РѕС‚РІРµС‚С‡РёРєР°",
+  plaintiffLawyer: "РђРґРІРѕРєР°С‚ РёСЃС‚С†Р°",
 };
 
 const ROLE_GOALS: Record<RoleKey, string> = {
-  judge: "Вынести максимально точный вердикт на основе представленных улик и раскрытых фактов.",
-  plaintiff: "Доказать, что его требования обоснованы и добиться решения суда в свою пользу.",
-  defendant: "Опровергнуть обвинения и добиться полного или частичного оправдания.",
-  prosecutor: "Доказать виновность ответчика и убедить суд в необходимости наказания.",
+  judge: "Р’С‹РЅРµСЃС‚Рё РјР°РєСЃРёРјР°Р»СЊРЅРѕ С‚РѕС‡РЅС‹Р№ РІРµСЂРґРёРєС‚ РЅР° РѕСЃРЅРѕРІРµ РїСЂРµРґСЃС‚Р°РІР»РµРЅРЅС‹С… СѓР»РёРє Рё СЂР°СЃРєСЂС‹С‚С‹С… С„Р°РєС‚РѕРІ.",
+  plaintiff: "Р”РѕРєР°Р·Р°С‚СЊ, С‡С‚Рѕ РµРіРѕ С‚СЂРµР±РѕРІР°РЅРёСЏ РѕР±РѕСЃРЅРѕРІР°РЅС‹ Рё РґРѕР±РёС‚СЊСЃСЏ СЂРµС€РµРЅРёСЏ СЃСѓРґР° РІ СЃРІРѕСЋ РїРѕР»СЊР·Сѓ.",
+  defendant: "РћРїСЂРѕРІРµСЂРіРЅСѓС‚СЊ РѕР±РІРёРЅРµРЅРёСЏ Рё РґРѕР±РёС‚СЊСЃСЏ РїРѕР»РЅРѕРіРѕ РёР»Рё С‡Р°СЃС‚РёС‡РЅРѕРіРѕ РѕРїСЂР°РІРґР°РЅРёСЏ.",
+  prosecutor: "Р”РѕРєР°Р·Р°С‚СЊ РІРёРЅРѕРІРЅРѕСЃС‚СЊ РѕС‚РІРµС‚С‡РёРєР° Рё СѓР±РµРґРёС‚СЊ СЃСѓРґ РІ РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё РЅР°РєР°Р·Р°РЅРёСЏ.",
   defenseLawyer:
-    "Защитить ответчика, опровергнуть доводы обвинения и добиться оправдания или смягчения решения.",
+    "Р—Р°С‰РёС‚РёС‚СЊ РѕС‚РІРµС‚С‡РёРєР°, РѕРїСЂРѕРІРµСЂРіРЅСѓС‚СЊ РґРѕРІРѕРґС‹ РѕР±РІРёРЅРµРЅРёСЏ Рё РґРѕР±РёС‚СЊСЃСЏ РѕРїСЂР°РІРґР°РЅРёСЏ РёР»Рё СЃРјСЏРіС‡РµРЅРёСЏ СЂРµС€РµРЅРёСЏ.",
   plaintiffLawyer:
-    "Усилить позицию истца, доказать обоснованность требований и склонить суд к решению в его пользу.",
+    "РЈСЃРёР»РёС‚СЊ РїРѕР·РёС†РёСЋ РёСЃС‚С†Р°, РґРѕРєР°Р·Р°С‚СЊ РѕР±РѕСЃРЅРѕРІР°РЅРЅРѕСЃС‚СЊ С‚СЂРµР±РѕРІР°РЅРёР№ Рё СЃРєР»РѕРЅРёС‚СЊ СЃСѓРґ Рє СЂРµС€РµРЅРёСЋ РІ РµРіРѕ РїРѕР»СЊР·Сѓ.",
 };
 
 let ensurePromise: Promise<void> | null = null;
-
-const IMPORT_PACK_KEY_MAP: Record<string, string> = {
-  classic: "classic",
-  template_pack_a: "medieval",
-  template_pack_b: "hard",
-  template_pack_c: "cyberpunk_2077",
-  template_pack_d: "wild_west",
-  template_pack_e: "the_boys",
-  template_pack_f: "adult_18_plus",
-  template_pack_g: "ancient_rome",
-};
 
 const KNOWN_PACK_ALIAS_MAP = new Map<string, string>();
 
@@ -89,16 +73,16 @@ function registerPackAlias(alias: string, targetKey: string): void {
   KNOWN_PACK_ALIAS_MAP.set(normalizePackAliasLabel(alias), targetKey);
 }
 
-registerPackAlias("классика", "classic");
+registerPackAlias("РєР»Р°СЃСЃРёРєР°", "classic");
 registerPackAlias("classic", "classic");
-registerPackAlias("средневековье", "medieval");
+registerPackAlias("СЃСЂРµРґРЅРµРІРµРєРѕРІСЊРµ", "medieval");
 registerPackAlias("medieval", "medieval");
-registerPackAlias("особо тяжкие", "hard");
-registerPackAlias("особо тяжкие преступления", "hard");
+registerPackAlias("РѕСЃРѕР±Рѕ С‚СЏР¶РєРёРµ", "hard");
+registerPackAlias("РѕСЃРѕР±Рѕ С‚СЏР¶РєРёРµ РїСЂРµСЃС‚СѓРїР»РµРЅРёСЏ", "hard");
 registerPackAlias("hard", "hard");
 registerPackAlias("cyberpunk 2077", "cyberpunk_2077");
 registerPackAlias("cyberpunk_2077", "cyberpunk_2077");
-registerPackAlias("дикий запад", "wild_west");
+registerPackAlias("РґРёРєРёР№ Р·Р°РїР°Рґ", "wild_west");
 registerPackAlias("wild west", "wild_west");
 registerPackAlias("wild_west", "wild_west");
 registerPackAlias("the boys", "the_boys");
@@ -106,7 +90,7 @@ registerPackAlias("the_boys", "the_boys");
 registerPackAlias("18+", "adult_18_plus");
 registerPackAlias("18 plus", "adult_18_plus");
 registerPackAlias("adult_18_plus", "adult_18_plus");
-registerPackAlias("древний рим", "ancient_rome");
+registerPackAlias("РґСЂРµРІРЅРёР№ СЂРёРј", "ancient_rome");
 registerPackAlias("ancient rome", "ancient_rome");
 registerPackAlias("ancient_rome", "ancient_rome");
 
@@ -138,7 +122,7 @@ function parseNumber(raw: string | undefined | null, fallback = 0): number {
 
 function buildPackTitleFromKey(key: string): string {
   const raw = key.replace(/[_-]+/g, " ").trim();
-  if (!raw) return "КЛАССИКА";
+  if (!raw) return "РљР›РђРЎРЎРРљРђ";
   return raw
     .split(" ")
     .filter(Boolean)
@@ -147,10 +131,10 @@ function buildPackTitleFromKey(key: string): string {
 }
 
 function resolveOfficialModeTitle(playerCount: 3 | 4 | 5 | 6): string {
-  if (playerCount === 3) return "Гражданский спор / Трудовой спор";
-  if (playerCount === 4) return "Уголовное дело";
-  if (playerCount === 5) return "Уголовное дело";
-  return "Суд на компанию";
+  if (playerCount === 3) return "Р“СЂР°Р¶РґР°РЅСЃРєРёР№ СЃРїРѕСЂ / РўСЂСѓРґРѕРІРѕР№ СЃРїРѕСЂ";
+  if (playerCount === 4) return "РЈРіРѕР»РѕРІРЅРѕРµ РґРµР»Рѕ";
+  if (playerCount === 5) return "РЈРіРѕР»РѕРІРЅРѕРµ РґРµР»Рѕ";
+  return "РЎСѓРґ РЅР° РєРѕРјРїР°РЅРёСЋ";
 }
 
 function parseStringArray(value: unknown): string[] {
@@ -184,184 +168,6 @@ function buildRolesFromFacts(
   return result;
 }
 
-function normalizeImportedPackKey(pack: CompactCasePack): string {
-  const rawKey = sanitizeCasePackKey(pack.key);
-  const mappedByKey = IMPORT_PACK_KEY_MAP[rawKey];
-  if (mappedByKey) return mappedByKey;
-  if (rawKey.startsWith("template_pack_")) {
-    const fromTitle = resolveKnownPackKey(pack.title) || sanitizeCasePackKey(pack.title);
-    if (fromTitle) return fromTitle;
-  }
-  return normalizeCasePackKey(rawKey || pack.title || "classic");
-}
-
-function normalizeImportedCaseKey(
-  rawKey: string | undefined,
-  playerCount: 3 | 4 | 5 | 6,
-  index: number,
-): string {
-  const safe = sanitizeCasePackKey(rawKey);
-  if (safe) return safe;
-  return `case_${playerCount}_${index + 1}`;
-}
-
-async function shouldHydrateCasePacksFromImportSource(): Promise<boolean> {
-  const stats = await pool.query<{
-    active_pack_count: string;
-    active_case_count: string;
-    classic_case_count: string;
-  }>(`
-    SELECT
-      (
-        SELECT COUNT(*)
-        FROM case_packs cp
-        WHERE COALESCE(NULLIF(to_jsonb(cp)->>'active', ''), NULLIF(to_jsonb(cp)->>'is_active', ''), 'true') <> 'false'
-      )::text AS active_pack_count,
-      (
-        SELECT COUNT(*)
-        FROM case_pack_cases c
-        WHERE COALESCE(NULLIF(to_jsonb(c)->>'active', ''), NULLIF(to_jsonb(c)->>'is_active', ''), 'true') <> 'false'
-      )::text AS active_case_count,
-      (
-        SELECT COUNT(*)
-        FROM case_pack_cases c
-        JOIN case_packs cp
-          ON NULLIF(to_jsonb(c)->>'case_pack_id', '') = NULLIF(to_jsonb(cp)->>'id', '')
-        WHERE COALESCE(NULLIF(to_jsonb(c)->>'active', ''), NULLIF(to_jsonb(c)->>'is_active', ''), 'true') <> 'false'
-          AND COALESCE(NULLIF(to_jsonb(cp)->>'active', ''), NULLIF(to_jsonb(cp)->>'is_active', ''), 'true') <> 'false'
-          AND lower(COALESCE(NULLIF(to_jsonb(cp)->>'key', ''), NULLIF(to_jsonb(cp)->>'pack_key', ''), '')) = 'classic'
-      )::text AS classic_case_count
-  `);
-
-  const row = stats.rows[0];
-  const activePacks = parseNumber(row?.active_pack_count, 0);
-  const activeCases = parseNumber(row?.active_case_count, 0);
-  const classicCases = parseNumber(row?.classic_case_count, 0);
-
-  if (activePacks === 0 || activeCases === 0) return true;
-  if (classicCases >= 1 && classicCases <= 81) return true;
-  return false;
-}
-
-async function hydrateCasePacksFromImportSource(): Promise<void> {
-  if (!Array.isArray(BACKEND_CASE_PACKS) || BACKEND_CASE_PACKS.length === 0) return;
-  if (!(await shouldHydrateCasePacksFromImportSource())) return;
-
-  await pool.query("BEGIN");
-  try {
-    await pool.query(`
-      UPDATE case_pack_cases
-      SET active = FALSE
-      WHERE active = TRUE
-    `);
-    await pool.query(`
-      UPDATE case_packs
-      SET active = FALSE
-      WHERE active = TRUE
-    `);
-
-    for (const sourcePack of BACKEND_CASE_PACKS) {
-      const packKey = normalizeImportedPackKey(sourcePack);
-      const packTitle = (sourcePack.title ?? "").trim().toUpperCase() || buildPackTitleFromKey(packKey);
-      const packDescription = (sourcePack.description ?? "").trim() || "Пак дел.";
-      const packSortOrder = parseNumber(String(sourcePack.sortOrder), 100);
-      const packIsAdult = Boolean(sourcePack.isAdult);
-
-      const packUpsert = await pool.query<{ id: string }>(
-        `
-          INSERT INTO case_packs (
-            id, key, title, description, is_adult, sort_order, active, created_at, updated_at
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW(), NOW())
-          ON CONFLICT (key) DO UPDATE
-          SET
-            title = EXCLUDED.title,
-            description = EXCLUDED.description,
-            is_adult = EXCLUDED.is_adult,
-            sort_order = EXCLUDED.sort_order,
-            active = TRUE,
-            updated_at = NOW()
-          RETURNING id
-        `,
-        [crypto.randomUUID(), packKey, packTitle, packDescription, packIsAdult, packSortOrder],
-      );
-      const packId = packUpsert.rows[0]?.id;
-      if (!packId) continue;
-
-      await pool.query(`UPDATE case_pack_cases SET active = FALSE WHERE case_pack_id = $1`, [packId]);
-
-      const usedCaseKeys = new Set<string>();
-      for (const playerCount of [3, 4, 5, 6] as const) {
-        const cases = sourcePack.casesByPlayers?.[playerCount] ?? [];
-        for (let index = 0; index < cases.length; index += 1) {
-          const caseItem = cases[index];
-          let caseKey = normalizeImportedCaseKey(caseItem?.key, playerCount, index);
-          if (usedCaseKeys.has(caseKey)) {
-            caseKey = `${caseKey}_${playerCount}_${index + 1}`;
-          }
-          usedCaseKeys.add(caseKey);
-
-          const title = (caseItem?.title ?? "").trim() || "Дело";
-          const description = (caseItem?.description ?? "").trim() || "Описание недоступно.";
-          const truth = (caseItem?.truth ?? "").trim() || "Истина недоступна.";
-          const evidence = parseStringArray(caseItem?.evidence);
-          const facts = parseFactsMap(caseItem?.facts);
-
-          await pool.query(
-            `
-              INSERT INTO case_pack_cases (
-                id,
-                case_pack_id,
-                case_key,
-                mode_player_count,
-                title,
-                description,
-                truth,
-                evidence_json,
-                facts_json,
-                sort_order,
-                active,
-                created_at,
-                updated_at
-              )
-              VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, TRUE, NOW(), NOW()
-              )
-              ON CONFLICT (case_pack_id, case_key) DO UPDATE
-              SET
-                mode_player_count = EXCLUDED.mode_player_count,
-                title = EXCLUDED.title,
-                description = EXCLUDED.description,
-                truth = EXCLUDED.truth,
-                evidence_json = EXCLUDED.evidence_json,
-                facts_json = EXCLUDED.facts_json,
-                sort_order = EXCLUDED.sort_order,
-                active = TRUE,
-                updated_at = NOW()
-            `,
-            [
-              crypto.randomUUID(),
-              packId,
-              caseKey,
-              playerCount,
-              title,
-              description,
-              truth,
-              JSON.stringify(evidence),
-              JSON.stringify(facts),
-              index + 1,
-            ],
-          );
-        }
-      }
-    }
-
-    await pool.query("COMMIT");
-  } catch (error) {
-    await pool.query("ROLLBACK");
-    throw error;
-  }
-}
 
 function isUndefinedColumnError(error: unknown): boolean {
   const message =
@@ -484,7 +290,7 @@ async function ensureTablesInternal(): Promise<void> {
                SET description = COALESCE(
                  NULLIF(cp.description, ''''),
                  NULLIF(to_jsonb(cp)->>''pack_description'', ''''),
-                 ''Пак дел.''
+                 ''РџР°Рє РґРµР».''
                )
                WHERE cp.description IS NULL OR cp.description = ''''';
 
@@ -581,7 +387,7 @@ async function ensureTablesInternal(): Promise<void> {
           AND cp.active = TRUE
           AND (
             lower(coalesce(cp.key, '''')) LIKE ''%template%''
-            OR lower(coalesce(cp.title, '''')) LIKE ''%шаблон%''
+            OR lower(coalesce(cp.title, '''')) LIKE ''%С€Р°Р±Р»РѕРЅ%''
           )';
 
       EXECUTE '
@@ -590,7 +396,7 @@ async function ensureTablesInternal(): Promise<void> {
         WHERE cp.active = TRUE
           AND (
             lower(coalesce(cp.key, '''')) LIKE ''%template%''
-            OR lower(coalesce(cp.title, '''')) LIKE ''%шаблон%''
+            OR lower(coalesce(cp.title, '''')) LIKE ''%С€Р°Р±Р»РѕРЅ%''
           )';
 
       EXECUTE '
@@ -618,7 +424,6 @@ async function ensureTablesInternal(): Promise<void> {
     CREATE INDEX IF NOT EXISTS case_pack_cases_case_pack_id_mode_idx ON case_pack_cases(case_pack_id, mode_player_count);
   `);
 
-  await hydrateCasePacksFromImportSource();
 }
 
 export async function ensureCasePacksStorage(): Promise<void> {
@@ -694,7 +499,7 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
       const key = normalizeCasePackKey(row.pack_key ?? row.pack_title ?? "classic");
       if (isTemplatePack(key, row.pack_title)) continue;
       const title = (row.pack_title ?? "").trim() || buildPackTitleFromKey(key);
-      const description = (row.pack_description ?? "").trim() || "Пак дел.";
+      const description = (row.pack_description ?? "").trim() || "РџР°Рє РґРµР».";
       const sortOrder = parseNumber(row.pack_sort_order, 100);
       const isAdult = parseBoolean(row.pack_is_adult, false);
 
@@ -752,7 +557,7 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
         packs.set(legacyKey, {
           key: legacyKey,
           title: buildPackTitleFromKey(legacyKey),
-          description: "Пак дел.",
+          description: "РџР°Рє РґРµР».",
           isAdult: false,
           sortOrder: 500,
           caseCount: 0,
@@ -822,9 +627,9 @@ async function pickCaseFromPackDb(
       `
         SELECT
           COALESCE(NULLIF(to_jsonb(c)->>'case_key', ''), NULLIF(to_jsonb(c)->>'id', ''), 'fallback-case') AS case_key,
-          COALESCE(NULLIF(to_jsonb(c)->>'title', ''), 'Дело') AS title,
-          COALESCE(NULLIF(to_jsonb(c)->>'description', ''), 'Описание недоступно.') AS description,
-          COALESCE(NULLIF(to_jsonb(c)->>'truth', ''), 'Истина недоступна.') AS truth,
+          COALESCE(NULLIF(to_jsonb(c)->>'title', ''), 'Р”РµР»Рѕ') AS title,
+          COALESCE(NULLIF(to_jsonb(c)->>'description', ''), 'РћРїРёСЃР°РЅРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ.') AS description,
+          COALESCE(NULLIF(to_jsonb(c)->>'truth', ''), 'РСЃС‚РёРЅР° РЅРµРґРѕСЃС‚СѓРїРЅР°.') AS truth,
           COALESCE(to_jsonb(c)->'evidence_json', to_jsonb(c)->'evidence', '[]'::jsonb) AS evidence_json,
           COALESCE(to_jsonb(c)->'facts_json', to_jsonb(c)->'facts', '{}'::jsonb) AS facts_json,
           NULLIF(to_jsonb(c)->>'case_pack_id', '') AS case_pack_id,
