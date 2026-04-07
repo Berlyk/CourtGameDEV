@@ -34,23 +34,27 @@ type RoleKey =
   | "plaintiffLawyer";
 
 const ROLE_TITLES: Record<RoleKey, string> = {
-  judge: "РЎСѓРґСЊСЏ",
-  plaintiff: "РСЃС‚РµС†",
-  defendant: "РћС‚РІРµС‚С‡РёРє",
-  prosecutor: "РџСЂРѕРєСѓСЂРѕСЂ",
-  defenseLawyer: "РђРґРІРѕРєР°С‚ РѕС‚РІРµС‚С‡РёРєР°",
-  plaintiffLawyer: "РђРґРІРѕРєР°С‚ РёСЃС‚С†Р°",
+  judge: "Судья",
+  plaintiff: "Истец",
+  defendant: "Ответчик",
+  prosecutor: "Прокурор",
+  defenseLawyer: "Адвокат ответчика",
+  plaintiffLawyer: "Адвокат истца",
 };
 
 const ROLE_GOALS: Record<RoleKey, string> = {
-  judge: "Р’С‹РЅРµСЃС‚Рё РјР°РєСЃРёРјР°Р»СЊРЅРѕ С‚РѕС‡РЅС‹Р№ РІРµСЂРґРёРєС‚ РЅР° РѕСЃРЅРѕРІРµ РїСЂРµРґСЃС‚Р°РІР»РµРЅРЅС‹С… СѓР»РёРє Рё СЂР°СЃРєСЂС‹С‚С‹С… С„Р°РєС‚РѕРІ.",
-  plaintiff: "Р”РѕРєР°Р·Р°С‚СЊ, С‡С‚Рѕ РµРіРѕ С‚СЂРµР±РѕРІР°РЅРёСЏ РѕР±РѕСЃРЅРѕРІР°РЅС‹ Рё РґРѕР±РёС‚СЊСЃСЏ СЂРµС€РµРЅРёСЏ СЃСѓРґР° РІ СЃРІРѕСЋ РїРѕР»СЊР·Сѓ.",
-  defendant: "РћРїСЂРѕРІРµСЂРіРЅСѓС‚СЊ РѕР±РІРёРЅРµРЅРёСЏ Рё РґРѕР±РёС‚СЊСЃСЏ РїРѕР»РЅРѕРіРѕ РёР»Рё С‡Р°СЃС‚РёС‡РЅРѕРіРѕ РѕРїСЂР°РІРґР°РЅРёСЏ.",
-  prosecutor: "Р”РѕРєР°Р·Р°С‚СЊ РІРёРЅРѕРІРЅРѕСЃС‚СЊ РѕС‚РІРµС‚С‡РёРєР° Рё СѓР±РµРґРёС‚СЊ СЃСѓРґ РІ РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё РЅР°РєР°Р·Р°РЅРёСЏ.",
+  judge:
+    "Вынести максимально точный вердикт на основе представленных улик и раскрытых фактов.",
+  plaintiff:
+    "Доказать, что его требования обоснованы и добиться решения суда в свою пользу.",
+  defendant:
+    "Опровергнуть обвинения и добиться полного или частичного оправдания.",
+  prosecutor:
+    "Доказать виновность ответчика и убедить суд в необходимости наказания.",
   defenseLawyer:
-    "Р—Р°С‰РёС‚РёС‚СЊ РѕС‚РІРµС‚С‡РёРєР°, РѕРїСЂРѕРІРµСЂРіРЅСѓС‚СЊ РґРѕРІРѕРґС‹ РѕР±РІРёРЅРµРЅРёСЏ Рё РґРѕР±РёС‚СЊСЃСЏ РѕРїСЂР°РІРґР°РЅРёСЏ РёР»Рё СЃРјСЏРіС‡РµРЅРёСЏ СЂРµС€РµРЅРёСЏ.",
+    "Защитить ответчика, опровергнуть доводы обвинения и добиться оправдания или смягчения решения.",
   plaintiffLawyer:
-    "РЈСЃРёР»РёС‚СЊ РїРѕР·РёС†РёСЋ РёСЃС‚С†Р°, РґРѕРєР°Р·Р°С‚СЊ РѕР±РѕСЃРЅРѕРІР°РЅРЅРѕСЃС‚СЊ С‚СЂРµР±РѕРІР°РЅРёР№ Рё СЃРєР»РѕРЅРёС‚СЊ СЃСѓРґ Рє СЂРµС€РµРЅРёСЋ РІ РµРіРѕ РїРѕР»СЊР·Сѓ.",
+    "Усилить позицию истца, доказать обоснованность требований и склонить суд к решению в его пользу.",
 };
 
 let ensurePromise: Promise<void> | null = null;
@@ -90,16 +94,16 @@ function registerPackAlias(alias: string, targetKey: string): void {
   KNOWN_PACK_ALIAS_MAP.set(normalizePackAliasLabel(alias), targetKey);
 }
 
-registerPackAlias("РєР»Р°СЃСЃРёРєР°", "classic");
+registerPackAlias("классика", "classic");
 registerPackAlias("classic", "classic");
-registerPackAlias("СЃСЂРµРґРЅРµРІРµРєРѕРІСЊРµ", "medieval");
+registerPackAlias("средневековье", "medieval");
 registerPackAlias("medieval", "medieval");
-registerPackAlias("РѕСЃРѕР±Рѕ С‚СЏР¶РєРёРµ", "hard");
-registerPackAlias("РѕСЃРѕР±Рѕ С‚СЏР¶РєРёРµ РїСЂРµСЃС‚СѓРїР»РµРЅРёСЏ", "hard");
+registerPackAlias("особо тяжкие", "hard");
+registerPackAlias("особо тяжкие преступления", "hard");
 registerPackAlias("hard", "hard");
 registerPackAlias("cyberpunk 2077", "cyberpunk_2077");
 registerPackAlias("cyberpunk_2077", "cyberpunk_2077");
-registerPackAlias("РґРёРєРёР№ Р·Р°РїР°Рґ", "wild_west");
+registerPackAlias("дикий запад", "wild_west");
 registerPackAlias("wild west", "wild_west");
 registerPackAlias("wild_west", "wild_west");
 registerPackAlias("the boys", "the_boys");
@@ -107,7 +111,7 @@ registerPackAlias("the_boys", "the_boys");
 registerPackAlias("18+", "adult_18_plus");
 registerPackAlias("18 plus", "adult_18_plus");
 registerPackAlias("adult_18_plus", "adult_18_plus");
-registerPackAlias("РґСЂРµРІРЅРёР№ СЂРёРј", "ancient_rome");
+registerPackAlias("древний рим", "ancient_rome");
 registerPackAlias("ancient rome", "ancient_rome");
 registerPackAlias("ancient_rome", "ancient_rome");
 
@@ -139,7 +143,7 @@ function parseNumber(raw: string | undefined | null, fallback = 0): number {
 
 function buildPackTitleFromKey(key: string): string {
   const raw = key.replace(/[_-]+/g, " ").trim();
-  if (!raw) return "РљР›РђРЎРЎРРљРђ";
+  if (!raw) return "КЛАССИКА";
   return raw
     .split(" ")
     .filter(Boolean)
@@ -148,10 +152,10 @@ function buildPackTitleFromKey(key: string): string {
 }
 
 function resolveOfficialModeTitle(playerCount: 3 | 4 | 5 | 6): string {
-  if (playerCount === 3) return "Р“СЂР°Р¶РґР°РЅСЃРєРёР№ СЃРїРѕСЂ / РўСЂСѓРґРѕРІРѕР№ СЃРїРѕСЂ";
-  if (playerCount === 4) return "РЈРіРѕР»РѕРІРЅРѕРµ РґРµР»Рѕ";
-  if (playerCount === 5) return "РЈРіРѕР»РѕРІРЅРѕРµ РґРµР»Рѕ";
-  return "РЎСѓРґ РЅР° РєРѕРјРїР°РЅРёСЋ";
+  if (playerCount === 3) return "Гражданский спор / Трудовой спор";
+  if (playerCount === 4) return "Уголовное дело";
+  if (playerCount === 5) return "Уголовное дело";
+  return "Суд на компанию";
 }
 
 function parseStringArray(value: unknown): string[] {
@@ -566,7 +570,7 @@ async function ensureTablesInternal(): Promise<void> {
                SET description = COALESCE(
                  NULLIF(cp.description, ''''),
                  NULLIF(to_jsonb(cp)->>''pack_description'', ''''),
-                 ''РџР°Рє РґРµР».''
+                 ''Пак дел.''
                )
                WHERE cp.description IS NULL OR cp.description = ''''';
 
@@ -800,7 +804,7 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
       const key = normalizeCasePackKey(row.pack_key ?? row.pack_title ?? "classic");
       if (isTemplatePack(key, row.pack_title)) continue;
       const title = (row.pack_title ?? "").trim() || buildPackTitleFromKey(key);
-      const description = (row.pack_description ?? "").trim() || "РџР°Рє РґРµР».";
+      const description = (row.pack_description ?? "").trim() || "Пак дел.";
       const sortOrder = parseNumber(row.pack_sort_order, 100);
       const isAdult = parseBoolean(row.pack_is_adult, false);
 
@@ -858,7 +862,7 @@ export async function listCasePacks(attempt = 0): Promise<CasePackInfo[]> {
         packs.set(legacyKey, {
           key: legacyKey,
           title: buildPackTitleFromKey(legacyKey),
-          description: "РџР°Рє РґРµР».",
+          description: "Пак дел.",
           isAdult: false,
           sortOrder: 500,
           caseCount: 0,
@@ -933,9 +937,9 @@ async function pickCaseFromPackDb(
       `
         SELECT
           COALESCE(NULLIF(to_jsonb(c)->>'case_key', ''), NULLIF(to_jsonb(c)->>'id', ''), 'fallback-case') AS case_key,
-          COALESCE(NULLIF(to_jsonb(c)->>'title', ''), 'Р”РµР»Рѕ') AS title,
-          COALESCE(NULLIF(to_jsonb(c)->>'description', ''), 'РћРїРёСЃР°РЅРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ.') AS description,
-          COALESCE(NULLIF(to_jsonb(c)->>'truth', ''), 'РСЃС‚РёРЅР° РЅРµРґРѕСЃС‚СѓРїРЅР°.') AS truth,
+          COALESCE(NULLIF(to_jsonb(c)->>'title', ''), 'Дело') AS title,
+          COALESCE(NULLIF(to_jsonb(c)->>'description', ''), 'Описание недоступно.') AS description,
+          COALESCE(NULLIF(to_jsonb(c)->>'truth', ''), 'Истина недоступна.') AS truth,
           COALESCE(to_jsonb(c)->'evidence_json', to_jsonb(c)->'evidence', '[]'::jsonb) AS evidence_json,
           COALESCE(to_jsonb(c)->'facts_json', to_jsonb(c)->'facts', '{}'::jsonb) AS facts_json,
           NULLIF(to_jsonb(c)->>'case_pack_id', '') AS case_pack_id,
