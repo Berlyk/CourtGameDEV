@@ -41,6 +41,7 @@ import {
 } from "./roomManager.js";
 import {
   getPublicUserProfileById,
+  getSubscriptionByUserId,
   getUserByToken,
   recordMatchOutcome,
 } from "../lib/authStore.js";
@@ -61,6 +62,13 @@ import {
   loadRoomSnapshots,
   persistRoomSnapshot,
 } from "../lib/matchStore.js";
+import {
+  canAccessCasePack,
+  hasCapability,
+  getRequiredTierForCasePack,
+  normalizeSubscriptionTier,
+  type SubscriptionTier,
+} from "../lib/subscriptions.js";
 
 function randomCode(): string {
   return Math.random().toString(36).slice(2, 7).toUpperCase();
@@ -370,6 +378,61 @@ function mapLobbyPlayers(players: any[]) {
     }));
 }
 
+function getSubscriptionTierLabel(tier: SubscriptionTier): string {
+  if (tier === "trainee") return "Стажер";
+  if (tier === "practitioner") return "Практик";
+  if (tier === "arbiter") return "Арбитр";
+  return "Бесплатно";
+}
+
+function isAnimatedProfileMedia(value: string | null | undefined): boolean {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return false;
+  if (trimmed.startsWith("cgif1:")) return true;
+  if (trimmed.startsWith("data:image/gif")) return true;
+  if (trimmed.includes(".gif")) return true;
+  return false;
+}
+
+function sanitizeProfileMediaByTier(
+  tier: SubscriptionTier,
+  profile: { avatar?: string | null; banner?: string | null },
+): { avatar?: string; banner?: string } {
+  const canBanner = hasCapability(tier, "canUseProfileBanner");
+  const canAnimated = hasCapability(tier, "canUseAnimatedProfileMedia");
+  const safeAvatar =
+    typeof profile.avatar === "string" && profile.avatar.trim()
+      ? profile.avatar
+      : undefined;
+  let safeBanner =
+    typeof profile.banner === "string" && profile.banner.trim()
+      ? profile.banner
+      : undefined;
+
+  if (!canBanner) {
+    safeBanner = undefined;
+  }
+  if (!canAnimated) {
+    if (isAnimatedProfileMedia(safeAvatar)) {
+      return { avatar: undefined, banner: safeBanner && !isAnimatedProfileMedia(safeBanner) ? safeBanner : undefined };
+    }
+    if (safeBanner && isAnimatedProfileMedia(safeBanner)) {
+      safeBanner = undefined;
+    }
+  }
+  return {
+    avatar: safeAvatar,
+    banner: safeBanner,
+  };
+}
+
+function getPackAccessFailureMessage(pack: { key?: string; title?: string; isAdult?: boolean }, tier: SubscriptionTier): string | null {
+  if (canAccessCasePack(tier, pack)) return null;
+  const requiredTier = getRequiredTierForCasePack(pack);
+  return `Этот пак доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`;
+}
+
 interface LawyerChatMessage {
   id: string;
   senderId: string;
@@ -402,6 +465,8 @@ function getRoomState(room: any, playerId: string) {
       maxProtestsPerPlayer:
         typeof room.maxProtestsPerPlayer === "number" ? room.maxProtestsPerPlayer : null,
       visibility: room.visibility,
+      hostSubscriptionTier: room.hostSubscriptionTier ?? "free",
+      isPromoted: !!room.isPromoted,
       venueLabel: room.venueLabel,
       venueUrl: room.venueUrl,
       requiresPassword: !!room.password,
@@ -442,6 +507,8 @@ function getRoomState(room: any, playerId: string) {
     protestLimitEnabled: !!room.game.protestLimitEnabled,
     maxProtestsPerPlayer:
       typeof room.game.maxProtestsPerPlayer === "number" ? room.game.maxProtestsPerPlayer : null,
+    hostSubscriptionTier: room.hostSubscriptionTier ?? "free",
+    isPromoted: !!room.isPromoted,
     players: mapGamePlayers(room.game.players),
     me: myPlayer ? {
       id: myPlayer.id,
@@ -485,6 +552,8 @@ function buildRoomUpdatePayload(room: any) {
     maxProtestsPerPlayer:
       typeof room.maxProtestsPerPlayer === "number" ? room.maxProtestsPerPlayer : null,
     visibility: room.visibility,
+    hostSubscriptionTier: room.hostSubscriptionTier ?? "free",
+    isPromoted: !!room.isPromoted,
     venueLabel: room.venueLabel,
     venueUrl: room.venueUrl,
     requiresPassword: !!room.password,
@@ -922,9 +991,51 @@ export function setupSocket(httpServer: HttpServer) {
             : null;
           const authSelectedBadgeKey =
             authPublicProfile?.selectedBadgeKey ?? authUser?.selectedBadgeKey ?? undefined;
+          const subscriptionTier = normalizeSubscriptionTier(
+            authPublicProfile?.subscription?.tier ?? "free",
+          );
+          const nextOptions: CreateRoomOptions = { ...(options ?? {}) };
+          if (
+            nextOptions.visibility === "private" &&
+            !hasCapability(subscriptionTier, "canCreatePrivateRooms")
+          ) {
+            nextOptions.visibility = "public";
+            nextOptions.password = undefined;
+            socket.emit("error", {
+              message: "Приватные комнаты доступны только в подписке «Арбитр».",
+            });
+          }
+          if (
+            nextOptions.usePreferredRoles &&
+            !hasCapability(subscriptionTier, "canLetPlayersChooseRoles")
+          ) {
+            nextOptions.usePreferredRoles = false;
+            socket.emit("error", {
+              message: "Разрешать выбор ролей игрокам можно с подпиской «Практик».",
+            });
+          }
+          if (
+            typeof nextOptions.casePackKey === "string" &&
+            nextOptions.casePackKey.trim()
+          ) {
+            const packAccessMessage = getPackAccessFailureMessage(
+              { key: nextOptions.casePackKey },
+              subscriptionTier,
+            );
+            if (packAccessMessage) {
+              nextOptions.casePackKey = "classic";
+              socket.emit("error", { message: packAccessMessage });
+            }
+          }
+          nextOptions.hostSubscriptionTier = subscriptionTier;
+          nextOptions.isPromoted = hasCapability(subscriptionTier, "canHighlightHostedMatch");
           const normalizedPlayerName = authUser
             ? (playerName || authUser.nickname || "Игрок 1").trim() || authUser.nickname
             : createGuestName();
+          const sanitizedMedia = sanitizeProfileMediaByTier(subscriptionTier, {
+            avatar: avatar || authUser?.avatar || undefined,
+            banner: banner || authUser?.banner || undefined,
+          });
           const player = {
             id: playerId,
             userId: authUser?.id,
@@ -932,15 +1043,15 @@ export function setupSocket(httpServer: HttpServer) {
             isBot: false,
             socketId: socket.id,
             sessionToken,
-            avatar: avatar || authUser?.avatar || undefined,
-            banner: banner || authUser?.banner || undefined,
+            avatar: sanitizedMedia.avatar,
+            banner: sanitizedMedia.banner,
             selectedBadgeKey: authSelectedBadgeKey,
             preferredRole: (authUser?.preferredRole as AssignableRole | undefined) ?? null,
             lobbyAssignedRole: null,
             roleAssignmentSource: "random" as const,
             rolePreferenceStatus: "idle" as const,
           };
-          const room = createRoom(code, player, options);
+          const room = createRoom(code, player, nextOptions);
 
           socketToRoom.set(socket.id, { roomCode: code, playerId, sessionToken });
           socket.join(code);
@@ -973,6 +1084,13 @@ export function setupSocket(httpServer: HttpServer) {
           : null;
         const authSelectedBadgeKey =
           authPublicProfile?.selectedBadgeKey ?? authUser?.selectedBadgeKey ?? undefined;
+        const subscriptionTier = normalizeSubscriptionTier(
+          authPublicProfile?.subscription?.tier ?? "free",
+        );
+        const sanitizedMedia = sanitizeProfileMediaByTier(subscriptionTier, {
+          avatar: avatar || authUser?.avatar || undefined,
+          banner: banner || authUser?.banner || undefined,
+        });
         const existingNames = room
           ? [
               ...room.players.map((player: any) => player.name),
@@ -997,12 +1115,12 @@ export function setupSocket(httpServer: HttpServer) {
         }
 
         if (authUser) {
-          const profileBanner = banner !== undefined ? banner : authUser.banner;
+          const profileBanner = sanitizedMedia.banner;
           const reclaimedByUser = reclaimDisconnectedPlayerByUserId(
             roomCode,
             authUser.id,
             socket.id,
-            avatar,
+            sanitizedMedia.avatar,
             profileBanner,
           );
           if (reclaimedByUser) {
@@ -1037,7 +1155,13 @@ export function setupSocket(httpServer: HttpServer) {
 
           const binding = await findBindingByUser(roomCode, authUser.id);
           if (binding?.sessionToken) {
-            const restoreResult = rejoinRoom(roomCode, binding.sessionToken, socket.id, avatar, profileBanner);
+            const restoreResult = rejoinRoom(
+              roomCode,
+              binding.sessionToken,
+              socket.id,
+              sanitizedMedia.avatar,
+              profileBanner,
+            );
             if (restoreResult) {
               clearReconnectCleanup(roomCode, restoreResult.playerId);
               socketToRoom.set(socket.id, {
@@ -1071,8 +1195,8 @@ export function setupSocket(httpServer: HttpServer) {
           roomCode,
           effectiveName,
           socket.id,
-          avatar,
-          banner,
+          sanitizedMedia.avatar,
+          sanitizedMedia.banner,
         );
         if (reclaimed) {
           clearReconnectCleanup(roomCode, reclaimed.playerId);
@@ -1117,8 +1241,8 @@ export function setupSocket(httpServer: HttpServer) {
           isBot: false,
           socketId: socket.id,
           sessionToken,
-          avatar: avatar || authUser?.avatar || undefined,
-          banner: banner || authUser?.banner || undefined,
+          avatar: sanitizedMedia.avatar,
+          banner: sanitizedMedia.banner,
           selectedBadgeKey: authSelectedBadgeKey,
           preferredRole: (authUser?.preferredRole as AssignableRole | undefined) ?? null,
           lobbyAssignedRole: null,
@@ -1251,6 +1375,18 @@ export function setupSocket(httpServer: HttpServer) {
         socket.emit("error", { message: "Только ведущий может начать игру." });
         return;
       }
+      const actor = room.players.find((player: any) => player.id === actorId);
+      const actorTier = actor?.userId
+        ? (await getSubscriptionByUserId(actor.userId)).tier
+        : "free";
+      const packAccessMessage = getPackAccessFailureMessage(
+        { key: room.casePackKey },
+        actorTier,
+      );
+      if (packAccessMessage) {
+        socket.emit("error", { message: packAccessMessage });
+        return;
+      }
       markMissingSocketPlayersDisconnected((socketId) => io.sockets.sockets.has(socketId));
       const preparedRoom = removeDisconnectedLobbyPlayersBeforeStart(roomCode) ?? room;
       io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(preparedRoom));
@@ -1327,7 +1463,7 @@ export function setupSocket(httpServer: HttpServer) {
 
     socket.on(
       "set_use_preferred_roles",
-      ({
+      async ({
         code,
         usePreferredRoles,
         sessionToken,
@@ -1349,6 +1485,16 @@ export function setupSocket(httpServer: HttpServer) {
           socket.emit("error", { message: "Только ведущий может менять эту настройку." });
           return;
         }
+        const actor = room.players.find((player: any) => player.id === actorId);
+        const actorTier = actor?.userId
+          ? (await getSubscriptionByUserId(actor.userId)).tier
+          : "free";
+        if (!hasCapability(actorTier, "canLetPlayersChooseRoles")) {
+          socket.emit("error", {
+            message: "Разрешать игрокам выбирать роли можно с подпиской «Практик».",
+          });
+          return;
+        }
         const updated = setUsePreferredRoles(roomCode, !!usePreferredRoles);
         if (!updated) return;
         io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updated));
@@ -1358,7 +1504,7 @@ export function setupSocket(httpServer: HttpServer) {
 
     socket.on(
       "update_room_management",
-      ({
+      async ({
         code,
         sessionToken,
         patch,
@@ -1391,6 +1537,26 @@ export function setupSocket(httpServer: HttpServer) {
           socket.emit("error", { message: "Только ведущий может менять настройки комнаты." });
           return;
         }
+        const actor = room.players.find((player: any) => player.id === actorId);
+        const actorTier = actor?.userId
+          ? (await getSubscriptionByUserId(actor.userId)).tier
+          : "free";
+        if (patch?.visibility === "private" && !hasCapability(actorTier, "canCreatePrivateRooms")) {
+          socket.emit("error", {
+            message: "Приватные комнаты доступны только в подписке «Арбитр».",
+          });
+          return;
+        }
+        if (typeof patch?.casePackKey === "string" && patch.casePackKey.trim()) {
+          const packAccessMessage = getPackAccessFailureMessage(
+            { key: patch.casePackKey },
+            actorTier,
+          );
+          if (packAccessMessage) {
+            socket.emit("error", { message: packAccessMessage });
+            return;
+          }
+        }
         const result = updateRoomManagement(roomCode, patch ?? {});
         if (!result) return;
         if (!result.ok) {
@@ -1405,7 +1571,7 @@ export function setupSocket(httpServer: HttpServer) {
 
     socket.on(
       "transfer_room_host",
-      ({
+      async ({
         code,
         targetPlayerId,
         sessionToken,
@@ -1433,6 +1599,14 @@ export function setupSocket(httpServer: HttpServer) {
           socket.emit("error", { message: result.reason });
           return;
         }
+        const nextHost =
+          result.room.players.find((player: any) => player.id === result.room.hostId) ??
+          result.room.game?.players.find((player: any) => player.id === result.room.hostId);
+        const nextHostTier = nextHost?.userId
+          ? (await getSubscriptionByUserId(nextHost.userId)).tier
+          : "free";
+        result.room.hostSubscriptionTier = nextHostTier;
+        result.room.isPromoted = hasCapability(nextHostTier, "canHighlightHostedMatch");
         io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(result.room));
         emitPublicMatches(io);
         persistRoom(roomCode);
@@ -1441,7 +1615,7 @@ export function setupSocket(httpServer: HttpServer) {
 
     socket.on(
       "choose_lobby_role",
-      ({
+      async ({
         code,
         roleKey,
         targetPlayerId,
@@ -1462,7 +1636,50 @@ export function setupSocket(httpServer: HttpServer) {
           sessionToken,
         });
         if (!actorId) return;
-        const result = chooseLobbyRole(roomCode, actorId, targetPlayerId ?? actorId, roleKey ?? null);
+        const actor = room.players.find((player: any) => player.id === actorId);
+        if (!actor) return;
+        const resolvedTargetId = targetPlayerId ?? actorId;
+        const target = room.players.find((player: any) => player.id === resolvedTargetId);
+        if (!target) return;
+        const actorTier = actor.userId
+          ? (await getSubscriptionByUserId(actor.userId)).tier
+          : "free";
+        const isHostActor = room.hostId === actorId;
+        const isSelfChange = resolvedTargetId === actorId;
+        if (isHostActor && isSelfChange && !hasCapability(actorTier, "canChooseRoleInOwnLobby")) {
+          socket.emit("error", {
+            message: "Выбор своей роли доступен с подписки «Стажер».",
+          });
+          return;
+        }
+        if (isHostActor && !isSelfChange && !hasCapability(actorTier, "canLetPlayersChooseRoles")) {
+          socket.emit("error", {
+            message: "Управление выбором ролей для игроков доступно с подписки «Практик».",
+          });
+          return;
+        }
+        if (!isHostActor) {
+          if (!isSelfChange) {
+            socket.emit("error", { message: "Можно менять только свою роль." });
+            return;
+          }
+          if (!hasCapability(actorTier, "canChooseRoleInOtherLobbies")) {
+            socket.emit("error", {
+              message: "Выбор роли в чужом лобби доступен только в подписке «Арбитр».",
+            });
+            return;
+          }
+        }
+        const result = chooseLobbyRole(
+          roomCode,
+          actorId,
+          resolvedTargetId,
+          roleKey ?? null,
+          {
+            allowNonHostChoiceInForeignLobby:
+              !isHostActor && hasCapability(actorTier, "canChooseRoleInOtherLobbies"),
+          },
+        );
         if (!result) return;
         if (!result.ok) {
           socket.emit("error", { message: result.reason });
@@ -1593,7 +1810,7 @@ export function setupSocket(httpServer: HttpServer) {
 
     socket.on(
       "update_profile",
-      ({
+      async ({
         code,
         name,
         avatar,
@@ -1621,6 +1838,44 @@ export function setupSocket(httpServer: HttpServer) {
           sessionToken,
         });
         if (!actorId) return;
+        const actor = room.players.find((player: any) => player.id === actorId);
+        const actorTier = actor?.userId
+          ? (await getSubscriptionByUserId(actor.userId)).tier
+          : "free";
+        const canUseBanner = hasCapability(actorTier, "canUseProfileBanner");
+        const canUseAnimated = hasCapability(actorTier, "canUseAnimatedProfileMedia");
+        let nextAvatar = avatar;
+        let nextBanner = banner;
+        if (banner !== undefined && !canUseBanner) {
+          if (typeof banner === "string" && banner.trim()) {
+            nextBanner = undefined;
+            socket.emit("error", {
+              message: "Баннер профиля доступен с подписки «Практик».",
+            });
+          }
+        }
+        if (!canUseAnimated) {
+          if (
+            typeof nextAvatar === "string" &&
+            nextAvatar.trim() &&
+            isAnimatedProfileMedia(nextAvatar)
+          ) {
+            nextAvatar = undefined;
+            socket.emit("error", {
+              message: "GIF-аватар доступен только в подписке «Арбитр».",
+            });
+          }
+          if (
+            typeof nextBanner === "string" &&
+            nextBanner.trim() &&
+            isAnimatedProfileMedia(nextBanner)
+          ) {
+            nextBanner = undefined;
+            socket.emit("error", {
+              message: "GIF-баннер доступен только в подписке «Арбитр».",
+            });
+          }
+        }
 
         const nextName = name?.trim();
         if (nextName && isNameTakenByOther(roomCode, actorId, nextName)) {
@@ -1632,8 +1887,8 @@ export function setupSocket(httpServer: HttpServer) {
 
         const updatedRoom = updatePlayerProfile(roomCode, actorId, {
           name: nextName,
-          avatar,
-          banner,
+          avatar: nextAvatar,
+          banner: nextBanner,
           selectedBadgeKey,
           preferredRole: preferredRole ?? undefined,
         });

@@ -1,5 +1,19 @@
 ﻿import crypto from "node:crypto";
 import { pool } from "@workspace/db";
+import {
+  canAccessCasePack,
+  getCapabilitiesForTier,
+  getDurationMs,
+  normalizeSubscriptionDuration,
+  normalizeSubscriptionSource,
+  normalizeSubscriptionTier,
+  resolveSubscriptionState,
+  type SubscriptionCapabilityKey,
+  type SubscriptionDuration,
+  type SubscriptionSource,
+  type SubscriptionTier,
+} from "./subscriptions.js";
+
 export type PreferredRole =
   | "judge"
   | "plaintiff"
@@ -55,15 +69,23 @@ export interface UserBadgeView {
   title: string;
   description: string;
   active: boolean;
-  category?: "rank" | "earned" | "manual";
+  category?: "rank" | "earned" | "manual" | "subscription";
   progressCurrent?: number;
   progressTarget?: number;
   progressLabel?: string;
 }
 
 export interface UserSubscriptionView {
-  tier: "none";
+  tier: SubscriptionTier;
   label: string;
+  startAt: number | null;
+  endAt: number | null;
+  isLifetime: boolean;
+  source: SubscriptionSource;
+  duration: SubscriptionDuration;
+  isActive: boolean;
+  daysLeft: number | null;
+  capabilities: ReturnType<typeof getCapabilitiesForTier>;
 }
 
 export interface UserMatchParticipantView {
@@ -175,6 +197,27 @@ const MANUAL_BADGE_META: Record<
   admin: {
     title: "Администратор",
     description: "Игрок является администратором.",
+  },
+};
+
+const SUBSCRIPTION_BADGE_META: Record<
+  Exclude<SubscriptionTier, "free">,
+  { key: string; title: string; description: string }
+> = {
+  trainee: {
+    key: "sub_trainee",
+    title: "Стажер",
+    description: "Выдается при активной подписке «Стажер».",
+  },
+  practitioner: {
+    key: "sub_practitioner",
+    title: "Практик",
+    description: "Выдается при активной подписке «Практик».",
+  },
+  arbiter: {
+    key: "sub_arbiter",
+    title: "Арбитр",
+    description: "Выдается при активной подписке «Арбитр».",
   },
 };
 
@@ -306,6 +349,38 @@ function computeAge(date: Date | null): number | undefined {
   return age >= 0 ? age : undefined;
 }
 
+type SubscriptionRowShape = {
+  subscription_tier?: string | null;
+  subscription_start_at?: Date | null;
+  subscription_end_at?: Date | null;
+  subscription_is_lifetime?: boolean | null;
+  subscription_source?: string | null;
+  subscription_duration?: string | null;
+};
+
+function resolveSubscriptionView(row: SubscriptionRowShape): UserSubscriptionView {
+  const resolved = resolveSubscriptionState({
+    tier: row.subscription_tier ?? "free",
+    startAt: row.subscription_start_at ?? null,
+    endAt: row.subscription_end_at ?? null,
+    isLifetime: row.subscription_is_lifetime ?? false,
+    source: row.subscription_source ?? "manual",
+    duration: row.subscription_duration ?? "1_month",
+  });
+  return {
+    tier: resolved.tier,
+    label: resolved.label,
+    startAt: resolved.startAt,
+    endAt: resolved.endAt,
+    isLifetime: resolved.isLifetime,
+    source: resolved.source,
+    duration: resolved.duration,
+    isActive: resolved.isActive,
+    daysLeft: resolved.daysLeft,
+    capabilities: resolved.capabilities,
+  };
+}
+
 function toPublicProfile(row: {
   id: string;
   nickname: string;
@@ -434,6 +509,30 @@ async function ensureTables(): Promise<void> {
       await pool.query(`
         ALTER TABLE auth_users
           ADD COLUMN IF NOT EXISTS preferred_role TEXT;
+      `);
+      await pool.query(`
+        ALTER TABLE auth_users
+          ADD COLUMN IF NOT EXISTS subscription_tier TEXT NOT NULL DEFAULT 'free';
+      `);
+      await pool.query(`
+        ALTER TABLE auth_users
+          ADD COLUMN IF NOT EXISTS subscription_start_at TIMESTAMPTZ;
+      `);
+      await pool.query(`
+        ALTER TABLE auth_users
+          ADD COLUMN IF NOT EXISTS subscription_end_at TIMESTAMPTZ;
+      `);
+      await pool.query(`
+        ALTER TABLE auth_users
+          ADD COLUMN IF NOT EXISTS subscription_is_lifetime BOOLEAN NOT NULL DEFAULT FALSE;
+      `);
+      await pool.query(`
+        ALTER TABLE auth_users
+          ADD COLUMN IF NOT EXISTS subscription_source TEXT NOT NULL DEFAULT 'manual';
+      `);
+      await pool.query(`
+        ALTER TABLE auth_users
+          ADD COLUMN IF NOT EXISTS subscription_duration TEXT NOT NULL DEFAULT '1_month';
       `);
       await pool.query(`
         ALTER TABLE auth_users
@@ -822,9 +921,26 @@ export async function updateProfileByToken(
         ? profile.selectedBadgeKey.trim()
         : null;
     if (selectedBadgeKey) {
-      const userMeta = await pool.query<{ login: string; created_at: Date }>(
+      const userMeta = await pool.query<{
+        login: string;
+        created_at: Date;
+        subscription_tier: string | null;
+        subscription_start_at: Date | null;
+        subscription_end_at: Date | null;
+        subscription_is_lifetime: boolean | null;
+        subscription_source: string | null;
+        subscription_duration: string | null;
+      }>(
         `
-          SELECT login, created_at
+          SELECT
+            login,
+            created_at,
+            subscription_tier,
+            subscription_start_at,
+            subscription_end_at,
+            subscription_is_lifetime,
+            subscription_source,
+            subscription_duration
           FROM auth_users
           WHERE id = $1
           LIMIT 1
@@ -837,6 +953,7 @@ export async function updateProfileByToken(
           getRankByUserId(userId),
           getManualBadgeMap(userId),
         ]);
+        const subscription = resolveSubscriptionView(userMeta.rows[0]);
         const available = new Set(
           buildBadgeList({
             user: {
@@ -847,6 +964,7 @@ export async function updateProfileByToken(
             rank,
             stats,
             manualBadgeMap,
+            subscription,
           })
             .filter((badge) => badge.active)
             .map((badge) => badge.key),
@@ -1123,8 +1241,9 @@ function buildBadgeList(input: {
   rank: UserRankView;
   stats: UserStatsSummary;
   manualBadgeMap: Map<string, boolean>;
+  subscription: UserSubscriptionView;
 }): UserBadgeView[] {
-  const { user, rank, stats, manualBadgeMap } = input;
+  const { user, rank, stats, manualBadgeMap, subscription } = input;
   const isBerly = user.login.toLowerCase() === "berly";
   const badges: UserBadgeView[] = [];
   const roleStatsMap = new Map(stats.roleStats.map((row) => [row.roleKey, row]));
@@ -1218,6 +1337,21 @@ function buildBadgeList(input: {
     });
   }
 
+  (["trainee", "practitioner", "arbiter"] as const).forEach((tier) => {
+    const meta = SUBSCRIPTION_BADGE_META[tier];
+    const active = isBerly || subscription.tier === tier;
+    badges.push({
+      key: meta.key,
+      title: meta.title,
+      description: meta.description,
+      category: "subscription",
+      active,
+      progressCurrent: active ? 1 : 0,
+      progressTarget: 1,
+      progressLabel: active ? "Доступен" : `Открывается с подпиской «${meta.title}»`,
+    });
+  });
+
   return badges;
 }
 
@@ -1238,9 +1372,33 @@ export async function getProfileByToken(
     selected_badge_key: string | null;
     preferred_role: string | null;
     created_at: Date;
+    subscription_tier: string | null;
+    subscription_start_at: Date | null;
+    subscription_end_at: Date | null;
+    subscription_is_lifetime: boolean | null;
+    subscription_source: string | null;
+    subscription_duration: string | null;
   }>(
     `
-      SELECT u.id, u.login, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.selected_badge_key, u.preferred_role, u.created_at
+      SELECT
+        u.id,
+        u.login,
+        u.nickname,
+        u.avatar,
+        u.banner,
+        u.bio,
+        u.gender,
+        u.birth_date,
+        u.hide_age,
+        u.selected_badge_key,
+        u.preferred_role,
+        u.created_at,
+        u.subscription_tier,
+        u.subscription_start_at,
+        u.subscription_end_at,
+        u.subscription_is_lifetime,
+        u.subscription_source,
+        u.subscription_duration
       FROM auth_sessions s
       JOIN auth_users u ON u.id = s.user_id
       WHERE s.token = $1
@@ -1255,6 +1413,7 @@ export async function getProfileByToken(
   const rank = await getRankByUserId(row.id);
   const manualBadgeMap = await getManualBadgeMap(row.id);
   const recentMatches = await getRecentMatchHistoryByUserId(row.id);
+  const subscription = resolveSubscriptionView(row);
   const base = toPublicProfile(row);
   const badges = buildBadgeList({
     user: {
@@ -1265,6 +1424,7 @@ export async function getProfileByToken(
     rank,
     stats,
     manualBadgeMap,
+    subscription,
   });
   const activeBadgeKeys = new Set(badges.filter((badge) => badge.active).map((badge) => badge.key));
   const selectedBadgeKey =
@@ -1278,10 +1438,7 @@ export async function getProfileByToken(
     badges,
     selectedBadgeKey,
     recentMatches,
-    subscription: {
-      tier: "none",
-      label: "Без подписки",
-    },
+    subscription,
   };
 }
 
@@ -1302,9 +1459,33 @@ export async function getPublicUserProfileById(
     selected_badge_key: string | null;
     preferred_role: string | null;
     created_at: Date;
+    subscription_tier: string | null;
+    subscription_start_at: Date | null;
+    subscription_end_at: Date | null;
+    subscription_is_lifetime: boolean | null;
+    subscription_source: string | null;
+    subscription_duration: string | null;
   }>(
     `
-      SELECT id, login, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, created_at
+      SELECT
+        id,
+        login,
+        nickname,
+        avatar,
+        banner,
+        bio,
+        gender,
+        birth_date,
+        hide_age,
+        selected_badge_key,
+        preferred_role,
+        created_at,
+        subscription_tier,
+        subscription_start_at,
+        subscription_end_at,
+        subscription_is_lifetime,
+        subscription_source,
+        subscription_duration
       FROM auth_users
       WHERE id = $1
       LIMIT 1
@@ -1317,6 +1498,7 @@ export async function getPublicUserProfileById(
   const rank = await getRankByUserId(row.id);
   const manualBadgeMap = await getManualBadgeMap(row.id);
   const recentMatches = await getRecentMatchHistoryByUserId(row.id);
+  const subscription = resolveSubscriptionView(row);
   const base = toPublicProfile(row);
   const badges = buildBadgeList({
     user: {
@@ -1327,6 +1509,7 @@ export async function getPublicUserProfileById(
     rank,
     stats,
     manualBadgeMap,
+    subscription,
   });
   const activeBadgeKeys = new Set(badges.filter((badge) => badge.active).map((badge) => badge.key));
   const selectedBadgeKey =
@@ -1340,11 +1523,112 @@ export async function getPublicUserProfileById(
     badges,
     selectedBadgeKey,
     recentMatches,
-    subscription: {
-      tier: "none",
-      label: "Без подписки",
-    },
+    subscription,
   };
+}
+
+export async function getSubscriptionByUserId(userId: string): Promise<UserSubscriptionView> {
+  await ensureTables();
+  const result = await pool.query<{
+    subscription_tier: string | null;
+    subscription_start_at: Date | null;
+    subscription_end_at: Date | null;
+    subscription_is_lifetime: boolean | null;
+    subscription_source: string | null;
+    subscription_duration: string | null;
+  }>(
+    `
+      SELECT
+        subscription_tier,
+        subscription_start_at,
+        subscription_end_at,
+        subscription_is_lifetime,
+        subscription_source,
+        subscription_duration
+      FROM auth_users
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [userId],
+  );
+  if (!result.rowCount) {
+    return resolveSubscriptionView({});
+  }
+  return resolveSubscriptionView(result.rows[0]);
+}
+
+export async function userHasCapability(
+  userId: string,
+  capability: SubscriptionCapabilityKey,
+): Promise<boolean> {
+  const subscription = await getSubscriptionByUserId(userId);
+  return !!subscription.capabilities[capability];
+}
+
+export async function canUserAccessCasePackById(
+  userId: string,
+  pack: { key?: string | null; title?: string | null; isAdult?: boolean | null },
+): Promise<boolean> {
+  const subscription = await getSubscriptionByUserId(userId);
+  return canAccessCasePack(subscription.tier, pack);
+}
+
+export async function assignSubscriptionByUserId(input: {
+  userId: string;
+  tier: string;
+  duration?: string | null;
+  source?: string | null;
+  startAt?: Date | number | string | null;
+  endAt?: Date | number | string | null;
+}): Promise<UserSubscriptionView | null> {
+  await ensureTables();
+  const tier = normalizeSubscriptionTier(input.tier);
+  const duration = normalizeSubscriptionDuration(input.duration ?? "1_month");
+  const source = normalizeSubscriptionSource(input.source ?? "manual");
+  const startAtRaw =
+    input.startAt instanceof Date
+      ? input.startAt
+      : input.startAt
+        ? new Date(input.startAt)
+        : new Date();
+  const startAt = Number.isFinite(startAtRaw.getTime()) ? startAtRaw : new Date();
+  const explicitEndAt =
+    input.endAt instanceof Date
+      ? input.endAt
+      : input.endAt
+        ? new Date(input.endAt)
+        : null;
+  const durationMs = getDurationMs(duration);
+  const isLifetime = tier !== "free" && duration === "forever";
+  const endAt =
+    tier === "free"
+      ? null
+      : explicitEndAt && Number.isFinite(explicitEndAt.getTime())
+        ? explicitEndAt
+        : durationMs === null
+          ? null
+          : new Date(startAt.getTime() + durationMs);
+  const safeStartAt = tier === "free" ? null : startAt;
+
+  const updated = await pool.query<{
+    id: string;
+  }>(
+    `
+      UPDATE auth_users
+      SET
+        subscription_tier = $1,
+        subscription_start_at = $2,
+        subscription_end_at = $3,
+        subscription_is_lifetime = $4,
+        subscription_source = $5,
+        subscription_duration = $6
+      WHERE id = $7
+      RETURNING id
+    `,
+    [tier, safeStartAt, endAt, isLifetime, source, duration, input.userId],
+  );
+  if (!updated.rowCount) return null;
+  return getSubscriptionByUserId(input.userId);
 }
 
 export async function recordMatchOutcome(input: {
@@ -1457,17 +1741,45 @@ export async function recordMatchOutcome(input: {
       [userId, roleKey, win ? 1 : 0],
     );
 
-    await pool.query(
+    const subscriptionRow = await pool.query<{
+      subscription_tier: string | null;
+      subscription_start_at: Date | null;
+      subscription_end_at: Date | null;
+      subscription_is_lifetime: boolean | null;
+      subscription_source: string | null;
+      subscription_duration: string | null;
+    }>(
       `
-        INSERT INTO auth_user_ranks (user_id, points, updated_at)
-        VALUES ($1, $2, NOW())
-        ON CONFLICT (user_id)
-        DO UPDATE SET
-          points = GREATEST(0, auth_user_ranks.points + EXCLUDED.points),
-          updated_at = NOW()
+        SELECT
+          subscription_tier,
+          subscription_start_at,
+          subscription_end_at,
+          subscription_is_lifetime,
+          subscription_source,
+          subscription_duration
+        FROM auth_users
+        WHERE id = $1
+        LIMIT 1
       `,
-      [userId, win ? 1 : -1],
+      [userId],
     );
+    const canUseRating =
+      subscriptionRow.rowCount > 0
+        ? resolveSubscriptionView(subscriptionRow.rows[0]).capabilities.canUseRating
+        : false;
+    if (canUseRating) {
+      await pool.query(
+        `
+          INSERT INTO auth_user_ranks (user_id, points, updated_at)
+          VALUES ($1, $2, NOW())
+          ON CONFLICT (user_id)
+          DO UPDATE SET
+            points = GREATEST(0, auth_user_ranks.points + EXCLUDED.points),
+            updated_at = NOW()
+        `,
+        [userId, win ? 1 : -1],
+      );
+    }
 
     const participants = input.players.map((entry) => ({
       userId: typeof entry.userId === "string" && entry.userId.trim() ? entry.userId.trim() : undefined,

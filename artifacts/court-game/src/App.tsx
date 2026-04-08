@@ -69,6 +69,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  SUBSCRIPTION_LABELS,
+  SUBSCRIPTION_PLANS,
+  canAccessPack,
+  getRequiredTierForCapability,
+  getRequiredTierForPack,
+  hasCapability,
+  normalizeSubscriptionTier,
+  resolveSubscriptionView,
+  type SubscriptionCapabilityKey,
+  type SubscriptionDuration,
+  type SubscriptionTier,
+} from "@/subscriptions";
 
 const DEFAULT_GAME_STAGES = [
   "Подготовка",
@@ -163,23 +176,31 @@ const PROFILE_BIO_MAX = 150;
 const MAX_PROFILE_IMAGE_UPLOAD_BYTES = 6 * 1024 * 1024;
 const MAX_PROFILE_GIF_UPLOAD_BYTES = 3 * 1024 * 1024;
 const LOCAL_MEDIA_CACHE_MAX_CHARS = 350_000;
-const PACK_PAYWALL_PREVIEW_ENABLED = false;
-const PACK_PREVIEW_LOCKED_TITLES = new Set(["THE BOYS", "18+"]);
+const SUBSCRIPTION_DURATION_UI_OPTIONS: Array<{
+  key: Extract<SubscriptionDuration, "1_month" | "1_year">;
+  label: string;
+}> = [
+  { key: "1_month", label: "1 месяц" },
+  { key: "1_year", label: "1 год" },
+];
 
-function isPackPreviewLocked(pack: { key?: string; title?: string } | null | undefined): boolean {
-  if (!pack) return false;
-  const title = (pack.title ?? "").trim().toUpperCase();
-  return PACK_PREVIEW_LOCKED_TITLES.has(title);
+function getSubscriptionTierLabel(tier: SubscriptionTier): string {
+  if (tier === "trainee") return "Стажер";
+  if (tier === "practitioner") return "Практик";
+  if (tier === "arbiter") return "Арбитр";
+  return "Бесплатно";
 }
 
-function isPackLockedForPreview(
-  pack: { key?: string; title?: string } | null | undefined,
-  paywallPreviewEnabled: boolean,
-  basePackKey: string,
+function isPackLockedForTier(
+  pack: { key?: string; title?: string; isAdult?: boolean } | null | undefined,
+  tier: SubscriptionTier,
 ): boolean {
   if (!pack) return false;
-  if (paywallPreviewEnabled && pack.key !== basePackKey) return true;
-  return isPackPreviewLocked(pack);
+  return !canAccessPack(tier, {
+    key: pack.key,
+    title: pack.title,
+    isAdult: pack.isAdult,
+  });
 }
 
 function getCasePackVisual(packKey: string | undefined, packTitle: string | undefined): {
@@ -282,6 +303,9 @@ const BADGE_ICONS: Record<string, LucideIcon> = {
   rankStrategist: BrainCircuit,
   rankMaster: Swords,
   rankVerdict: Gem,
+  subTrainee: Medal,
+  subPractitioner: Crown,
+  subArbiter: Gem,
 };
 
 const BADGE_THEME: Record<
@@ -391,6 +415,21 @@ const BADGE_THEME: Record<
     chip: "border-transparent bg-[linear-gradient(120deg,rgba(239,68,68,0.24),rgba(168,85,247,0.24))] text-red-100 shadow-[0_0_16px_rgba(239,68,68,0.35)]",
     icon: "bg-[linear-gradient(135deg,rgba(239,68,68,0.55),rgba(168,85,247,0.55))] text-white shadow-[0_0_14px_rgba(239,68,68,0.42)]",
     iconOnly: "text-red-200 drop-shadow-[0_0_8px_rgba(244,114,182,0.6)]",
+  },
+  subTrainee: {
+    chip: "border-zinc-500/70 bg-zinc-700/25 text-zinc-100",
+    icon: "bg-zinc-600/35 text-zinc-50",
+    iconOnly: "text-zinc-200",
+  },
+  subPractitioner: {
+    chip: "border-red-500/70 bg-red-600/20 text-red-100 shadow-[0_0_14px_rgba(239,68,68,0.28)]",
+    icon: "bg-red-600/40 text-red-50",
+    iconOnly: "text-red-200",
+  },
+  subArbiter: {
+    chip: "border-amber-500/70 bg-amber-600/20 text-amber-100 shadow-[0_0_16px_rgba(245,158,11,0.3)]",
+    icon: "bg-amber-600/40 text-amber-50",
+    iconOnly: "text-amber-200",
   },
 };
 
@@ -1558,6 +1597,8 @@ interface PublicMatchInfo {
   venueLabel?: string;
   venueUrl?: string;
   requiresPassword: boolean;
+  hostSubscriptionTier?: SubscriptionTier;
+  isPromoted?: boolean;
 }
 
 interface AuthUser {
@@ -1623,7 +1664,7 @@ interface PublicUserProfile {
     title: string;
     description: string;
     active: boolean;
-    category?: "rank" | "earned" | "manual";
+    category?: "rank" | "earned" | "manual" | "subscription";
     progressCurrent?: number;
     progressTarget?: number;
     progressLabel?: string;
@@ -1647,8 +1688,15 @@ interface PublicUserProfile {
     }>;
   }>;
   subscription?: {
-    tier: "none" | string;
+    tier: SubscriptionTier | string;
     label: string;
+    startAt?: number | null;
+    endAt?: number | null;
+    isLifetime?: boolean;
+    source?: "manual" | "system" | string;
+    duration?: SubscriptionDuration | string;
+    isActive?: boolean;
+    daysLeft?: number | null;
   };
 }
 
@@ -1716,6 +1764,8 @@ interface RoomState {
   venueLabel?: string;
   venueUrl?: string;
   requiresPassword?: boolean;
+  hostSubscriptionTier?: SubscriptionTier;
+  isPromoted?: boolean;
   lobbyChat?: LobbyChatMessage[];
 }
 
@@ -1869,6 +1919,15 @@ function parseGifCropMeta(value: string | null | undefined): GifCropMeta | null 
   }
 }
 
+function isAnimatedProfileMediaValue(value: string | null | undefined): boolean {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return false;
+  if (trimmed.startsWith(GIF_CROP_PREFIX.toLowerCase())) return true;
+  if (trimmed.startsWith("data:image/gif")) return true;
+  return trimmed.includes(".gif");
+}
+
 function getBannerStyle(
   banner: string | null | undefined,
   _avatar: string | null | undefined,
@@ -1982,6 +2041,9 @@ function normalizeBadgeVisualKey(badgeKey?: string): string | undefined {
     rank_strategist: "rankStrategist",
     rank_master: "rankMaster",
     rank_verdict: "rankVerdict",
+    sub_trainee: "subTrainee",
+    sub_practitioner: "subPractitioner",
+    sub_arbiter: "subArbiter",
     novice: "rankNovice",
     debater: "rankDebater",
     orator: "rankOrator",
@@ -2412,10 +2474,11 @@ function getBadgeTitleByKey(
 
 function getBadgeCategory(badge: {
   key: string;
-  category?: "rank" | "earned" | "manual";
-}): "rank" | "earned" | "manual" {
+  category?: "rank" | "earned" | "manual" | "subscription";
+}): "rank" | "earned" | "manual" | "subscription" {
   if (badge.category) return badge.category;
   if (badge.key.startsWith("rank_")) return "rank";
+  if (badge.key.startsWith("sub_")) return "subscription";
   if (
     ["media", "creator", "host", "innovator", "moderator", "admin", "legend"].includes(
       badge.key,
@@ -2442,6 +2505,8 @@ function PlayerCard({
   canKick?: boolean;
   rolePickerButton?: {
     label: string;
+    hint?: string;
+    locked?: boolean;
     onClick: () => void;
   } | null;
   onKick?: () => void;
@@ -2532,9 +2597,15 @@ function PlayerCard({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-8 rounded-full border-zinc-700 bg-zinc-900/80 px-3 text-zinc-100 hover:bg-zinc-800"
+                title={rolePickerButton.hint}
+                className={`h-8 rounded-full border px-3 text-zinc-100 transition ${
+                  rolePickerButton.locked
+                    ? "border-zinc-700 bg-zinc-900/75 text-zinc-300 hover:bg-zinc-800"
+                    : "border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800"
+                }`}
                 onClick={rolePickerButton.onClick}
               >
+                {rolePickerButton.locked && <Lock className="mr-1 h-3.5 w-3.5" />}
                 {rolePickerButton.label}
               </Button>
             ) : null}
@@ -2600,7 +2671,7 @@ function InfoBlock({
   );
 }
 
-type HomeTab = "play" | "development" | "help";
+type HomeTab = "play" | "shop" | "development" | "help";
 
 function ContextHelp({
   open,
@@ -2747,6 +2818,14 @@ export default function App() {
     "home",
   );
   const [homeTab, setHomeTab] = useState<HomeTab>("play");
+  const [shopDuration, setShopDuration] = useState<
+    Extract<SubscriptionDuration, "1_month" | "1_year">
+  >("1_month");
+  const [upsellModalOpen, setUpsellModalOpen] = useState(false);
+  const [upsellTitle, setUpsellTitle] = useState("Функция недоступна");
+  const [upsellDescription, setUpsellDescription] = useState("");
+  const [upsellRequiredTier, setUpsellRequiredTier] =
+    useState<SubscriptionTier>("trainee");
   const [devlogPage, setDevlogPage] = useState(1);
   const [playView, setPlayView] = useState<"quick" | "matches">("quick");
   const [mainHelpQuery, setMainHelpQuery] = useState("");
@@ -3015,17 +3094,47 @@ export default function App() {
     });
   }, []);
   const selectedCreateMode = getRoomModeMeta(createRoomMode);
+  const mySubscription = resolveSubscriptionView(myProfile?.subscription);
+  const myTier = normalizeSubscriptionTier(mySubscription.tier);
+  const canUseRating = hasCapability(myTier, "canUseRating");
+  const canUseProfileBanner = hasCapability(myTier, "canUseProfileBanner");
+  const canUseAnimatedProfileMedia = hasCapability(myTier, "canUseAnimatedProfileMedia");
+  const canCreatePrivateRooms = hasCapability(myTier, "canCreatePrivateRooms");
+  const canLetPlayersChooseRoles = hasCapability(myTier, "canLetPlayersChooseRoles");
+  const canChooseRoleInOwnLobby = hasCapability(myTier, "canChooseRoleInOwnLobby");
+  const canChooseRoleInOtherLobbies = hasCapability(myTier, "canChooseRoleInOtherLobbies");
+  const canCreatePacks = hasCapability(myTier, "canCreatePacks");
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
   const selectedCreatePack =
     casePacks.find((pack) => pack.key === createRoomPackKey) ?? freeCreatePack;
-  const selectedCreatePackLocked = isPackPreviewLocked(selectedCreatePack);
+  const selectedCreatePackLocked = isPackLockedForTier(selectedCreatePack, myTier);
   const availableCreateCaseCount = Math.max(
     0,
-    PACK_PAYWALL_PREVIEW_ENABLED || selectedCreatePackLocked
+    selectedCreatePackLocked
       ? freeCreatePack?.caseCount ?? 0
       : selectedCreatePack?.caseCount ?? 0,
   );
+  const openSubscriptionUpsell = useCallback(
+    (
+      capability: SubscriptionCapabilityKey,
+      description: string,
+      customTitle = "Функция недоступна",
+    ) => {
+      const requiredTier = getRequiredTierForCapability(capability);
+      setUpsellTitle(customTitle);
+      setUpsellDescription(description);
+      setUpsellRequiredTier(requiredTier);
+      setUpsellModalOpen(true);
+    },
+    [],
+  );
+  useEffect(() => {
+    if (canCreatePrivateRooms || !createRoomPrivate) return;
+    setCreateRoomPrivate(false);
+    setCreateRoomPassword("");
+    setCreateRoomPasswordVisible(false);
+  }, [canCreatePrivateRooms, createRoomPrivate]);
   useEffect(() => {
     return () => {
       if (roomActionTimeoutRef.current) {
@@ -4058,9 +4167,9 @@ export default function App() {
       if (safePacks.length > 0) {
         const defaultPackKey = safePacks.find((pack) => pack.key === "classic")?.key ?? safePacks[0].key;
         setCreateRoomPackKey((prev) => {
-          if (!PACK_PAYWALL_PREVIEW_ENABLED && prev) {
+          if (prev) {
             const prevPack = safePacks.find((pack) => pack.key === prev);
-            if (prevPack && !isPackPreviewLocked(prevPack)) {
+            if (prevPack && !isPackLockedForTier(prevPack, myTier)) {
               return prev;
             }
           }
@@ -4404,7 +4513,7 @@ export default function App() {
       socket.off("verdict_set");
       socket.off("error");
     };
-  }, [socket, avatar, authToken, clearReconnectWindow, sharedAvatar, startReconnectWindow, syncRankResultAfterMatch, rememberKnownUserIds, clearRoomActionPending]);
+  }, [socket, avatar, authToken, clearReconnectWindow, sharedAvatar, startReconnectWindow, syncRankResultAfterMatch, rememberKnownUserIds, clearRoomActionPending, myTier]);
 
   const createQuickRoom = useCallback(() => {
     if (roomActionPending) return;
@@ -4438,8 +4547,20 @@ export default function App() {
     if (roomActionPending) return false;
     const name = playerName.trim() || getOrCreateGuestName();
     if (selectedCreatePackLocked) {
-      setError("Этот пак временно недоступен.");
-      setTimeout(() => setError(""), 2500);
+      const requiredTier = getRequiredTierForPack(selectedCreatePack ?? {});
+      openSubscriptionUpsell(
+        requiredTier === "trainee"
+          ? "canAccessPackSevere"
+          : "canAccessAllPacks",
+        `Выбранный пак доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`,
+      );
+      return false;
+    }
+    if (createRoomPrivate && !canCreatePrivateRooms) {
+      openSubscriptionUpsell(
+        "canCreatePrivateRooms",
+        "Приватные комнаты доступны только в подписке «Арбитр».",
+      );
       return false;
     }
     if (createRoomPrivate && !createRoomPassword.trim()) {
@@ -4494,12 +4615,15 @@ export default function App() {
     createRoomMode,
     createRoomPackKey,
     selectedCreatePackLocked,
+    selectedCreatePack,
     createRoomPrivate,
     createRoomName,
     createVoiceUrl,
     createRoomPassword,
     roomActionPending,
     beginRoomActionPending,
+    openSubscriptionUpsell,
+    canCreatePrivateRooms,
   ]);
 
   const joinRoom = useCallback((options?: { code?: string; password?: string }) => {
@@ -4583,9 +4707,34 @@ export default function App() {
       preferredRole: preferredRoleDraft || null,
     };
     const nextAvatar = profileAvatarDraft ?? null;
-    if (nextAvatar !== authAvatar) profilePatch.avatar = nextAvatar;
+    if (
+      nextAvatar !== authAvatar &&
+      (!nextAvatar ||
+        canUseAnimatedProfileMedia ||
+        !isAnimatedProfileMediaValue(nextAvatar))
+    ) {
+      profilePatch.avatar = nextAvatar;
+    }
     const nextBanner = profileBannerDraft ?? null;
-    if (nextBanner !== authBanner) profilePatch.banner = nextBanner;
+    if (nextBanner !== authBanner) {
+      if (!canUseProfileBanner && nextBanner) {
+        openSubscriptionUpsell(
+          "canUseProfileBanner",
+          "Баннер профиля доступен с подписки «Практик».",
+        );
+      } else if (
+        nextBanner &&
+        !canUseAnimatedProfileMedia &&
+        isAnimatedProfileMediaValue(nextBanner)
+      ) {
+        openSubscriptionUpsell(
+          "canUseAnimatedProfileMedia",
+          "GIF-баннер доступен только в подписке «Арбитр».",
+        );
+      } else {
+        profilePatch.banner = nextBanner;
+      }
+    }
 
     setProfileActionLoading(true);
     try {
@@ -4598,11 +4747,11 @@ export default function App() {
       persistAuthUserToLocalCache(payload.user);
       setPlayerName(normalizedName);
       setProfileNicknameDraft(normalizedName);
-      setAvatar(profileAvatarDraft);
-      setBanner(profileBannerDraft);
+      setAvatar(payload.user.avatar ?? null);
+      setBanner(payload.user.banner ?? null);
       safeSetLocalStorageItem("court_nickname", normalizedName);
-      persistMediaToLocalCache("court_avatar", profileAvatarDraft);
-      persistMediaToLocalCache(BANNER_STORAGE_KEY, profileBannerDraft);
+      persistMediaToLocalCache("court_avatar", payload.user.avatar ?? null);
+      persistMediaToLocalCache(BANNER_STORAGE_KEY, payload.user.banner ?? null);
       if (activeRoomCode && mySessionToken) {
         const socketProfilePatch: Record<string, unknown> = {
           code: activeRoomCode,
@@ -4654,6 +4803,9 @@ export default function App() {
     activeRoomCode,
     mySessionToken,
     socket,
+    canUseProfileBanner,
+    canUseAnimatedProfileMedia,
+    openSubscriptionUpsell,
   ]);
 
   const changePassword = useCallback(async (): Promise<boolean> => {
@@ -4994,32 +5146,99 @@ export default function App() {
 
   const togglePreferredRoles = useCallback((checked: boolean) => {
     if (!room || !roomControlSessionToken) return;
+    if (checked && !canLetPlayersChooseRoles) {
+      openSubscriptionUpsell(
+        "canLetPlayersChooseRoles",
+        "Разрешать игрокам выбирать роли можно с подписки «Практик».",
+      );
+      return;
+    }
     setRoom((prev) => (prev ? { ...prev, usePreferredRoles: checked } : prev));
     socket.emit("set_use_preferred_roles", {
       code: room.code,
       sessionToken: roomControlSessionToken,
       usePreferredRoles: checked,
     });
-  }, [socket, room, roomControlSessionToken]);
+  }, [socket, room, roomControlSessionToken, canLetPlayersChooseRoles, openSubscriptionUpsell]);
 
   const chooseLobbyRole = useCallback((roleKey: AssignableRole | null, targetPlayerId?: string) => {
     if (!room || !roomControlSessionToken) return;
+    const isHost = room.hostId === roomControlPlayerId;
+    const targetId = targetPlayerId ?? roomControlPlayerId ?? "";
+    const isSelf = !targetId || targetId === roomControlPlayerId;
+    if (isHost) {
+      if (isSelf && !canChooseRoleInOwnLobby) {
+        openSubscriptionUpsell(
+          "canChooseRoleInOwnLobby",
+          "Выбор своей роли доступен с подписки «Стажер».",
+        );
+        return;
+      }
+      if (!isSelf && !canLetPlayersChooseRoles) {
+        openSubscriptionUpsell(
+          "canLetPlayersChooseRoles",
+          "Управление выбором ролей игроков доступно с подписки «Практик».",
+        );
+        return;
+      }
+    } else if (!canChooseRoleInOtherLobbies) {
+      openSubscriptionUpsell(
+        "canChooseRoleInOtherLobbies",
+        "Выбор роли в чужом лобби доступен только в подписке «Арбитр».",
+      );
+      return;
+    }
     socket.emit("choose_lobby_role", {
       code: room.code,
       sessionToken: roomControlSessionToken,
       roleKey,
       targetPlayerId,
     });
-  }, [socket, room, roomControlSessionToken]);
+  }, [
+    socket,
+    room,
+    roomControlSessionToken,
+    roomControlPlayerId,
+    canChooseRoleInOwnLobby,
+    canLetPlayersChooseRoles,
+    canChooseRoleInOtherLobbies,
+    openSubscriptionUpsell,
+  ]);
 
   const updateRoomManagementSettings = useCallback((patch: Record<string, unknown>) => {
     if (!room || !roomControlSessionToken) return;
+    if (patch.visibility === "private" && !canCreatePrivateRooms) {
+      openSubscriptionUpsell(
+        "canCreatePrivateRooms",
+        "Приватные комнаты доступны только в подписке «Арбитр».",
+      );
+      return;
+    }
+    if (typeof patch.casePackKey === "string") {
+      const nextPack = casePacks.find((pack) => pack.key === patch.casePackKey);
+      if (nextPack && isPackLockedForTier(nextPack, myTier)) {
+        const requiredTier = getRequiredTierForPack(nextPack);
+        openSubscriptionUpsell(
+          requiredTier === "trainee" ? "canAccessPackSevere" : "canAccessAllPacks",
+          `Пак «${getCasePackTitleDisplay(nextPack.title)}» доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`,
+        );
+        return;
+      }
+    }
     socket.emit("update_room_management", {
       code: room.code,
       sessionToken: roomControlSessionToken,
       patch,
     });
-  }, [socket, room, roomControlSessionToken]);
+  }, [
+    socket,
+    room,
+    roomControlSessionToken,
+    canCreatePrivateRooms,
+    openSubscriptionUpsell,
+    casePacks,
+    myTier,
+  ]);
 
   const transferRoomHostTo = useCallback((targetPlayerId: string) => {
     if (!room || !roomControlSessionToken || !targetPlayerId || targetPlayerId === room.hostId) return;
@@ -5202,17 +5421,12 @@ export default function App() {
   const returnHomeWithSession = useCallback(() => {
     const previousRank = myProfileRef.current?.rank;
     const finishedWithVerdict = !!game?.verdict;
-    const shouldPreserveReconnect =
-      !!game || !!(room && !(myId === room.hostId && room.players.length <= 1));
-    if (shouldPreserveReconnect) {
-      startReconnectWindow();
-    } else {
-      clearReconnectWindow();
-      localStorage.removeItem("court_session");
-      localStorage.removeItem("court_session_token");
-      setHasSession(false);
-      setMySessionToken(null);
-    }
+    const shouldPreserveReconnect = false;
+    clearReconnectWindow();
+    localStorage.removeItem("court_session");
+    localStorage.removeItem("court_session_token");
+    setHasSession(false);
+    setMySessionToken(null);
     clearRoomActionPending();
     ignoreLateRoomJoinedRef.current = true;
     socket.emit("leave_room", { preserveForRejoin: shouldPreserveReconnect });
@@ -5245,22 +5459,17 @@ export default function App() {
       }
       void syncRankResultAfterMatch(previousRank);
     }
-  }, [authToken, clearReconnectWindow, game, myId, room, socket, startReconnectWindow, syncRankResultAfterMatch, clearRoomActionPending]);
+  }, [authToken, clearReconnectWindow, game, socket, syncRankResultAfterMatch, clearRoomActionPending]);
 
   const finalExit = useCallback(() => {
     const previousRank = myProfileRef.current?.rank;
     const finishedWithVerdict = !!game?.verdict;
-    const shouldPreserveReconnect =
-      !!game || !!(room && !(myId === room.hostId && room.players.length <= 1));
-    if (shouldPreserveReconnect) {
-      startReconnectWindow();
-    } else {
-      clearReconnectWindow();
-      localStorage.removeItem("court_session");
-      localStorage.removeItem("court_session_token");
-      setHasSession(false);
-      setMySessionToken(null);
-    }
+    const shouldPreserveReconnect = false;
+    clearReconnectWindow();
+    localStorage.removeItem("court_session");
+    localStorage.removeItem("court_session_token");
+    setHasSession(false);
+    setMySessionToken(null);
     clearRoomActionPending();
     ignoreLateRoomJoinedRef.current = true;
     socket.emit("leave_room", { preserveForRejoin: shouldPreserveReconnect });
@@ -5292,7 +5501,7 @@ export default function App() {
       }
       void syncRankResultAfterMatch(previousRank);
     }
-  }, [authToken, clearReconnectWindow, game, myId, room, socket, startReconnectWindow, syncRankResultAfterMatch, clearRoomActionPending]);
+  }, [authToken, clearReconnectWindow, game, socket, syncRankResultAfterMatch, clearRoomActionPending]);
 
   const compressImage = useCallback(
     (inputDataUrl: string, maxSide: number): Promise<string> =>
@@ -5348,7 +5557,23 @@ export default function App() {
   const openImageCropper = useCallback(
     async (file: File, target: CropTarget) => {
       try {
+        if (target === "banner" && !canUseProfileBanner) {
+          openSubscriptionUpsell(
+            "canUseProfileBanner",
+            "Баннер профиля доступен с подписки «Практик».",
+          );
+          return;
+        }
         const gifFile = isGifUpload(file);
+        if (gifFile && !canUseAnimatedProfileMedia) {
+          openSubscriptionUpsell(
+            "canUseAnimatedProfileMedia",
+            target === "banner"
+              ? "GIF-баннер доступен только в подписке «Арбитр»."
+              : "GIF-аватар доступен только в подписке «Арбитр».",
+          );
+          return;
+        }
         const maxBytes = gifFile ? MAX_PROFILE_GIF_UPLOAD_BYTES : MAX_PROFILE_IMAGE_UPLOAD_BYTES;
         if (file.size > maxBytes) {
           const maxMb = gifFile
@@ -5395,7 +5620,13 @@ export default function App() {
         setTimeout(() => setError(""), 3000);
       }
     },
-    [isGifUpload, readFileAsDataUrl],
+    [
+      canUseAnimatedProfileMedia,
+      canUseProfileBanner,
+      isGifUpload,
+      openSubscriptionUpsell,
+      readFileAsDataUrl,
+    ],
   );
 
   const applyImageCrop = useCallback(async () => {
@@ -5563,6 +5794,46 @@ export default function App() {
       });
   }, []);
 
+  const renderUpsellModal = () => (
+    <Dialog open={upsellModalOpen} onOpenChange={setUpsellModalOpen}>
+      <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+        <DialogHeader>
+          <DialogTitle>{upsellTitle}</DialogTitle>
+          <DialogDescription className="text-zinc-400">
+            {upsellDescription}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-3 text-sm text-zinc-300">
+          Требуется подписка:{" "}
+          <span className="font-semibold text-zinc-100">
+            {getSubscriptionTierLabel(upsellRequiredTier)}
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            className="h-10 flex-1 rounded-xl bg-red-600 text-white hover:bg-red-500"
+            onClick={() => {
+              setUpsellModalOpen(false);
+              setHomeTab("shop");
+              setScreen("home");
+            }}
+          >
+            Перейти в магазин
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+            onClick={() => setUpsellModalOpen(false)}
+          >
+            Закрыть
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (screen === "profile") {
     const profileData: PublicUserProfile | null = myProfile
       ? myProfile
@@ -5597,6 +5868,11 @@ export default function App() {
     const totalMatches = profileData?.stats?.totalMatches ?? 0;
     const totalWins = profileData?.stats?.totalWins ?? 0;
     const totalWinRate = profileData?.stats?.totalWinRate ?? 0;
+    const profileSubscription = resolveSubscriptionView(profileData?.subscription);
+    const profileTier = normalizeSubscriptionTier(profileSubscription.tier);
+    const profilePlan = SUBSCRIPTION_PLANS.find((plan) => plan.tier === profileTier);
+    const lockedRatingForProfile = !hasCapability(profileTier, "canUseRating");
+    const profileBannerLocked = !canUseProfileBanner;
     const currentRank = profileData?.rank;
     const currentRankVisualKey = rankKeyToBadgeVisualKey(currentRank?.key);
     const currentRankTheme = getBadgeTheme(currentRankVisualKey);
@@ -5675,10 +5951,38 @@ export default function App() {
                 <div
                   className="relative min-h-[122px] md:min-h-[122px] p-5 md:p-6 flex flex-col justify-end cursor-pointer group/banner"
                   style={getBannerStyle(profileBannerDraft, profileAvatarDraft, playerName || "Игрок")}
-                  onClick={() => bannerInputRef.current?.click()}
+                  onClick={() => {
+                    if (profileBannerLocked) {
+                      openSubscriptionUpsell(
+                        "canUseProfileBanner",
+                        "Баннер профиля доступен с подписки «Практик».",
+                      );
+                      return;
+                    }
+                    bannerInputRef.current?.click();
+                  }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
                   <div className="absolute inset-0 opacity-0 group-hover/banner:opacity-100 transition-opacity bg-black/15" />
+                  {profileBannerLocked && (
+                    <div className="pointer-events-none absolute inset-0 z-20">
+                      <div className="absolute inset-0 bg-black/45" />
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openSubscriptionUpsell(
+                            "canUseProfileBanner",
+                            "Баннер профиля доступен с подписки «Практик».",
+                          );
+                        }}
+                        className="pointer-events-auto absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-zinc-600 bg-zinc-900/85 px-3 py-1 text-xs text-zinc-100 hover:bg-zinc-800"
+                      >
+                        <Lock className="h-3.5 w-3.5" />
+                        Баннер с «Практик»
+                      </button>
+                    </div>
+                  )}
                   <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                       <div className="flex items-center gap-4 min-w-0">
                       <div
@@ -5981,45 +6285,114 @@ export default function App() {
                 <div className="self-start flex flex-col gap-4">
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5 space-y-3">
                     <div className="text-lg font-semibold">Подписка</div>
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
+                    <div
+                      className={`rounded-xl border px-3 py-3 ${
+                        profileTier === "free"
+                          ? "border-zinc-800 bg-zinc-900/55"
+                          : "border-red-500/45 bg-red-950/20"
+                      }`}
+                    >
                       <div className="text-sm text-zinc-500">Текущий статус</div>
-                      <div className="mt-1 text-base font-semibold text-zinc-100">
-                        {profileData?.subscription?.label ?? "Нет подписки"}
+                      <div className="mt-1 flex items-center gap-2 text-base font-semibold text-zinc-100">
+                        <span>{SUBSCRIPTION_LABELS[profileTier]}</span>
+                        {profileTier !== "free" && (
+                          <span className="inline-flex rounded-full border border-red-400/60 bg-red-600/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-red-100">
+                            {getSubscriptionTierLabel(profileTier)}
+                          </span>
+                        )}
                       </div>
+                      <div className="mt-1 text-xs text-zinc-400">
+                        {profileSubscription.isLifetime
+                          ? "Навсегда"
+                          : typeof profileSubscription.daysLeft === "number"
+                            ? `Осталось дней: ${profileSubscription.daysLeft}`
+                            : profileTier === "free"
+                              ? "Ограниченный доступ"
+                              : "Срок уточняется"}
+                      </div>
+                      <div className="mt-3 space-y-1 text-xs text-zinc-300">
+                        {(profileTier === "free"
+                          ? [
+                              "Откроется рейтинг",
+                              "Доступ к дополнительным пакам",
+                              "Статусные возможности профиля",
+                            ]
+                          : profilePlan?.features.slice(0, 4) ?? []
+                        ).map((feature) => (
+                          <div key={`sub-feature-${feature}`} className="flex items-start gap-2">
+                            <span className="mt-1 inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
+                            <span>{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        type="button"
+                        className="mt-3 h-9 w-full rounded-xl bg-red-600 text-white hover:bg-red-500"
+                        onClick={() => {
+                          setHomeTab("shop");
+                          setScreen("home");
+                        }}
+                      >
+                        {profileTier === "free" ? "Перейти в магазин" : "Управление подпиской"}
+                      </Button>
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5 space-y-3">
                     <div className="text-lg font-semibold">Ранг</div>
                     <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="inline-flex items-center gap-2 text-base font-semibold text-zinc-100">
-                          <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${currentRankTheme.icon}`}>
-                            <BadgeGlyph
-                              badgeKey={currentRankVisualKey}
-                              className={`h-4 w-4 ${currentRankTheme.iconOnly ?? "text-zinc-300"}`}
+                      {lockedRatingForProfile ? (
+                        <div className="space-y-2">
+                          <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-200">
+                            <Lock className="h-3.5 w-3.5" />
+                            Рейтинг заблокирован
+                          </div>
+                          <div className="text-sm text-zinc-300">
+                            Рейтинг доступен с подписки «Стажер».
+                          </div>
+                          <Button
+                            type="button"
+                            className="h-9 rounded-xl bg-red-600 text-white hover:bg-red-500"
+                            onClick={() => {
+                              setHomeTab("shop");
+                              setScreen("home");
+                            }}
+                          >
+                            Открыть в магазине
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="inline-flex items-center gap-2 text-base font-semibold text-zinc-100">
+                              <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${currentRankTheme.icon}`}>
+                                <BadgeGlyph
+                                  badgeKey={currentRankVisualKey}
+                                  className={`h-4 w-4 ${currentRankTheme.iconOnly ?? "text-zinc-300"}`}
+                                />
+                              </span>
+                              <span>{currentRank?.title ?? "НОВИЧОК"}</span>
+                            </div>
+                            <div className="text-xs text-zinc-400">
+                              Очки: {currentRank?.points ?? 0}
+                            </div>
+                          </div>
+                          <div className="mt-2 h-2 w-full rounded-full bg-zinc-800">
+                            <div
+                              className="h-2 rounded-full bg-red-500 transition-all"
+                              style={{ width: `${rankProgressPercent}%` }}
                             />
-                          </span>
-                          <span>{currentRank?.title ?? "НОВИЧОК"}</span>
-                        </div>
-                        <div className="text-xs text-zinc-400">
-                          Очки: {currentRank?.points ?? 0}
-                        </div>
-                      </div>
-                      <div className="mt-2 h-2 w-full rounded-full bg-zinc-800">
-                        <div
-                          className="h-2 rounded-full bg-red-500 transition-all"
-                          style={{ width: `${rankProgressPercent}%` }}
-                        />
-                      </div>
-                      <div className="mt-2 text-xs text-zinc-400">
-                        {currentRank?.nextTitle
-                          ? `До ранга «${currentRank.nextTitle}»: ${Math.max(
-                              0,
-                              (currentRank.nextPoints ?? 0) - currentRank.points,
-                            )} очк.`
-                          : "Максимальный ранг достигнут"}
-                      </div>
+                          </div>
+                          <div className="mt-2 text-xs text-zinc-400">
+                            {currentRank?.nextTitle
+                              ? `До ранга «${currentRank.nextTitle}»: ${Math.max(
+                                  0,
+                                  (currentRank.nextPoints ?? 0) - currentRank.points,
+                                )} очк.`
+                              : "Максимальный ранг достигнут"}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -6286,6 +6659,28 @@ export default function App() {
                           />
                         </div>
                       </div>
+                    </div>
+                  ))}
+                <div className="relative z-20 mt-1 rounded-lg border border-zinc-800 bg-zinc-950/95 px-3 py-2 text-center text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Подписки
+                </div>
+                {badges
+                  .filter((badge) => getBadgeCategory(badge) === "subscription")
+                  .map((badge) => (
+                    <div
+                      key={`rules-${badge.key}`}
+                      className={`rounded-xl border px-3 py-3 ${getBadgeTheme(badge.key).chip}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-zinc-700/70 bg-black/30">
+                            <BadgeGlyph badgeKey={badge.key} className={`h-4 w-4 ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
+                          </span>
+                          <div className="text-sm font-semibold truncate">{badge.title}</div>
+                        </div>
+                        <div className="text-xs text-zinc-300">{badge.active ? "Доступен" : "Закрыт"}</div>
+                      </div>
+                      <div className="mt-2 text-xs text-zinc-300/90">{badge.description}</div>
                     </div>
                   ))}
                 <div className="relative z-20 mt-1 rounded-lg border border-zinc-800 bg-zinc-950/95 px-3 py-2 text-center text-xs uppercase tracking-[0.12em] text-zinc-400">
@@ -6605,6 +7000,7 @@ export default function App() {
           </DialogContent>
         </Dialog>
         {renderPublicProfileDialog()}
+        {renderUpsellModal()}
         <ScreenTransitionLoader open={globalBlockingLoading} />
       </motion.div>
     );
@@ -6795,7 +7191,7 @@ export default function App() {
           <div className="relative w-full sm:w-auto min-w-0">
             <div className="w-full sm:w-auto rounded-[28px] border border-zinc-800 bg-zinc-900/90 p-1.5 shadow-sm shadow-black/30">
               <div className="sm:flex sm:items-center sm:gap-1">
-                <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center sm:gap-1">
+                <div className="grid grid-cols-4 gap-1.5 sm:flex sm:items-center sm:gap-1">
                   <Button
                     variant="ghost"
                     onClick={() => {
@@ -6810,6 +7206,21 @@ export default function App() {
                   >
                     <Gamepad2 className="w-4 h-4" />
                     Играть
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setHomeTab("shop");
+                      setProfileMenuOpen(false);
+                    }}
+                    className={`h-10 rounded-full px-2 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 hover:-translate-y-0.5 ${
+                      homeTab === "shop"
+                        ? "bg-red-600 text-white hover:bg-red-500"
+                        : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800"
+                    }`}
+                  >
+                    <Crown className="w-4 h-4" />
+                    Магазин
                   </Button>
                   <Button
                     variant="ghost"
@@ -7022,7 +7433,7 @@ export default function App() {
                             disabled={authLoading || !loginOrEmail.trim() || !loginPassword}
                             className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
                           >
-                            {authLoading ? "Входим..." : "Войти"}
+                            {authLoading ? "Входим" : "Войти"}
                           </Button>
                         </div>
                       ) : (
@@ -7267,7 +7678,11 @@ export default function App() {
                               <Button
                                 onClick={createQuickRoom}
                                 disabled={roomActionPending !== null}
-                                className="w-full h-16 rounded-2xl text-4xl gap-2 bg-red-600 hover:bg-red-600 disabled:bg-zinc-700 disabled:text-zinc-300 disabled:shadow-none text-white border-0 text-[33px] font-bold tracking-tight shadow-[0_8px_28px_rgba(220,38,38,0.35)] transition-transform duration-200 hover:-translate-y-0.5"
+                                className={`w-full h-16 rounded-2xl text-4xl gap-2 border-0 text-[33px] font-bold tracking-tight transition-all duration-200 ${
+                                  roomActionPending !== null
+                                    ? "bg-zinc-700 text-zinc-300 shadow-none"
+                                    : "bg-red-600 text-white hover:bg-red-500 shadow-[0_8px_28px_rgba(220,38,38,0.35)] hover:-translate-y-0.5"
+                                }`}
                               >
                                 {roomActionPending === "create" ? "Создание" : "Создать игру"}
                               </Button>
@@ -7387,7 +7802,11 @@ export default function App() {
                           <Button
                             onClick={() => setCreateMatchDialogOpen(true)}
                             disabled={roomActionPending !== null}
-                            className="w-full sm:w-auto h-14 rounded-xl bg-red-600 hover:bg-red-600 disabled:bg-zinc-700 disabled:text-zinc-300 disabled:shadow-none text-white border-0 gap-2 px-9 text-lg font-semibold transition-all duration-200 hover:-translate-y-0.5 shadow-[0_0_0_1px_rgba(239,68,68,0.5),0_10px_28px_rgba(220,38,38,0.35)] hover:shadow-[0_0_0_1px_rgba(248,113,113,0.7),0_16px_36px_rgba(220,38,38,0.45)]"
+                            className={`w-full sm:w-auto h-14 rounded-xl border-0 gap-2 px-9 text-lg font-semibold transition-all duration-200 ${
+                              roomActionPending !== null
+                                ? "bg-zinc-700 text-zinc-300 shadow-none"
+                                : "bg-red-600 text-white hover:bg-red-500 hover:-translate-y-0.5 shadow-[0_0_0_1px_rgba(239,68,68,0.5),0_10px_28px_rgba(220,38,38,0.35)] hover:shadow-[0_0_0_1px_rgba(248,113,113,0.7),0_16px_36px_rgba(220,38,38,0.45)]"
+                            }`}
                           >
                             <UserPlus className="w-4 h-4" />
                             Создать матч
@@ -7422,6 +7841,7 @@ export default function App() {
                           const showLockBadge = hasLock || match.visibility === "private";
                           const roomTypeLabel =
                             match.visibility === "private" ? "Приватная" : "Публичная";
+                          const promoted = !!match.isPromoted;
                           const statusLabel = match.started
                             ? "Матч уже идёт"
                             : "Лобби набирает игроков";
@@ -7432,7 +7852,11 @@ export default function App() {
                               initial={{ opacity: 0, y: 8 }}
                               animate={{ opacity: 1, y: 0 }}
                               whileHover={{ y: -2 }}
-                              className="rounded-2xl border border-zinc-800 bg-zinc-950/70 px-4 py-4 md:px-5"
+                              className={`rounded-2xl border px-4 py-4 md:px-5 ${
+                                promoted
+                                  ? "border-red-500/60 bg-[linear-gradient(130deg,rgba(39,39,42,0.95),rgba(63,15,20,0.78))] shadow-[0_0_0_1px_rgba(239,68,68,0.32),0_0_20px_rgba(239,68,68,0.22)]"
+                                  : "border-zinc-800 bg-zinc-950/70"
+                              }`}
                             >
                               <div className="flex flex-col gap-4 md:gap-5 lg:flex-row lg:items-center lg:justify-between">
                                 <div className="min-w-0 space-y-2">
@@ -7450,6 +7874,12 @@ export default function App() {
                                       <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700 gap-1">
                                         <Lock className="w-3.5 h-3.5" />
                                         {hasLock ? "С паролем" : "Закрытая"}
+                                      </Badge>
+                                    )}
+                                    {promoted && (
+                                      <Badge className="bg-red-600/20 text-red-100 border border-red-400/60 gap-1">
+                                        <Crown className="w-3.5 h-3.5" />
+                                        Продвигаемая
                                       </Badge>
                                     )}
                                   </div>
@@ -7520,34 +7950,42 @@ export default function App() {
                       </Button>
                       <Button
                         type="button"
-                        disabled
-                        className="h-9 rounded-xl bg-zinc-800 text-zinc-400 border border-zinc-700 cursor-not-allowed"
+                        onClick={() => {
+                          if (!canCreatePacks) {
+                            openSubscriptionUpsell(
+                              "canCreatePacks",
+                              "Создание паков будет доступно в подписке «Арбитр».",
+                            );
+                            return;
+                          }
+                          setUpsellTitle("Скоро");
+                          setUpsellDescription("Создание паков находится в разработке.");
+                          setUpsellRequiredTier("arbiter");
+                          setUpsellModalOpen(true);
+                        }}
+                        className={`h-9 rounded-xl border ${
+                          canCreatePacks
+                            ? "border-red-500/60 bg-red-600/20 text-red-100 hover:bg-red-600/30"
+                            : "border-zinc-700 bg-zinc-800 text-zinc-400"
+                        }`}
                       >
-                        Создать пак · В разработке
+                        <span className="inline-flex items-center gap-1.5">
+                          {!canCreatePacks && <Lock className="h-3.5 w-3.5" />}
+                          Создать пак · Скоро
+                        </span>
                       </Button>
                     </div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {[...casePacks]
                         .sort((a, b) => {
-                          const aLocked = isPackLockedForPreview(
-                            a,
-                            PACK_PAYWALL_PREVIEW_ENABLED,
-                            baseCreatePackKey,
-                          );
-                          const bLocked = isPackLockedForPreview(
-                            b,
-                            PACK_PAYWALL_PREVIEW_ENABLED,
-                            baseCreatePackKey,
-                          );
+                          const aLocked = isPackLockedForTier(a, myTier);
+                          const bLocked = isPackLockedForTier(b, myTier);
                           if (aLocked !== bLocked) return aLocked ? 1 : -1;
                           return (a.sortOrder ?? 100) - (b.sortOrder ?? 100);
                         })
                         .map((pack) => {
-                        const isLocked = isPackLockedForPreview(
-                          pack,
-                          PACK_PAYWALL_PREVIEW_ENABLED,
-                          baseCreatePackKey,
-                        );
+                        const isLocked = isPackLockedForTier(pack, myTier);
+                        const requiredTier = getRequiredTierForPack(pack);
                         const visual = getCasePackVisual(pack.key, pack.title);
                         const displayTitle = getCasePackTitleDisplay(pack.title);
                         const cardClass = `${visual.card} ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
@@ -7569,9 +8007,12 @@ export default function App() {
                             </div>
                             {isLocked && (
                               <div className="pointer-events-none absolute inset-0 rounded-2xl bg-zinc-950/78">
-                                <span className="absolute inset-0 flex items-center justify-center">
+                                <span className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                                   <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-400/70 bg-zinc-900/92 text-zinc-100 shadow-[0_0_20px_rgba(0,0,0,0.55)]">
                                     <Lock className="h-4 w-4" />
+                                  </span>
+                                  <span className="rounded-full border border-zinc-600/80 bg-zinc-900/92 px-2 py-0.5 text-[10px] text-zinc-200">
+                                    С {getSubscriptionTierLabel(requiredTier)}
                                   </span>
                                 </span>
                               </div>
@@ -7580,9 +8021,21 @@ export default function App() {
                         );
                         if (isLocked) {
                           return (
-                            <div key={pack.key} className={`relative overflow-hidden rounded-2xl border px-3 py-2 ${cardClass}`}>
+                            <button
+                              key={pack.key}
+                              type="button"
+                              onClick={() =>
+                                openSubscriptionUpsell(
+                                  requiredTier === "trainee"
+                                    ? "canAccessPackSevere"
+                                    : "canAccessAllPacks",
+                                  `Пак «${displayTitle}» доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`,
+                                )
+                              }
+                              className={`relative overflow-hidden rounded-2xl border px-3 py-2 text-left ${cardClass}`}
+                            >
                               {content}
-                            </div>
+                            </button>
                           );
                         }
                         return (
@@ -7704,15 +8157,27 @@ export default function App() {
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-sm font-medium text-zinc-100">
-                              Приватная комната
+                              <span className="inline-flex items-center gap-1.5">
+                                Приватная комната
+                                {!canCreatePrivateRooms && <Lock className="h-3.5 w-3.5 text-zinc-400" />}
+                              </span>
                             </div>
                             <div className="text-xs text-zinc-500">
-                              В приватную комнату можно зайти только по коду и паролю.
+                              {canCreatePrivateRooms
+                                ? "В приватную комнату можно зайти только по коду и паролю."
+                                : "Доступно только в подписке «Арбитр»."}
                             </div>
                           </div>
                           <Switch
                             checked={createRoomPrivate}
                             onCheckedChange={(checked) => {
+                              if (checked && !canCreatePrivateRooms) {
+                                openSubscriptionUpsell(
+                                  "canCreatePrivateRooms",
+                                  "Приватные комнаты доступны только в подписке «Арбитр».",
+                                );
+                                return;
+                              }
                               setCreateRoomPrivate(checked);
                             }}
                           />
@@ -7732,6 +8197,13 @@ export default function App() {
                           <Switch
                             checked={createRoomPrivate}
                             onCheckedChange={(checked) => {
+                              if (checked && !canCreatePrivateRooms) {
+                                openSubscriptionUpsell(
+                                  "canCreatePrivateRooms",
+                                  "Приватные комнаты доступны только в подписке «Арбитр».",
+                                );
+                                return;
+                              }
                               setCreateRoomPrivate(checked);
                               if (!checked) {
                                 setCreateRoomPassword("");
@@ -7768,7 +8240,11 @@ export default function App() {
                       void createRoomFromPanel();
                     }}
                     disabled={roomActionPending !== null}
-                    className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0 gap-2"
+                    className={`w-full h-11 rounded-xl border-0 gap-2 ${
+                      roomActionPending !== null
+                        ? "bg-zinc-700 text-zinc-300"
+                        : "bg-red-600 text-white hover:bg-red-500"
+                    }`}
                   >
                     <UserPlus className="w-4 h-4" />
                     {roomActionPending === "create" ? "Создание" : "Создать комнату"}
@@ -7844,6 +8320,154 @@ export default function App() {
                 </div>
               </DialogContent>
             </Dialog>
+          </div>
+        )}
+        {homeTab === "shop" && (
+          <div className="max-w-6xl mx-auto space-y-5">
+            <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100 overflow-hidden">
+              <CardContent className="p-6 md:p-8">
+                <div className="relative rounded-3xl border border-zinc-700/80 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.22),transparent_48%),radial-gradient(120%_120%_at_100%_100%,rgba(153,27,27,0.2),transparent_54%),linear-gradient(130deg,rgba(24,24,27,0.95),rgba(39,39,42,0.9))] px-5 py-6 md:px-7 md:py-8">
+                  <div className="max-w-3xl">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-red-500/50 bg-red-600/15 px-3 py-1 text-xs font-semibold text-red-100">
+                      <Crown className="h-3.5 w-3.5" />
+                      Подписки CourtGame
+                    </div>
+                    <h2 className="mt-4 text-2xl font-bold sm:text-3xl">Магазин подписок</h2>
+                    <p className="mt-2 text-sm text-zinc-300 sm:text-base">
+                      Откройте доступ к эксклюзивным функциям, пакам дел, рейтингу и статусным
+                      возможностям профиля.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 inline-flex rounded-xl border border-zinc-700 bg-zinc-900 p-1">
+                  {SUBSCRIPTION_DURATION_UI_OPTIONS.map((option) => (
+                    <button
+                      key={`shop-duration-${option.key}`}
+                      type="button"
+                      onClick={() => setShopDuration(option.key)}
+                      className={`rounded-lg px-3 py-1.5 text-sm transition ${
+                        shopDuration === option.key
+                          ? "bg-red-600 text-white"
+                          : "text-zinc-300 hover:bg-zinc-800"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  {SUBSCRIPTION_PLANS.map((plan) => {
+                    const isCurrent = myTier === plan.tier;
+                    const displayPrice =
+                      shopDuration === "1_year" ? plan.yearPriceRub : plan.monthPriceRub;
+                    return (
+                      <div
+                        key={`shop-plan-${plan.tier}`}
+                        className={`rounded-2xl border px-4 py-4 ${
+                          plan.isPopular
+                            ? "border-red-500/70 bg-red-950/20 shadow-[0_0_0_1px_rgba(239,68,68,0.35),0_0_24px_rgba(239,68,68,0.25)]"
+                            : "border-zinc-700 bg-zinc-950/70"
+                        }`}
+                      >
+                        {plan.isPopular && (
+                          <div className="mb-2 inline-flex rounded-full border border-red-400/60 bg-red-600/20 px-2.5 py-1 text-[11px] font-semibold text-red-100">
+                            Самый популярный
+                          </div>
+                        )}
+                        <div className="text-lg font-semibold">{plan.title}</div>
+                        <div className="text-xs text-zinc-400">{plan.shortLabel}</div>
+                        <div className="mt-3 text-2xl font-bold text-zinc-100">
+                          {displayPrice} RUB
+                        </div>
+                        <div className="text-xs text-zinc-400">
+                          / {shopDuration === "1_year" ? "год" : "месяц"}
+                        </div>
+                        <div className="mt-3 space-y-1 text-sm text-zinc-200">
+                          {plan.features.map((feature) => (
+                            <div key={`${plan.tier}-${feature}`} className="flex items-start gap-2">
+                              <span className="mt-1 inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
+                              <span>{feature}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            setUpsellTitle("Оплата скоро");
+                            setUpsellDescription(
+                              "Система оплаты появится позже. Сейчас подписки выдаются вручную.",
+                            );
+                            setUpsellRequiredTier(plan.tier);
+                            setUpsellModalOpen(true);
+                          }}
+                          className={`mt-4 h-10 w-full rounded-xl ${
+                            isCurrent
+                              ? "bg-zinc-700 text-zinc-200 hover:bg-zinc-700"
+                              : "bg-red-600 text-white hover:bg-red-500"
+                          }`}
+                        >
+                          {isCurrent ? "Текущий тариф" : "Оформить"}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100">
+              <CardContent className="p-6 md:p-8">
+                <h3 className="text-xl font-semibold">Сравнение возможностей</h3>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full min-w-[680px] border-separate border-spacing-0 text-sm">
+                    <thead>
+                      <tr className="text-left text-zinc-400">
+                        <th className="pb-2 pr-2">Функция</th>
+                        <th className="pb-2 pr-2">Free</th>
+                        <th className="pb-2 pr-2">Стажер</th>
+                        <th className="pb-2 pr-2">Практик</th>
+                        <th className="pb-2">Арбитр</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-zinc-200">
+                      {[
+                        ["Рейтинг", "canUseRating"],
+                        ["Пак «Особо тяжкие»", "canAccessPackSevere"],
+                        ["Пак «18+»", "canAccessPack18"],
+                        ["Все паки", "canAccessAllPacks"],
+                        ["Выбор своей роли (хост)", "canChooseRoleInOwnLobby"],
+                        ["Разрешить игрокам выбирать роли", "canLetPlayersChooseRoles"],
+                        ["Баннер профиля", "canUseProfileBanner"],
+                        ["GIF-аватар/GIF-баннер", "canUseAnimatedProfileMedia"],
+                        ["Подсветка комнаты", "canHighlightHostedMatch"],
+                        ["Приватные комнаты", "canCreatePrivateRooms"],
+                        ["Выбор роли в чужих лобби", "canChooseRoleInOtherLobbies"],
+                        ["Создание паков (скоро)", "canCreatePacks"],
+                      ].map(([label, key]) => (
+                        <tr key={`shop-compare-${key}`} className="border-t border-zinc-800/60">
+                          <td className="border-t border-zinc-800/60 py-2 pr-2">{label}</td>
+                          {(["free", "trainee", "practitioner", "arbiter"] as SubscriptionTier[]).map((tier) => (
+                            <td key={`shop-compare-${key}-${tier}`} className="border-t border-zinc-800/60 py-2 pr-2">
+                              {hasCapability(tier, key as SubscriptionCapabilityKey) ? "Да" : "Нет"}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100">
+              <CardContent className="p-6 md:p-8">
+                <h3 className="text-xl font-semibold">FAQ</h3>
+                <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-300">
+                  Подписки пока выдаются вручную администратором. Оплата и автовыдача появятся в
+                  следующих обновлениях.
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
         {homeTab === "development" && (
@@ -7948,6 +8572,7 @@ export default function App() {
           </div>
         )}
         {renderPublicProfileDialog()}
+        {renderUpsellModal()}
         <ScreenTransitionLoader open={globalBlockingLoading} />
       </motion.div>
     );
@@ -7985,21 +8610,75 @@ export default function App() {
     const hasRoomHostControl = roomControlPlayerId === room.hostId;
     const roleDialogTargetPlayer =
       room.players.find((player) => player.id === lobbyRoleTargetPlayerId) ?? myLobbyPlayer;
-    const canOpenRolePickerForPlayer = (player: PlayerInfo) => {
-      if (player.roleKey === "witness" || player.roleKey === "observer") return false;
+    const getRolePickerButtonForPlayer = (player: PlayerInfo) => {
+      if (player.roleKey === "witness" || player.roleKey === "observer") return null;
+      const isSelf = player.id === myLobbyPlayer?.id;
       if (hasRoomHostControl) {
-        if (!usePreferredRoles) return true;
-        return player.id === myLobbyPlayer?.id;
+        if (isSelf && !canChooseRoleInOwnLobby) {
+          return {
+            label: "Роль закрыта",
+            locked: true,
+            hint: "Доступно с подписки «Стажер».",
+            onClick: () =>
+              openSubscriptionUpsell(
+                "canChooseRoleInOwnLobby",
+                "Выбор своей роли доступен с подписки «Стажер».",
+              ),
+          };
+        }
+        if (!isSelf && usePreferredRoles) return null;
+        if (!isSelf && !canLetPlayersChooseRoles) {
+          return {
+            label: "Роль закрыта",
+            locked: true,
+            hint: "Доступно с подписки «Практик».",
+            onClick: () =>
+              openSubscriptionUpsell(
+                "canLetPlayersChooseRoles",
+                "Управление выбором ролей игроков доступно с подписки «Практик».",
+              ),
+          };
+        }
+        return {
+          label: "Выбрать роль",
+          locked: false,
+          onClick: () => {
+            setLobbyRoleTargetPlayerId(player.id);
+            setLobbyRoleDialogOpen(true);
+          },
+        };
       }
-      return usePreferredRoles && player.id === myLobbyPlayer?.id;
+      if (!isSelf) return null;
+      if (!canChooseRoleInOtherLobbies) {
+        return {
+          label: "Роль закрыта",
+          locked: true,
+          hint: "Доступно только в подписке «Арбитр».",
+          onClick: () =>
+            openSubscriptionUpsell(
+              "canChooseRoleInOtherLobbies",
+              "Выбор роли в чужом лобби доступен только в подписке «Арбитр».",
+            ),
+        };
+      }
+      return {
+        label: "Выбрать роль",
+        locked: false,
+        onClick: () => {
+          setLobbyRoleTargetPlayerId(player.id);
+          setLobbyRoleDialogOpen(true);
+        },
+      };
     };
     const canRenderRoleDialog =
       !!roleDialogTargetPlayer &&
       roleDialogTargetPlayer.roleKey !== "witness" &&
       roleDialogTargetPlayer.roleKey !== "observer" &&
       (hasRoomHostControl
-        ? !usePreferredRoles || roleDialogTargetPlayer.id === myLobbyPlayer?.id
-        : usePreferredRoles && roleDialogTargetPlayer.id === myLobbyPlayer?.id);
+        ? roleDialogTargetPlayer.id === myLobbyPlayer?.id
+          ? canChooseRoleInOwnLobby
+          : !usePreferredRoles && canLetPlayersChooseRoles
+        : roleDialogTargetPlayer.id === myLobbyPlayer?.id && canChooseRoleInOtherLobbies);
     const canStartRoomNow = isQuickRoomMode
       ? activeLobbyPlayersCount >= 3 && activeLobbyPlayersCount <= roomMaxPlayers
       : activeLobbyPlayersCount === roomMaxPlayers;
@@ -8206,9 +8885,17 @@ export default function App() {
                 </div>
                 <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/55 px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium text-zinc-100">Выбор ролей</div>
+                    <div className="text-sm font-medium text-zinc-100 inline-flex items-center gap-1.5">
+                      Выбор ролей
+                      {!canLetPlayersChooseRoles && <Lock className="h-3.5 w-3.5 text-zinc-400" />}
+                    </div>
                     <Switch checked={usePreferredRoles} onCheckedChange={togglePreferredRoles} />
                   </div>
+                  {!canLetPlayersChooseRoles && (
+                    <div className="mt-2 text-xs text-zinc-500">
+                      Доступно с подписки «Практик».
+                    </div>
+                  )}
                 </div>
                 <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/55 p-3 md:col-span-2">
                   <div className="text-xs font-semibold tracking-[0.2em] uppercase text-zinc-500">Режим</div>
@@ -8237,12 +8924,24 @@ export default function App() {
                       <button
                         key={`manage-pack-${pack.key}`}
                         type="button"
-                        onClick={() => updateRoomManagementSettings({ casePackKey: pack.key })}
-                        className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
+                        onClick={() => {
+                          if (isPackLockedForTier(pack, myTier)) {
+                            const requiredTier = getRequiredTierForPack(pack);
+                            openSubscriptionUpsell(
+                              requiredTier === "trainee"
+                                ? "canAccessPackSevere"
+                                : "canAccessAllPacks",
+                              `Пак «${getCasePackTitleDisplay(pack.title)}» доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`,
+                            );
+                            return;
+                          }
+                          updateRoomManagementSettings({ casePackKey: pack.key });
+                        }}
+                        className={`rounded-xl border px-3 py-2 text-left text-xs transition relative ${
                           (room.casePackKey ?? "classic") === pack.key
                             ? "border-red-500/80 bg-red-600/20 text-zinc-100 shadow-[0_0_0_1px_rgba(248,113,113,0.25),0_0_16px_rgba(239,68,68,0.18)]"
                             : "border-zinc-700/90 bg-zinc-950/80 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900"
-                        }`}
+                        } ${isPackLockedForTier(pack, myTier) ? "opacity-75" : ""}`}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-semibold">{getCasePackTitleDisplay(pack.title)}</span>
@@ -8250,6 +8949,12 @@ export default function App() {
                             {Math.max(0, Number(pack.caseCount ?? 0) || 0)} дел
                           </span>
                         </div>
+                        {isPackLockedForTier(pack, myTier) && (
+                          <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-zinc-600/80 bg-zinc-900/85 px-2 py-0.5 text-[10px] text-zinc-200">
+                            <Lock className="h-3 w-3" />
+                            С {getSubscriptionTierLabel(getRequiredTierForPack(pack))}
+                          </div>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -8459,14 +9164,29 @@ export default function App() {
                 </div>
                 <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/55 px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-medium text-zinc-100">Приватная</div>
+                    <div className="text-sm font-medium text-zinc-100 inline-flex items-center gap-1.5">
+                      Приватная
+                      {!canCreatePrivateRooms && <Lock className="h-3.5 w-3.5 text-zinc-400" />}
+                    </div>
                     <Switch
                       checked={room.visibility === "private"}
-                      onCheckedChange={(checked) =>
-                        updateRoomManagementSettings({ visibility: checked ? "private" : "public" })
-                      }
+                      onCheckedChange={(checked) => {
+                        if (checked && !canCreatePrivateRooms) {
+                          openSubscriptionUpsell(
+                            "canCreatePrivateRooms",
+                            "Приватные комнаты доступны только в подписке «Арбитр».",
+                          );
+                          return;
+                        }
+                        updateRoomManagementSettings({ visibility: checked ? "private" : "public" });
+                      }}
                     />
                   </div>
+                  {!canCreatePrivateRooms && (
+                    <div className="mt-2 text-xs text-zinc-500">
+                      Доступно только в подписке «Арбитр».
+                    </div>
+                  )}
                   {room.visibility === "private" && (
                     <div className="relative mt-2">
                       <Input
@@ -8652,17 +9372,7 @@ export default function App() {
                             showLobbyAssignedRole={
                               usePreferredRoles || (!usePreferredRoles && !!player.lobbyAssignedRole)
                             }
-                            rolePickerButton={
-                              canOpenRolePickerForPlayer(player)
-                                ? {
-                                    label: "Выбрать роль",
-                                    onClick: () => {
-                                      setLobbyRoleTargetPlayerId(player.id);
-                                      setLobbyRoleDialogOpen(true);
-                                    },
-                                  }
-                                : null
-                            }
+                            rolePickerButton={getRolePickerButtonForPlayer(player)}
                             canKick={hasRoomHostControl && player.id !== room.hostId}
                             onKick={() => kickPlayerFromRoom(player.id)}
                             onOpenProfile={openUserProfileFromPlayer}
@@ -8890,6 +9600,7 @@ export default function App() {
             </div>
           </DialogContent>
         </Dialog>
+        {renderUpsellModal()}
         <ScreenTransitionLoader open={globalBlockingLoading} />
       </motion.div>
     );
@@ -10336,6 +11047,7 @@ export default function App() {
             </div>
           </DialogContent>
         </Dialog>
+        {renderUpsellModal()}
         <ScreenTransitionLoader open={globalBlockingLoading} />
       </motion.div>
     );

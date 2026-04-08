@@ -2,6 +2,7 @@
   roleOrderByCount,
 } from "../lib/roleOrderConfig.js";
 import { normalizeCasePackKey as normalizeStoredCasePackKey } from "../lib/casePacksStore.js";
+import type { SubscriptionTier } from "../lib/subscriptions.js";
 
 function shuffle<T>(array: T[]): T[] {
   return [...array].sort(() => Math.random() - 0.5);
@@ -175,6 +176,8 @@ export interface Room {
   protestLimitEnabled: boolean;
   maxProtestsPerPlayer: number | null;
   createdAt: number;
+  hostSubscriptionTier: SubscriptionTier;
+  isPromoted: boolean;
   lobbyChat: LobbyChatMessage[];
 }
 
@@ -202,6 +205,8 @@ export interface PublicMatchInfo {
   venueLabel?: string;
   venueUrl?: string;
   requiresPassword: boolean;
+  hostSubscriptionTier: SubscriptionTier;
+  isPromoted: boolean;
 }
 
 export interface CreateRoomOptions {
@@ -219,6 +224,8 @@ export interface CreateRoomOptions {
   closingSpeechTimerSec?: number | null;
   protestLimitEnabled?: boolean;
   maxProtestsPerPlayer?: number | null;
+  hostSubscriptionTier?: SubscriptionTier;
+  isPromoted?: boolean;
 }
 
 export type AssignableRole =
@@ -524,6 +531,13 @@ export function restoreRoomsFromSnapshots(snapshots: unknown[]): number {
       maxProtestsPerPlayer: normalizeProtestLimit(snapshot.maxProtestsPerPlayer),
       createdAt:
         typeof snapshot.createdAt === "number" ? snapshot.createdAt : Date.now(),
+      hostSubscriptionTier:
+        snapshot.hostSubscriptionTier === "trainee" ||
+        snapshot.hostSubscriptionTier === "practitioner" ||
+        snapshot.hostSubscriptionTier === "arbiter"
+          ? snapshot.hostSubscriptionTier
+          : "free",
+      isPromoted: !!snapshot.isPromoted,
       lobbyChat: Array.isArray(snapshot.lobbyChat) ? snapshot.lobbyChat : [],
     };
 
@@ -674,6 +688,8 @@ export function createRoom(code: string, player: Player, options?: CreateRoomOpt
     protestLimitEnabled,
     maxProtestsPerPlayer,
     createdAt: Date.now(),
+    hostSubscriptionTier: options?.hostSubscriptionTier ?? "free",
+    isPromoted: !!options?.isPromoted,
     lobbyChat: [],
   };
   rebalanceLobbyRoleAssignments(room);
@@ -827,6 +843,9 @@ export function chooseLobbyRole(
   actorId: string,
   targetPlayerId: string,
   role: AssignableRole | null,
+  options?: {
+    allowNonHostChoiceInForeignLobby?: boolean;
+  },
 ): { room: Room; ok: true } | { room: Room; ok: false; reason: string } | null {
   const room = rooms.get(code);
   if (!room || room.started) return null;
@@ -840,7 +859,7 @@ export function chooseLobbyRole(
     if (actor.id !== player.id) {
       return { room, ok: false, reason: "Можно менять только свою роль." };
     }
-    if (!room.usePreferredRoles) {
+    if (!room.usePreferredRoles && !options?.allowNonHostChoiceInForeignLobby) {
       return { room, ok: false, reason: "Ведущий не разрешил выбор ролей для игроков." };
     }
   } else if (room.usePreferredRoles && actor.id !== player.id) {
@@ -1408,12 +1427,19 @@ export function listPublicMatches(): PublicMatchInfo[] {
         venueLabel: room.venueLabel,
         venueUrl: room.venueUrl,
         requiresPassword: !!room.password,
+        hostSubscriptionTier: room.hostSubscriptionTier ?? "free",
+        isPromoted: !!room.isPromoted,
         __connectedPlayersCount: connectedPlayersCount,
       };
     })
     .filter((match: any) => match.__connectedPlayersCount > 0)
     .map(({ __connectedPlayersCount, ...match }: any) => match)
-    .sort((a, b) => b.createdAt - a.createdAt);
+    .sort((a, b) => {
+      if (a.isPromoted !== b.isPromoted) {
+        return a.isPromoted ? -1 : 1;
+      }
+      return b.createdAt - a.createdAt;
+    });
 }
 
 function isPlayerConnected(player: Player): boolean {

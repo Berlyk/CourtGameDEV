@@ -1,5 +1,6 @@
 ﻿import { Router } from "express";
 import {
+  assignSubscriptionByUserId,
   changeEmailByToken,
   changePasswordByToken,
   getPublicUserProfileById,
@@ -259,6 +260,57 @@ authRouter.get("/auth/public/:id", async (req, res) => {
     return res.status(404).json({ message: "Профиль игрока не найден." });
   }
   return res.status(200).json({ profile });
+});
+
+authRouter.patch("/auth/admin/subscription", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  const adminUser = await getUserByToken(token);
+  if (!adminUser || adminUser.login.trim().toLowerCase() !== "berly") {
+    return res.status(403).json({ message: "Недостаточно прав." });
+  }
+
+  const userId = String(req.body?.userId ?? "").trim();
+  const tier = String(req.body?.tier ?? "").trim();
+  if (!userId || !tier) {
+    return res.status(400).json({ message: "Нужны userId и tier." });
+  }
+
+  try {
+    const subscription = await assignSubscriptionByUserId({
+      userId,
+      tier,
+      duration:
+        req.body?.duration === null || typeof req.body?.duration === "string"
+          ? req.body.duration
+          : undefined,
+      source:
+        req.body?.source === null || typeof req.body?.source === "string"
+          ? req.body.source
+          : undefined,
+      startAt:
+        req.body?.startAt === null ||
+        typeof req.body?.startAt === "string" ||
+        typeof req.body?.startAt === "number"
+          ? req.body.startAt
+          : undefined,
+      endAt:
+        req.body?.endAt === null ||
+        typeof req.body?.endAt === "string" ||
+        typeof req.body?.endAt === "number"
+          ? req.body.endAt
+          : undefined,
+    });
+    if (!subscription) {
+      return res.status(404).json({ message: "Пользователь не найден." });
+    }
+    return res.status(200).json({ ok: true, subscription });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось выдать подписку.";
+    return res.status(400).json({ message });
+  }
 });
 
 export default authRouter;
