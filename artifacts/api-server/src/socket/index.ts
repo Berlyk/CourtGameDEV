@@ -910,9 +910,60 @@ export function setupSocket(httpServer: HttpServer) {
         }
         createRoomInFlight.add(socket.id);
         try {
-        const code = randomCode();
-        const playerId = crypto.randomUUID();
-        const sessionToken = crypto.randomUUID();
+          const code = randomCode();
+          const playerId = crypto.randomUUID();
+          const sessionToken = crypto.randomUUID();
+          const authUser =
+            typeof authToken === "string" && authToken.trim()
+              ? await getUserByToken(authToken.trim())
+              : null;
+          const authPublicProfile = authUser?.id
+            ? await getPublicUserProfileById(authUser.id).catch(() => null)
+            : null;
+          const authSelectedBadgeKey =
+            authPublicProfile?.selectedBadgeKey ?? authUser?.selectedBadgeKey ?? undefined;
+          const normalizedPlayerName = authUser
+            ? (playerName || authUser.nickname || "Игрок 1").trim() || authUser.nickname
+            : createGuestName();
+          const player = {
+            id: playerId,
+            userId: authUser?.id,
+            name: normalizedPlayerName,
+            isBot: false,
+            socketId: socket.id,
+            sessionToken,
+            avatar: avatar || authUser?.avatar || undefined,
+            banner: banner || authUser?.banner || undefined,
+            selectedBadgeKey: authSelectedBadgeKey,
+            preferredRole: (authUser?.preferredRole as AssignableRole | undefined) ?? null,
+            lobbyAssignedRole: null,
+            roleAssignmentSource: "random" as const,
+            rolePreferenceStatus: "idle" as const,
+          };
+          const room = createRoom(code, player, options);
+
+          socketToRoom.set(socket.id, { roomCode: code, playerId, sessionToken });
+          socket.join(code);
+          socket.emit("room_joined", {
+            playerId,
+            sessionToken,
+            state: getRoomState(room, playerId)
+          });
+          emitPublicMatches(io);
+          persistRoom(code);
+        } catch (error) {
+          console.error("create_room failed", error);
+          socket.emit("error", { message: "Не удалось создать комнату. Попробуйте еще раз." });
+        } finally {
+          createRoomInFlight.delete(socket.id);
+        }
+      });
+
+    socket.on("join_room", async ({ code, playerName, avatar, banner, password, authToken }: { code: string; playerName: string; avatar?: string | null; banner?: string | null; password?: string; authToken?: string }) => {
+      try {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        const trimmedName = (playerName || "").trim();
         const authUser =
           typeof authToken === "string" && authToken.trim()
             ? await getUserByToken(authToken.trim())
@@ -922,13 +973,147 @@ export function setupSocket(httpServer: HttpServer) {
           : null;
         const authSelectedBadgeKey =
           authPublicProfile?.selectedBadgeKey ?? authUser?.selectedBadgeKey ?? undefined;
-        const normalizedPlayerName = authUser
-          ? (playerName || authUser.nickname || "Игрок 1").trim() || authUser.nickname
-          : createGuestName();
+        const existingNames = room
+          ? [
+              ...room.players.map((player: any) => player.name),
+              ...(room.game?.players ?? []).map((player: any) => player.name),
+            ]
+          : [];
+        const effectiveName = authUser
+          ? (trimmedName || authUser.nickname || "Игрок").trim()
+          : createGuestName(existingNames);
+
+        if (!room) {
+          socket.emit("error", { message: "\u041a\u043e\u043c\u043d\u0430\u0442\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u043a\u043e\u0434." });
+          return;
+        }
+        if (!authUser && !effectiveName) {
+          socket.emit("error", { message: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043d\u0438\u043a\u043d\u0435\u0439\u043c \u043f\u0435\u0440\u0435\u0434 \u0432\u0445\u043e\u0434\u043e\u043c." });
+          return;
+        }
+        if (!isJoinPasswordValid(roomCode, password)) {
+          socket.emit("error", { message: "\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c \u043a\u043e\u043c\u043d\u0430\u0442\u044b." });
+          return;
+        }
+
+        if (authUser) {
+          const profileBanner = banner !== undefined ? banner : authUser.banner;
+          const reclaimedByUser = reclaimDisconnectedPlayerByUserId(
+            roomCode,
+            authUser.id,
+            socket.id,
+            avatar,
+            profileBanner,
+          );
+          if (reclaimedByUser) {
+            clearReconnectCleanup(roomCode, reclaimedByUser.playerId);
+            socketToRoom.set(socket.id, {
+              roomCode,
+              playerId: reclaimedByUser.playerId,
+              sessionToken: reclaimedByUser.sessionToken,
+            });
+            socket.join(roomCode);
+            socket.emit("room_joined", {
+              playerId: reclaimedByUser.playerId,
+              sessionToken: reclaimedByUser.sessionToken,
+              state: getRoomState(reclaimedByUser.room, reclaimedByUser.playerId),
+            });
+            if (reclaimedByUser.room.game) {
+              emitLawyerChatStateToSocket(socket.id, roomCode, reclaimedByUser.playerId);
+              socket.to(roomCode).emit("player_rejoined", {
+                playerId: reclaimedByUser.playerId,
+                playerName: reclaimedByUser.playerName.trim(),
+              });
+              io.to(roomCode).emit("game_players_updated", {
+                players: mapGamePlayers(reclaimedByUser.room.game.players),
+              });
+            } else {
+              io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(reclaimedByUser.room));
+            }
+            emitPublicMatches(io);
+            persistRoom(roomCode);
+            return;
+          }
+
+          const binding = await findBindingByUser(roomCode, authUser.id);
+          if (binding?.sessionToken) {
+            const restoreResult = rejoinRoom(roomCode, binding.sessionToken, socket.id, avatar, profileBanner);
+            if (restoreResult) {
+              clearReconnectCleanup(roomCode, restoreResult.playerId);
+              socketToRoom.set(socket.id, {
+                roomCode,
+                playerId: restoreResult.playerId,
+                sessionToken: binding.sessionToken,
+              });
+              socket.join(roomCode);
+              socket.emit("room_joined", {
+                playerId: restoreResult.playerId,
+                sessionToken: binding.sessionToken,
+                state: getRoomState(restoreResult.room, restoreResult.playerId),
+              });
+              if (restoreResult.room.game) {
+                emitLawyerChatStateToSocket(socket.id, roomCode, restoreResult.playerId);
+                io.to(roomCode).emit("game_players_updated", {
+                  players: mapGamePlayers(restoreResult.room.game.players),
+                });
+              } else {
+                io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(restoreResult.room));
+              }
+              emitPublicMatches(io);
+              persistRoom(roomCode);
+              return;
+            }
+          }
+        }
+
+        // If a player with this nickname disconnected earlier, reclaim their slot/role.
+        const reclaimed = reclaimDisconnectedPlayerByName(
+          roomCode,
+          effectiveName,
+          socket.id,
+          avatar,
+          banner,
+        );
+        if (reclaimed) {
+          clearReconnectCleanup(roomCode, reclaimed.playerId);
+          socketToRoom.set(socket.id, {
+            roomCode,
+            playerId: reclaimed.playerId,
+            sessionToken: reclaimed.sessionToken,
+          });
+          socket.join(roomCode);
+          socket.emit("room_joined", {
+            playerId: reclaimed.playerId,
+            sessionToken: reclaimed.sessionToken,
+            state: getRoomState(reclaimed.room, reclaimed.playerId),
+          });
+          if (reclaimed.room.game) {
+            emitLawyerChatStateToSocket(socket.id, roomCode, reclaimed.playerId);
+            socket.to(roomCode).emit("player_rejoined", {
+              playerId: reclaimed.playerId,
+              playerName: reclaimed.playerName.trim(),
+            });
+            io.to(roomCode).emit("game_players_updated", {
+              players: mapGamePlayers(reclaimed.room.game.players),
+            });
+          } else {
+            io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(reclaimed.room));
+          }
+          emitPublicMatches(io);
+          return;
+        }
+
+        if (isNameTaken(roomCode, effectiveName)) {
+          socket.emit("error", { message: `\u041d\u0438\u043a\u043d\u0435\u0439\u043c \u00ab${effectiveName}\u00bb \u0443\u0436\u0435 \u0437\u0430\u043d\u044f\u0442 \u0432 \u044d\u0442\u043e\u0439 \u043a\u043e\u043c\u043d\u0430\u0442\u0435.` });
+          return;
+        }
+
+        const playerId = crypto.randomUUID();
+        const sessionToken = crypto.randomUUID();
         const player = {
           id: playerId,
           userId: authUser?.id,
-          name: normalizedPlayerName,
+          name: effectiveName,
           isBot: false,
           socketId: socket.id,
           sessionToken,
@@ -940,191 +1125,54 @@ export function setupSocket(httpServer: HttpServer) {
           roleAssignmentSource: "random" as const,
           rolePreferenceStatus: "idle" as const,
         };
-      const room = createRoom(code, player, options);
 
-      socketToRoom.set(socket.id, { roomCode: code, playerId, sessionToken });
-      socket.join(code);
-      socket.emit("room_joined", {
-        playerId,
-        sessionToken,
-        state: getRoomState(room, playerId)
-      });
-      emitPublicMatches(io);
-      persistRoom(code);
-        } finally {
-          createRoomInFlight.delete(socket.id);
-        }
-    });
+        if (room.started) {
+          const updatedRoom = joinRunningGameAsWitness(roomCode, player);
+          if (!updatedRoom?.game) {
+            socket.emit("error", { message: "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u043e\u0439\u0442\u0438 \u0432 \u0443\u0436\u0435 \u0438\u0434\u0443\u0449\u0438\u0439 \u043c\u0430\u0442\u0447." });
+            return;
+          }
 
-    socket.on("join_room", async ({ code, playerName, avatar, banner, password, authToken }: { code: string; playerName: string; avatar?: string | null; banner?: string | null; password?: string; authToken?: string }) => {
-      const roomCode = normalizeRoomCode(code);
-      const room = getRoom(roomCode);
-      const trimmedName = (playerName || "").trim();
-      const authUser =
-        typeof authToken === "string" && authToken.trim()
-          ? await getUserByToken(authToken.trim())
-          : null;
-      const authPublicProfile = authUser?.id
-        ? await getPublicUserProfileById(authUser.id).catch(() => null)
-        : null;
-      const authSelectedBadgeKey =
-        authPublicProfile?.selectedBadgeKey ?? authUser?.selectedBadgeKey ?? undefined;
-      const existingNames = room
-        ? [
-            ...room.players.map((player: any) => player.name),
-            ...(room.game?.players ?? []).map((player: any) => player.name),
-          ]
-        : [];
-      const effectiveName = authUser
-        ? (trimmedName || authUser.nickname || "Игрок").trim()
-        : createGuestName(existingNames);
-
-      if (!room) {
-        socket.emit("error", { message: "\u041a\u043e\u043c\u043d\u0430\u0442\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u043a\u043e\u0434." });
-        return;
-      }
-      if (!authUser && !effectiveName) {
-        socket.emit("error", { message: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043d\u0438\u043a\u043d\u0435\u0439\u043c \u043f\u0435\u0440\u0435\u0434 \u0432\u0445\u043e\u0434\u043e\u043c." });
-        return;
-      }
-      if (!isJoinPasswordValid(roomCode, password)) {
-        socket.emit("error", { message: "\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c \u043a\u043e\u043c\u043d\u0430\u0442\u044b." });
-        return;
-      }
-
-      if (authUser) {
-        const reclaimedByUser = reclaimDisconnectedPlayerByUserId(
-          roomCode,
-          authUser.id,
-          socket.id,
-          avatar,
-        );
-        if (reclaimedByUser) {
-          clearReconnectCleanup(roomCode, reclaimedByUser.playerId);
-          socketToRoom.set(socket.id, {
-            roomCode,
-            playerId: reclaimedByUser.playerId,
-            sessionToken: reclaimedByUser.sessionToken,
-          });
+          socketToRoom.set(socket.id, { roomCode, playerId, sessionToken });
           socket.join(roomCode);
           socket.emit("room_joined", {
-            playerId: reclaimedByUser.playerId,
-            sessionToken: reclaimedByUser.sessionToken,
-            state: getRoomState(reclaimedByUser.room, reclaimedByUser.playerId),
+            playerId,
+            sessionToken,
+            state: getRoomState(updatedRoom, playerId)
           });
-          if (reclaimedByUser.room.game) {
-            emitLawyerChatStateToSocket(socket.id, roomCode, reclaimedByUser.playerId);
-            socket.to(roomCode).emit("player_rejoined", {
-              playerId: reclaimedByUser.playerId,
-              playerName: reclaimedByUser.playerName.trim(),
-            });
-            io.to(roomCode).emit("game_players_updated", {
-              players: mapGamePlayers(reclaimedByUser.room.game.players),
-            });
-          } else {
-            io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(reclaimedByUser.room));
-          }
+          emitLawyerChatStateToSocket(socket.id, roomCode, playerId);
+          io.to(roomCode).emit("game_players_updated", {
+            players: mapGamePlayers(updatedRoom.game.players)
+          });
           emitPublicMatches(io);
           persistRoom(roomCode);
           return;
         }
 
-        const binding = await findBindingByUser(roomCode, authUser.id);
-        if (binding?.sessionToken) {
-          const restoreResult = rejoinRoom(roomCode, binding.sessionToken, socket.id, avatar);
-          if (restoreResult) {
-            clearReconnectCleanup(roomCode, restoreResult.playerId);
-            socketToRoom.set(socket.id, {
-              roomCode,
-              playerId: restoreResult.playerId,
-              sessionToken: binding.sessionToken,
-            });
-            socket.join(roomCode);
-            socket.emit("room_joined", {
-              playerId: restoreResult.playerId,
-              sessionToken: binding.sessionToken,
-              state: getRoomState(restoreResult.room, restoreResult.playerId),
-            });
-            if (restoreResult.room.game) {
-              emitLawyerChatStateToSocket(socket.id, roomCode, restoreResult.playerId);
-              io.to(roomCode).emit("game_players_updated", {
-                players: mapGamePlayers(restoreResult.room.game.players),
-              });
-            } else {
-              io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(restoreResult.room));
-            }
-            emitPublicMatches(io);
-            persistRoom(roomCode);
+        if (room.players.length >= room.maxPlayers) {
+          const witnessRoom = joinRoomAsLobbyWitness(roomCode, player, password);
+          if (!witnessRoom) {
+            socket.emit("error", { message: `Комната заполнена (максимум ${room.maxPlayers} игроков).` });
             return;
           }
-        }
-      }
 
-      // If a player with this nickname disconnected earlier, reclaim their slot/role.
-      const reclaimed = reclaimDisconnectedPlayerByName(
-        roomCode,
-        effectiveName,
-        socket.id,
-        avatar,
-      );
-      if (reclaimed) {
-        clearReconnectCleanup(roomCode, reclaimed.playerId);
-        socketToRoom.set(socket.id, {
-          roomCode,
-          playerId: reclaimed.playerId,
-          sessionToken: reclaimed.sessionToken,
-        });
-        socket.join(roomCode);
-        socket.emit("room_joined", {
-          playerId: reclaimed.playerId,
-          sessionToken: reclaimed.sessionToken,
-          state: getRoomState(reclaimed.room, reclaimed.playerId),
-        });
-        if (reclaimed.room.game) {
-          emitLawyerChatStateToSocket(socket.id, roomCode, reclaimed.playerId);
-        }
-        if (reclaimed.room.game) {
-          socket.to(roomCode).emit("player_rejoined", {
-            playerId: reclaimed.playerId,
-            playerName: reclaimed.playerName.trim(),
+          socketToRoom.set(socket.id, { roomCode, playerId, sessionToken });
+          socket.join(roomCode);
+          socket.emit("room_joined", {
+            playerId,
+            sessionToken,
+            state: getRoomState(witnessRoom, playerId),
           });
-          io.to(roomCode).emit("game_players_updated", {
-            players: mapGamePlayers(reclaimed.room.game.players),
-          });
-        } else {
-          io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(reclaimed.room));
+
+          socket.to(roomCode).emit("room_updated", buildRoomUpdatePayload(witnessRoom));
+          emitPublicMatches(io);
+          persistRoom(roomCode);
+          return;
         }
-        emitPublicMatches(io);
-        return;
-      }
 
-      if (isNameTaken(roomCode, effectiveName)) {
-        socket.emit("error", { message: `\u041d\u0438\u043a\u043d\u0435\u0439\u043c \u00ab${effectiveName}\u00bb \u0443\u0436\u0435 \u0437\u0430\u043d\u044f\u0442 \u0432 \u044d\u0442\u043e\u0439 \u043a\u043e\u043c\u043d\u0430\u0442\u0435.` });
-        return;
-      }
-
-      const playerId = crypto.randomUUID();
-      const sessionToken = crypto.randomUUID();
-      const player = {
-        id: playerId,
-        userId: authUser?.id,
-        name: effectiveName,
-        isBot: false,
-        socketId: socket.id,
-        sessionToken,
-        avatar: avatar || authUser?.avatar || undefined,
-        banner: banner || authUser?.banner || undefined,
-        selectedBadgeKey: authSelectedBadgeKey,
-        preferredRole: (authUser?.preferredRole as AssignableRole | undefined) ?? null,
-        lobbyAssignedRole: null,
-        roleAssignmentSource: "random" as const,
-        rolePreferenceStatus: "idle" as const,
-      };
-
-      if (room.started) {
-        const updatedRoom = joinRunningGameAsWitness(roomCode, player);
-        if (!updatedRoom?.game) {
-          socket.emit("error", { message: "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u043e\u0439\u0442\u0438 \u0432 \u0443\u0436\u0435 \u0438\u0434\u0443\u0449\u0438\u0439 \u043c\u0430\u0442\u0447." });
+        const updatedRoom = joinRoom(roomCode, player, password);
+        if (!updatedRoom) {
+          socket.emit("error", { message: "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u043e\u0439\u0442\u0438 \u0432 \u043a\u043e\u043c\u043d\u0430\u0442\u0443." });
           return;
         }
 
@@ -1135,53 +1183,13 @@ export function setupSocket(httpServer: HttpServer) {
           sessionToken,
           state: getRoomState(updatedRoom, playerId)
         });
-        emitLawyerChatStateToSocket(socket.id, roomCode, playerId);
-        io.to(roomCode).emit("game_players_updated", {
-          players: mapGamePlayers(updatedRoom.game.players)
-        });
+        socket.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
         emitPublicMatches(io);
         persistRoom(roomCode);
-        return;
+      } catch (error) {
+        console.error("join_room failed", error);
+        socket.emit("error", { message: "Не удалось войти в комнату. Попробуйте еще раз." });
       }
-
-      if (room.players.length >= room.maxPlayers) {
-        const witnessRoom = joinRoomAsLobbyWitness(roomCode, player, password);
-        if (!witnessRoom) {
-          socket.emit("error", { message: `Комната заполнена (максимум ${room.maxPlayers} игроков).` });
-          return;
-        }
-
-        socketToRoom.set(socket.id, { roomCode, playerId, sessionToken });
-        socket.join(roomCode);
-        socket.emit("room_joined", {
-          playerId,
-          sessionToken,
-          state: getRoomState(witnessRoom, playerId),
-        });
-
-        socket.to(roomCode).emit("room_updated", buildRoomUpdatePayload(witnessRoom));
-        emitPublicMatches(io);
-        persistRoom(roomCode);
-        return;
-      }
-
-      const updatedRoom = joinRoom(roomCode, player, password);
-      if (!updatedRoom) {
-        socket.emit("error", { message: "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u043e\u0439\u0442\u0438 \u0432 \u043a\u043e\u043c\u043d\u0430\u0442\u0443." });
-        return;
-      }
-
-      socketToRoom.set(socket.id, { roomCode, playerId, sessionToken });
-      socket.join(roomCode);
-      socket.emit("room_joined", {
-        playerId,
-        sessionToken,
-        state: getRoomState(updatedRoom, playerId)
-      });
-
-      socket.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
-      emitPublicMatches(io);
-      persistRoom(roomCode);
     });
 
     socket.on("rejoin_room", ({ code, sessionToken, avatar, banner }: { code: string; sessionToken: string; avatar?: string | null; banner?: string | null }) => {

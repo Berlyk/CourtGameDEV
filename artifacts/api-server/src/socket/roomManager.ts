@@ -1148,6 +1148,7 @@ export function reclaimDisconnectedPlayerByName(
   playerName: string,
   newSocketId: string,
   avatar?: string | null,
+  banner?: string | null,
 ): { room: Room; playerId: string; playerName: string; sessionToken: string } | null {
   const room = rooms.get(code);
   if (!room) return null;
@@ -1155,6 +1156,7 @@ export function reclaimDisconnectedPlayerByName(
   const normalizedName = playerName.trim().toLowerCase();
   if (!normalizedName) return null;
   const normalizedAvatar = avatar || undefined;
+  const normalizedBanner = banner || undefined;
 
   const findDisconnected = (list: Player[]) =>
     list.find(
@@ -1173,6 +1175,9 @@ export function reclaimDisconnectedPlayerByName(
   if (avatar !== undefined) {
     targetPlayer.avatar = normalizedAvatar;
   }
+  if (banner !== undefined) {
+    targetPlayer.banner = normalizedBanner;
+  }
   if (!targetPlayer.sessionToken || !targetPlayer.sessionToken.trim()) {
     targetPlayer.sessionToken = crypto.randomUUID();
   }
@@ -1185,6 +1190,9 @@ export function reclaimDisconnectedPlayerByName(
     if (avatar !== undefined) {
       mirrorLobbyPlayer.avatar = normalizedAvatar;
     }
+    if (banner !== undefined) {
+      mirrorLobbyPlayer.banner = normalizedBanner;
+    }
   }
 
   const mirrorGamePlayer = room.game?.players.find((p) => p.id === targetPlayer.id);
@@ -1194,6 +1202,9 @@ export function reclaimDisconnectedPlayerByName(
     mirrorGamePlayer.sessionToken = targetPlayer.sessionToken;
     if (avatar !== undefined) {
       mirrorGamePlayer.avatar = normalizedAvatar;
+    }
+    if (banner !== undefined) {
+      mirrorGamePlayer.banner = normalizedBanner;
     }
   }
 
@@ -1210,12 +1221,14 @@ export function reclaimDisconnectedPlayerByUserId(
   userId: string,
   newSocketId: string,
   avatar?: string | null,
+  banner?: string | null,
 ): { room: Room; playerId: string; playerName: string; sessionToken: string } | null {
   const room = rooms.get(code);
   if (!room) return null;
   const normalizedUserId = userId.trim();
   if (!normalizedUserId) return null;
   const normalizedAvatar = avatar || undefined;
+  const normalizedBanner = banner || undefined;
 
   const findDisconnected = (list: Player[]) =>
     list.find(
@@ -1234,6 +1247,9 @@ export function reclaimDisconnectedPlayerByUserId(
   if (avatar !== undefined) {
     targetPlayer.avatar = normalizedAvatar;
   }
+  if (banner !== undefined) {
+    targetPlayer.banner = normalizedBanner;
+  }
   if (!targetPlayer.sessionToken || !targetPlayer.sessionToken.trim()) {
     targetPlayer.sessionToken = crypto.randomUUID();
   }
@@ -1246,6 +1262,9 @@ export function reclaimDisconnectedPlayerByUserId(
     if (avatar !== undefined) {
       mirrorLobbyPlayer.avatar = normalizedAvatar;
     }
+    if (banner !== undefined) {
+      mirrorLobbyPlayer.banner = normalizedBanner;
+    }
   }
 
   const mirrorGamePlayer = room.game?.players.find((p) => p.id === targetPlayer.id);
@@ -1255,6 +1274,9 @@ export function reclaimDisconnectedPlayerByUserId(
     mirrorGamePlayer.sessionToken = targetPlayer.sessionToken;
     if (avatar !== undefined) {
       mirrorGamePlayer.avatar = normalizedAvatar;
+    }
+    if (banner !== undefined) {
+      mirrorGamePlayer.banner = normalizedBanner;
     }
   }
 
