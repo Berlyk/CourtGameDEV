@@ -190,6 +190,109 @@ const SUBSCRIPTION_DURATION_UI_OPTIONS: Array<{
   { key: "1_year", label: "1 год" },
 ];
 
+const LEGAL_DOCS = {
+  privacy: {
+    title: "Политика конфиденциальности CourtGame",
+    updatedAt: "08 апреля 2026",
+    intro:
+      "Документ описывает, какие данные мы обрабатываем, зачем это нужно и как пользователь может управлять своей информацией.",
+    sections: [
+      {
+        title: "1. Какие данные мы собираем",
+        paragraphs: [
+          "При регистрации и использовании аккаунта обрабатываются логин, email, никнейм, дата создания аккаунта, настройки профиля и данные сессии.",
+          "Во время игры обрабатываются технические данные комнаты: код, участники, роли, выбранные паки, события матча и сообщения, которые пользователь отправляет в игровых чатах.",
+          "Для подписочной системы обрабатываются статус подписки, период действия, источник выдачи, а также история активации промокодов.",
+        ],
+      },
+      {
+        title: "2. Цели обработки",
+        paragraphs: [
+          "Данные используются для авторизации, работы лобби и матчей, восстановления сессий, отображения профиля, анти-спама и технической диагностики ошибок.",
+          "Подписочные данные используются только для определения доступных функций и корректного применения ограничений.",
+        ],
+      },
+      {
+        title: "3. Хранение и защита",
+        paragraphs: [
+          "Данные хранятся на серверной стороне проекта в базе данных. Доступ к данным ограничен технической необходимостью.",
+          "Мы применяем организационные и технические меры, направленные на защиту данных от несанкционированного доступа, изменения или удаления.",
+        ],
+      },
+      {
+        title: "4. Передача данных третьим лицам",
+        paragraphs: [
+          "Данные не продаются и не передаются сторонним рекламным сетям.",
+          "Передача может происходить только в рамках работы инфраструктуры проекта (хостинг/база данных) и только в объеме, необходимом для функционирования сервиса.",
+        ],
+      },
+      {
+        title: "5. Права пользователя",
+        paragraphs: [
+          "Пользователь может запросить обновление или удаление данных аккаунта через администратора проекта.",
+          "Пользователь может прекратить использование сервиса в любой момент; при этом технические логи могут храниться ограниченный срок для безопасности и расследования инцидентов.",
+        ],
+      },
+      {
+        title: "6. Изменения политики",
+        paragraphs: [
+          "Мы можем обновлять этот документ при изменении функционала или требований безопасности. Актуальная версия публикуется в интерфейсе сайта.",
+        ],
+      },
+    ],
+  },
+  terms: {
+    title: "Пользовательское соглашение CourtGame",
+    updatedAt: "08 апреля 2026",
+    intro:
+      "Документ определяет правила использования сайта и игры, ответственность сторон и допустимое поведение пользователей.",
+    sections: [
+      {
+        title: "1. Общие положения",
+        paragraphs: [
+          "Используя CourtGame, пользователь подтверждает согласие с правилами сервиса и обязуется соблюдать нормы поведения внутри игры и чатов.",
+          "Сервис предоставляется в текущем виде с регулярными обновлениями и доработками.",
+        ],
+      },
+      {
+        title: "2. Аккаунт и безопасность",
+        paragraphs: [
+          "Пользователь отвечает за сохранность данных входа и действия, совершенные под его аккаунтом.",
+          "Запрещено передавать аккаунт третьим лицам для обхода ограничений или манипуляций в рейтинге.",
+        ],
+      },
+      {
+        title: "3. Правила поведения",
+        paragraphs: [
+          "Запрещены оскорбления, угрозы, дискриминация, спам, массовый флуд и деструктивное поведение, мешающее ходу матча.",
+          "Запрещены попытки взлома, эксплуатации багов, подмены данных клиента и любые действия, направленные на нарушение работы сервиса.",
+        ],
+      },
+      {
+        title: "4. Подписки и доступ к функциям",
+        paragraphs: [
+          "Доступ к отдельным функциям зависит от уровня подписки. Отсутствие подписки может ограничивать использование рейтинга, паков и дополнительных настроек.",
+          "На этапе тестирования подписка может назначаться вручную администратором. Оплата и автоматическая выдача могут быть добавлены позже отдельным обновлением.",
+        ],
+      },
+      {
+        title: "5. Ограничение ответственности",
+        paragraphs: [
+          "Администрация проекта не несет ответственность за косвенные убытки, перерывы доступа, а также последствия использования сервиса вне его прямого назначения.",
+          "В случае технических сбоев мы прикладываем разумные усилия для восстановления корректной работы в кратчайшие сроки.",
+        ],
+      },
+      {
+        title: "6. Модерация и санкции",
+        paragraphs: [
+          "За нарушение правил могут применяться предупреждения, ограничение функций, временная или постоянная блокировка аккаунта.",
+          "Решения по спорным ситуациям принимаются администрацией на основании доступных логов и технических данных.",
+        ],
+      },
+    ],
+  },
+} as const;
+
 function getSubscriptionTierLabel(tier: SubscriptionTier): string {
   if (tier === "trainee") return "Стажер";
   if (tier === "practitioner") return "Практик";
@@ -302,10 +405,10 @@ function normalizeSubscriptionFeatureText(feature: string): string {
     return "Выбор роли хоста в своем лобби";
   }
   if (normalized.includes("разрешение игрокам выбирать роли")) {
-    return "Свободный выбор ролей для игроков в лобби";
+    return "Игроки выбирают роли сами";
   }
   if (normalized.includes("подсветка комнаты")) {
-    return "Приоритет и метка комнаты в подборе";
+    return "Приоритет в списке и метка комнаты";
   }
   return trimmed;
 }
@@ -2871,6 +2974,7 @@ export default function App() {
     kind: "success" | "error";
     text: string;
   } | null>(null);
+  const [legalDialogType, setLegalDialogType] = useState<keyof typeof LEGAL_DOCS | null>(null);
   const [upsellModalOpen, setUpsellModalOpen] = useState(false);
   const [upsellTitle, setUpsellTitle] = useState("Функция недоступна");
   const [upsellDescription, setUpsellDescription] = useState("");
@@ -5918,6 +6022,7 @@ export default function App() {
     profileMatchesOpen ||
     badgeRulesOpen ||
     authDialogOpen;
+  const activeLegalDoc = legalDialogType ? LEGAL_DOCS[legalDialogType] : null;
 
   const renderUpsellModal = () => (
     <Dialog open={upsellModalOpen} onOpenChange={setUpsellModalOpen}>
@@ -6438,8 +6543,7 @@ export default function App() {
                             Рейтинг открывается с подпиской «Стажер».
                           </div>
                           <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2 text-xs text-zinc-400">
-                            Текущие очки сохранены: {currentRank?.points ?? 0}. Пока подписка не активна, прогресс
-                            ранга не изменяется.
+                            До активации подписки рейтинговая прогрессия недоступна.
                           </div>
                         </div>
                       ) : (
@@ -8008,8 +8112,11 @@ export default function App() {
               }}
             >
               <DialogContent
-                className={`w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[720px] max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
+                className={`relative w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[720px] max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
               >
+                {upsellModalOpen && createMatchDialogOpen && (
+                  <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
+                )}
                 <DialogHeader className="space-y-1">
                   <DialogTitle>Создать матч</DialogTitle>
                   <DialogDescription className="text-zinc-400">
@@ -8075,11 +8182,9 @@ export default function App() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
                                 <div className="text-sm font-semibold text-zinc-100 break-words">{displayTitle}</div>
-                                {!isLocked && (
-                                  <div className="mt-0.5 text-[11px] leading-4 text-zinc-300 break-words">
-                                    {pack.description}
-                                  </div>
-                                )}
+                                <div className="mt-0.5 text-[11px] leading-4 text-zinc-300 break-words">
+                                  {pack.description}
+                                </div>
                               </div>
                               <div className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visual.countChip}`}>
                                 {pack.caseCount ?? 0} дел
@@ -8087,10 +8192,12 @@ export default function App() {
                             </div>
                             {isLocked && (
                               <>
-                                <div className="pointer-events-none absolute inset-0 rounded-2xl bg-black/58" />
-                                <span className="pointer-events-none absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-zinc-500/80 bg-zinc-950/92 text-zinc-200 shadow-[0_0_10px_rgba(0,0,0,0.45)]">
-                                  <Lock className="h-3.5 w-3.5" />
-                                </span>
+                                <div className="pointer-events-none absolute inset-0 rounded-2xl border border-zinc-600/65 bg-[linear-gradient(180deg,rgba(9,10,13,0.22),rgba(9,10,13,0.76))]" />
+                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-500/75 bg-zinc-950/92 text-zinc-200 shadow-[0_0_14px_rgba(0,0,0,0.45)]">
+                                    <Lock className="h-4 w-4" />
+                                  </span>
+                                </div>
                               </>
                             )}
                           </>
@@ -8397,7 +8504,12 @@ export default function App() {
           </div>
         )}
         {homeTab === "shop" && (
-          <div className="max-w-6xl mx-auto space-y-5">
+          <motion.div
+            className="max-w-6xl mx-auto space-y-5"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.24, ease: "easeOut" }}
+          >
             <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100 overflow-hidden">
               <CardContent className="p-6 md:p-8">
                 <div className="relative rounded-3xl border border-zinc-700/80 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.22),transparent_48%),radial-gradient(120%_120%_at_100%_100%,rgba(153,27,27,0.2),transparent_54%),linear-gradient(130deg,rgba(24,24,27,0.95),rgba(39,39,42,0.9))] px-5 py-6 md:px-7 md:py-8">
@@ -8436,20 +8548,22 @@ export default function App() {
                     }}
                     className="h-11 rounded-2xl border-zinc-700/80 bg-[linear-gradient(180deg,rgba(24,24,27,0.96),rgba(16,16,20,0.96))] px-5 text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:bg-zinc-800/95 hover:text-zinc-100"
                   >
-                    <Sparkles className="mr-2 h-4 w-4 text-red-300" />
-                    Активировать промокод
+                    Промокод
                   </Button>
                 </div>
                 <div className="mt-5 grid gap-4 xl:grid-cols-3">
-                  {SUBSCRIPTION_PLANS.map((plan) => {
+                  {SUBSCRIPTION_PLANS.map((plan, planIndex) => {
                     const isCurrent = myTier === plan.tier;
                     const displayPrice =
                       shopDuration === "1_year" ? plan.yearPriceRub : plan.monthPriceRub;
                     const planBadgeKey = getSubscriptionPlanBadgeKey(plan.tier);
                     const planBadgeTheme = getBadgeTheme(planBadgeKey);
                     return (
-                      <div
+                      <motion.div
                         key={`shop-plan-${plan.tier}`}
+                        initial={{ opacity: 0, y: 14 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.26, delay: 0.06 + planIndex * 0.06, ease: "easeOut" }}
                         className={`relative flex min-h-[560px] flex-col rounded-3xl border p-6 ${
                           plan.isPopular
                             ? "border-red-400/70 bg-[radial-gradient(120%_100%_at_50%_0%,rgba(239,68,68,0.28),transparent_60%),linear-gradient(160deg,rgba(40,14,18,0.95),rgba(22,22,28,0.95))] shadow-[0_0_0_1px_rgba(248,113,113,0.35),0_0_26px_rgba(239,68,68,0.26)]"
@@ -8508,7 +8622,7 @@ export default function App() {
                         >
                           {isCurrent ? "Ваш текущий план" : "Выбрать"}
                         </Button>
-                      </div>
+                      </motion.div>
                     );
                   })}
                 </div>
@@ -8567,7 +8681,7 @@ export default function App() {
                 </div>
               </DialogContent>
             </Dialog>
-          </div>
+          </motion.div>
         )}
         {homeTab === "development" && (
           <div className="max-w-6xl mx-auto">
@@ -8670,16 +8784,58 @@ export default function App() {
             </Card>
           </div>
         )}
-        <div className="mx-auto mt-8 max-w-6xl rounded-2xl border border-zinc-800 bg-zinc-900/70 px-4 py-4 text-center text-xs text-zinc-400 sm:text-sm">
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-            <span className="hover:text-zinc-200 transition-colors">Политика конфиденциальности</span>
+        <div className="mx-auto mt-14 max-w-6xl pb-2 text-center text-[12px] text-zinc-500/90 sm:text-xs">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+            <button
+              type="button"
+              onClick={() => setLegalDialogType("privacy")}
+              className="transition-colors hover:text-zinc-300"
+            >
+              Политика конфиденциальности
+            </button>
             <span className="text-zinc-700">•</span>
-            <span className="hover:text-zinc-200 transition-colors">Пользовательское соглашение</span>
-            <span className="text-zinc-700">•</span>
-            <span className="hover:text-zinc-200 transition-colors">Политика оплаты</span>
+            <button
+              type="button"
+              onClick={() => setLegalDialogType("terms")}
+              className="transition-colors hover:text-zinc-300"
+            >
+              Пользовательское соглашение
+            </button>
           </div>
-          <div className="mt-2 text-zinc-500">© 2026 CourtGame. Все права защищены.</div>
+          <div className="mt-1 text-zinc-600">© 2026 CourtGame. Все права защищены.</div>
         </div>
+        <Dialog
+          open={legalDialogType !== null}
+          onOpenChange={(open) => {
+            if (!open) setLegalDialogType(null);
+          }}
+        >
+          <DialogContent className="max-w-3xl max-h-[86vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100">
+            {activeLegalDoc && (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-xl">{activeLegalDoc.title}</DialogTitle>
+                  <DialogDescription className="text-zinc-400">
+                    Обновлено: {activeLegalDoc.updatedAt}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 text-sm text-zinc-300">
+                  <p className="text-zinc-200">{activeLegalDoc.intro}</p>
+                  {activeLegalDoc.sections.map((section) => (
+                    <div key={section.title} className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-4 py-3">
+                      <div className="text-sm font-semibold text-zinc-100">{section.title}</div>
+                      <div className="mt-2 space-y-2 text-zinc-300">
+                        {section.paragraphs.map((paragraph) => (
+                          <p key={paragraph}>{paragraph}</p>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
         {renderPublicProfileDialog()}
         {renderUpsellModal()}
         <ScreenTransitionLoader open={globalBlockingLoading} />
@@ -8946,8 +9102,11 @@ export default function App() {
         {hasRoomHostControl && (
           <Dialog open={roomManageOpen} onOpenChange={setRoomManageOpen}>
             <DialogContent
-              className="rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.28)_transparent] [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/40 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/55"
+              className="relative rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.28)_transparent] [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/40 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/55"
             >
+              {upsellModalOpen && roomManageOpen && (
+                <div className="pointer-events-none absolute inset-0 z-20 rounded-3xl bg-black/45" />
+              )}
               <DialogHeader>
                 <DialogTitle>Управление комнатой</DialogTitle>
                 <DialogDescription className="text-zinc-400">
