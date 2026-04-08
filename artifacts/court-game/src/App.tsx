@@ -465,9 +465,9 @@ const BADGE_THEME: Record<
     iconOnly: "text-cyan-200 drop-shadow-[0_0_6px_rgba(103,232,249,0.55)]",
   },
   subPractitioner: {
-    chip: "border-fuchsia-400/70 bg-fuchsia-500/18 text-fuchsia-100 shadow-[0_0_16px_rgba(217,70,239,0.28)]",
-    icon: "bg-fuchsia-500/35 text-fuchsia-50 shadow-[0_0_12px_rgba(217,70,239,0.33)]",
-    iconOnly: "text-fuchsia-200 drop-shadow-[0_0_7px_rgba(245,208,254,0.52)]",
+    chip: "border-red-400/70 bg-red-500/20 text-red-100 shadow-[0_0_16px_rgba(248,113,113,0.3)]",
+    icon: "bg-red-500/35 text-red-50 shadow-[0_0_12px_rgba(248,113,113,0.35)]",
+    iconOnly: "text-red-200 drop-shadow-[0_0_7px_rgba(252,165,165,0.55)]",
   },
   subArbiter: {
     chip: "border-emerald-400/70 bg-emerald-500/16 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.28)]",
@@ -5909,10 +5909,22 @@ export default function App() {
         setTimeout(() => setError(""), 4000);
       });
   }, []);
+  const upsellNestedBackdrop =
+    createMatchDialogOpen ||
+    roomManageOpen ||
+    joinPasswordDialogOpen ||
+    lobbyRoleDialogOpen ||
+    promoDialogOpen ||
+    profileMatchesOpen ||
+    badgeRulesOpen ||
+    authDialogOpen;
 
   const renderUpsellModal = () => (
     <Dialog open={upsellModalOpen} onOpenChange={setUpsellModalOpen}>
-      <DialogContent className="max-w-[470px] border-red-950/70 bg-[radial-gradient(130%_110%_at_0%_0%,rgba(239,68,68,0.22),transparent_50%),linear-gradient(160deg,rgba(12,10,11,0.98),rgba(10,10,12,0.98))] text-zinc-100 shadow-[0_24px_84px_rgba(0,0,0,0.72)]">
+      <DialogContent
+        overlayClassName={upsellNestedBackdrop ? "bg-black/10" : undefined}
+        className="max-w-[470px] border-red-950/70 bg-[radial-gradient(130%_110%_at_0%_0%,rgba(239,68,68,0.22),transparent_50%),linear-gradient(160deg,rgba(12,10,11,0.98),rgba(10,10,12,0.98))] text-zinc-100 shadow-[0_24px_84px_rgba(0,0,0,0.72)]"
+      >
         <DialogHeader>
           <div className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-full border border-red-400/55 bg-red-600/20 text-red-100 shadow-[0_0_18px_rgba(239,68,68,0.2)]">
             <Lock className="h-4 w-4" />
@@ -6086,10 +6098,9 @@ export default function App() {
                           "Баннер профиля доступен с подписки «Практик».",
                         );
                       }}
-                      className="absolute right-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full border border-zinc-600 bg-zinc-900/85 px-3 py-1 text-xs text-zinc-100 hover:bg-zinc-800"
+                      className="absolute right-3 top-3 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-600 bg-zinc-900/85 text-zinc-100 hover:bg-zinc-800"
                     >
                       <Lock className="h-3.5 w-3.5" />
-                      Баннер с «Практик»
                     </button>
                   )}
                   <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -6441,19 +6452,15 @@ export default function App() {
                           <div className="text-sm text-zinc-300 leading-relaxed">
                             Подключите «Стажер», чтобы открыть ранговую систему и прогрессию.
                           </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 px-2 py-2 text-center">
-                              <div className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Старт</div>
-                              <div className="mt-1 text-xs font-semibold text-zinc-200">Новичок</div>
+                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2">
+                            <div className="flex items-center justify-between text-xs text-zinc-500">
+                              <span>Прогресс ранга</span>
+                              <span>0%</span>
                             </div>
-                            <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 px-2 py-2 text-center">
-                              <div className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Середина</div>
-                              <div className="mt-1 text-xs font-semibold text-zinc-200">Оратор</div>
+                            <div className="mt-2 h-1.5 w-full rounded-full bg-zinc-800">
+                              <div className="h-1.5 w-[16%] rounded-full bg-red-500/70" />
                             </div>
-                            <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 px-2 py-2 text-center">
-                              <div className="text-[10px] uppercase tracking-[0.1em] text-zinc-500">Топ</div>
-                              <div className="mt-1 text-xs font-semibold text-zinc-200">Вердикт</div>
-                            </div>
+                            <div className="mt-2 text-xs text-zinc-400">Откроется после активации подписки.</div>
                           </div>
                         </div>
                       ) : (
@@ -8023,7 +8030,7 @@ export default function App() {
             >
               <DialogContent
                 className={`w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] ${
-                  createPackCatalogOpen ? "max-w-3xl" : "max-w-[720px]"
+                  createPackCatalogOpen ? "max-w-2xl" : "max-w-[720px]"
                 } max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
               >
                 <DialogHeader className="space-y-1">
@@ -8099,17 +8106,11 @@ export default function App() {
                                 {pack.caseCount ?? 0} дел
                               </div>
                             </div>
-                            <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-zinc-400/90">
-                              {visual.vibe}
-                            </div>
                             {isLocked && (
                               <>
                                 <div className="pointer-events-none absolute inset-0 rounded-2xl border border-zinc-600/65 bg-[linear-gradient(180deg,rgba(9,10,13,0.2),rgba(9,10,13,0.78))]" />
                                 <span className="pointer-events-none absolute left-1/2 top-1/2 inline-flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-500/75 bg-zinc-950/92 text-zinc-200 shadow-[0_0_14px_rgba(0,0,0,0.45)]">
                                   <Lock className="h-3.5 w-3.5" />
-                                </span>
-                                <span className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-zinc-500/70 bg-zinc-950/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-200">
-                                  Недоступно
                                 </span>
                               </>
                             )}
@@ -8431,16 +8432,16 @@ export default function App() {
                 </div>
                 <h3 className="mt-6 text-center text-2xl font-semibold">Обновите свой план</h3>
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-                  <div className="inline-flex rounded-xl border border-zinc-700 bg-zinc-900 p-1">
+                  <div className="inline-flex rounded-2xl border border-zinc-700/80 bg-[linear-gradient(180deg,rgba(24,24,27,0.96),rgba(16,16,20,0.96))] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     {SUBSCRIPTION_DURATION_UI_OPTIONS.map((option) => (
                       <button
                         key={`shop-duration-${option.key}`}
                         type="button"
                         onClick={() => setShopDuration(option.key)}
-                        className={`rounded-lg px-3 py-1.5 text-sm transition ${
+                        className={`min-w-[88px] rounded-xl px-3 py-2 text-sm font-medium transition ${
                           shopDuration === option.key
-                            ? "bg-red-600 text-white"
-                            : "text-zinc-300 hover:bg-zinc-800"
+                            ? "bg-[linear-gradient(135deg,rgba(239,68,68,1),rgba(220,38,38,1))] text-white shadow-[0_8px_16px_rgba(239,68,68,0.3)]"
+                            : "text-zinc-300 hover:bg-zinc-800/85"
                         }`}
                       >
                         {option.label}
@@ -8476,12 +8477,10 @@ export default function App() {
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div
-                            className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-600/70 bg-zinc-900/75 ${planBadgeTheme.icon}`}
-                          >
+                          <div className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-600/70 bg-zinc-900/75 ${planBadgeTheme.icon}`}>
                             <BadgeGlyph
                               badgeKey={planBadgeKey}
-                              className={`h-4 w-4 ${planBadgeTheme.iconOnly ?? "text-zinc-100"}`}
+                              className={`h-5 w-5 ${planBadgeTheme.iconOnly ?? "text-zinc-100"}`}
                             />
                           </div>
                           {plan.isPopular && (
@@ -8502,9 +8501,9 @@ export default function App() {
                         <div className="mt-4 space-y-2.5 text-sm text-zinc-200">
                           {plan.features.map((feature) => (
                             <div key={`${plan.tier}-${feature}`} className="flex items-start gap-2.5">
-                              <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-zinc-600/80 bg-zinc-950/90 text-zinc-200">
+                              <span className="mt-0.5 inline-flex shrink-0 items-center justify-center text-zinc-300">
                                 {React.createElement(getSubscriptionFeatureIcon(feature), {
-                                  className: "h-3.5 w-3.5",
+                                  className: "h-4 w-4",
                                 })}
                               </span>
                               <span>{normalizeSubscriptionFeatureText(feature)}</span>
@@ -8536,7 +8535,7 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={promoDialogOpen} onOpenChange={setPromoDialogOpen}>
-              <DialogContent className="max-w-md border-zinc-800 bg-[radial-gradient(120%_100%_at_0%_0%,rgba(239,68,68,0.18),transparent_55%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.98))] text-zinc-100">
+              <DialogContent className="max-w-[560px] border-zinc-800 bg-[radial-gradient(120%_100%_at_0%_0%,rgba(239,68,68,0.2),transparent_55%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.98))] text-zinc-100 p-7">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-red-300" />
@@ -8557,7 +8556,7 @@ export default function App() {
                       }
                     }}
                     placeholder="Введите промокод"
-                    className="h-11 rounded-xl border-zinc-700 bg-zinc-950/90 text-zinc-100 placeholder:text-zinc-500"
+                    className="h-12 rounded-xl border-zinc-700 bg-zinc-950/90 text-base text-zinc-100 placeholder:text-zinc-500"
                   />
                   <Button
                     type="button"
@@ -8565,13 +8564,10 @@ export default function App() {
                       void applyPromoCode();
                     }}
                     disabled={promoCodeLoading}
-                    className="h-11 w-full rounded-xl bg-red-600 text-white hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-300"
+                    className="h-12 w-full rounded-xl bg-[linear-gradient(135deg,rgba(239,68,68,1),rgba(220,38,38,1))] text-white shadow-[0_10px_20px_rgba(239,68,68,0.28)] hover:brightness-110 disabled:bg-zinc-700 disabled:text-zinc-300"
                   >
                     {promoCodeLoading ? "Проверяем" : "Активировать"}
                   </Button>
-                  <div className="text-xs text-zinc-500">
-                    Промокоды выдаются администратором или в официальных анонсах.
-                  </div>
                   {promoCodeResult && (
                     <div
                       className={`rounded-xl border px-3 py-2 text-sm ${
