@@ -8,6 +8,7 @@ import {
   clearUserBanByAdmin,
   deletePromoCodeByAdmin,
   findUserByAdminQuery,
+  getAdminStaffRoleByUserId,
   getPublicUserProfileById,
   getProfileByToken,
   getUserByToken,
@@ -15,8 +16,10 @@ import {
   loginAccount,
   logoutByToken,
   registerAccount,
+  setAdminStaffRoleByUserId,
   setUserBanByAdmin,
   upsertPromoCodeByAdmin,
+  updateUserModerationByAdmin,
   updateProfileByToken,
 } from "../lib/authStore.js";
 
@@ -75,6 +78,8 @@ const adminSessions = new Map<
   string,
   { token: string; userId: string; ip: string; userAgent: string; expiresAtMs: number }
 >();
+
+type AdminAccessRole = "owner" | "administrator" | "moderator";
 
 function cleanupAdminState(nowMs: number) {
   for (const [ip, entry] of adminGuardAttempts.entries()) {
@@ -205,14 +210,28 @@ async function requireAdmin(
     return null;
   }
   const adminUser = await getUserByToken(token);
-  const adminLogin = String(process.env.ADMIN_PANEL_LOGIN ?? "berly").trim().toLowerCase();
-  if (!adminUser || adminUser.login.trim().toLowerCase() !== adminLogin) {
+  if (!adminUser) {
     registerAdminFailure(clientIp, nowMs);
     res.status(403).json({ message: "Недостаточно прав." });
     return null;
   }
+  const adminLogin = String(process.env.ADMIN_PANEL_LOGIN ?? "berly").trim().toLowerCase();
   const requiredAdminUserId = String(process.env.ADMIN_USER_ID ?? "").trim();
-  if (requiredAdminUserId && adminUser.id !== requiredAdminUserId) {
+  const isOwnerByLogin = adminUser.login.trim().toLowerCase() === adminLogin;
+  const isOwnerById = requiredAdminUserId ? adminUser.id === requiredAdminUserId : true;
+  const isOwner = isOwnerByLogin && isOwnerById;
+
+  let accessRole: AdminAccessRole | null = null;
+  if (isOwner) {
+    accessRole = "owner";
+  } else {
+    const staffRole = await getAdminStaffRoleByUserId(adminUser.id);
+    if (staffRole === "administrator" || staffRole === "moderator") {
+      accessRole = staffRole;
+    }
+  }
+
+  if (!accessRole) {
     registerAdminFailure(clientIp, nowMs);
     res.status(403).json({ message: "Недостаточно прав." });
     return null;
@@ -263,7 +282,18 @@ async function requireAdmin(
   }
 
   clearAdminFailures(clientIp);
-  return { token, adminUser, clientIp, clientUserAgent };
+  return { token, adminUser, clientIp, clientUserAgent, accessRole };
+}
+
+function hasAdminPermission(role: AdminAccessRole, permission: string): boolean {
+  if (role === "owner") return true;
+  if (permission === "find-user") return role === "administrator" || role === "moderator";
+  if (permission === "moderate-profile") return role === "administrator" || role === "moderator";
+  if (permission === "ban-user") return role === "administrator";
+  if (permission === "manage-moderators") return role === "administrator";
+  if (permission === "manage-promos") return false;
+  if (permission === "manage-subscriptions") return false;
+  return false;
 }
 
 authRouter.post("/auth/register", async (req, res) => {
@@ -527,12 +557,15 @@ authRouter.get("/auth/admin/access", async (req, res) => {
   });
   return res
     .status(200)
-    .json({ ok: true, admin: true, userId: auth.adminUser.id, adminSession });
+    .json({ ok: true, admin: true, userId: auth.adminUser.id, role: auth.accessRole, adminSession });
 });
 
 authRouter.patch("/auth/admin/subscription", async (req, res) => {
   const auth = await requireAdmin(req, res, { requireSession: true });
   if (!auth) return;
+  if (!hasAdminPermission(auth.accessRole, "manage-subscriptions")) {
+    return res.status(403).json({ message: "Недостаточно прав." });
+  }
 
   const userId = String(req.body?.userId ?? "").trim();
   const tier = String(req.body?.tier ?? "").trim();
@@ -578,6 +611,9 @@ authRouter.patch("/auth/admin/subscription", async (req, res) => {
 authRouter.patch("/auth/admin/promo", async (req, res) => {
   const auth = await requireAdmin(req, res, { requireSession: true });
   if (!auth) return;
+  if (!hasAdminPermission(auth.accessRole, "manage-promos")) {
+    return res.status(403).json({ message: "Недостаточно прав." });
+  }
 
   const code = String(req.body?.code ?? "").trim();
   const promoKindRaw = String(req.body?.promoKind ?? "subscription")
@@ -642,6 +678,9 @@ authRouter.patch("/auth/admin/promo", async (req, res) => {
 authRouter.get("/auth/admin/promo/list", async (req, res) => {
   const auth = await requireAdmin(req, res, { requireSession: true });
   if (!auth) return;
+  if (!hasAdminPermission(auth.accessRole, "manage-promos")) {
+    return res.status(403).json({ message: "Недостаточно прав." });
+  }
   try {
     const promos = await listPromoCodesByAdmin();
     return res.status(200).json({ ok: true, promos });
@@ -654,6 +693,9 @@ authRouter.get("/auth/admin/promo/list", async (req, res) => {
 authRouter.patch("/auth/admin/promo/delete", async (req, res) => {
   const auth = await requireAdmin(req, res, { requireSession: true });
   if (!auth) return;
+  if (!hasAdminPermission(auth.accessRole, "manage-promos")) {
+    return res.status(403).json({ message: "Недостаточно прав." });
+  }
   const code = String(req.body?.code ?? "").trim();
   if (!code) {
     return res.status(400).json({ message: "Укажите промокод." });
@@ -673,6 +715,9 @@ authRouter.patch("/auth/admin/promo/delete", async (req, res) => {
 authRouter.post("/auth/admin/user/find", async (req, res) => {
   const auth = await requireAdmin(req, res, { requireSession: true });
   if (!auth) return;
+  if (!hasAdminPermission(auth.accessRole, "find-user")) {
+    return res.status(403).json({ message: "Недостаточно прав." });
+  }
   const query = String(req.body?.query ?? "").trim();
   if (!query) {
     return res.status(400).json({ message: "Введите login, email, nickname или userId." });
@@ -693,6 +738,9 @@ authRouter.post("/auth/admin/user/find", async (req, res) => {
 authRouter.patch("/auth/admin/ban", async (req, res) => {
   const auth = await requireAdmin(req, res, { requireSession: true });
   if (!auth) return;
+  if (!hasAdminPermission(auth.accessRole, "ban-user")) {
+    return res.status(403).json({ message: "Недостаточно прав." });
+  }
   const userId = String(req.body?.userId ?? "").trim();
   if (!userId) {
     return res.status(400).json({ message: "Нужен userId." });
@@ -729,6 +777,84 @@ authRouter.patch("/auth/admin/ban", async (req, res) => {
     return res.status(200).json({ ok: true, ban });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось обновить блокировку.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.patch("/auth/admin/staff/role", async (req, res) => {
+  const auth = await requireAdmin(req, res, { requireSession: true });
+  if (!auth) return;
+  if (!hasAdminPermission(auth.accessRole, "manage-moderators")) {
+    return res.status(403).json({ message: "Недостаточно прав." });
+  }
+  const userId = String(req.body?.userId ?? "").trim();
+  const roleRaw = String(req.body?.role ?? "")
+    .trim()
+    .toLowerCase();
+  const role =
+    roleRaw === "administrator"
+      ? "administrator"
+      : roleRaw === "moderator"
+        ? "moderator"
+        : roleRaw === "none" || roleRaw === "remove" || !roleRaw
+          ? null
+          : null;
+  if (!userId) {
+    return res.status(400).json({ message: "Нужен userId." });
+  }
+
+  if (auth.accessRole === "administrator" && role === "administrator") {
+    return res.status(403).json({ message: "Администратор не может выдавать роль администратора." });
+  }
+  if (auth.accessRole === "administrator") {
+    const targetRole = await getAdminStaffRoleByUserId(userId);
+    if (targetRole === "administrator") {
+      return res.status(403).json({ message: "Администратор не может менять роль другого администратора." });
+    }
+  }
+
+  try {
+    const nextRole = await setAdminStaffRoleByUserId({
+      userId,
+      role: role as "administrator" | "moderator" | null,
+    });
+    if (nextRole === undefined) {
+      return res.status(404).json({ message: "Пользователь не найден." });
+    }
+    return res.status(200).json({ ok: true, role: nextRole });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Не удалось обновить роль сотрудника.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.patch("/auth/admin/user/moderate", async (req, res) => {
+  const auth = await requireAdmin(req, res, { requireSession: true });
+  if (!auth) return;
+  if (!hasAdminPermission(auth.accessRole, "moderate-profile")) {
+    return res.status(403).json({ message: "Недостаточно прав." });
+  }
+
+  const userId = String(req.body?.userId ?? "").trim();
+  if (!userId) {
+    return res.status(400).json({ message: "Нужен userId." });
+  }
+
+  try {
+    const user = await updateUserModerationByAdmin({
+      userId,
+      nickname: typeof req.body?.nickname === "string" ? req.body.nickname : undefined,
+      clearAvatar: !!req.body?.clearAvatar,
+      clearBanner: !!req.body?.clearBanner,
+    });
+    if (!user) {
+      return res.status(404).json({ message: "Пользователь не найден." });
+    }
+    return res.status(200).json({ ok: true, user });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Не удалось выполнить модерацию профиля.";
     return res.status(400).json({ message });
   }
 });

@@ -36,6 +36,7 @@ export interface AuthUserPublic {
   createdAt: number;
   selectedBadgeKey?: string;
   preferredRole?: PreferredRole;
+  adminRole?: AdminStaffRole | null;
 }
 
 export interface UserRoleStats {
@@ -95,6 +96,8 @@ export interface UserBanView {
   reason?: string;
 }
 
+export type AdminStaffRole = "administrator" | "moderator";
+
 export interface PromoApplyResult {
   message: string;
   subscription: UserSubscriptionView;
@@ -122,6 +125,7 @@ export interface AdminUserLookupView {
   email: string;
   nickname: string;
   createdAt: number;
+  adminRole: AdminStaffRole | null;
   subscription: UserSubscriptionView;
   ban: UserBanView;
 }
@@ -290,6 +294,15 @@ function normalizeNickname(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function normalizeAdminStaffRole(value: string | null | undefined): AdminStaffRole | null {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "administrator") return "administrator";
+  if (normalized === "moderator") return "moderator";
+  return null;
+}
+
 function normalizeBirthDateInput(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -352,6 +365,7 @@ function toPublicUser(row: {
   hide_age: boolean | null;
   selected_badge_key?: string | null;
   preferred_role?: string | null;
+  admin_role?: string | null;
   created_at: Date;
 }): AuthUserPublic {
   return {
@@ -379,6 +393,7 @@ function toPublicUser(row: {
       row.preferred_role === "plaintiffLawyer"
         ? row.preferred_role
         : undefined,
+    adminRole: normalizeAdminStaffRole(row.admin_role),
   };
 }
 
@@ -569,6 +584,10 @@ async function ensureTables(): Promise<void> {
       await pool.query(`
         ALTER TABLE auth_users
           ADD COLUMN IF NOT EXISTS ban_reason TEXT;
+      `);
+      await pool.query(`
+        ALTER TABLE auth_users
+          ADD COLUMN IF NOT EXISTS admin_role TEXT;
       `);
       await pool.query(`
         ALTER TABLE auth_users
@@ -769,6 +788,7 @@ export async function registerAccount(input: {
     hide_age: boolean | null;
     selected_badge_key: string | null;
     preferred_role: string | null;
+    admin_role: string | null;
     created_at: Date;
   }>(
     `
@@ -785,7 +805,7 @@ export async function registerAccount(input: {
         accepted_rules_at
       )
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-      RETURNING id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, created_at
+      RETURNING id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, admin_role, created_at
     `,
     [
       userId,
@@ -854,7 +874,7 @@ export async function loginAccount(input: {
     ban_reason: string | null;
   }>(
     `
-      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, created_at, password_salt, password_hash, ban_until, ban_permanent, ban_reason
+      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, admin_role, created_at, password_salt, password_hash, ban_until, ban_permanent, ban_reason
       FROM auth_users
       WHERE login_normalized = $1 OR email_normalized = $1
       LIMIT 1
@@ -900,13 +920,14 @@ export async function getUserByToken(token: string): Promise<AuthUserPublic | nu
     hide_age: boolean | null;
     selected_badge_key: string | null;
     preferred_role: string | null;
+    admin_role: string | null;
     created_at: Date;
     ban_until: Date | null;
     ban_permanent: boolean | null;
     ban_reason: string | null;
   }>(
     `
-      SELECT u.id, u.login, u.email, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.selected_badge_key, u.preferred_role, u.created_at, u.ban_until, u.ban_permanent, u.ban_reason
+      SELECT u.id, u.login, u.email, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.selected_badge_key, u.preferred_role, u.admin_role, u.created_at, u.ban_until, u.ban_permanent, u.ban_reason
       FROM auth_sessions s
       JOIN auth_users u ON u.id = s.user_id
       WHERE s.token = $1
@@ -1125,7 +1146,7 @@ export async function updateProfileByToken(
     created_at: Date;
   }>(
     `
-      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, created_at
+      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, admin_role, created_at
       FROM auth_users
       WHERE id = $1
       LIMIT 1
@@ -1496,6 +1517,7 @@ export async function getProfileByToken(
     hide_age: boolean | null;
     selected_badge_key: string | null;
     preferred_role: string | null;
+    admin_role: string | null;
     created_at: Date;
     subscription_tier: string | null;
     subscription_start_at: Date | null;
@@ -1636,6 +1658,7 @@ export async function getPublicUserProfileById(
     hide_age: boolean | null;
     selected_badge_key: string | null;
     preferred_role: string | null;
+    admin_role: string | null;
     created_at: Date;
     subscription_tier: string | null;
     subscription_start_at: Date | null;
@@ -2229,6 +2252,7 @@ export async function findUserByAdminQuery(query: string): Promise<AdminUserLook
     email: string;
     nickname: string;
     created_at: Date;
+    admin_role: string | null;
     subscription_tier: string | null;
     subscription_start_at: Date | null;
     subscription_end_at: Date | null;
@@ -2246,6 +2270,7 @@ export async function findUserByAdminQuery(query: string): Promise<AdminUserLook
         email,
         nickname,
         created_at,
+        admin_role,
         subscription_tier,
         subscription_start_at,
         subscription_end_at,
@@ -2284,6 +2309,7 @@ export async function findUserByAdminQuery(query: string): Promise<AdminUserLook
     email: row.email,
     nickname: row.nickname,
     createdAt: row.created_at.getTime(),
+    adminRole: normalizeAdminStaffRole(row.admin_role),
     subscription: resolveSubscriptionView(row),
     ban: resolveBanView(row),
   };
@@ -2359,6 +2385,178 @@ export async function clearUserBanByAdmin(userIdRaw: string): Promise<UserBanVie
   );
   if (!result.rowCount) return null;
   return resolveBanView(result.rows[0]);
+}
+
+async function setManualBadgeActive(input: {
+  userId: string;
+  badgeKey: string;
+  active: boolean;
+}): Promise<void> {
+  await pool.query(
+    `
+      INSERT INTO auth_user_badges (user_id, badge_key, is_active, granted_at)
+      VALUES ($1, $2, $3, CASE WHEN $3 THEN NOW() ELSE NULL END)
+      ON CONFLICT (user_id, badge_key)
+      DO UPDATE SET
+        is_active = EXCLUDED.is_active,
+        granted_at = CASE
+          WHEN EXCLUDED.is_active THEN COALESCE(auth_user_badges.granted_at, NOW())
+          ELSE auth_user_badges.granted_at
+        END
+    `,
+    [input.userId, input.badgeKey, input.active],
+  );
+}
+
+export async function getAdminStaffRoleByUserId(
+  userIdRaw: string,
+): Promise<AdminStaffRole | null> {
+  await ensureTables();
+  const userId = String(userIdRaw ?? "").trim();
+  if (!userId) return null;
+  const result = await pool.query<{ admin_role: string | null }>(
+    `
+      SELECT admin_role
+      FROM auth_users
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [userId],
+  );
+  if (!result.rowCount) return null;
+  return normalizeAdminStaffRole(result.rows[0].admin_role);
+}
+
+export async function setAdminStaffRoleByUserId(input: {
+  userId: string;
+  role: AdminStaffRole | null;
+}): Promise<AdminStaffRole | null | undefined> {
+  await ensureTables();
+  const userId = String(input.userId ?? "").trim();
+  if (!userId) {
+    throw new Error("Нужен userId.");
+  }
+  const nextRole = normalizeAdminStaffRole(input.role);
+  const result = await pool.query<{ admin_role: string | null }>(
+    `
+      UPDATE auth_users
+      SET admin_role = $1
+      WHERE id = $2
+      RETURNING admin_role
+    `,
+    [nextRole, userId],
+  );
+  if (!result.rowCount) return undefined;
+
+  if (nextRole === "administrator") {
+    await setManualBadgeActive({ userId, badgeKey: "admin", active: true });
+    await setManualBadgeActive({ userId, badgeKey: "moderator", active: true });
+    await pool.query(
+      `
+        UPDATE auth_users
+        SET selected_badge_key = COALESCE(selected_badge_key, 'admin')
+        WHERE id = $1
+      `,
+      [userId],
+    );
+  } else if (nextRole === "moderator") {
+    await setManualBadgeActive({ userId, badgeKey: "moderator", active: true });
+    await setManualBadgeActive({ userId, badgeKey: "admin", active: false });
+    await pool.query(
+      `
+        UPDATE auth_users
+        SET selected_badge_key = COALESCE(selected_badge_key, 'moderator')
+        WHERE id = $1
+      `,
+      [userId],
+    );
+  } else {
+    await setManualBadgeActive({ userId, badgeKey: "moderator", active: false });
+    await setManualBadgeActive({ userId, badgeKey: "admin", active: false });
+  }
+
+  return normalizeAdminStaffRole(result.rows[0].admin_role);
+}
+
+export async function updateUserModerationByAdmin(input: {
+  userId: string;
+  nickname?: string;
+  clearAvatar?: boolean;
+  clearBanner?: boolean;
+}): Promise<{ id: string; nickname: string; avatar: string | null; banner: string | null } | null> {
+  await ensureTables();
+  const userId = String(input.userId ?? "").trim();
+  if (!userId) {
+    throw new Error("Нужен userId.");
+  }
+
+  const clearAvatar = !!input.clearAvatar;
+  const clearBanner = !!input.clearBanner;
+  const hasNickname = typeof input.nickname === "string" && input.nickname.trim().length > 0;
+  if (!clearAvatar && !clearBanner && !hasNickname) {
+    throw new Error("Укажите действие модерации.");
+  }
+
+  await pool.query("BEGIN");
+  try {
+    if (hasNickname) {
+      const nickname = String(input.nickname ?? "").trim();
+      if (nickname.length < 2 || nickname.length > 24) {
+        throw new Error("Ник должен быть от 2 до 24 символов.");
+      }
+      const nicknameNormalized = normalizeNickname(nickname);
+      const conflict = await pool.query<{ id: string }>(
+        `
+          SELECT id
+          FROM auth_users
+          WHERE id <> $1 AND nickname_normalized = $2
+          LIMIT 1
+        `,
+        [userId, nicknameNormalized],
+      );
+      if (conflict.rowCount) {
+        throw new Error("Этот ник уже занят.");
+      }
+      await pool.query(
+        `
+          UPDATE auth_users
+          SET nickname = $1, nickname_normalized = $2
+          WHERE id = $3
+        `,
+        [nickname, nicknameNormalized, userId],
+      );
+    }
+    if (clearAvatar) {
+      await pool.query(`UPDATE auth_users SET avatar = NULL WHERE id = $1`, [userId]);
+    }
+    if (clearBanner) {
+      await pool.query(`UPDATE auth_users SET banner = NULL WHERE id = $1`, [userId]);
+    }
+
+    const result = await pool.query<{
+      id: string;
+      nickname: string;
+      avatar: string | null;
+      banner: string | null;
+    }>(
+      `
+        SELECT id, nickname, avatar, banner
+        FROM auth_users
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [userId],
+    );
+    if (!result.rowCount) {
+      await pool.query("ROLLBACK");
+      return null;
+    }
+    await pool.query("COMMIT");
+    return result.rows[0];
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    throw error;
+  }
 }
 
 export async function recordMatchOutcome(input: {
@@ -2557,5 +2755,4 @@ export async function recordMatchOutcome(input: {
     );
   }
 }
-
 

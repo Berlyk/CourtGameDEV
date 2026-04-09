@@ -1624,7 +1624,7 @@ function HelpCenter({
 
   useEffect(() => {
     if (!hasSearchQuery) {
-      setOpenCategoryValues(groupedTopics.map((group) => group.category));
+      setOpenCategoryValues([]);
       setOpenTopicValuesByCategory({});
       return;
     }
@@ -1849,6 +1849,7 @@ interface AuthUser {
   createdAt: number;
   selectedBadgeKey?: string;
   preferredRole?: AssignableRole;
+  adminRole?: "administrator" | "moderator" | null;
 }
 
 interface CasePackInfo {
@@ -1956,6 +1957,7 @@ interface AdminLookupUserView {
   email: string;
   nickname: string;
   createdAt: number;
+  adminRole?: "owner" | "administrator" | "moderator" | null;
   ban?: {
     isBanned: boolean;
     isPermanent: boolean;
@@ -1970,6 +1972,9 @@ interface AdminLookupUserView {
     isLifetime: boolean;
   };
 }
+
+type AdminAccessRole = "owner" | "administrator" | "moderator" | null;
+type AdminPanelSection = "users" | "promos" | "staff" | "subscriptions" | "bots";
 
 interface MyPlayer {
   id: string;
@@ -3094,6 +3099,7 @@ export default function App() {
   const [shopDuration, setShopDuration] = useState<
     Extract<SubscriptionDuration, "1_month" | "1_year">
   >("1_month");
+  const [shopPriceRevealReady, setShopPriceRevealReady] = useState(true);
   const [promoDialogOpen, setPromoDialogOpen] = useState(false);
   const [promoCodeInput, setPromoCodeInput] = useState("");
   const [promoCodeLoading, setPromoCodeLoading] = useState(false);
@@ -3116,10 +3122,19 @@ export default function App() {
   const [adminPromoIsActive, setAdminPromoIsActive] = useState(true);
   const [adminAccessGranted, setAdminAccessGranted] = useState(false);
   const [adminAccessLoading, setAdminAccessLoading] = useState(false);
+  const [adminAccessRole, setAdminAccessRole] = useState<AdminAccessRole>(null);
   const [adminSessionToken, setAdminSessionToken] = useState<string | null>(null);
+  const [adminPanelSection, setAdminPanelSection] = useState<AdminPanelSection>("users");
   const [adminUserLookupQuery, setAdminUserLookupQuery] = useState("");
   const [adminUserLookupLoading, setAdminUserLookupLoading] = useState(false);
   const [adminUserLookupResult, setAdminUserLookupResult] = useState<AdminLookupUserView | null>(null);
+  const [adminModerationNickname, setAdminModerationNickname] = useState("");
+  const [adminModerationLoading, setAdminModerationLoading] = useState(false);
+  const [adminStaffTargetUserId, setAdminStaffTargetUserId] = useState("");
+  const [adminStaffTargetRole, setAdminStaffTargetRole] = useState<"moderator" | "administrator">(
+    "moderator",
+  );
+  const [adminStaffLoading, setAdminStaffLoading] = useState(false);
   const [adminSubscriptionUserId, setAdminSubscriptionUserId] = useState("");
   const [adminSubscriptionTier, setAdminSubscriptionTier] = useState<SubscriptionTier>("trainee");
   const [adminSubscriptionDuration, setAdminSubscriptionDuration] =
@@ -3369,6 +3384,8 @@ export default function App() {
   const lastAutoRejoinAttemptAtRef = useRef(0);
   const speechTimerStageRef = useRef<string>("");
   const routeSyncInitializedRef = useRef(false);
+  const shopDurationBootRef = useRef(true);
+  const adminPromoAutoLoadKeyRef = useRef<string>("");
   const socket = getSocket();
   const activeRoomCode = room?.code ?? game?.code ?? null;
   const sharedAvatar = avatar;
@@ -3393,9 +3410,18 @@ export default function App() {
   }, []);
   const isAuthenticated = !!authUser && !!authToken;
   const isCreatorAdmin = (authUser?.login ?? "").trim().toLowerCase() === "berly";
-  const canSeeAdminButton = isAuthenticated && isCreatorAdmin;
+  const isStaffAdmin = authUser?.adminRole === "administrator" || authUser?.adminRole === "moderator";
+  const canSeeAdminButton = isAuthenticated && (isCreatorAdmin || isStaffAdmin);
   const adminPanelKeyTrimmed = adminPanelKey.trim();
   const adminSessionTokenTrimmed = adminSessionToken?.trim() ?? "";
+  const adminCanManagePromos = adminAccessRole === "owner";
+  const adminCanManageSubscriptions = adminAccessRole === "owner";
+  const adminCanBanUsers = adminAccessRole === "owner" || adminAccessRole === "administrator";
+  const adminCanManageStaff = adminAccessRole === "owner" || adminAccessRole === "administrator";
+  const adminCanModerateUsers =
+    adminAccessRole === "owner" ||
+    adminAccessRole === "administrator" ||
+    adminAccessRole === "moderator";
   const buildAdminHeaders = useCallback(
     (sessionTokenOverride?: string | null) => {
       const resolvedSession = (sessionTokenOverride ?? adminSessionTokenTrimmed).trim();
@@ -3616,6 +3642,7 @@ export default function App() {
     if (!authToken || !canSeeAdminButton) {
       setAdminAccessGranted(false);
       setAdminSessionToken(null);
+      setAdminAccessRole(null);
       setAdminUserLookupResult(null);
       return null;
     }
@@ -3625,25 +3652,33 @@ export default function App() {
         ok: true;
         admin: true;
         userId: string;
+        role?: "owner" | "administrator" | "moderator";
         adminSession: string;
       }>("/auth/admin/access", {
         token: authToken,
         headers: adminPanelKeyTrimmed ? { "x-admin-key": adminPanelKeyTrimmed } : undefined,
       });
       const session = typeof payload?.adminSession === "string" ? payload.adminSession.trim() : "";
+      const role: AdminAccessRole =
+        payload?.role === "owner" || payload?.role === "administrator" || payload?.role === "moderator"
+          ? payload.role
+          : null;
       if (session) {
         setAdminSessionToken(session);
         setAdminAccessGranted(true);
+        setAdminAccessRole(role);
         return session;
       } else {
         setAdminSessionToken(null);
         setAdminAccessGranted(false);
+        setAdminAccessRole(null);
         setAdminUserLookupResult(null);
         return null;
       }
     } catch {
       setAdminSessionToken(null);
       setAdminAccessGranted(false);
+      setAdminAccessRole(null);
       setAdminUserLookupResult(null);
       return null;
     } finally {
@@ -3653,6 +3688,7 @@ export default function App() {
   const invalidateAdminSession = useCallback(() => {
     setAdminAccessGranted(false);
     setAdminSessionToken(null);
+    setAdminAccessRole(null);
   }, []);
   const isAdminSessionError = useCallback((error: unknown) => {
     return (
@@ -3661,26 +3697,28 @@ export default function App() {
     );
   }, []);
   const ensureAdminHeaders = useCallback(async (): Promise<Record<string, string> | null> => {
-    if (!authToken || !isCreatorAdmin) return null;
+    if (!authToken || !canSeeAdminButton) return null;
     let session = adminSessionTokenTrimmed;
-    const refreshed = await checkAdminAccess();
-    if (refreshed) {
-      session = refreshed;
-    } else if (!session || !adminAccessGranted) {
-      return null;
+    if (!session || !adminAccessGranted) {
+      const refreshed = await checkAdminAccess();
+      if (refreshed) {
+        session = refreshed;
+      } else {
+        return null;
+      }
     }
     const headers = buildAdminHeaders(session);
     return Object.keys(headers).length ? headers : null;
   }, [
     authToken,
-    isCreatorAdmin,
+    canSeeAdminButton,
     adminSessionTokenTrimmed,
     adminAccessGranted,
     checkAdminAccess,
     buildAdminHeaders,
   ]);
   const loadAdminPromos = useCallback(async () => {
-    if (!authToken || !isCreatorAdmin) return;
+    if (!authToken || !canSeeAdminButton || !adminCanManagePromos) return;
     const headers = await ensureAdminHeaders();
     if (!headers) return;
     setAdminPromoListLoading(true);
@@ -3710,13 +3748,14 @@ export default function App() {
     }
   }, [
     authToken,
-    isCreatorAdmin,
+    canSeeAdminButton,
+    adminCanManagePromos,
     ensureAdminHeaders,
     invalidateAdminSession,
     isAdminSessionError,
   ]);
   const submitAdminPromo = useCallback(async () => {
-    if (!authToken || !isCreatorAdmin) return;
+    if (!authToken || !canSeeAdminButton || !adminCanManagePromos) return;
     const headers = await ensureAdminHeaders();
     if (!headers) {
       setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
@@ -3788,7 +3827,8 @@ export default function App() {
     }
   }, [
     authToken,
-    isCreatorAdmin,
+    canSeeAdminButton,
+    adminCanManagePromos,
     ensureAdminHeaders,
     adminPromoCodeDraft,
     adminPromoKind,
@@ -3805,7 +3845,7 @@ export default function App() {
   ]);
   const deleteAdminPromo = useCallback(
     async (code: string) => {
-      if (!authToken || !isCreatorAdmin || !code) return;
+      if (!authToken || !canSeeAdminButton || !adminCanManagePromos || !code) return;
       const headers = await ensureAdminHeaders();
       if (!headers) {
         setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
@@ -3839,7 +3879,8 @@ export default function App() {
     },
     [
       authToken,
-      isCreatorAdmin,
+      canSeeAdminButton,
+      adminCanManagePromos,
       ensureAdminHeaders,
       loadAdminPromos,
       invalidateAdminSession,
@@ -3856,7 +3897,7 @@ export default function App() {
         expiresAt: string | null;
       }>,
     ) => {
-      if (!authToken || !isCreatorAdmin) return;
+      if (!authToken || !canSeeAdminButton || !adminCanManagePromos) return;
       const headers = await ensureAdminHeaders();
       if (!headers) {
         setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
@@ -3903,7 +3944,8 @@ export default function App() {
     },
     [
       authToken,
-      isCreatorAdmin,
+      canSeeAdminButton,
+      adminCanManagePromos,
       ensureAdminHeaders,
       loadAdminPromos,
       invalidateAdminSession,
@@ -3911,7 +3953,7 @@ export default function App() {
     ],
   );
   const submitAdminSubscription = useCallback(async () => {
-    if (!authToken || !isCreatorAdmin) return;
+    if (!authToken || !canSeeAdminButton || !adminCanManageSubscriptions) return;
     const headers = await ensureAdminHeaders();
     if (!headers) {
       setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
@@ -3956,7 +3998,8 @@ export default function App() {
     }
   }, [
     authToken,
-    isCreatorAdmin,
+    canSeeAdminButton,
+    adminCanManageSubscriptions,
     ensureAdminHeaders,
     adminSubscriptionUserId,
     adminSubscriptionTier,
@@ -3965,7 +4008,7 @@ export default function App() {
     isAdminSessionError,
   ]);
   const findAdminUser = useCallback(async () => {
-    if (!authToken || !isCreatorAdmin) return;
+    if (!authToken || !canSeeAdminButton || !adminCanModerateUsers) return;
     const headers = await ensureAdminHeaders();
     if (!headers) {
       setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
@@ -3994,6 +4037,11 @@ export default function App() {
       setAdminUserLookupResult(payload.user);
       setAdminSubscriptionUserId(payload.user.id);
       setAdminBanUserId(payload.user.id);
+      setAdminStaffTargetUserId(payload.user.id);
+      setAdminModerationNickname(payload.user.nickname);
+      if (payload.user.adminRole === "administrator" || payload.user.adminRole === "moderator") {
+        setAdminStaffTargetRole(payload.user.adminRole);
+      }
       setAdminPromoFeedback({
         kind: "success",
         text: `Найден пользователь: ${payload.user.nickname} (${payload.user.id}).`,
@@ -4015,14 +4063,15 @@ export default function App() {
     }
   }, [
     authToken,
-    isCreatorAdmin,
+    canSeeAdminButton,
+    adminCanModerateUsers,
     ensureAdminHeaders,
     adminUserLookupQuery,
     invalidateAdminSession,
     isAdminSessionError,
   ]);
   const submitAdminBan = useCallback(async () => {
-    if (!authToken || !isCreatorAdmin) return;
+    if (!authToken || !canSeeAdminButton || !adminCanBanUsers) return;
     const headers = await ensureAdminHeaders();
     if (!headers) {
       setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
@@ -4085,7 +4134,8 @@ export default function App() {
     }
   }, [
     authToken,
-    isCreatorAdmin,
+    canSeeAdminButton,
+    adminCanBanUsers,
     ensureAdminHeaders,
     adminBanUserId,
     adminBanDays,
@@ -4095,7 +4145,7 @@ export default function App() {
     isAdminSessionError,
   ]);
   const clearAdminBan = useCallback(async () => {
-    if (!authToken || !isCreatorAdmin) return;
+    if (!authToken || !canSeeAdminButton || !adminCanBanUsers) return;
     const headers = await ensureAdminHeaders();
     if (!headers) {
       setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
@@ -4146,9 +4196,236 @@ export default function App() {
     }
   }, [
     authToken,
-    isCreatorAdmin,
+    canSeeAdminButton,
+    adminCanBanUsers,
     ensureAdminHeaders,
     adminBanUserId,
+    invalidateAdminSession,
+    isAdminSessionError,
+  ]);
+  const submitAdminModeration = useCallback(async () => {
+    if (!authToken || !canSeeAdminButton || !adminCanModerateUsers) return;
+    const headers = await ensureAdminHeaders();
+    if (!headers) {
+      setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
+      return;
+    }
+    const userId = (adminStaffTargetUserId || adminSubscriptionUserId || adminBanUserId).trim();
+    if (!userId) {
+      setAdminPromoFeedback({ kind: "error", text: "Введите userId пользователя." });
+      return;
+    }
+    const nextNickname = adminModerationNickname.trim();
+    setAdminModerationLoading(true);
+    setAdminPromoFeedback(null);
+    try {
+      const payload = await authRequest<{
+        ok: true;
+        user: { id: string; nickname: string; avatar: string | null; banner: string | null };
+      }>("/auth/admin/user/moderate", {
+        method: "PATCH",
+        token: authToken,
+        headers,
+        body: {
+          userId,
+          nickname: nextNickname || undefined,
+          clearAvatar: false,
+          clearBanner: false,
+        },
+      });
+      setAdminUserLookupResult((prev) =>
+        prev && prev.id === userId
+          ? {
+              ...prev,
+              nickname: payload.user.nickname,
+            }
+          : prev,
+      );
+      setAdminModerationNickname("");
+      setAdminPromoFeedback({ kind: "success", text: "Данные пользователя обновлены." });
+    } catch (error) {
+      if (isAdminSessionError(error)) invalidateAdminSession();
+      setAdminPromoFeedback({
+        kind: "error",
+        text:
+          error instanceof Error
+            ? localizeAuthError(error.message)
+            : "Не удалось обновить профиль пользователя.",
+      });
+    } finally {
+      setAdminModerationLoading(false);
+    }
+  }, [
+    authToken,
+    canSeeAdminButton,
+    adminCanModerateUsers,
+    ensureAdminHeaders,
+    adminStaffTargetUserId,
+    adminSubscriptionUserId,
+    adminBanUserId,
+    adminModerationNickname,
+    invalidateAdminSession,
+    isAdminSessionError,
+  ]);
+  const clearAdminUserMedia = useCallback(
+    async (target: "avatar" | "banner") => {
+      if (!authToken || !canSeeAdminButton || !adminCanModerateUsers) return;
+      const headers = await ensureAdminHeaders();
+      if (!headers) {
+        setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
+        return;
+      }
+      const userId = (adminStaffTargetUserId || adminSubscriptionUserId || adminBanUserId).trim();
+      if (!userId) {
+        setAdminPromoFeedback({ kind: "error", text: "Введите userId пользователя." });
+        return;
+      }
+      setAdminModerationLoading(true);
+      setAdminPromoFeedback(null);
+      try {
+        await authRequest<{ ok: true; user: { id: string } }>("/auth/admin/user/moderate", {
+          method: "PATCH",
+          token: authToken,
+          headers,
+          body: {
+            userId,
+            clearAvatar: target === "avatar",
+            clearBanner: target === "banner",
+          },
+        });
+        setAdminPromoFeedback({
+          kind: "success",
+          text: target === "avatar" ? "Аватар удален." : "Баннер удален.",
+        });
+      } catch (error) {
+        if (isAdminSessionError(error)) invalidateAdminSession();
+        setAdminPromoFeedback({
+          kind: "error",
+          text:
+            error instanceof Error
+              ? localizeAuthError(error.message)
+              : "Не удалось применить действие модерации.",
+        });
+      } finally {
+        setAdminModerationLoading(false);
+      }
+    },
+    [
+      authToken,
+      canSeeAdminButton,
+      adminCanModerateUsers,
+      ensureAdminHeaders,
+      adminStaffTargetUserId,
+      adminSubscriptionUserId,
+      adminBanUserId,
+      invalidateAdminSession,
+      isAdminSessionError,
+    ],
+  );
+  const submitAdminStaffRole = useCallback(async () => {
+    if (!authToken || !canSeeAdminButton || !adminCanManageStaff) return;
+    const headers = await ensureAdminHeaders();
+    if (!headers) {
+      setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
+      return;
+    }
+    const userId = adminStaffTargetUserId.trim();
+    if (!userId) {
+      setAdminPromoFeedback({ kind: "error", text: "Введите userId сотрудника." });
+      return;
+    }
+    setAdminStaffLoading(true);
+    setAdminPromoFeedback(null);
+    try {
+      const payload = await authRequest<{ ok: true; role: "administrator" | "moderator" | null }>(
+        "/auth/admin/staff/role",
+        {
+          method: "PATCH",
+          token: authToken,
+          headers,
+          body: { userId, role: adminStaffTargetRole },
+        },
+      );
+      setAdminUserLookupResult((prev) =>
+        prev && prev.id === userId
+          ? {
+              ...prev,
+              adminRole: payload.role,
+            }
+          : prev,
+      );
+      setAdminPromoFeedback({
+        kind: "success",
+        text: payload.role
+          ? `Роль выдана: ${payload.role === "administrator" ? "Администратор" : "Модератор"}.`
+          : "Роль сотрудника снята.",
+      });
+    } catch (error) {
+      if (isAdminSessionError(error)) invalidateAdminSession();
+      setAdminPromoFeedback({
+        kind: "error",
+        text:
+          error instanceof Error ? localizeAuthError(error.message) : "Не удалось обновить роль.",
+      });
+    } finally {
+      setAdminStaffLoading(false);
+    }
+  }, [
+    authToken,
+    canSeeAdminButton,
+    adminCanManageStaff,
+    ensureAdminHeaders,
+    adminStaffTargetUserId,
+    adminStaffTargetRole,
+    invalidateAdminSession,
+    isAdminSessionError,
+  ]);
+  const removeAdminStaffRole = useCallback(async () => {
+    if (!authToken || !canSeeAdminButton || !adminCanManageStaff) return;
+    const headers = await ensureAdminHeaders();
+    if (!headers) {
+      setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
+      return;
+    }
+    const userId = adminStaffTargetUserId.trim();
+    if (!userId) {
+      setAdminPromoFeedback({ kind: "error", text: "Введите userId сотрудника." });
+      return;
+    }
+    setAdminStaffLoading(true);
+    setAdminPromoFeedback(null);
+    try {
+      await authRequest<{ ok: true; role: null }>("/auth/admin/staff/role", {
+        method: "PATCH",
+        token: authToken,
+        headers,
+        body: { userId, role: "none" },
+      });
+      setAdminUserLookupResult((prev) =>
+        prev && prev.id === userId
+          ? {
+              ...prev,
+              adminRole: null,
+            }
+          : prev,
+      );
+      setAdminPromoFeedback({ kind: "success", text: "Роль сотрудника снята." });
+    } catch (error) {
+      if (isAdminSessionError(error)) invalidateAdminSession();
+      setAdminPromoFeedback({
+        kind: "error",
+        text:
+          error instanceof Error ? localizeAuthError(error.message) : "Не удалось снять роль.",
+      });
+    } finally {
+      setAdminStaffLoading(false);
+    }
+  }, [
+    authToken,
+    canSeeAdminButton,
+    adminCanManageStaff,
+    ensureAdminHeaders,
+    adminStaffTargetUserId,
     invalidateAdminSession,
     isAdminSessionError,
   ]);
@@ -4159,32 +4436,76 @@ export default function App() {
     if (!adminAccessGranted) return;
     setAdminAccessGranted(false);
     setAdminSessionToken(null);
+    setAdminAccessRole(null);
   }, [adminPanelKeyTrimmed]);
   useEffect(() => {
     setAdminSessionToken(null);
     setAdminAccessGranted(false);
+    setAdminAccessRole(null);
   }, [authToken]);
   useEffect(() => {
     if (!canSeeAdminButton) {
       setAdminAccessGranted(false);
       setAdminSessionToken(null);
+      setAdminAccessRole(null);
       setAdminUserLookupResult(null);
       return;
     }
-    void checkAdminAccess();
-  }, [canSeeAdminButton, checkAdminAccess]);
+  }, [canSeeAdminButton]);
   useEffect(() => {
-    if (!adminToolsOpen || !isCreatorAdmin || !authToken || !adminAccessGranted) return;
+    if (
+      !adminToolsOpen ||
+      !authToken ||
+      !adminAccessGranted ||
+      !adminCanManagePromos ||
+      adminPanelSection !== "promos"
+    ) {
+      adminPromoAutoLoadKeyRef.current = "";
+      return;
+    }
+    const autoLoadKey = `${authToken}:${adminSessionTokenTrimmed}:${adminPanelSection}`;
+    if (adminPromoAutoLoadKeyRef.current === autoLoadKey) {
+      return;
+    }
+    adminPromoAutoLoadKeyRef.current = autoLoadKey;
     void loadAdminPromos();
-  }, [adminToolsOpen, isCreatorAdmin, authToken, adminAccessGranted, loadAdminPromos]);
+  }, [
+    adminToolsOpen,
+    authToken,
+    adminAccessGranted,
+    adminCanManagePromos,
+    adminPanelSection,
+    adminSessionTokenTrimmed,
+    loadAdminPromos,
+  ]);
   useEffect(() => {
     if (!adminToolsOpen) return;
     setAdminPromoFeedback(null);
   }, [adminToolsOpen]);
   useEffect(() => {
+    if (!adminAccessGranted) return;
+    if (adminAccessRole === "owner") return;
+    if (adminPanelSection === "promos" || adminPanelSection === "subscriptions") {
+      setAdminPanelSection("users");
+    }
+  }, [adminAccessGranted, adminAccessRole, adminPanelSection]);
+  useEffect(() => {
+    if (shopDurationBootRef.current) {
+      shopDurationBootRef.current = false;
+      setShopPriceRevealReady(true);
+      return;
+    }
+    setShopPriceRevealReady(false);
+    const timer = window.setTimeout(() => {
+      setShopPriceRevealReady(true);
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [shopDuration]);
+  useEffect(() => {
     if (!authUser?.id) return;
     setAdminSubscriptionUserId((prev) => prev || authUser.id);
     setAdminBanUserId((prev) => prev || authUser.id);
+    setAdminStaffTargetUserId((prev) => prev || authUser.id);
   }, [authUser?.id]);
   useEffect(() => {
     if (canCreatePrivateRooms || !createRoomPrivate) return;
@@ -4445,6 +4766,16 @@ export default function App() {
     const style = document.createElement("style");
     style.id = styleId;
     style.textContent = `
+      html, body {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      html::-webkit-scrollbar,
+      body::-webkit-scrollbar {
+        width: 0 !important;
+        height: 0 !important;
+        display: none !important;
+      }
       input:-webkit-autofill,
       input:-webkit-autofill:hover,
       input:-webkit-autofill:focus,
@@ -6940,20 +7271,71 @@ export default function App() {
                     Очистить
                   </Button>
                 </div>
-                <div
-                  className={`mt-2 rounded-xl border px-3 py-2 text-xs ${
-                    adminAccessGranted
-                      ? "border-emerald-500/45 bg-emerald-600/10 text-emerald-200"
-                      : "border-zinc-700 bg-zinc-950/80 text-zinc-400"
-                  }`}
-                >
-                  {adminAccessGranted
-                    ? "Доступ подтвержден. Расширенные действия активны."
-                    : "Доступ не подтвержден. Введите ключ и нажмите «Проверить»."}
-                </div>
+                {!adminAccessGranted && (
+                  <div className="mt-2 rounded-xl border border-zinc-700 bg-zinc-950/80 px-3 py-2 text-xs text-zinc-400">
+                    Доступ не подтвержден. Введите ключ и нажмите «Проверить».
+                  </div>
+                )}
               </div>
               {adminAccessGranted && (
                 <>
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+                    <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Разделы</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {([
+                        { key: "users", label: "Пользователи" },
+                        { key: "staff", label: "Роли" },
+                        { key: "promos", label: "Промокоды" },
+                        { key: "subscriptions", label: "Подписки" },
+                        { key: "bots", label: "Боты" },
+                      ] as Array<{ key: AdminPanelSection; label: string }>).map((item) => {
+                        const disabled =
+                          (item.key === "promos" && !adminCanManagePromos) ||
+                          (item.key === "subscriptions" && !adminCanManageSubscriptions) ||
+                          (item.key === "staff" && !adminCanManageStaff && !adminCanModerateUsers) ||
+                          (item.key === "users" && !adminCanModerateUsers) ||
+                          (item.key === "bots" && !canManageAdminBots);
+                        return (
+                          <Button
+                            key={`admin-section-${item.key}`}
+                            type="button"
+                            variant={adminPanelSection === item.key ? "default" : "outline"}
+                            onClick={() => setAdminPanelSection(item.key)}
+                            disabled={disabled}
+                            className={
+                              adminPanelSection === item.key
+                                ? "h-9 rounded-xl bg-red-600 text-white hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500"
+                                : "h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-45"
+                            }
+                          >
+                            {item.label}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2 text-xs text-zinc-500">
+                      Роль доступа:{" "}
+                      {adminAccessRole === "owner"
+                        ? "Владелец"
+                        : adminAccessRole === "administrator"
+                          ? "Администратор"
+                          : adminAccessRole === "moderator"
+                            ? "Модератор"
+                            : "—"}
+                    </div>
+                  </div>
+                  {adminPromoFeedback && (
+                    <div
+                      className={`rounded-2xl border px-3 py-2 text-xs ${
+                        adminPromoFeedback.kind === "success"
+                          ? "border-emerald-500/45 bg-emerald-600/10 text-emerald-200"
+                          : "border-red-500/45 bg-red-600/10 text-red-200"
+                      }`}
+                    >
+                      {adminPromoFeedback.text}
+                    </div>
+                  )}
+                  {adminPanelSection === "users" && (
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
                     <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">
                       Поиск пользователя
@@ -7033,9 +7415,19 @@ export default function App() {
                                 : "Активна"
                             : "Нет"}
                         </div>
+                        <div className="mt-1 text-zinc-400">
+                          Роль:{" "}
+                          {adminUserLookupResult.adminRole === "administrator"
+                            ? "Администратор"
+                            : adminUserLookupResult.adminRole === "moderator"
+                              ? "Модератор"
+                              : "Нет"}
+                        </div>
                       </div>
                     )}
                   </div>
+                  )}
+                  {adminPanelSection === "subscriptions" && adminCanManageSubscriptions && (
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
                     <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Выдать подписку</div>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -7079,6 +7471,8 @@ export default function App() {
                       {adminSubscriptionLoading ? "Выдаем" : "Выдать подписку"}
                     </Button>
                   </div>
+                  )}
+                  {adminPanelSection === "users" && adminCanBanUsers && (
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
                     <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Блокировка пользователя</div>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -7128,6 +7522,8 @@ export default function App() {
                       </Button>
                     </div>
                   </div>
+                  )}
+                  {adminPanelSection === "promos" && adminCanManagePromos && (
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
                     <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Создать промокод</div>
                     <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
@@ -7242,17 +7638,6 @@ export default function App() {
                       <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Активные промокоды</div>
                       <div className="text-xs text-zinc-500">Всего: {adminPromos.length}</div>
                     </div>
-                    {adminPromoFeedback && (
-                      <div
-                        className={`mt-2 rounded-lg border px-2.5 py-2 text-xs ${
-                          adminPromoFeedback.kind === "success"
-                            ? "border-emerald-500/45 bg-emerald-600/10 text-emerald-200"
-                            : "border-red-500/45 bg-red-600/10 text-red-200"
-                        }`}
-                      >
-                        {adminPromoFeedback.text}
-                      </div>
-                    )}
                     <div className={`mt-2 space-y-2 max-h-60 overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
                       {adminPromoListLoading ? (
                         <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-3 py-2 text-xs text-zinc-400">
@@ -7336,7 +7721,97 @@ export default function App() {
                       )}
                     </div>
                   </div>
-                  {canManageAdminBots && adminTargetRoomCode && (
+                  )}
+                  {adminPanelSection === "staff" && adminCanModerateUsers && (
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3 space-y-3">
+                      <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Модерация профиля</div>
+                      <Input
+                        value={adminStaffTargetUserId}
+                        onChange={(event) => setAdminStaffTargetUserId(event.target.value)}
+                        placeholder="userId"
+                        className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                      />
+                      <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                        <Input
+                          value={adminModerationNickname}
+                          onChange={(event) => setAdminModerationNickname(event.target.value)}
+                          placeholder="Новый ник"
+                          className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                        />
+                        <Button
+                          type="button"
+                          onClick={() => void submitAdminModeration()}
+                          disabled={adminModerationLoading}
+                          className="h-10 rounded-xl bg-red-600 text-white hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-300"
+                        >
+                          Сменить ник
+                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => void clearAdminUserMedia("avatar")}
+                            disabled={adminModerationLoading}
+                            className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                          >
+                            Убрать аву
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => void clearAdminUserMedia("banner")}
+                            disabled={adminModerationLoading}
+                            className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                          >
+                            Убрать баннер
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {adminPanelSection === "staff" && adminCanManageStaff && (
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3 space-y-3">
+                      <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Роли сотрудников</div>
+                      <Input
+                        value={adminStaffTargetUserId}
+                        onChange={(event) => setAdminStaffTargetUserId(event.target.value)}
+                        placeholder="userId"
+                        className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                      />
+                      <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                        <select
+                          value={adminStaffTargetRole}
+                          onChange={(event) =>
+                            setAdminStaffTargetRole(
+                              event.target.value === "administrator" ? "administrator" : "moderator",
+                            )
+                          }
+                          className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                        >
+                          <option value="moderator">Модератор</option>
+                          <option value="administrator">Администратор</option>
+                        </select>
+                        <Button
+                          type="button"
+                          onClick={() => void submitAdminStaffRole()}
+                          disabled={adminStaffLoading}
+                          className="h-10 rounded-xl bg-red-600 text-white hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-300"
+                        >
+                          Назначить
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void removeAdminStaffRole()}
+                          disabled={adminStaffLoading}
+                          className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        >
+                          Снять роль
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {adminPanelSection === "bots" && canManageAdminBots && adminTargetRoomCode && (
                     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
                       <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Боты</div>
                       <div className={`mt-2 space-y-1 max-h-28 overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
@@ -8707,16 +9182,16 @@ export default function App() {
 
         <div className="max-w-6xl mx-auto mb-8 flex justify-center">
           <div className="relative w-full sm:w-auto min-w-0">
-            <div className="w-full sm:w-auto rounded-[28px] border border-zinc-800 bg-zinc-900/90 p-1.5 shadow-sm shadow-black/30">
+            <div className="w-full sm:w-auto rounded-[28px] border border-zinc-800 bg-zinc-900/90 p-1.5 shadow-sm shadow-black/30 overflow-visible">
               <div className="sm:flex sm:items-center sm:gap-1">
-                <div className={`flex items-center gap-1 overflow-x-auto pr-0.5 ${HIDE_SCROLLBAR_CLASS}`}>
+                <div className={`flex items-center gap-1 overflow-x-auto overflow-y-visible pr-0.5 ${HIDE_SCROLLBAR_CLASS}`}>
                   <Button
                     variant="ghost"
                     onClick={() => {
                       setHomeTab("play");
                       setProfileMenuOpen(false);
                     }}
-                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 hover:-translate-y-0.5 ${
+                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
                       homeTab === "play"
                         ? "bg-red-600 text-white hover:bg-red-500"
                         : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800"
@@ -8731,7 +9206,7 @@ export default function App() {
                       setHomeTab("shop");
                       setProfileMenuOpen(false);
                     }}
-                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 hover:-translate-y-0.5 ${
+                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
                       homeTab === "shop"
                         ? "bg-red-600 text-white hover:bg-red-500"
                         : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800"
@@ -8746,7 +9221,7 @@ export default function App() {
                       setHomeTab("development");
                       setProfileMenuOpen(false);
                     }}
-                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 hover:-translate-y-0.5 ${
+                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
                       homeTab === "development"
                         ? "bg-red-600 text-white hover:bg-red-500"
                         : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800"
@@ -8759,9 +9234,10 @@ export default function App() {
                     variant="ghost"
                     onClick={() => {
                       setHomeTab("help");
+                      setMainHelpQuery("");
                       setProfileMenuOpen(false);
                     }}
-                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 hover:-translate-y-0.5 ${
+                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
                       homeTab === "help"
                         ? "bg-red-600 text-white hover:bg-red-500"
                         : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800"
@@ -8777,7 +9253,7 @@ export default function App() {
                     <Button
                       variant="outline"
                       onClick={() => setProfileMenuOpen((prev) => !prev)}
-                      className="h-10 w-full sm:w-auto rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 pl-1 pr-3 gap-2.5 justify-start transition-all duration-200 hover:-translate-y-0.5"
+                      className="h-10 w-full sm:w-auto rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 pl-1 pr-3 gap-2.5 justify-start transition-all duration-200"
                     >
                       <Avatar src={avatar} name={playerName || "Игрок"} size={32} />
                       <span className="max-w-[130px] truncate text-sm">{playerName || "Игрок"}</span>
@@ -8791,7 +9267,7 @@ export default function App() {
                         setAuthView("form");
                         setAuthDialogOpen(true);
                       }}
-                      className="h-10 w-full sm:w-[124px] rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
+                      className="h-10 w-full sm:w-[124px] rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center transition-all duration-200"
                     >
                       <LogIn className="w-4 h-4" />
                       Войти
@@ -9926,10 +10402,10 @@ export default function App() {
                         <AnimatePresence mode="wait" initial={false}>
                           <motion.div
                             key={`shop-price-${plan.tier}-${shopDuration}`}
-                            initial={{ opacity: 0, y: 6, filter: "blur(1.5px)" }}
-                            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                            exit={{ opacity: 0, y: -6, filter: "blur(1.5px)" }}
-                            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                            initial={{ opacity: 0, y: 12, scale: 0.98, filter: "blur(2px)" }}
+                            animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                            exit={{ opacity: 0, y: -10, scale: 1.02, filter: "blur(2px)" }}
+                            transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
                           >
                             <div className="mt-4 text-4xl font-bold leading-none text-zinc-100">
                               {displayPrice}
@@ -9938,12 +10414,12 @@ export default function App() {
                               RUB / {shopDuration === "1_year" ? "год" : "месяц"}
                             </div>
                             <AnimatePresence initial={false}>
-                              {shopDuration === "1_year" && yearlySave > 0 && (
+                              {shopDuration === "1_year" && yearlySave > 0 && shopPriceRevealReady && (
                                 <motion.div
-                                  initial={{ opacity: 0, y: 4, height: 0 }}
+                                  initial={{ opacity: 0, y: 8, height: 0 }}
                                   animate={{ opacity: 1, y: 0, height: "auto" }}
                                   exit={{ opacity: 0, y: -4, height: 0 }}
-                                  transition={{ duration: 0.22, ease: "easeOut" }}
+                                  transition={{ duration: 0.26, ease: "easeOut", delay: 0.03 }}
                                   className="mt-2 flex items-center gap-2 text-xs overflow-hidden"
                                 >
                                   <span className="text-zinc-500 line-through">{yearlyBasePrice} RUB</span>
@@ -10137,9 +10613,9 @@ export default function App() {
         )}
 
         {homeTab === "help" && (
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-7xl mx-auto w-full">
             <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100">
-              <CardContent className="p-8 md:p-10">
+              <CardContent className="p-6 md:p-8 lg:p-10">
                 <HelpCenter
                   query={mainHelpQuery}
                   onQueryChange={setMainHelpQuery}
@@ -12519,5 +12995,4 @@ export default function App() {
     </div>
   );
 }
-
 
