@@ -503,6 +503,12 @@ function getSubscriptionDurationLabel(duration: SubscriptionDuration | string): 
   return "1 месяц";
 }
 
+function getAdminBadgePromoLabel(key: string): string {
+  const option = ADMIN_BADGE_PROMO_OPTIONS.find((item) => item.key === key);
+  if (option) return option.label;
+  return key;
+}
+
 function formatPromoDate(value: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
@@ -3147,7 +3153,7 @@ export default function App() {
   const [adminPromoCodeDraft, setAdminPromoCodeDraft] = useState("");
   const [adminPromoKind, setAdminPromoKind] = useState<AdminPromoKind>("subscription");
   const [adminPromoBadgeKey, setAdminPromoBadgeKey] = useState("sub_trainee");
-  const [adminPromoBadgeKeysDraft, setAdminPromoBadgeKeysDraft] = useState("");
+  const [adminPromoBadgeKeys, setAdminPromoBadgeKeys] = useState<string[]>([]);
   const [adminPromoTier, setAdminPromoTier] = useState<SubscriptionTier>("trainee");
   const [adminPromoDuration, setAdminPromoDuration] = useState<SubscriptionDuration>("1_month");
   const [adminPromoMaxUses, setAdminPromoMaxUses] = useState("");
@@ -3194,6 +3200,7 @@ export default function App() {
   const [upsellRequiredTier, setUpsellRequiredTier] =
     useState<SubscriptionTier>("trainee");
   const [profileSubscriptionHighlight, setProfileSubscriptionHighlight] = useState(0);
+  const [profileSubscriptionHighlightPending, setProfileSubscriptionHighlightPending] = useState(false);
   const [devlogPage, setDevlogPage] = useState(1);
   const [playView, setPlayView] = useState<"quick" | "matches">("quick");
   const [mainHelpQuery, setMainHelpQuery] = useState("");
@@ -3666,10 +3673,14 @@ export default function App() {
         text: payload.message || "Промокод активирован.",
         rewards: Array.isArray(payload.rewards) ? payload.rewards : [],
       });
-      const profilePayload = await authRequest<{ profile: PublicUserProfile }>("/auth/profile", {
-        token: authToken,
-      });
-      setMyProfile(profilePayload.profile);
+      try {
+        const profilePayload = await authRequest<{ profile: PublicUserProfile }>("/auth/profile", {
+          token: authToken,
+        });
+        setMyProfile(profilePayload.profile);
+      } catch {
+        // промокод уже применен; если профиль не обновился, не показываем ложную ошибку
+      }
     } catch (error) {
       setPromoCodeResult({
         kind: "error",
@@ -3816,14 +3827,7 @@ export default function App() {
       setAdminPromoFeedback({ kind: "error", text: "Введите код промокода." });
       return;
     }
-    const parsedBadgeKeys = Array.from(
-      new Set(
-        adminPromoBadgeKeysDraft
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean),
-      ),
-    );
+    const parsedBadgeKeys = Array.from(new Set(adminPromoBadgeKeys));
     const fallbackBadgeKey = adminPromoBadgeKey.trim();
     if (fallbackBadgeKey && !parsedBadgeKeys.includes(fallbackBadgeKey)) {
       parsedBadgeKeys.push(fallbackBadgeKey);
@@ -3850,13 +3854,13 @@ export default function App() {
         method: "PATCH",
         token: authToken,
         headers,
-          body: {
-            code,
-            promoKind: adminPromoKind,
-            badgeKey: adminPromoKind === "badge" ? adminPromoBadgeKey.trim() : null,
-            badgeKeys: parsedBadgeKeys,
-            tier: adminPromoKind === "subscription" ? adminPromoTier : "free",
-            duration: adminPromoDuration,
+        body: {
+          code,
+          promoKind: adminPromoKind,
+          badgeKey: adminPromoKind === "badge" ? adminPromoBadgeKey.trim() : null,
+          badgeKeys: parsedBadgeKeys,
+          tier: adminPromoKind === "subscription" ? adminPromoTier : "free",
+          duration: adminPromoDuration,
           isActive: adminPromoIsActive,
           maxUses: parsedMaxUses,
           startsAt: adminPromoStartsAt ? new Date(adminPromoStartsAt).toISOString() : null,
@@ -3872,7 +3876,7 @@ export default function App() {
       setAdminPromoDuration("1_month");
       setAdminPromoKind("subscription");
       setAdminPromoBadgeKey("sub_trainee");
-      setAdminPromoBadgeKeysDraft("");
+      setAdminPromoBadgeKeys([]);
       setAdminPromoIsActive(true);
       await loadAdminPromos();
     } catch (error) {
@@ -3897,7 +3901,7 @@ export default function App() {
     adminPromoCodeDraft,
     adminPromoKind,
     adminPromoBadgeKey,
-    adminPromoBadgeKeysDraft,
+    adminPromoBadgeKeys,
     adminPromoDuration,
     adminPromoExpiresAt,
     adminPromoIsActive,
@@ -4510,6 +4514,16 @@ export default function App() {
     setAdminAccessRole(null);
   }, [adminPanelKeyTrimmed]);
   useEffect(() => {
+    if (!adminPromoFeedback) return;
+    const timer = window.setTimeout(() => setAdminPromoFeedback(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [adminPromoFeedback]);
+  useEffect(() => {
+    if (!promoCodeResult) return;
+    const timer = window.setTimeout(() => setPromoCodeResult(null), 3600);
+    return () => window.clearTimeout(timer);
+  }, [promoCodeResult]);
+  useEffect(() => {
     setAdminSessionToken(null);
     setAdminAccessGranted(false);
     setAdminAccessRole(null);
@@ -4529,6 +4543,15 @@ export default function App() {
     setAdminBanUserId("");
     setAdminStaffTargetUserId("");
   }, [adminToolsOpen]);
+  useEffect(() => {
+    if (!profileSubscriptionHighlightPending) return;
+    if (screen !== "profile" || myProfileLoading) return;
+    const timer = window.setTimeout(() => {
+      setProfileSubscriptionHighlight(Date.now());
+      setProfileSubscriptionHighlightPending(false);
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [profileSubscriptionHighlightPending, screen, myProfileLoading]);
   useEffect(() => {
     if (
       !adminToolsOpen ||
@@ -7730,12 +7753,36 @@ export default function App() {
                         className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
                       />
                     </div>
-                    <Input
-                      value={adminPromoBadgeKeysDraft}
-                      onChange={(event) => setAdminPromoBadgeKeysDraft(event.target.value)}
-                      placeholder="Бейджи (через запятую): sub_trainee,sub_practitioner"
-                      className="mt-2 h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
-                    />
+                    <div className="mt-2 rounded-xl border border-zinc-700 bg-zinc-950 p-2.5">
+                      <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">
+                        Бейджи в промокоде
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {ADMIN_BADGE_PROMO_OPTIONS.map((badge) => {
+                          const active = adminPromoBadgeKeys.includes(badge.key);
+                          return (
+                            <button
+                              key={`badge-multi-${badge.key}`}
+                              type="button"
+                              onClick={() =>
+                                setAdminPromoBadgeKeys((prev) =>
+                                  prev.includes(badge.key)
+                                    ? prev.filter((value) => value !== badge.key)
+                                    : [...prev, badge.key],
+                                )
+                              }
+                              className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs transition ${
+                                active
+                                  ? "border-red-400/60 bg-red-600/20 text-red-100"
+                                  : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+                              }`}
+                            >
+                              {badge.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <div className="mt-2 flex items-center justify-between rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2">
                       <span className="text-xs text-zinc-400">Промокод активен</span>
                       <Switch checked={adminPromoIsActive} onCheckedChange={setAdminPromoIsActive} />
@@ -7846,7 +7893,16 @@ export default function App() {
                             </div>
                             <div className="mt-1 text-xs text-zinc-400">
                               {promo.promoKind === "badge"
-                                ? `Бейджи: ${(promo.badgeKeys?.length ? promo.badgeKeys : promo.badgeKey ? [promo.badgeKey] : ["—"]).join(", ")}`
+                                ? `Бейджи: ${
+                                    (promo.badgeKeys?.length
+                                      ? promo.badgeKeys
+                                      : promo.badgeKey
+                                        ? [promo.badgeKey]
+                                        : ["—"]
+                                    )
+                                      .map((key) => getAdminBadgePromoLabel(key))
+                                      .join(" • ")
+                                  }`
                                 : `${getSubscriptionTierLabel(promo.tier)} • ${getSubscriptionDurationLabel(promo.duration)}`}
                             </div>
                             <div className="mt-1 text-xs text-zinc-500">
@@ -8197,6 +8253,12 @@ export default function App() {
                         </div>
                       </div>
                     <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                      {profileBannerLocked && (
+                        <div className="col-span-2 sm:col-span-1 inline-flex items-center gap-1.5 rounded-full border border-amber-400/50 bg-amber-500/15 px-2.5 py-1 text-[11px] text-amber-100">
+                          <Lock className="h-3 w-3" />
+                          Баннер недоступен
+                        </div>
+                      )}
                       <Button
                         variant="outline"
                         className="rounded-xl border-zinc-500/70 bg-black/30 text-zinc-100 hover:bg-black/50 hover:text-zinc-100"
@@ -8453,9 +8515,9 @@ export default function App() {
 
                 <div className="self-start flex flex-col gap-4">
                   <div
-                    className={`rounded-2xl border bg-zinc-950/70 p-4 md:p-5 space-y-3 transition-all ${
-                      profileSubscriptionPulse
-                        ? "border-red-400/65 shadow-[0_0_0_1px_rgba(239,68,68,0.35),0_0_30px_rgba(239,68,68,0.25)]"
+                      className={`rounded-2xl border bg-zinc-950/70 p-4 md:p-5 space-y-3 transition-all ${
+                        profileSubscriptionPulse
+                        ? "border-red-400/65 shadow-[0_0_0_1px_rgba(239,68,68,0.35),0_0_30px_rgba(239,68,68,0.25)] animate-[pulse_1.4s_ease-in-out_2]"
                         : "border-zinc-800"
                     }`}
                   >
@@ -8482,7 +8544,9 @@ export default function App() {
                         {profileSubscription.isLifetime
                           ? "Навсегда"
                           : typeof profileSubscription.daysLeft === "number"
-                            ? `Осталось дней: ${profileSubscription.daysLeft}`
+                            ? `До окончания: ${profileSubscription.daysLeft} ${
+                                profileSubscription.daysLeft === 1 ? "день" : "дней"
+                              }`
                             : profileTier === "free"
                               ? "Ограниченный доступ"
                               : "Срок уточняется"}
@@ -10613,7 +10677,7 @@ export default function App() {
                             if (isCurrent) {
                               setScreen("profile");
                               setHomeTab("play");
-                              setProfileSubscriptionHighlight(Date.now());
+                              setProfileSubscriptionHighlightPending(true);
                               return;
                             }
                             setUpsellTitle("Оплата скоро");

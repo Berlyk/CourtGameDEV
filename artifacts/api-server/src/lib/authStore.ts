@@ -276,6 +276,21 @@ const BADGE_PROMO_ALLOWED_KEYS = new Set<string>([
   ...Object.values(SUBSCRIPTION_BADGE_META).map((entry) => entry.key),
 ]);
 
+function getBadgeTitleForPromoReward(badgeKeyRaw: string): string {
+  const badgeKey = String(badgeKeyRaw ?? "").trim();
+  if (!badgeKey) return "Бейдж";
+  if (badgeKey === "winner") return "Победитель";
+  if (badgeKey === "legend") return "Легенда";
+  if (MANUAL_BADGE_META[badgeKey]) return MANUAL_BADGE_META[badgeKey].title;
+  if (badgeKey.startsWith("role_")) {
+    const roleKey = badgeKey.slice("role_".length);
+    if (ROLE_BADGE_META[roleKey]) return ROLE_BADGE_META[roleKey].title;
+  }
+  const subMeta = Object.values(SUBSCRIPTION_BADGE_META).find((entry) => entry.key === badgeKey);
+  if (subMeta) return subMeta.title;
+  return badgeKey;
+}
+
 const ROLE_TITLES: Record<string, string> = {
   plaintiff: "Истец",
   defendant: "Ответчик",
@@ -2334,7 +2349,7 @@ export async function applyPromoCodeByToken(
     for (const badgeKey of appliedPromoBadgeKeys) {
       rewards.push({
         type: "badge",
-        label: getBadgeMetaByKey(badgeKey).title,
+        label: getBadgeTitleForPromoReward(badgeKey),
       });
     }
   }
@@ -2554,11 +2569,7 @@ export async function findUserByAdminQuery(query: string): Promise<AdminUserLook
   }
 
   const normalized = trimmed.toLowerCase();
-  const uuidLike =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      trimmed,
-    );
-
+  const normalizedLike = `%${trimmed}%`;
   const result = await pool.query<{
     id: string;
     login: string;
@@ -2594,25 +2605,28 @@ export async function findUserByAdminQuery(query: string): Promise<AdminUserLook
         ban_permanent,
         ban_reason
       FROM auth_users
-      WHERE
-        ($1::boolean IS TRUE AND id = $2)
-        OR login_normalized = $3
-        OR email_normalized = $3
-        OR nickname_normalized = $3
-        OR login ILIKE $4
-        OR email ILIKE $4
-        OR nickname ILIKE $4
-      ORDER BY
-        CASE
-          WHEN $1::boolean IS TRUE AND id = $2 THEN 0
-          WHEN login_normalized = $3 OR email_normalized = $3 OR nickname_normalized = $3 THEN 1
-          ELSE 2
-        END ASC,
-        created_at DESC
-      LIMIT 1
-    `,
-    [uuidLike, trimmed, normalized, `%${trimmed}%`],
-  );
+        WHERE
+          id::text = $1
+          OR login_normalized = $2
+          OR email_normalized = $2
+          OR nickname_normalized = $2
+          OR LOWER(login) = $2
+          OR LOWER(email) = $2
+          OR LOWER(nickname) = $2
+          OR login ILIKE $3
+          OR email ILIKE $3
+          OR nickname ILIKE $3
+        ORDER BY
+          CASE
+            WHEN id::text = $1 THEN 0
+            WHEN login_normalized = $2 OR email_normalized = $2 OR nickname_normalized = $2 THEN 1
+            ELSE 2
+          END ASC,
+          created_at DESC
+        LIMIT 1
+      `,
+      [trimmed, normalized, normalizedLike],
+    );
 
   if (!result.rowCount) return null;
   const row = result.rows[0];
