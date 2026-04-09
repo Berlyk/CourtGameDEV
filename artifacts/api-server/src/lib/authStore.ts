@@ -2607,9 +2607,6 @@ export async function findUserByAdminQuery(query: string): Promise<AdminUserLook
       FROM auth_users
         WHERE
           id::text = $1
-          OR login_normalized = $2
-          OR email_normalized = $2
-          OR nickname_normalized = $2
           OR LOWER(login) = $2
           OR LOWER(email) = $2
           OR LOWER(nickname) = $2
@@ -2619,7 +2616,7 @@ export async function findUserByAdminQuery(query: string): Promise<AdminUserLook
         ORDER BY
           CASE
             WHEN id::text = $1 THEN 0
-            WHEN login_normalized = $2 OR email_normalized = $2 OR nickname_normalized = $2 THEN 1
+            WHEN LOWER(login) = $2 OR LOWER(email) = $2 OR LOWER(nickname) = $2 THEN 1
             ELSE 2
           END ASC,
           created_at DESC

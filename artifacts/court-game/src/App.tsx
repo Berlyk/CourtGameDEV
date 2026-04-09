@@ -457,6 +457,18 @@ function getCasePackTitleDisplay(title: string | undefined): string {
   return (normalized || "ПАК").toUpperCase();
 }
 
+function getCasePackSortOrder(
+  pack: { key?: string; title?: string; sortOrder?: number } | null | undefined,
+): number {
+  const base = typeof pack?.sortOrder === "number" ? pack.sortOrder : 100;
+  const key = (pack?.key ?? "").toLowerCase();
+  const title = (pack?.title ?? "").toLowerCase();
+  const full = `${key} ${title}`;
+  if (full.includes("запад") || full.includes("west")) return 55;
+  if (full.includes("18+")) return 56;
+  return base;
+}
+
 function getSubscriptionPlanBadgeKey(tier: SubscriptionTier): string | undefined {
   if (tier === "trainee") return "sub_trainee";
   if (tier === "practitioner") return "sub_practitioner";
@@ -1674,13 +1686,15 @@ function HelpCenter({
           value={openCategoryValues}
           onValueChange={setOpenCategoryValues}
         >
-          {groupedTopics.map((group) => (
-            <AccordionItem
+          {groupedTopics.map((group, idx) => (
+            <motion.div
               key={group.category}
-              value={group.category}
-              className="border-0"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.24, delay: idx * 0.045, ease: "easeOut" }}
             >
-              <Card className="rounded-2xl border-zinc-800 bg-zinc-900/80 text-zinc-100">
+              <AccordionItem value={group.category} className="border-0">
+                <Card className="rounded-2xl border-zinc-800 bg-zinc-900/80 text-zinc-100">
                 <CardHeader className="p-0">
                   <AccordionTrigger className="h-16 px-5 py-0 text-zinc-100 hover:no-underline">
                     <span
@@ -1725,8 +1739,9 @@ function HelpCenter({
                     </Accordion>
                   </CardContent>
                 </AccordionContent>
-              </Card>
-            </AccordionItem>
+                </Card>
+              </AccordionItem>
+            </motion.div>
           ))}
         </Accordion>
       )}
@@ -2641,6 +2656,40 @@ function formatBanTimeLeft(msLeft: number): string {
   ).padStart(2, "0")}`;
 }
 
+function formatSubscriptionTimeLeftLabel(
+  subscription: {
+    isLifetime?: boolean;
+    endAt?: number | null;
+    daysLeft?: number | null;
+    tier?: SubscriptionTier | string;
+  },
+  nowMs: number,
+): string {
+  if (subscription.isLifetime) return "Навсегда";
+  const normalizedTier = normalizeSubscriptionTier(subscription.tier);
+  const endAtMs =
+    typeof subscription.endAt === "number" && Number.isFinite(subscription.endAt)
+      ? subscription.endAt
+      : null;
+  if (endAtMs !== null) {
+    const msLeft = Math.max(0, endAtMs - nowMs);
+    const totalHours = Math.max(1, Math.ceil(msLeft / (60 * 60 * 1000)));
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    if (totalHours <= 24 || days <= 1) {
+      return `Осталось: ${totalHours} ч`;
+    }
+    return `Осталось: ${days} д ${hours} ч`;
+  }
+  if (typeof subscription.daysLeft === "number" && Number.isFinite(subscription.daysLeft)) {
+    if (subscription.daysLeft <= 1) {
+      return "Осталось: до 24 ч";
+    }
+    return `Осталось: ${subscription.daysLeft} д`;
+  }
+  return normalizedTier === "free" ? "Ограниченный доступ" : "Срок уточняется";
+}
+
 function isNicknameTakenError(message: string): boolean {
   const normalized = message.toLowerCase();
   return (
@@ -3145,6 +3194,11 @@ export default function App() {
     text: string;
     rewards?: Array<{ type: "subscription" | "badge"; label: string }>;
   } | null>(null);
+  const [promoRewardsDialogOpen, setPromoRewardsDialogOpen] = useState(false);
+  const [promoRewardsResult, setPromoRewardsResult] = useState<{
+    text: string;
+    rewards: Array<{ type: "subscription" | "badge"; label: string }>;
+  } | null>(null);
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const [adminPanelKey, setAdminPanelKey] = useState(
     () => localStorage.getItem("court_admin_panel_key") ?? "",
@@ -3303,6 +3357,7 @@ export default function App() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false);
+  const createMatchDialogRef = useRef<HTMLDivElement | null>(null);
   const [publicMatches, setPublicMatches] = useState<PublicMatchInfo[]>([]);
   const [joinPasswordDialogOpen, setJoinPasswordDialogOpen] = useState(false);
   const [observerListDialogOpen, setObserverListDialogOpen] = useState(false);
@@ -3668,11 +3723,12 @@ export default function App() {
         body: { code },
       });
       setPromoCodeInput("");
-      setPromoCodeResult({
-        kind: "success",
+      setPromoRewardsResult({
         text: payload.message || "Промокод активирован.",
         rewards: Array.isArray(payload.rewards) ? payload.rewards : [],
       });
+      setPromoDialogOpen(false);
+      setPromoRewardsDialogOpen(true);
       try {
         const profilePayload = await authRequest<{ profile: PublicUserProfile }>("/auth/profile", {
           token: authToken,
@@ -4099,15 +4155,23 @@ export default function App() {
     setAdminUserLookupLoading(true);
     setAdminPromoFeedback(null);
     try {
-      const payload = await authRequest<{ ok: true; user: AdminLookupUserView }>(
-        "/auth/admin/user/find",
-        {
+      const payload = (await Promise.race([
+        authRequest<{ ok: true; user: AdminLookupUserView }>("/auth/admin/user/find", {
           method: "POST",
           token: authToken,
           headers,
           body: { query },
-        },
-      );
+        }),
+        new Promise<never>((_, reject) =>
+          window.setTimeout(
+            () => reject(new Error("Сервер не ответил на поиск. Попробуйте снова.")),
+            9000,
+          ),
+        ),
+      ])) as { ok: true; user: AdminLookupUserView };
+      if (!payload?.user || typeof payload.user.id !== "string") {
+        throw new Error("Пользователь не найден.");
+      }
       setAdminUserLookupQuery(query);
       setAdminUserLookupResult(payload.user);
       setAdminModerationNickname(payload.user.nickname);
@@ -4601,6 +4665,14 @@ export default function App() {
     }, 320);
     return () => window.clearTimeout(timer);
   }, [shopDuration]);
+  useEffect(() => {
+    if (!createPackCatalogOpen) return;
+    window.requestAnimationFrame(() => {
+      if (createMatchDialogRef.current) {
+        createMatchDialogRef.current.scrollTop = 0;
+      }
+    });
+  }, [createPackCatalogOpen]);
   useEffect(() => {
     if (canCreatePrivateRooms || !createRoomPrivate) return;
     setCreateRoomPrivate(false);
@@ -6599,9 +6671,7 @@ export default function App() {
       ? adminHostSessionToken ?? mySessionToken
       : mySessionToken;
   const adminTargetRoomCode = room?.code ?? game?.code ?? null;
-  const canManageBotsInRoom = !!room && roomControlPlayerId === room.hostId;
-  const canManageBotsInGame = !!game && gameControlPlayerId === game.hostId;
-  const canManageAdminBots = canManageBotsInRoom || canManageBotsInGame;
+  const canManageAdminBots = !!adminTargetRoomCode && isCreatorAdmin;
   const adminBotPlayers = useMemo(() => {
     if (room) {
       return room.players.filter((player) => player.isBot || /^бот-\d+$/i.test((player.name ?? "").trim()));
@@ -6737,9 +6807,7 @@ export default function App() {
   }, [socket, room, roomControlSessionToken]);
 
   const addAdminBots = useCallback(() => {
-    const canManageInRoom = !!room && roomControlPlayerId === room.hostId;
-    const canManageInGame = !!game && gameControlPlayerId === game.hostId;
-    if (!adminTargetRoomCode || !authToken || !isCreatorAdmin || (!canManageInRoom && !canManageInGame)) return;
+    if (!adminTargetRoomCode || !authToken || !isCreatorAdmin) return;
     socket.emit("admin_add_bots", {
       code: adminTargetRoomCode,
       authToken,
@@ -6752,8 +6820,6 @@ export default function App() {
     game,
     authToken,
     isCreatorAdmin,
-    roomControlPlayerId,
-    gameControlPlayerId,
     adminBotCount,
     adminTargetRoomCode,
     adminPanelKeyTrimmed,
@@ -8208,6 +8274,12 @@ export default function App() {
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
                   <div className="absolute inset-0 opacity-0 group-hover/banner:opacity-100 transition-opacity bg-black/15" />
+                  {profileBannerLocked && (
+                    <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-red-500/45 bg-zinc-950/80 px-2.5 py-1 text-[11px] text-red-100">
+                      <Lock className="h-3 w-3" />
+                      Баннер: Практик+
+                    </div>
+                  )}
                   <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                       <div className="flex items-center gap-4 min-w-0">
                       <div
@@ -8253,12 +8325,6 @@ export default function App() {
                         </div>
                       </div>
                     <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                      {profileBannerLocked && (
-                        <div className="col-span-2 sm:col-span-1 inline-flex items-center gap-1.5 rounded-full border border-amber-400/50 bg-amber-500/15 px-2.5 py-1 text-[11px] text-amber-100">
-                          <Lock className="h-3 w-3" />
-                          Баннер недоступен
-                        </div>
-                      )}
                       <Button
                         variant="outline"
                         className="rounded-xl border-zinc-500/70 bg-black/30 text-zinc-100 hover:bg-black/50 hover:text-zinc-100"
@@ -8541,15 +8607,7 @@ export default function App() {
                         )}
                       </div>
                       <div className="mt-2 text-sm text-zinc-300">
-                        {profileSubscription.isLifetime
-                          ? "Навсегда"
-                          : typeof profileSubscription.daysLeft === "number"
-                            ? `До окончания: ${profileSubscription.daysLeft} ${
-                                profileSubscription.daysLeft === 1 ? "день" : "дней"
-                              }`
-                            : profileTier === "free"
-                              ? "Ограниченный доступ"
-                              : "Срок уточняется"}
+                        {formatSubscriptionTimeLeftLabel(profileSubscription, nowMs)}
                       </div>
                       {profileTier !== "arbiter" && (
                         <Button
@@ -10148,7 +10206,9 @@ export default function App() {
               }}
             >
               <DialogContent
-                className={`top-[4vh] sm:top-[6vh] translate-y-0 w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[720px] max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
+                ref={createMatchDialogRef}
+                overlayClassName="bg-black/88"
+                className={`z-[150] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? "max-w-[1120px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -10205,7 +10265,7 @@ export default function App() {
                           const aLocked = isPackLockedForTier(a, myTier);
                           const bLocked = isPackLockedForTier(b, myTier);
                           if (aLocked !== bLocked) return aLocked ? 1 : -1;
-                          return (a.sortOrder ?? 100) - (b.sortOrder ?? 100);
+                          return getCasePackSortOrder(a) - getCasePackSortOrder(b);
                         })
                         .map((pack) => {
                         const isLocked = isPackLockedForTier(pack, myTier);
@@ -10583,6 +10643,8 @@ export default function App() {
                     variant="outline"
                     onClick={() => {
                       setPromoCodeResult(null);
+                      setPromoRewardsResult(null);
+                      setPromoRewardsDialogOpen(false);
                       setPromoDialogOpen(true);
                     }}
                     className="h-11 rounded-2xl border-zinc-700/80 bg-[linear-gradient(180deg,rgba(24,24,27,0.96),rgba(16,16,20,0.96))] px-5 text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:bg-zinc-800/95 hover:text-zinc-100"
@@ -10735,45 +10797,17 @@ export default function App() {
                   >
                     {promoCodeLoading ? "Проверяем" : "Активировать"}
                   </Button>
-                  {promoCodeResult && (
+                  {promoCodeResult?.kind === "error" && (
                     <AnimatePresence mode="wait" initial={false}>
                       <motion.div
-                        key={`promo-result-${promoCodeResult.kind}-${promoCodeResult.text}`}
+                        key={`promo-result-${promoCodeResult.text}`}
                         initial={{ opacity: 0, y: 10, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -6, scale: 0.98 }}
                         transition={{ duration: 0.22, ease: "easeOut" }}
-                        className={`rounded-xl border px-4 py-3 ${
-                          promoCodeResult.kind === "success"
-                            ? "border-emerald-500/45 bg-[linear-gradient(145deg,rgba(5,22,18,0.95),rgba(8,32,23,0.92))] text-emerald-200"
-                            : "border-red-500/45 bg-[linear-gradient(145deg,rgba(30,9,12,0.95),rgba(43,11,15,0.92))] text-red-200"
-                        }`}
+                        className="rounded-xl border border-red-500/45 bg-[linear-gradient(145deg,rgba(30,9,12,0.95),rgba(43,11,15,0.92))] px-4 py-3 text-red-200"
                       >
                         <div className="text-sm font-semibold">{promoCodeResult.text}</div>
-                        {promoCodeResult.kind === "success" && promoCodeResult.rewards && promoCodeResult.rewards.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {promoCodeResult.rewards.map((reward, idx) => (
-                              <motion.div
-                                key={`promo-reward-${reward.type}-${reward.label}-${idx}`}
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.2, delay: idx * 0.06 }}
-                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
-                                  reward.type === "subscription"
-                                    ? "border-red-400/50 bg-red-600/15 text-red-100"
-                                    : "border-amber-400/55 bg-amber-500/15 text-amber-100"
-                                }`}
-                              >
-                                {reward.type === "subscription" ? (
-                                  <Crown className="h-3.5 w-3.5" />
-                                ) : (
-                                  <BadgeCheck className="h-3.5 w-3.5" />
-                                )}
-                                {reward.label}
-                              </motion.div>
-                            ))}
-                          </div>
-                        )}
                       </motion.div>
                     </AnimatePresence>
                   )}
@@ -10782,6 +10816,76 @@ export default function App() {
                       Для активации промокода нужно войти в аккаунт.
                     </div>
                   )}
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Dialog
+              open={promoRewardsDialogOpen}
+              onOpenChange={(open) => {
+                setPromoRewardsDialogOpen(open);
+                if (!open) {
+                  setPromoRewardsResult(null);
+                }
+              }}
+            >
+              <DialogContent
+                overlayClassName="bg-black/90"
+                className="max-w-[520px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.26),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100 p-8 sm:p-9"
+              >
+                <div className="space-y-5">
+                  <motion.div
+                    initial={{ opacity: 0, y: -12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                    className="text-center"
+                  >
+                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-red-400/55 bg-red-600/20 text-red-100 shadow-[0_0_20px_rgba(239,68,68,0.28)]">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div className="mt-3 text-3xl font-bold tracking-tight text-zinc-100">
+                      Промокод активирован
+                    </div>
+                  </motion.div>
+                  <div className="rounded-2xl border border-zinc-700/80 bg-zinc-950/75 p-4">
+                    <div className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                      Получено
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {(promoRewardsResult?.rewards?.length
+                        ? promoRewardsResult.rewards
+                        : [{ type: "subscription" as const, label: "Награда применена" }]
+                      ).map((reward, idx) => (
+                        <motion.div
+                          key={`promo-reward-modal-${reward.type}-${reward.label}-${idx}`}
+                          initial={{ opacity: 0, x: -18, scale: 0.98 }}
+                          animate={{ opacity: 1, x: 0, scale: 1 }}
+                          transition={{ duration: 0.3, delay: 0.18 + idx * 0.22, ease: "easeOut" }}
+                          className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-sm ${
+                            reward.type === "subscription"
+                              ? "border-red-400/40 bg-red-600/12 text-red-100"
+                              : "border-amber-300/45 bg-amber-500/12 text-amber-100"
+                          }`}
+                        >
+                          {reward.type === "subscription" ? (
+                            <Crown className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <BadgeCheck className="h-4 w-4 shrink-0" />
+                          )}
+                          <span className="font-medium">{reward.label}</span>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    className="h-12 w-full rounded-xl bg-[linear-gradient(135deg,rgba(239,68,68,1),rgba(220,38,38,1))] text-white shadow-[0_12px_24px_rgba(239,68,68,0.3)] hover:brightness-110"
+                    onClick={() => {
+                      setPromoRewardsDialogOpen(false);
+                      setPromoRewardsResult(null);
+                    }}
+                  >
+                    Отлично
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -10877,7 +10981,13 @@ export default function App() {
         )}
 
         {homeTab === "help" && (
-          <div className="max-w-7xl mx-auto w-full">
+          <motion.div
+            key="help-tab-content"
+            initial={{ opacity: 0, y: 10, scale: 0.992 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.28, ease: "easeOut" }}
+            className="max-w-7xl mx-auto w-full"
+          >
             <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100">
               <CardContent className="p-6 md:p-8 lg:p-10">
                 <HelpCenter
@@ -10886,7 +10996,7 @@ export default function App() {
                 />
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
         )}
         <div className="flex-1" />
         {showLegalFooter && (

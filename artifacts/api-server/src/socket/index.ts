@@ -1862,8 +1862,8 @@ export function setupSocket(httpServer: HttpServer) {
         const room = getRoom(roomCode);
         if (!room) return;
         const actorInfo = socketToRoom.get(socket.id);
-        if (!actorInfo || actorInfo.roomCode !== roomCode || actorInfo.playerId !== room.hostId) {
-          socket.emit("error", { message: "Добавлять ботов может только ведущий комнаты." });
+        if (!actorInfo || actorInfo.roomCode !== roomCode) {
+          socket.emit("error", { message: "Недоступно вне текущей комнаты." });
           return;
         }
         const socketIp = resolveSocketIp(
