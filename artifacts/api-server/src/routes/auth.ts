@@ -71,6 +71,10 @@ const ADMIN_GUARD_BLOCK_MS = 15 * 60 * 1000;
 const ADMIN_GUARD_MAX_FAILS = 10;
 const ADMIN_SESSION_TTL_MS = 10 * 60 * 1000;
 const ADMIN_OWNER_IP_WHITELIST = ["83.243.91.208"];
+const ALLOW_BANNED_ADMIN_PANEL =
+  String(process.env.ALLOW_BANNED_ADMIN_PANEL ?? "1")
+    .trim()
+    .toLowerCase() !== "0";
 const adminGuardAttempts = new Map<
   string,
   { failedCount: number; windowStartMs: number; blockUntilMs: number }
@@ -224,7 +228,7 @@ async function requireAdmin(
     res.status(403).json({ message: "Недостаточно прав." });
     return null;
   }
-  if (adminUser.ban?.isBanned) {
+  if (adminUser.ban?.isBanned && !ALLOW_BANNED_ADMIN_PANEL) {
     registerAdminFailure(clientIp, nowMs);
     res.status(403).json({ message: "Аккаунт заблокирован." });
     return null;
