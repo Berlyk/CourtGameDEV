@@ -7359,13 +7359,13 @@ export default function App() {
         <button
           type="button"
           onClick={() => setAdminToolsOpen(true)}
-          className="fixed bottom-5 left-5 z-[140] inline-flex h-10 items-center gap-2 rounded-xl border border-red-500/45 bg-zinc-950/92 px-3 text-xs font-semibold text-red-200 shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition hover:border-red-400/70 hover:text-red-100"
+          className="fixed bottom-5 left-5 z-[440] inline-flex h-10 items-center gap-2 rounded-xl border border-red-500/45 bg-zinc-950/92 px-3 text-xs font-semibold text-red-200 shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition hover:border-red-400/70 hover:text-red-100"
         >
           <Wrench className="h-3.5 w-3.5" />
           Админ
         </button>
         <Dialog open={adminToolsOpen} onOpenChange={setAdminToolsOpen}>
-          <DialogContent className={`z-[150] max-w-3xl border-zinc-800 bg-zinc-950 text-zinc-100 ${HIDE_SCROLLBAR_CLASS}`}>
+          <DialogContent className={`z-[450] max-w-3xl border-zinc-800 bg-zinc-950 text-zinc-100 ${HIDE_SCROLLBAR_CLASS}`}>
             <DialogHeader>
               <DialogTitle>Админ-панель</DialogTitle>
               <DialogDescription className="text-zinc-400">
