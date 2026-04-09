@@ -1,12 +1,15 @@
-﻿import { Router } from "express";
+﻿import crypto from "node:crypto";
+import { Router } from "express";
 import {
   applyPromoCodeByToken,
   assignSubscriptionByUserId,
   changeEmailByToken,
   changePasswordByToken,
+  deletePromoCodeByAdmin,
   getPublicUserProfileById,
   getProfileByToken,
   getUserByToken,
+  listPromoCodesByAdmin,
   loginAccount,
   logoutByToken,
   registerAccount,
@@ -37,6 +40,69 @@ function getRequestToken(headers: Record<string, unknown>): string | null {
     return readBearerToken(xAuth);
   }
   return null;
+}
+
+function secureCompare(a: string, b: string): boolean {
+  const left = Buffer.from(String(a), "utf8");
+  const right = Buffer.from(String(b), "utf8");
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
+
+function resolveClientIp(req: Parameters<typeof authRouter.get>[1]): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded.split(",")[0]?.trim() ?? "";
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return String(forwarded[0] ?? "").trim();
+  }
+  return String(req.ip ?? "").trim();
+}
+
+async function requireAdmin(req: Parameters<typeof authRouter.get>[1], res: Parameters<typeof authRouter.get>[2]) {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    res.status(401).json({ message: "Не авторизован." });
+    return null;
+  }
+  const adminUser = await getUserByToken(token);
+  const adminLogin = String(process.env.ADMIN_PANEL_LOGIN ?? "berly").trim().toLowerCase();
+  if (!adminUser || adminUser.login.trim().toLowerCase() !== adminLogin) {
+    res.status(403).json({ message: "Недостаточно прав." });
+    return null;
+  }
+  const requiredAdminUserId = String(process.env.ADMIN_USER_ID ?? "").trim();
+  if (requiredAdminUserId && adminUser.id !== requiredAdminUserId) {
+    res.status(403).json({ message: "Недостаточно прав." });
+    return null;
+  }
+  const requiredKey = String(process.env.ADMIN_PANEL_KEY ?? "").trim();
+  if (requiredKey) {
+    const providedRaw = req.headers["x-admin-key"];
+    const provided =
+      typeof providedRaw === "string"
+        ? providedRaw.trim()
+        : Array.isArray(providedRaw)
+          ? String(providedRaw[0] ?? "").trim()
+          : "";
+    if (!provided || !secureCompare(provided, requiredKey)) {
+      res.status(403).json({ message: "Неверный ключ админ-панели." });
+      return null;
+    }
+  }
+  const allowedIps = String(process.env.ADMIN_ALLOWED_IPS ?? "")
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter(Boolean);
+  if (allowedIps.length > 0) {
+    const clientIp = resolveClientIp(req);
+    if (!clientIp || !allowedIps.includes(clientIp)) {
+      res.status(403).json({ message: "IP не разрешен для админ-панели." });
+      return null;
+    }
+  }
+  return { token, adminUser };
 }
 
 authRouter.post("/auth/register", async (req, res) => {
@@ -290,14 +356,8 @@ authRouter.patch("/auth/promo/apply", async (req, res) => {
 });
 
 authRouter.patch("/auth/admin/subscription", async (req, res) => {
-  const token = getRequestToken(req.headers as Record<string, unknown>);
-  if (!token) {
-    return res.status(401).json({ message: "Не авторизован." });
-  }
-  const adminUser = await getUserByToken(token);
-  if (!adminUser || adminUser.login.trim().toLowerCase() !== "berly") {
-    return res.status(403).json({ message: "Недостаточно прав." });
-  }
+  const auth = await requireAdmin(req, res);
+  if (!auth) return;
 
   const userId = String(req.body?.userId ?? "").trim();
   const tier = String(req.body?.tier ?? "").trim();
@@ -341,14 +401,8 @@ authRouter.patch("/auth/admin/subscription", async (req, res) => {
 });
 
 authRouter.patch("/auth/admin/promo", async (req, res) => {
-  const token = getRequestToken(req.headers as Record<string, unknown>);
-  if (!token) {
-    return res.status(401).json({ message: "Не авторизован." });
-  }
-  const adminUser = await getUserByToken(token);
-  if (!adminUser || adminUser.login.trim().toLowerCase() !== "berly") {
-    return res.status(403).json({ message: "Недостаточно прав." });
-  }
+  const auth = await requireAdmin(req, res);
+  if (!auth) return;
 
   const code = String(req.body?.code ?? "").trim();
   const tier = String(req.body?.tier ?? "").trim();
@@ -385,7 +439,7 @@ authRouter.patch("/auth/admin/promo", async (req, res) => {
         typeof req.body?.expiresAt === "number"
           ? req.body.expiresAt
           : undefined,
-      createdByUserId: adminUser.id,
+      createdByUserId: auth.adminUser.id,
     });
     return res.status(200).json({ ok: true, promo });
   } catch (error) {
@@ -394,5 +448,39 @@ authRouter.patch("/auth/admin/promo", async (req, res) => {
   }
 });
 
+authRouter.get("/auth/admin/promo/list", async (req, res) => {
+  const auth = await requireAdmin(req, res);
+  if (!auth) return;
+  try {
+    const promos = await listPromoCodesByAdmin();
+    return res.status(200).json({ ok: true, promos });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось загрузить промокоды.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.patch("/auth/admin/promo/delete", async (req, res) => {
+  const auth = await requireAdmin(req, res);
+  if (!auth) return;
+  const code = String(req.body?.code ?? "").trim();
+  if (!code) {
+    return res.status(400).json({ message: "Укажите промокод." });
+  }
+  try {
+    const deleted = await deletePromoCodeByAdmin(code);
+    if (!deleted) {
+      return res.status(404).json({ message: "Промокод не найден." });
+    }
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось удалить промокод.";
+    return res.status(400).json({ message });
+  }
+});
+
 export default authRouter;
+
+
+
 

@@ -477,6 +477,28 @@ function getSubscriptionFeatureIcon(feature: string): LucideIcon {
   return Sparkles;
 }
 
+function getSubscriptionDurationLabel(duration: SubscriptionDuration | string): string {
+  if (duration === "1_day") return "1 день";
+  if (duration === "7_days") return "7 дней";
+  if (duration === "1_month") return "1 месяц";
+  if (duration === "1_year") return "1 год";
+  if (duration === "forever") return "Навсегда";
+  return "1 месяц";
+}
+
+function formatPromoDate(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "—";
+  return date.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 const BADGE_ICONS: Record<string, LucideIcon> = {
   plaintiff: Scale,
   defendant: Shield,
@@ -1895,6 +1917,20 @@ interface PublicUserProfile {
   };
 }
 
+interface AdminPromoCodeView {
+  code: string;
+  tier: SubscriptionTier;
+  duration: SubscriptionDuration;
+  source: string;
+  isActive: boolean;
+  maxUses: number | null;
+  usedCount: number;
+  startsAt: string | null;
+  expiresAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 interface MyPlayer {
   id: string;
   userId?: string;
@@ -2337,9 +2373,10 @@ async function cropImageDataUrl(options: {
 async function authRequest<T>(
   path: string,
   options?: {
-    method?: "GET" | "POST" | "PATCH";
+    method?: "GET" | "POST" | "PATCH" | "DELETE";
     token?: string | null;
     body?: unknown;
+    headers?: Record<string, string>;
   },
 ): Promise<T> {
   let response: Response;
@@ -2349,6 +2386,7 @@ async function authRequest<T>(
       headers: {
         "Content-Type": "application/json",
         ...(options?.token ? { Authorization: `Bearer ${options.token}` } : {}),
+        ...(options?.headers ?? {}),
       },
       body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
     });
@@ -3023,6 +3061,24 @@ export default function App() {
     kind: "success" | "error";
     text: string;
   } | null>(null);
+  const [adminToolsOpen, setAdminToolsOpen] = useState(false);
+  const [adminPanelKey, setAdminPanelKey] = useState(
+    () => localStorage.getItem("court_admin_panel_key") ?? "",
+  );
+  const [adminPromoCodeDraft, setAdminPromoCodeDraft] = useState("");
+  const [adminPromoTier, setAdminPromoTier] = useState<SubscriptionTier>("trainee");
+  const [adminPromoDuration, setAdminPromoDuration] = useState<SubscriptionDuration>("1_month");
+  const [adminPromoMaxUses, setAdminPromoMaxUses] = useState("");
+  const [adminPromoStartsAt, setAdminPromoStartsAt] = useState("");
+  const [adminPromoExpiresAt, setAdminPromoExpiresAt] = useState("");
+  const [adminPromoIsActive, setAdminPromoIsActive] = useState(true);
+  const [adminPromos, setAdminPromos] = useState<AdminPromoCodeView[]>([]);
+  const [adminPromoLoading, setAdminPromoLoading] = useState(false);
+  const [adminPromoListLoading, setAdminPromoListLoading] = useState(false);
+  const [adminPromoFeedback, setAdminPromoFeedback] = useState<{
+    kind: "success" | "error";
+    text: string;
+  } | null>(null);
   const [legalDialogType, setLegalDialogType] = useState<keyof typeof LEGAL_DOCS | null>(null);
   const [upsellModalOpen, setUpsellModalOpen] = useState(false);
   const [upsellTitle, setUpsellTitle] = useState("Функция недоступна");
@@ -3263,6 +3319,7 @@ export default function App() {
   const ignoreLateRoomJoinedRef = useRef(false);
   const lastAutoRejoinAttemptAtRef = useRef(0);
   const speechTimerStageRef = useRef<string>("");
+  const routeSyncInitializedRef = useRef(false);
   const socket = getSocket();
   const activeRoomCode = room?.code ?? game?.code ?? null;
   const sharedAvatar = avatar;
@@ -3287,6 +3344,11 @@ export default function App() {
   }, []);
   const isAuthenticated = !!authUser && !!authToken;
   const isCreatorAdmin = (authUser?.login ?? "").trim().toLowerCase() === "berly";
+  const adminPanelKeyTrimmed = adminPanelKey.trim();
+  const adminRequestHeaders = useMemo(
+    () => (adminPanelKeyTrimmed ? { "x-admin-key": adminPanelKeyTrimmed } : undefined),
+    [adminPanelKeyTrimmed],
+  );
   const rememberKnownUserIds = useCallback((players?: Array<{ id?: string; userId?: string }>) => {
     if (!Array.isArray(players)) return;
     players.forEach((player) => {
@@ -3334,6 +3396,96 @@ export default function App() {
     setHomeTab("shop");
     setScreen("home");
   }, []);
+  const resolvePathFromState = useCallback(() => {
+    if (screen === "profile") return "/profile";
+    if (screen === "room") {
+      return room?.code ? `/room/${encodeURIComponent(room.code)}` : "/room";
+    }
+    if (screen === "game") {
+      const code = game?.code ?? room?.code ?? "";
+      return code ? `/match/${encodeURIComponent(code)}` : "/match";
+    }
+    if (homeTab === "shop") return "/shop";
+    if (homeTab === "development") return "/development";
+    if (homeTab === "help") return "/help";
+    return "/";
+  }, [screen, homeTab, room?.code, game?.code]);
+  const applyRouteFromPath = useCallback(
+    (rawPath: string) => {
+      const normalized = (rawPath || "/").trim().toLowerCase();
+      if (normalized === "/profile") {
+        setScreen("profile");
+        return;
+      }
+      if (normalized === "/shop") {
+        setScreen("home");
+        setHomeTab("shop");
+        return;
+      }
+      if (normalized === "/development") {
+        setScreen("home");
+        setHomeTab("development");
+        return;
+      }
+      if (normalized === "/help") {
+        setScreen("home");
+        setHomeTab("help");
+        return;
+      }
+      if (normalized.startsWith("/room/")) {
+        const codeRaw = rawPath.split("/")[2] ?? "";
+        const code = decodeURIComponent(codeRaw).trim().toUpperCase();
+        if (room?.code && room.code.toUpperCase() === code) {
+          setScreen("room");
+          return;
+        }
+        setScreen("home");
+        setHomeTab("play");
+        if (code) {
+          setJoinCode(code);
+        }
+        return;
+      }
+      if (normalized.startsWith("/match/")) {
+        const codeRaw = rawPath.split("/")[2] ?? "";
+        const code = decodeURIComponent(codeRaw).trim().toUpperCase();
+        if (game?.code && game.code.toUpperCase() === code) {
+          setScreen("game");
+          return;
+        }
+        setScreen("home");
+        setHomeTab("play");
+        if (code) {
+          setJoinCode(code);
+        }
+        return;
+      }
+      setScreen("home");
+      setHomeTab("play");
+    },
+    [room?.code, game?.code],
+  );
+  useEffect(() => {
+    if (routeSyncInitializedRef.current) return;
+    routeSyncInitializedRef.current = true;
+    applyRouteFromPath(window.location.pathname);
+  }, [applyRouteFromPath]);
+  useEffect(() => {
+    const onPopState = () => {
+      applyRouteFromPath(window.location.pathname);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [applyRouteFromPath]);
+  useEffect(() => {
+    if (!routeSyncInitializedRef.current) return;
+    const nextPath = resolvePathFromState();
+    if (window.location.pathname !== nextPath) {
+      window.history.replaceState(window.history.state, "", nextPath);
+    }
+  }, [resolvePathFromState]);
   const openSubscriptionUpsell = useCallback(
     (
       capability: SubscriptionCapabilityKey,
@@ -3393,6 +3545,140 @@ export default function App() {
       setPromoCodeLoading(false);
     }
   }, [authToken, promoCodeInput, promoCodeLoading]);
+  const generateAdminPromoCode = useCallback(() => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const makePart = (len: number) =>
+      Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    setAdminPromoCodeDraft(`${makePart(4)}-${makePart(4)}-${makePart(4)}`);
+  }, []);
+  const loadAdminPromos = useCallback(async () => {
+    if (!authToken || !isCreatorAdmin) return;
+    setAdminPromoListLoading(true);
+    setAdminPromoFeedback(null);
+    try {
+      const payload = await authRequest<{ ok: true; promos: AdminPromoCodeView[] }>(
+        "/auth/admin/promo/list",
+        {
+          token: authToken,
+          headers: adminRequestHeaders,
+        },
+      );
+      setAdminPromos(Array.isArray(payload.promos) ? payload.promos : []);
+    } catch (error) {
+      setAdminPromoFeedback({
+        kind: "error",
+        text:
+          error instanceof Error
+            ? localizeAuthError(error.message)
+            : "Не удалось загрузить промокоды.",
+      });
+    } finally {
+      setAdminPromoListLoading(false);
+    }
+  }, [authToken, isCreatorAdmin, adminRequestHeaders]);
+  const submitAdminPromo = useCallback(async () => {
+    if (!authToken || !isCreatorAdmin) return;
+    const code = adminPromoCodeDraft.trim().toUpperCase();
+    if (!code) {
+      setAdminPromoFeedback({ kind: "error", text: "Введите код промокода." });
+      return;
+    }
+    if (adminPromoExpiresAt && adminPromoStartsAt && adminPromoExpiresAt < adminPromoStartsAt) {
+      setAdminPromoFeedback({ kind: "error", text: "Дата окончания должна быть позже даты старта." });
+      return;
+    }
+    const parsedMaxUses = adminPromoMaxUses.trim()
+      ? Math.max(0, Math.floor(Number(adminPromoMaxUses)))
+      : null;
+    if (parsedMaxUses !== null && !Number.isFinite(parsedMaxUses)) {
+      setAdminPromoFeedback({ kind: "error", text: "Лимит использований должен быть числом." });
+      return;
+    }
+    setAdminPromoLoading(true);
+    setAdminPromoFeedback(null);
+    try {
+      await authRequest<{ ok: true }>("/auth/admin/promo", {
+        method: "PATCH",
+        token: authToken,
+        headers: adminRequestHeaders,
+        body: {
+          code,
+          tier: adminPromoTier,
+          duration: adminPromoDuration,
+          isActive: adminPromoIsActive,
+          maxUses: parsedMaxUses,
+          startsAt: adminPromoStartsAt ? new Date(adminPromoStartsAt).toISOString() : null,
+          expiresAt: adminPromoExpiresAt ? new Date(adminPromoExpiresAt).toISOString() : null,
+        },
+      });
+      setAdminPromoFeedback({ kind: "success", text: "Промокод сохранён." });
+      setAdminPromoCodeDraft("");
+      setAdminPromoMaxUses("");
+      setAdminPromoStartsAt("");
+      setAdminPromoExpiresAt("");
+      setAdminPromoTier("trainee");
+      setAdminPromoDuration("1_month");
+      setAdminPromoIsActive(true);
+      await loadAdminPromos();
+    } catch (error) {
+      setAdminPromoFeedback({
+        kind: "error",
+        text:
+          error instanceof Error
+            ? localizeAuthError(error.message)
+            : "Не удалось сохранить промокод.",
+      });
+    } finally {
+      setAdminPromoLoading(false);
+    }
+  }, [
+    authToken,
+    isCreatorAdmin,
+    adminPromoCodeDraft,
+    adminPromoDuration,
+    adminPromoExpiresAt,
+    adminPromoIsActive,
+    adminPromoMaxUses,
+    adminPromoStartsAt,
+    adminPromoTier,
+    adminRequestHeaders,
+    loadAdminPromos,
+  ]);
+  const deleteAdminPromo = useCallback(
+    async (code: string) => {
+      if (!authToken || !isCreatorAdmin || !code) return;
+      setAdminPromoListLoading(true);
+      setAdminPromoFeedback(null);
+      try {
+        await authRequest<{ ok: true }>("/auth/admin/promo/delete", {
+          method: "PATCH",
+          token: authToken,
+          headers: adminRequestHeaders,
+          body: { code },
+        });
+        setAdminPromoFeedback({ kind: "success", text: `Промокод ${code} удалён.` });
+        await loadAdminPromos();
+      } catch (error) {
+        setAdminPromoFeedback({
+          kind: "error",
+          text:
+            error instanceof Error
+              ? localizeAuthError(error.message)
+              : "Не удалось удалить промокод.",
+        });
+      } finally {
+        setAdminPromoListLoading(false);
+      }
+    },
+    [authToken, isCreatorAdmin, adminRequestHeaders, loadAdminPromos],
+  );
+  useEffect(() => {
+    localStorage.setItem("court_admin_panel_key", adminPanelKey);
+  }, [adminPanelKey]);
+  useEffect(() => {
+    if (!adminToolsOpen || !isCreatorAdmin || !authToken) return;
+    void loadAdminPromos();
+  }, [adminToolsOpen, isCreatorAdmin, authToken, loadAdminPromos]);
   useEffect(() => {
     if (canCreatePrivateRooms || !createRoomPrivate) return;
     setCreateRoomPrivate(false);
@@ -5393,6 +5679,18 @@ export default function App() {
       ? adminHostSessionToken ?? mySessionToken
       : mySessionToken;
   const adminTargetRoomCode = room?.code ?? game?.code ?? null;
+  const canManageBotsInRoom = !!room && roomControlPlayerId === room.hostId;
+  const canManageBotsInGame = !!game && gameControlPlayerId === game.hostId;
+  const canManageAdminBots = canManageBotsInRoom || canManageBotsInGame;
+  const adminBotPlayers = useMemo(() => {
+    if (room) {
+      return room.players.filter((player) => player.isBot || /^бот-\d+$/i.test((player.name ?? "").trim()));
+    }
+    if (game) {
+      return game.players.filter((player) => player.isBot || /^бот-\d+$/i.test((player.name ?? "").trim()));
+    }
+    return [] as PlayerInfo[];
+  }, [room, game]);
 
   const startGame = useCallback(() => {
     if (!room || !roomControlSessionToken) return;
@@ -6122,6 +6420,257 @@ export default function App() {
       </DialogContent>
     </Dialog>
   );
+  const renderAdminTools = () => {
+    if (!isAuthenticated || !isCreatorAdmin) return null;
+    const currentHostId = room?.hostId ?? game?.hostId ?? null;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setAdminToolsOpen(true)}
+          className="fixed bottom-5 left-5 z-[140] inline-flex h-10 items-center gap-2 rounded-xl border border-red-500/45 bg-zinc-950/92 px-3 text-xs font-semibold text-red-200 shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition hover:border-red-400/70 hover:text-red-100"
+        >
+          <Wrench className="h-3.5 w-3.5" />
+          Админ
+        </button>
+        <Dialog open={adminToolsOpen} onOpenChange={setAdminToolsOpen}>
+          <DialogContent className={`max-w-3xl border-zinc-800 bg-zinc-950 text-zinc-100 ${HIDE_SCROLLBAR_CLASS}`}>
+            <DialogHeader>
+              <DialogTitle>Админ-панель</DialogTitle>
+              <DialogDescription className="text-zinc-400">
+                Управление промокодами и служебными инструментами.
+              </DialogDescription>
+            </DialogHeader>
+            <div className={`space-y-4 max-h-[75vh] overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+                <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Защита</div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                  <Input
+                    value={adminPanelKey}
+                    onChange={(event) => setAdminPanelKey(event.target.value)}
+                    placeholder="Ключ админ-панели"
+                    className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                    onClick={() => void loadAdminPromos()}
+                    disabled={adminPromoListLoading}
+                  >
+                    Обновить
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                    onClick={() => setAdminPanelKey("")}
+                  >
+                    Очистить
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+                <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Создать промокод</div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <Input
+                    value={adminPromoCodeDraft}
+                    onChange={(event) => setAdminPromoCodeDraft(event.target.value.toUpperCase())}
+                    placeholder="Код промокода"
+                    className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={generateAdminPromoCode}
+                    className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                  >
+                    Сгенерировать
+                  </Button>
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <Select
+                    value={adminPromoTier}
+                    onValueChange={(value) => setAdminPromoTier(normalizeSubscriptionTier(value))}
+                  >
+                    <SelectTrigger className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
+                      {(["trainee", "practitioner", "arbiter", "free"] as SubscriptionTier[]).map((tier) => (
+                        <SelectItem key={`admin-tier-${tier}`} value={tier}>
+                          {getSubscriptionTierLabel(tier)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={adminPromoDuration}
+                    onValueChange={(value) =>
+                      setAdminPromoDuration(value as SubscriptionDuration)
+                    }
+                  >
+                    <SelectTrigger className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
+                      {(["1_day", "7_days", "1_month", "1_year", "forever"] as SubscriptionDuration[]).map((duration) => (
+                        <SelectItem key={`admin-duration-${duration}`} value={duration}>
+                          {getSubscriptionDurationLabel(duration)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={adminPromoMaxUses}
+                    onChange={(event) => setAdminPromoMaxUses(event.target.value)}
+                    placeholder="Лимит использований"
+                    className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                  />
+                  <div className="flex items-center justify-between rounded-xl border border-zinc-700 bg-zinc-950 px-3">
+                    <span className="text-xs text-zinc-400">Активен</span>
+                    <Switch checked={adminPromoIsActive} onCheckedChange={setAdminPromoIsActive} />
+                  </div>
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs text-zinc-500">Старт</label>
+                    <Input
+                      type="datetime-local"
+                      value={adminPromoStartsAt}
+                      onChange={(event) => setAdminPromoStartsAt(event.target.value)}
+                      className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-zinc-500">Срок годности</label>
+                    <Input
+                      type="datetime-local"
+                      value={adminPromoExpiresAt}
+                      onChange={(event) => setAdminPromoExpiresAt(event.target.value)}
+                      className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => void submitAdminPromo()}
+                  disabled={adminPromoLoading}
+                  className="mt-3 h-10 w-full rounded-xl bg-red-600 text-white hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-300"
+                >
+                  {adminPromoLoading ? "Сохраняем" : "Сохранить промокод"}
+                </Button>
+              </div>
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Активные промокоды</div>
+                  <div className="text-xs text-zinc-500">Всего: {adminPromos.length}</div>
+                </div>
+                {adminPromoFeedback && (
+                  <div
+                    className={`mt-2 rounded-lg border px-2.5 py-2 text-xs ${
+                      adminPromoFeedback.kind === "success"
+                        ? "border-emerald-500/45 bg-emerald-600/10 text-emerald-200"
+                        : "border-red-500/45 bg-red-600/10 text-red-200"
+                    }`}
+                  >
+                    {adminPromoFeedback.text}
+                  </div>
+                )}
+                <div className={`mt-2 space-y-2 max-h-60 overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
+                  {adminPromoListLoading ? (
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-3 py-2 text-xs text-zinc-400">
+                      Загружаем список...
+                    </div>
+                  ) : adminPromos.length === 0 ? (
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-3 py-2 text-xs text-zinc-400">
+                      Промокоды пока не созданы.
+                    </div>
+                  ) : (
+                    adminPromos.map((promo) => (
+                      <div
+                        key={`admin-promo-${promo.code}`}
+                        className="rounded-xl border border-zinc-800 bg-zinc-950/70 px-3 py-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-semibold text-zinc-100">{promo.code}</div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => void deleteAdminPromo(promo.code)}
+                            className="h-7 rounded-lg border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100"
+                          >
+                            Удалить
+                          </Button>
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-400">
+                          {getSubscriptionTierLabel(promo.tier)} • {getSubscriptionDurationLabel(promo.duration)} • использований: {promo.usedCount}
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-500">
+                          Срок: {formatPromoDate(promo.startsAt)} — {formatPromoDate(promo.expiresAt)}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              {canManageAdminBots && adminTargetRoomCode && (
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+                  <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Боты</div>
+                  <div className={`mt-2 space-y-1 max-h-28 overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
+                    {adminBotPlayers.length === 0 ? (
+                      <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2 text-xs text-zinc-400">
+                        Ботов пока нет.
+                      </div>
+                    ) : (
+                      adminBotPlayers.map((bot) => (
+                        <button
+                          key={`admin-bot-global-${bot.id}`}
+                          type="button"
+                          onClick={() => controlAdminPlayer(bot.id)}
+                          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-left text-xs font-semibold text-zinc-100 transition hover:border-red-500/70 hover:bg-zinc-800"
+                        >
+                          Зайти за {bot.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                  {currentHostId && myId !== currentHostId && (
+                    <button
+                      type="button"
+                      onClick={() => controlAdminPlayer(currentHostId)}
+                      className="mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-red-500/70 hover:bg-zinc-800"
+                    >
+                      Вернуться к ведущему
+                    </button>
+                  )}
+                  <div className="mt-2 flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={6}
+                      value={adminBotCount}
+                      onChange={(event) =>
+                        setAdminBotCount(Math.max(1, Math.min(6, Number(event.target.value) || 1)))
+                      }
+                      className="h-9 w-20 rounded-lg border-zinc-700 bg-zinc-900 text-zinc-100"
+                    />
+                    <Button
+                      type="button"
+                      onClick={addAdminBots}
+                      className="h-9 flex-1 rounded-lg bg-red-600 px-3 text-xs text-white hover:bg-red-500"
+                    >
+                      Добавить ботов
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  };
 
   if (screen === "profile") {
     const profileData: PublicUserProfile | null = myProfile
@@ -7244,6 +7793,7 @@ export default function App() {
           </DialogContent>
         </Dialog>
         {renderPublicProfileDialog()}
+        {renderAdminTools()}
         {renderUpsellModal()}
         <ScreenTransitionLoader open={globalBlockingLoading} />
       </motion.div>
@@ -8171,7 +8721,7 @@ export default function App() {
               }}
             >
               <DialogContent
-                className={`relative w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[720px] max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
+                className={`w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[720px] max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -8610,11 +9160,6 @@ export default function App() {
                     Промокод
                   </Button>
                 </div>
-                {shopDuration === "1_year" && (
-                  <div className="mt-2 text-center text-xs text-emerald-300">
-                    Годовой план выгоднее: оплата за 10 месяцев вместо 12.
-                  </div>
-                )}
                 <div className="mt-5 grid gap-4 xl:grid-cols-3">
                   {SUBSCRIPTION_PLANS.map((plan, planIndex) => {
                     const isCurrent = myTier === plan.tier;
@@ -8622,8 +9167,6 @@ export default function App() {
                       shopDuration === "1_year" ? plan.yearPriceRub : plan.monthPriceRub;
                     const yearlyBasePrice = plan.monthPriceRub * 12;
                     const yearlySave = Math.max(0, yearlyBasePrice - plan.yearPriceRub);
-                    const yearlySavePercent =
-                      yearlyBasePrice > 0 ? Math.round((yearlySave / yearlyBasePrice) * 100) : 0;
                     const planBadgeKey = getSubscriptionPlanBadgeKey(plan.tier);
                     const planBadgeTheme = getBadgeTheme(planBadgeKey);
                     return (
@@ -8662,8 +9205,8 @@ export default function App() {
                         {shopDuration === "1_year" && yearlySave > 0 && (
                           <div className="mt-2 flex items-center gap-2 text-xs">
                             <span className="text-zinc-500 line-through">{yearlyBasePrice} RUB</span>
-                            <span className="inline-flex items-center rounded-full border border-emerald-400/45 bg-emerald-500/15 px-2 py-0.5 text-emerald-200">
-                              -{yearlySavePercent}% · 2 месяца в подарок
+                            <span className="inline-flex items-center rounded-full border border-red-500/45 bg-red-600/15 px-2 py-0.5 text-red-100">
+                              2 месяца бесплатно
                             </span>
                           </div>
                         )}
@@ -8860,6 +9403,7 @@ export default function App() {
             </Card>
           </div>
         )}
+        <div className="flex-1" />
         {showLegalFooter && (
           <div className="mx-auto mt-auto max-w-6xl pb-1 pt-10 text-center text-[11px] text-zinc-600 sm:text-xs">
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
@@ -8915,6 +9459,7 @@ export default function App() {
           </DialogContent>
         </Dialog>
         {renderPublicProfileDialog()}
+        {renderAdminTools()}
         {renderUpsellModal()}
         <ScreenTransitionLoader open={globalBlockingLoading} />
       </motion.div>
@@ -9180,7 +9725,7 @@ export default function App() {
         {hasRoomHostControl && (
           <Dialog open={roomManageOpen} onOpenChange={setRoomManageOpen}>
             <DialogContent
-              className="relative rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.28)_transparent] [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/40 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/55"
+              className="rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.28)_transparent] [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/40 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/55"
             >
               {upsellModalOpen && roomManageOpen && (
                 <div className="pointer-events-none absolute inset-0 z-20 rounded-3xl bg-black/45" />
@@ -9910,6 +10455,7 @@ export default function App() {
             </div>
           </DialogContent>
         </Dialog>
+        {renderAdminTools()}
         {renderUpsellModal()}
         <ScreenTransitionLoader open={globalBlockingLoading} />
       </motion.div>
@@ -11357,6 +11903,7 @@ export default function App() {
             </div>
           </DialogContent>
         </Dialog>
+        {renderAdminTools()}
         {renderUpsellModal()}
         <ScreenTransitionLoader open={globalBlockingLoading} />
       </motion.div>

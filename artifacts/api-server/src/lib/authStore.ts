@@ -93,6 +93,20 @@ export interface PromoApplyResult {
   subscription: UserSubscriptionView;
 }
 
+export interface AdminPromoCodeView {
+  code: string;
+  tier: SubscriptionTier;
+  duration: SubscriptionDuration;
+  source: SubscriptionSource;
+  isActive: boolean;
+  maxUses: number | null;
+  usedCount: number;
+  startsAt: string | null;
+  expiresAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 export interface UserMatchParticipantView {
   userId?: string;
   nickname: string;
@@ -1909,6 +1923,82 @@ export async function upsertPromoCodeByAdmin(input: {
   );
 
   return { code: normalizedCode, tier, duration };
+}
+
+export async function listPromoCodesByAdmin(): Promise<AdminPromoCodeView[]> {
+  await ensureTables();
+  const result = await pool.query<{
+    code_display: string;
+    tier: string;
+    duration: string;
+    source: string;
+    is_active: boolean;
+    max_uses: number | null;
+    used_count: number;
+    starts_at: Date | null;
+    expires_at: Date | null;
+    created_at: Date | null;
+    updated_at: Date | null;
+  }>(
+    `
+      SELECT
+        code_display,
+        tier,
+        duration,
+        source,
+        is_active,
+        max_uses,
+        used_count,
+        starts_at,
+        expires_at,
+        created_at,
+        updated_at
+      FROM auth_subscription_promocodes
+      ORDER BY created_at DESC NULLS LAST, code_display ASC
+    `,
+  );
+
+  return result.rows.map((row) => ({
+    code: String(row.code_display || "").trim().toUpperCase(),
+    tier: normalizeSubscriptionTier(row.tier),
+    duration: normalizeSubscriptionDuration(row.duration),
+    source: normalizeSubscriptionSource(row.source),
+    isActive: !!row.is_active,
+    maxUses: typeof row.max_uses === "number" && Number.isFinite(row.max_uses) ? row.max_uses : null,
+    usedCount:
+      typeof row.used_count === "number" && Number.isFinite(row.used_count)
+        ? Math.max(0, Math.floor(row.used_count))
+        : 0,
+    startsAt: row.starts_at instanceof Date && Number.isFinite(row.starts_at.getTime()) ? row.starts_at.toISOString() : null,
+    expiresAt:
+      row.expires_at instanceof Date && Number.isFinite(row.expires_at.getTime())
+        ? row.expires_at.toISOString()
+        : null,
+    createdAt:
+      row.created_at instanceof Date && Number.isFinite(row.created_at.getTime())
+        ? row.created_at.toISOString()
+        : null,
+    updatedAt:
+      row.updated_at instanceof Date && Number.isFinite(row.updated_at.getTime())
+        ? row.updated_at.toISOString()
+        : null,
+  }));
+}
+
+export async function deletePromoCodeByAdmin(code: string): Promise<boolean> {
+  await ensureTables();
+  const normalizedCode = normalizePromoCode(code);
+  if (!normalizedCode) {
+    throw new Error("Укажите промокод.");
+  }
+  const result = await pool.query(
+    `
+      DELETE FROM auth_subscription_promocodes
+      WHERE code_normalized = $1
+    `,
+    [normalizedCode],
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function recordMatchOutcome(input: {
