@@ -8360,8 +8360,8 @@ export default function App() {
               </div>
 
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
-              <div
-                  className="relative h-[156px] md:min-h-[122px] p-3.5 md:p-6 flex items-end cursor-pointer group/banner"
+                <div
+                  className="relative h-[210px] md:min-h-[122px] p-3.5 md:p-6 flex items-end cursor-pointer group/banner"
                   style={getBannerStyle(profileBannerDraft, profileAvatarDraft, playerName || "Игрок")}
                   onClick={() => {
                     if (profileBannerLocked) {
@@ -8377,28 +8377,32 @@ export default function App() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
                   <div className="absolute inset-0 opacity-0 group-hover/banner:opacity-100 transition-opacity bg-black/15" />
                   {profileBannerLocked && (
-                    <div className="pointer-events-none absolute right-3 top-3 inline-flex h-7 items-center gap-1.5 rounded-full border border-zinc-500/80 bg-zinc-900/80 px-2.5 text-[11px] font-semibold text-zinc-100 md:h-8 md:px-3 md:text-xs">
+                    <div className="pointer-events-none absolute right-2 top-2 inline-flex h-7 items-center gap-1.5 rounded-full border border-zinc-500/80 bg-zinc-900/80 px-2.5 text-[11px] font-semibold text-zinc-100 md:right-3 md:top-3 md:h-8 md:px-3 md:text-xs">
                       <Lock className="h-3.5 w-3.5" />
                       <span>Баннер</span>
                     </div>
                   )}
-                  <div className="relative z-10 flex w-full flex-col gap-2.5 md:flex-row md:items-end md:justify-between md:gap-4">
-                      <div className="flex min-w-0 w-full items-center gap-2.5 md:gap-4 text-left">
-                      <div
-                        className="relative cursor-pointer group/avatar"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          avatarInputRef.current?.click();
-                        }}
-                      >
-                        <Avatar src={profileAvatarDraft} name={playerName || "?"} size={86} />
-                        <div className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
-                          <Camera className="w-6 h-6 text-white" />
+
+                  <div className="relative z-10 w-full md:hidden">
+                    <div className="pt-7">
+                      <div className="flex items-end gap-3">
+                        <div
+                          className="relative shrink-0 cursor-pointer group/avatar"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            avatarInputRef.current?.click();
+                          }}
+                        >
+                          <Avatar src={profileAvatarDraft} name={playerName || "?"} size={84} />
+                          <div className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                            <Camera className="w-5 h-5 text-white" />
+                          </div>
                         </div>
-                      </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 flex-col items-start gap-1.5">
-                            <div className="text-2xl md:text-3xl font-bold leading-none">{playerName || "Игрок"}</div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="max-w-full truncate text-[44px] font-bold leading-none">
+                              {playerName || "Игрок"}
+                            </div>
                             {selectedBadgeKey && (
                               <span
                                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
@@ -8413,23 +8417,84 @@ export default function App() {
                               </span>
                             )}
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-                            <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
+                          <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px]">
+                            <span className="inline-flex h-7 items-center rounded-full border border-zinc-600 bg-black/35 px-2.5 whitespace-nowrap">
                               Возраст: {ageLabel}
-                          </span>
-                          <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
-                            Пол: {genderLabel}
-                          </span>
-                            <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
+                            </span>
+                            <span className="inline-flex h-7 items-center rounded-full border border-zinc-600 bg-black/35 px-2.5 whitespace-nowrap">
+                              Пол: {genderLabel}
+                            </span>
+                            <span className="inline-flex h-7 items-center rounded-full border border-zinc-600 bg-black/35 px-2.5 whitespace-nowrap">
                               С нами с: {registeredAtLabel}
                             </span>
                           </div>
                         </div>
                       </div>
-                    <div className="flex items-center justify-end md:justify-end">
+                      <div
+                        className="mt-2"
+                      >
+                        <Button
+                          variant="outline"
+                          className="h-9 w-full rounded-xl border-zinc-500/70 bg-black/30 text-zinc-100 hover:bg-black/50 hover:text-zinc-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void resetProfileMedia();
+                          }}
+                        >
+                          Сброс
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative z-10 hidden w-full md:flex md:items-end md:justify-between md:gap-4">
+                    <div className="flex min-w-0 items-center gap-4 text-left">
+                      <div
+                        className="relative cursor-pointer group/avatar"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          avatarInputRef.current?.click();
+                        }}
+                      >
+                        <Avatar src={profileAvatarDraft} name={playerName || "?"} size={138} />
+                        <div className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                          <Camera className="w-6 h-6 text-white" />
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <div className="text-3xl font-bold leading-none">{playerName || "Игрок"}</div>
+                          {selectedBadgeKey && (
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
+                                getBadgeTheme(selectedBadgeKey).chip
+                              }`}
+                            >
+                              <BadgeGlyph
+                                badgeKey={selectedBadgeKey}
+                                className={`h-3.5 w-3.5 ${getBadgeTheme(selectedBadgeKey).iconOnly ?? "text-zinc-300"}`}
+                              />
+                              {getBadgeTitleByKey(selectedBadgeKey, badges)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                          <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
+                            Возраст: {ageLabel}
+                          </span>
+                          <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
+                            Пол: {genderLabel}
+                          </span>
+                          <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
+                            С нами с: {registeredAtLabel}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end">
                       <Button
                         variant="outline"
-                        className="h-9 w-full min-w-[112px] rounded-xl border-zinc-500/70 bg-black/30 text-zinc-100 hover:bg-black/50 hover:text-zinc-100 md:h-10 md:w-auto md:min-w-[118px]"
+                        className="h-10 min-w-[118px] rounded-xl border-zinc-500/70 bg-black/30 text-zinc-100 hover:bg-black/50 hover:text-zinc-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           void resetProfileMedia();
@@ -11312,8 +11377,8 @@ export default function App() {
         )}
         <div className="flex-1" />
         {showLegalFooter && (
-          <div className="mx-auto mt-auto max-w-6xl pb-1 pt-10 text-center text-[11px] text-zinc-600 sm:text-xs px-2">
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+          <div className="mx-auto mt-auto w-full max-w-6xl px-3 pb-2 pt-10 text-center text-[11px] text-zinc-600 sm:text-xs">
+            <div className="mx-auto flex w-full flex-col items-center justify-center gap-y-1 sm:flex-row sm:flex-wrap sm:gap-x-3">
               <button
                 type="button"
                 onClick={() => setLegalDialogType("privacy")}
@@ -11330,7 +11395,7 @@ export default function App() {
                 Пользовательское соглашение
               </button>
             </div>
-            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-zinc-700">
+            <div className="mt-1 flex flex-col items-center justify-center gap-y-1 text-zinc-700 sm:flex-row sm:flex-wrap sm:gap-x-2">
               <span>© 2026 CourtGame. Все права защищены.</span>
               <span className="text-zinc-800">•</span>
               <span>support@courtgame.site</span>
@@ -11344,7 +11409,7 @@ export default function App() {
           }}
         >
           {activeLegalDoc ? (
-            <DialogContent overlayClassName="bg-black/94" className={`max-w-3xl max-h-[86vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.45)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/55 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/70`}>
+            <DialogContent overlayClassName="bg-black/94" className={`max-w-3xl max-h-[86vh] overflow-y-auto border-zinc-800 bg-zinc-950 pr-12 pt-3 text-zinc-100 sm:pr-6 sm:pt-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.45)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/55 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/70`}>
               <DialogHeader>
                 <DialogTitle className="text-xl">{activeLegalDoc.title}</DialogTitle>
                 <DialogDescription className="text-zinc-400">
