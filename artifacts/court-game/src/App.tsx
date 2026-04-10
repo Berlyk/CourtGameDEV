@@ -472,13 +472,23 @@ function getCasePackTitleDisplay(title: string | undefined): string {
 function getCasePackSortOrder(
   pack: { key?: string; title?: string; sortOrder?: number } | null | undefined,
 ): number {
-  const base = typeof pack?.sortOrder === "number" ? pack.sortOrder : 100;
   const key = (pack?.key ?? "").toLowerCase();
   const title = (pack?.title ?? "").toLowerCase();
   const full = `${key} ${title}`;
-  if (full.includes("18+")) return 55;
-  if (full.includes("запад") || full.includes("west")) return 56;
-  return base;
+  if (full.includes("classic") || full.includes("класс")) return 0;
+  if (
+    full.includes("hard_cases") ||
+    full.includes("особо тяж") ||
+    full.includes("тяжк")
+  )
+    return 1;
+  if (full.includes("18+")) return 2;
+  if (full.includes("запад") || full.includes("west")) return 3;
+  if (full.includes("средневек") || full.includes("medieval")) return 4;
+  if (full.includes("cyberpunk")) return 5;
+  if (full.includes("boys")) return 6;
+  if (full.includes("рим") || full.includes("roman")) return 7;
+  return typeof pack?.sortOrder === "number" ? pack.sortOrder + 100 : 999;
 }
 
 function getSubscriptionPlanBadgeKey(tier: SubscriptionTier): string | undefined {
@@ -7486,7 +7496,7 @@ export default function App() {
           <div className="text-center text-[46px] font-black tracking-[0.08em] text-red-100">
             ВЫ ЗАБЛОКИРОВАНЫ
           </div>
-          <div className="mt-5 text-center text-xl text-zinc-200">
+          <div className="mt-4 text-center text-xl text-zinc-200">
             {activeBan.reason?.trim() ? activeBan.reason.trim() : "Нарушение правил проекта."}
           </div>
           <div className="mt-5">
@@ -8351,7 +8361,7 @@ export default function App() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
                   <div className="absolute inset-0 opacity-0 group-hover/banner:opacity-100 transition-opacity bg-black/15" />
                   {profileBannerLocked && (
-                    <div className="pointer-events-none absolute right-4 top-4 inline-flex h-8 items-center gap-1.5 rounded-full border border-zinc-500/80 bg-zinc-900/80 px-3 text-xs font-semibold text-zinc-100">
+                    <div className="pointer-events-none absolute right-[17px] top-4 inline-flex h-8 items-center gap-1.5 rounded-full border border-zinc-500/80 bg-zinc-900/80 px-3 text-xs font-semibold text-zinc-100">
                       <Lock className="h-3.5 w-3.5" />
                       <span>Баннер</span>
                     </div>
@@ -10307,7 +10317,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="bg-black/88"
-                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? "max-w-[760px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
+                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -10342,7 +10352,7 @@ export default function App() {
                         </span>
                       </Button>
                     </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                       {[...casePacks]
                         .sort((a, b) => {
                           const aLocked = isPackLockedForTier(a, myTier);
@@ -10360,9 +10370,12 @@ export default function App() {
                           <>
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
-                                <div className="text-sm font-semibold text-zinc-100 break-words">{displayTitle}</div>
-                                <div className="mt-0.5 text-[11px] leading-4 text-zinc-300 break-words">
+                                <div className="text-base font-semibold text-zinc-100 break-words">{displayTitle}</div>
+                                <div className="mt-1 text-[12px] leading-5 text-zinc-300 break-words">
                                   {pack.description}
+                                </div>
+                                <div className="mt-1.5 text-[11px] uppercase tracking-[0.24em] text-zinc-500 break-words">
+                                  {visual.vibe}
                                 </div>
                               </div>
                               <div className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visual.countChip}`}>
@@ -10394,7 +10407,7 @@ export default function App() {
                                   `Пак «${displayTitle}» доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`,
                                 )
                               }
-                              className={`relative overflow-hidden rounded-2xl border px-3 py-2 text-left transition-colors hover:border-zinc-500 ${cardClass}`}
+                              className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition-colors hover:border-zinc-500 ${cardClass}`}
                             >
                               {content}
                             </button>
@@ -10408,7 +10421,7 @@ export default function App() {
                               setCreateRoomPackKey(pack.key);
                               setCreatePackCatalogOpen(false);
                             }}
-                            className={`relative overflow-hidden rounded-2xl border px-3 py-2 text-left transition-all hover:brightness-105 ${cardClass}`}
+                            className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition-all hover:brightness-105 ${cardClass}`}
                           >
                             {content}
                           </button>
@@ -11413,10 +11426,22 @@ export default function App() {
                         const bTitle = String(b.title ?? "").toLowerCase();
                         const aOrder =
                           orderByKey[a.key] ??
-                          (aTitle.includes("18+") ? 2 : Number.MAX_SAFE_INTEGER);
+                          (aTitle.includes("особо") || aTitle.includes("тяжк")
+                            ? 1
+                            : aTitle.includes("18+")
+                              ? 2
+                              : aTitle.includes("запад")
+                                ? 3
+                                : Number.MAX_SAFE_INTEGER);
                         const bOrder =
                           orderByKey[b.key] ??
-                          (bTitle.includes("18+") ? 2 : Number.MAX_SAFE_INTEGER);
+                          (bTitle.includes("особо") || bTitle.includes("тяжк")
+                            ? 1
+                            : bTitle.includes("18+")
+                              ? 2
+                              : bTitle.includes("запад")
+                                ? 3
+                                : Number.MAX_SAFE_INTEGER);
                         if (aOrder !== bOrder) return aOrder - bOrder;
                         return getCasePackSortOrder(a) - getCasePackSortOrder(b);
                       })
