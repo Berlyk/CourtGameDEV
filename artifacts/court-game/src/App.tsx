@@ -356,6 +356,17 @@ const LEGAL_DOCS = {
           "Перед обращением в суд стороны стремятся урегулировать спор в досудебном порядке через обращение в поддержку проекта.",
         ],
       },
+      {
+        title: "11. Дополнительные правила платформы",
+        paragraphs: [
+          "Запрещено использовать нецензурные ники.",
+          "Запрещено размещать в профиле оскорбления, дискриминацию, экстремизм и нецензурную лексику.",
+          "Запрещены попытки накрутки статистики и иных игровых показателей.",
+          "Запрещены угрозы, домогательства, спам, массовый флуд, намеренная дезинформация и иные деструктивные действия, ухудшающие опыт других пользователей.",
+          "Запрещены ложные обвинения, подделка сообщений, фальсификация данных и мошеннические действия.",
+          "Запрещено искать и использовать уязвимости сервиса; обнаруженные уязвимости необходимо незамедлительно передавать администрации проекта по официальным каналам связи.",
+        ],
+      },
     ],
   },
 } as const;
@@ -2543,7 +2554,7 @@ function localizeAuthError(message: string): string {
     return "Введите корректную почту.";
   }
   if (normalized.includes("must accept the site rules")) {
-    return "Нужно принять правила сайта.";
+    return "Нужно принять пользовательское соглашение.";
   }
   if (normalized.includes("please enter login/email and password")) {
     return "Введите логин/email и пароль.";
@@ -7460,7 +7471,7 @@ export default function App() {
         : null;
     return (
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 px-4">
-        <div className="w-full max-w-2xl rounded-2xl border border-red-500/45 bg-[radial-gradient(120%_130%_at_50%_0%,rgba(239,68,68,0.24),transparent_58%),linear-gradient(165deg,rgba(15,10,12,0.98),rgba(10,10,12,0.98))] p-6 text-zinc-100 shadow-[0_34px_100px_rgba(0,0,0,0.76)]">
+        <div className="w-full max-w-xl rounded-2xl border border-red-500/45 bg-[radial-gradient(120%_130%_at_50%_0%,rgba(239,68,68,0.24),transparent_58%),linear-gradient(165deg,rgba(15,10,12,0.98),rgba(10,10,12,0.98))] p-5 text-zinc-100 shadow-[0_34px_100px_rgba(0,0,0,0.76)]">
           <div className="flex justify-center">
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-red-400/60 bg-red-600/15 text-red-100">
               <Lock className="h-5 w-5" />
@@ -7472,11 +7483,11 @@ export default function App() {
           <div className="mt-4 text-center text-lg text-zinc-200">
             {activeBan.reason?.trim() ? activeBan.reason.trim() : "Нарушение правил проекта."}
           </div>
-          <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-2.5">
+          <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-2">
             {activeBan.isPermanent ? (
-              <div className="text-center text-2xl font-bold text-red-200">Навсегда</div>
+              <div className="text-center text-xl font-bold text-red-200">Навсегда</div>
             ) : (
-              <div className="mx-auto grid max-w-[520px] grid-cols-4 gap-1.5">
+              <div className="mx-auto grid max-w-[460px] grid-cols-4 gap-1.5">
                 {[
                   { key: "d", value: countdown?.days ?? 0, label: "дней" },
                   { key: "h", value: countdown?.hours ?? 0, label: "часов" },
@@ -7485,10 +7496,10 @@ export default function App() {
                 ].map((item) => (
                   <div
                     key={`ban-timer-${item.key}`}
-                    className="rounded-lg border border-zinc-700 bg-zinc-950/90 px-1.5 py-1.5 text-center"
+                    className="rounded-lg border border-zinc-700 bg-zinc-950/90 px-1.5 py-1 text-center"
                   >
-                    <div className="text-lg font-bold leading-none text-zinc-100">{String(item.value).padStart(2, "0")}</div>
-                    <div className="mt-1 text-[10px] uppercase tracking-[0.08em] text-zinc-500">{item.label}</div>
+                    <div className="text-base font-bold leading-none text-zinc-100">{String(item.value).padStart(2, "0")}</div>
+                    <div className="mt-0.5 text-[9px] uppercase tracking-[0.08em] text-zinc-500">{item.label}</div>
                   </div>
                 ))}
               </div>
@@ -8334,8 +8345,9 @@ export default function App() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
                   <div className="absolute inset-0 opacity-0 group-hover/banner:opacity-100 transition-opacity bg-black/15" />
                   {profileBannerLocked && (
-                    <div className="pointer-events-none absolute bottom-4 right-6 inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-600/80 bg-zinc-950/92 text-zinc-300">
-                      <Lock className="h-4 w-4" />
+                    <div className="pointer-events-none absolute right-6 top-4 inline-flex items-center gap-1.5 rounded-full border border-zinc-600/80 bg-zinc-950/90 px-2.5 py-1 text-[11px] font-medium text-zinc-200">
+                      <Lock className="h-3.5 w-3.5" />
+                      <span>Баннер</span>
                     </div>
                   )}
                   <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -9671,18 +9683,25 @@ export default function App() {
                 {authView === "rules" ? (
                   <>
                     <DialogHeader>
-                      <DialogTitle>Правила сайта</DialogTitle>
+                      <DialogTitle>Пользовательское соглашение</DialogTitle>
                       <DialogDescription className="text-zinc-400">
-                        Ознакомьтесь с правилами перед регистрацией.
+                        Ознакомьтесь с условиями перед регистрацией.
                       </DialogDescription>
                     </DialogHeader>
                     <div className={`space-y-2 max-h-[65vh] overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
-                      <p className="text-sm text-zinc-400">{RULES_INTRO_TEXT}</p>
-                      <ol className="list-decimal pl-5 space-y-2 text-sm text-zinc-300">
-                        {SITE_RULES.map((rule) => (
-                          <li key={rule}>{rule}</li>
+                      <p className="text-sm text-zinc-400">{LEGAL_DOCUMENTS.terms.intro}</p>
+                      <div className="space-y-3">
+                        {LEGAL_DOCUMENTS.terms.sections.map((section) => (
+                          <div key={section.title} className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-3">
+                            <div className="text-sm font-semibold text-zinc-100">{section.title}</div>
+                            <div className="mt-2 space-y-1.5 text-xs text-zinc-300">
+                              {section.paragraphs.map((paragraph) => (
+                                <p key={`${section.title}-${paragraph}`}>{paragraph}</p>
+                              ))}
+                            </div>
+                          </div>
                         ))}
-                      </ol>
+                      </div>
                     </div>
                     <Button
                       type="button"
@@ -9690,7 +9709,7 @@ export default function App() {
                       onClick={() => setAuthView("form")}
                       className="w-full h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                     >
-                      Назад к регистрации
+                      Назад
                     </Button>
                   </>
                 ) : (
@@ -9862,13 +9881,16 @@ export default function App() {
                               onChange={(e) => setRegisterAcceptRules(e.target.checked)}
                             />
                             <span>
-                              Я ознакомлен с{" "}
+                              Я принимаю{" "}
                               <button
                                 type="button"
                                 className="text-red-300 underline underline-offset-2 hover:text-red-200"
-                                onClick={() => setAuthView("rules")}
+                                onClick={() => {
+                                  setLegalDialogType("terms");
+                                  setLegalDialogOpen(true);
+                                }}
                               >
-                                правилами сайта
+                                пользовательское соглашение
                               </button>
                               .
                             </span>
