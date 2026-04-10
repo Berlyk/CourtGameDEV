@@ -8372,7 +8372,7 @@ export default function App() {
                     </div>
                   )}
                   <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                      <div className="flex items-center gap-4 min-w-0">
+                      <div className="flex flex-col items-center gap-4 text-center md:flex-row md:items-center md:text-left min-w-0">
                       <div
                         className="relative cursor-pointer group/avatar"
                         onClick={(e) => {
@@ -8385,9 +8385,9 @@ export default function App() {
                           <Camera className="w-6 h-6 text-white" />
                         </div>
                       </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 w-full">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-3xl font-bold leading-none">{playerName || "Игрок"}</div>
+                            <div className="text-2xl md:text-3xl font-bold leading-none">{playerName || "Игрок"}</div>
                             {selectedBadgeKey && (
                               <span
                                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
@@ -8402,7 +8402,7 @@ export default function App() {
                               </span>
                             )}
                           </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs md:justify-start">
                             <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
                               Возраст: {ageLabel}
                           </span>
@@ -8415,10 +8415,10 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                    <div className="flex w-full items-center justify-center md:w-auto md:justify-end">
                       <Button
                         variant="outline"
-                        className="rounded-xl border-zinc-500/70 bg-black/30 text-zinc-100 hover:bg-black/50 hover:text-zinc-100"
+                        className="h-10 w-full max-w-[220px] rounded-xl border-zinc-500/70 bg-black/30 text-zinc-100 hover:bg-black/50 hover:text-zinc-100 md:w-auto md:max-w-none"
                         onClick={(e) => {
                           e.stopPropagation();
                           void resetProfileMedia();
@@ -9568,7 +9568,7 @@ export default function App() {
               <img
                 src="/favicon.png"
                 alt="CourtGame"
-                className="h-8 w-8 rounded-md object-cover shadow-[0_0_14px_rgba(239,68,68,0.24)]"
+                className="h-9 w-9 rounded-full object-cover shadow-[0_0_16px_rgba(239,68,68,0.3)]"
               />
               <div className="truncate text-[17px] font-semibold tracking-wide text-zinc-100">
                 CourtGame
@@ -9586,9 +9586,9 @@ export default function App() {
           </div>
         </div>
 
-        <div className="md:hidden h-16" />
+        <div className="md:hidden h-14" />
 
-        <div className="max-w-6xl mx-auto mb-8 flex justify-center">
+        <div className="max-w-6xl mx-auto mb-3 md:mb-8 flex justify-center">
           <div className="relative w-full min-w-0">
 
             <AnimatePresence>
@@ -9608,10 +9608,22 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.22 }}
-                    className="md:hidden fixed inset-0 z-[240] flex items-start justify-center px-5 pt-24 pb-6"
+                    className="md:hidden fixed inset-0 z-[240] flex items-start justify-center px-4 pt-20 pb-4"
                   >
-                    <div className="w-full max-h-full overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950/98 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
-                    <div className="mb-6 flex justify-center">
+                    <div className="w-full max-h-full overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950/98 p-5 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
+                    <div className="mb-5 flex items-center justify-between">
+                      <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="h-10 w-10 rounded-xl border-zinc-700 bg-zinc-900/80 p-0 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        aria-label="Закрыть меню"
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <div className="mb-7 flex justify-center">
                       {isAuthenticated ? (
                         <Button
                           variant="outline"
@@ -9619,11 +9631,10 @@ export default function App() {
                             setMobileMenuOpen(false);
                             openProfileScreen();
                           }}
-                          className="h-11 min-w-[220px] rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 pl-1 pr-3 gap-2.5 justify-start"
+                          className="h-14 w-full max-w-[340px] rounded-2xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-3 gap-3 justify-start"
                         >
-                          <Avatar src={avatar} name={playerName || "Игрок"} size={30} />
-                          <span className="max-w-[130px] truncate text-sm">{playerName || "Игрок"}</span>
-                          <ChevronDown className="w-4 h-4 text-zinc-400" />
+                          <Avatar src={avatar} name={playerName || "Игрок"} size={34} />
+                          <span className="max-w-[220px] truncate text-base font-semibold">{playerName || "Игрок"}</span>
                         </Button>
                       ) : (
                         <Button
@@ -9634,14 +9645,14 @@ export default function App() {
                             setAuthView("form");
                             setAuthDialogOpen(true);
                           }}
-                          className="h-11 min-w-[220px] rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center"
+                          className="h-14 w-full max-w-[340px] rounded-2xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center"
                         >
                           <LogIn className="w-4 h-4" />
                           Войти
                         </Button>
                       )}
                     </div>
-                    <div className="grid gap-3">
+                    <div className="grid gap-3.5">
                       <Button
                         variant={homeTab === "play" ? "default" : "outline"}
                         onClick={() => {
@@ -9649,7 +9660,7 @@ export default function App() {
                           setProfileMenuOpen(false);
                           setMobileMenuOpen(false);
                         }}
-                        className={homeTab === "play" ? "h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
+                        className={homeTab === "play" ? "h-12 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-12 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
                       >
                         <Gamepad2 className="w-4 h-4 mr-2" />
                         Играть
@@ -9661,7 +9672,7 @@ export default function App() {
                           setProfileMenuOpen(false);
                           setMobileMenuOpen(false);
                         }}
-                        className={homeTab === "shop" ? "h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
+                        className={homeTab === "shop" ? "h-12 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-12 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
                       >
                         <Crown className="w-4 h-4 mr-2" />
                         Магазин
@@ -9673,7 +9684,7 @@ export default function App() {
                           setProfileMenuOpen(false);
                           setMobileMenuOpen(false);
                         }}
-                        className={homeTab === "development" ? "h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
+                        className={homeTab === "development" ? "h-12 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-12 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
                       >
                         <Wrench className="w-4 h-4 mr-2" />
                         Разработка
@@ -9686,7 +9697,7 @@ export default function App() {
                           setProfileMenuOpen(false);
                           setMobileMenuOpen(false);
                         }}
-                        className={homeTab === "help" ? "h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
+                        className={homeTab === "help" ? "h-12 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-12 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
                       >
                         <CircleHelp className="w-4 h-4 mr-2" />
                         Помощь
