@@ -2643,18 +2643,18 @@ function isBanStateActive(
   return ban.bannedUntil > nowMs;
 }
 
-function formatBanTimeLeft(msLeft: number): string {
+function getBanCountdownParts(msLeft: number): {
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+} {
   const totalSeconds = Math.max(0, Math.floor(msLeft / 1000));
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (days > 0) {
-    return `${days}д ${String(hours).padStart(2, "0")}ч ${String(minutes).padStart(2, "0")}м`;
-  }
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(
-    seconds,
-  ).padStart(2, "0")}`;
+  return { days, hours, minutes, seconds };
 }
 
 function formatSubscriptionTimeLeftLabel(
@@ -2666,8 +2666,9 @@ function formatSubscriptionTimeLeftLabel(
   },
   nowMs: number,
 ): string {
-  if (subscription.isLifetime) return "Навсегда";
   const normalizedTier = normalizeSubscriptionTier(subscription.tier);
+  if (normalizedTier === "free") return "Бесплатный доступ";
+  if (subscription.isLifetime) return "Навсегда";
   const endAtMs =
     typeof subscription.endAt === "number" && Number.isFinite(subscription.endAt)
       ? subscription.endAt
@@ -2688,7 +2689,7 @@ function formatSubscriptionTimeLeftLabel(
     }
     return `Осталось: ${subscription.daysLeft} д`;
   }
-  return normalizedTier === "free" ? "Ограниченный доступ" : "Срок уточняется";
+  return "Срок уточняется";
 }
 
 function isNicknameTakenError(message: string): boolean {
@@ -3513,10 +3514,6 @@ export default function App() {
     return isBanStateActive(ban, nowMs) ? ban : null;
   }, [authUser?.ban, nowMs]);
   const isUserBanned = !!activeBan;
-  const banTimeLeftLabel = useMemo(() => {
-    if (!activeBan || activeBan.isPermanent || typeof activeBan.bannedUntil !== "number") return null;
-    return formatBanTimeLeft(activeBan.bannedUntil - nowMs);
-  }, [activeBan, nowMs]);
   const isCreatorAdmin = (authUser?.login ?? "").trim().toLowerCase() === "berly";
   const isStaffAdmin = authUser?.adminRole === "administrator" || authUser?.adminRole === "moderator";
   const canSeeAdminButton = isAuthenticated && !isUserBanned && (isCreatorAdmin || isStaffAdmin);
@@ -4963,6 +4960,34 @@ export default function App() {
         display: none !important;
         width: 0 !important;
         height: 0 !important;
+      }
+      .court-range {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        border-radius: 9999px;
+        background: linear-gradient(90deg, rgba(239,68,68,0.92), rgba(113,113,122,0.45));
+        outline: none;
+      }
+      .court-range::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 9999px;
+        border: 2px solid rgba(255,255,255,0.9);
+        background: rgb(220 38 38);
+        box-shadow: 0 0 0 3px rgba(239,68,68,0.2);
+        cursor: pointer;
+      }
+      .court-range::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 9999px;
+        border: 2px solid rgba(255,255,255,0.9);
+        background: rgb(220 38 38);
+        box-shadow: 0 0 0 3px rgba(239,68,68,0.2);
+        cursor: pointer;
       }
     `;
     document.head.appendChild(style);
@@ -7416,25 +7441,47 @@ export default function App() {
   );
   const renderBanOverlay = () => {
     if (!activeBan) return null;
+    const countdown =
+      !activeBan.isPermanent && typeof activeBan.bannedUntil === "number"
+        ? getBanCountdownParts(activeBan.bannedUntil - nowMs)
+        : null;
     return (
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 px-4">
-        <div className="w-full max-w-xl rounded-2xl border border-red-500/35 bg-zinc-950/95 p-5 text-zinc-100 shadow-[0_30px_80px_rgba(0,0,0,0.72)]">
-          <div className="inline-flex items-center gap-2 rounded-full border border-red-400/45 bg-red-500/15 px-3 py-1 text-xs font-semibold text-red-100">
-            <Lock className="h-3.5 w-3.5" />
-            Вы заблокированы
+        <div className="w-full max-w-2xl rounded-2xl border border-red-500/45 bg-[radial-gradient(120%_130%_at_50%_0%,rgba(239,68,68,0.24),transparent_58%),linear-gradient(165deg,rgba(15,10,12,0.98),rgba(10,10,12,0.98))] p-6 text-zinc-100 shadow-[0_34px_100px_rgba(0,0,0,0.76)]">
+          <div className="flex justify-center">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-red-400/60 bg-red-600/15 text-red-100">
+              <Lock className="h-5 w-5" />
+            </div>
           </div>
-          <div className="mt-3 text-2xl font-bold">Доступ ограничен</div>
-          <div className="mt-2 text-sm text-zinc-300">
-            {activeBan.reason?.trim()
-              ? `Причина: ${activeBan.reason.trim()}`
-              : "Причина: нарушение правил проекта."}
+          <div className="mt-4 text-center text-4xl font-black tracking-[0.08em] text-red-100">
+            ВЫ ЗАБЛОКИРОВАНЫ
           </div>
-          <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-200">
-            {activeBan.isPermanent
-              ? "Срок: навсегда."
-              : `Осталось: ${banTimeLeftLabel ?? "00:00:00"}`}
+          <div className="mt-4 text-center text-lg text-zinc-200">
+            {activeBan.reason?.trim() ? activeBan.reason.trim() : "Нарушение правил проекта."}
           </div>
-          <div className="mt-3 text-xs text-zinc-500">
+          <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+            {activeBan.isPermanent ? (
+              <div className="text-center text-2xl font-bold text-red-200">Навсегда</div>
+            ) : (
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { key: "d", value: countdown?.days ?? 0, label: "дней" },
+                  { key: "h", value: countdown?.hours ?? 0, label: "часов" },
+                  { key: "m", value: countdown?.minutes ?? 0, label: "минут" },
+                  { key: "s", value: countdown?.seconds ?? 0, label: "секунд" },
+                ].map((item) => (
+                  <div
+                    key={`ban-timer-${item.key}`}
+                    className="rounded-xl border border-zinc-700 bg-zinc-950/90 px-2 py-2 text-center"
+                  >
+                    <div className="text-2xl font-bold text-zinc-100">{String(item.value).padStart(2, "0")}</div>
+                    <div className="text-[11px] uppercase tracking-[0.08em] text-zinc-500">{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="mt-3 text-center text-xs text-zinc-500">
             Пока блокировка активна, действия и переходы недоступны.
           </div>
         </div>
@@ -8274,9 +8321,8 @@ export default function App() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
                   <div className="absolute inset-0 opacity-0 group-hover/banner:opacity-100 transition-opacity bg-black/15" />
                   {profileBannerLocked && (
-                    <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-zinc-600/80 bg-zinc-950/88 px-2.5 py-1 text-[11px] font-medium text-zinc-200 shadow-[0_0_14px_rgba(0,0,0,0.4)]">
-                      <Lock className="h-3.5 w-3.5" />
-                      <span>Баннер закрыт</span>
+                    <div className="pointer-events-none absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-zinc-600/80 bg-zinc-950/90 text-zinc-200 shadow-[0_0_14px_rgba(0,0,0,0.45)]">
+                      <Lock className="h-4 w-4" />
                     </div>
                   )}
                   <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -9219,7 +9265,10 @@ export default function App() {
                 </div>
                 <div className={`grid gap-3 ${imageCropTarget === "avatar" ? "" : "md:grid-cols-2"}`}>
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-400">Масштаб</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-zinc-400">Масштаб</label>
+                      <span className="text-xs text-zinc-500">{Math.round(imageCropZoom * 100)}%</span>
+                    </div>
                     <Input
                       type="range"
                       min={1}
@@ -9227,16 +9276,16 @@ export default function App() {
                       step={0.01}
                       value={imageCropZoom}
                       onChange={(e) => setImageCropZoom(Number(e.target.value))}
-                      className="h-9"
+                      className="court-range h-2"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs text-zinc-400">Действия</label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center gap-2">
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 gap-2"
+                        className="h-10 min-w-[170px] rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 gap-2"
                         onClick={() => setImageCropFlipX((prev) => !prev)}
                       >
                         <FlipHorizontal className="h-4 w-4" />
@@ -9604,7 +9653,7 @@ export default function App() {
             >
               <DialogContent
                 overlayClassName="bg-black/88 backdrop-blur-[1.5px]"
-                className="max-w-[520px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)]"
+                className="max-w-[440px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)]"
               >
                 {authView === "rules" ? (
                   <>
@@ -9634,6 +9683,9 @@ export default function App() {
                 ) : (
                   <>
                     <DialogHeader>
+                      <div className="inline-flex w-fit items-center rounded-full border border-red-500/45 bg-red-600/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-red-100">
+                        CourtGame
+                      </div>
                       <DialogTitle>
                         {authMode === "login" ? "Вход в аккаунт" : "Регистрация"}
                       </DialogTitle>

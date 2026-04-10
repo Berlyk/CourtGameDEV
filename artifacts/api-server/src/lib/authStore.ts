@@ -275,6 +275,11 @@ const BADGE_PROMO_ALLOWED_KEYS = new Set<string>([
   ...Object.keys(ROLE_BADGE_META).map((key) => `role_${key}`),
   ...Object.values(SUBSCRIPTION_BADGE_META).map((entry) => entry.key),
 ]);
+const PROTECTED_OWNER_LOGIN = "berly";
+
+function isProtectedOwnerLogin(loginRaw: string | null | undefined): boolean {
+  return String(loginRaw ?? "").trim().toLowerCase() === PROTECTED_OWNER_LOGIN;
+}
 
 function getBadgeTitleForPromoReward(badgeKeyRaw: string): string {
   const badgeKey = String(badgeKeyRaw ?? "").trim();
@@ -998,7 +1003,14 @@ export async function loginAccount(input: {
     throw new Error("Неверный логин/email или пароль.");
   }
   const userBan = resolveBanView(row);
-  const ipBan = await getIpBanViewByAddress(clientIp);
+  const ipBan = isProtectedOwnerLogin(row.login)
+    ? {
+        isBanned: false,
+        isPermanent: false,
+        bannedUntil: null,
+        reason: null,
+      }
+    : await getIpBanViewByAddress(clientIp);
   const effectiveBan = mergeBanViews(userBan, ipBan);
 
   const token = crypto.randomUUID();
@@ -1051,7 +1063,14 @@ export async function getUserByToken(
   const row = result.rows[0];
   await touchUserIpRecord(row.id, clientIp);
   const userBan = resolveBanView(row);
-  const ipBan = await getIpBanViewByAddress(clientIp);
+  const ipBan = isProtectedOwnerLogin(row.login)
+    ? {
+        isBanned: false,
+        isPermanent: false,
+        bannedUntil: null,
+        reason: null,
+      }
+    : await getIpBanViewByAddress(clientIp);
   const effectiveBan = mergeBanViews(userBan, ipBan);
   return toPublicUser(row, effectiveBan);
 }
@@ -1499,14 +1518,15 @@ function buildBadgeList(input: {
   subscription: UserSubscriptionView;
 }): UserBadgeView[] {
   const { user, rank, stats, manualBadgeMap, subscription } = input;
-  const isBerly = user.login.toLowerCase() === "berly";
+  const isBerly = isProtectedOwnerLogin(user.login);
+  const canUseRating = !!subscription.capabilities.canUseRating;
   const badges: UserBadgeView[] = [];
   const roleStatsMap = new Map(stats.roleStats.map((row) => [row.roleKey, row]));
 
   for (let i = 0; i < RANK_DEFINITIONS.length; i += 1) {
     const rankDef = RANK_DEFINITIONS[i];
     const nextRankDef = RANK_DEFINITIONS[i + 1];
-    const isCurrentRank = rank.key === rankDef.key;
+    const isCurrentRank = canUseRating && rank.key === rankDef.key;
     const progressCurrent = isCurrentRank
       ? rank.progressCurrent
       : rank.points >= rankDef.minPoints
@@ -1529,9 +1549,11 @@ function buildBadgeList(input: {
       progressTarget,
       progressLabel: isCurrentRank
         ? "Текущий ранг"
-        : rank.points >= rankDef.minPoints
+        : canUseRating && rank.points >= rankDef.minPoints
           ? "Пройден"
-          : `${Math.max(0, rank.points)}/${rankDef.minPoints}`,
+          : canUseRating
+            ? `${Math.max(0, rank.points)}/${rankDef.minPoints}`
+            : "Открывается с подпиской «Стажер»",
     });
   }
 
@@ -1675,7 +1697,14 @@ export async function getProfileByToken(
   const row = result.rows[0];
   await touchUserIpRecord(row.id, clientIp);
   const userBan = resolveBanView(row);
-  const ipBan = await getIpBanViewByAddress(clientIp);
+  const ipBan = isProtectedOwnerLogin(row.login)
+    ? {
+        isBanned: false,
+        isPermanent: false,
+        bannedUntil: null,
+        reason: null,
+      }
+    : await getIpBanViewByAddress(clientIp);
   const effectiveBan = mergeBanViews(userBan, ipBan);
   if (effectiveBan.isBanned) {
     return null;
@@ -2668,6 +2697,7 @@ export async function setUserBanByAdmin(input: {
     ban_until: Date | null;
     ban_permanent: boolean | null;
     ban_reason: string | null;
+    login: string;
   }>(
     `
       UPDATE auth_users
@@ -2676,11 +2706,21 @@ export async function setUserBanByAdmin(input: {
         ban_permanent = $2,
         ban_reason = $3
       WHERE id = $4
-      RETURNING ban_until, ban_permanent, ban_reason
+        AND LOWER(login) <> 'berly'
+      RETURNING ban_until, ban_permanent, ban_reason, login
     `,
     [banUntil, forever, reason, userId],
   );
-  if (!result.rowCount) return null;
+  if (!result.rowCount) {
+    const protectedUser = await pool.query<{ login: string }>(
+      `SELECT login FROM auth_users WHERE id = $1 LIMIT 1`,
+      [userId],
+    );
+    if (protectedUser.rowCount > 0 && isProtectedOwnerLogin(protectedUser.rows[0].login)) {
+      throw new Error("Пользователь Berly защищен от блокировки.");
+    }
+    return null;
+  }
   const ban = resolveBanView(result.rows[0]);
   await syncUserIpBanRecords(userId, ban);
   return ban;

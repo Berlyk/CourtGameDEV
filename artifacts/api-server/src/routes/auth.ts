@@ -224,16 +224,16 @@ async function requireAdmin(
     res.status(403).json({ message: "Недостаточно прав." });
     return null;
   }
-  if (adminUser.ban?.isBanned) {
-    registerAdminFailure(clientIp, nowMs);
-    res.status(403).json({ message: "Аккаунт заблокирован." });
-    return null;
-  }
   const adminLogin = String(process.env.ADMIN_PANEL_LOGIN ?? "berly").trim().toLowerCase();
   const requiredAdminUserId = String(process.env.ADMIN_USER_ID ?? "").trim();
   const isOwnerByLogin = adminUser.login.trim().toLowerCase() === adminLogin;
   const isOwnerById = requiredAdminUserId ? adminUser.id === requiredAdminUserId : true;
   const isOwner = isOwnerByLogin && isOwnerById;
+  if (adminUser.ban?.isBanned && !isOwner) {
+    registerAdminFailure(clientIp, nowMs);
+    res.status(403).json({ message: "Аккаунт заблокирован." });
+    return null;
+  }
 
   let accessRole: AdminAccessRole | null = null;
   if (isOwner) {
