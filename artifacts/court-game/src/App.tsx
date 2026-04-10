@@ -8380,7 +8380,7 @@ export default function App() {
                           avatarInputRef.current?.click();
                         }}
                       >
-                        <Avatar src={profileAvatarDraft} name={playerName || "?"} size={isMobile ? 94 : 138} />
+                        <Avatar src={profileAvatarDraft} name={playerName || "?"} size={112} />
                         <div className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
                           <Camera className="w-6 h-6 text-white" />
                         </div>
@@ -9716,7 +9716,7 @@ export default function App() {
                         onClick={() => window.open(DISCORD_INVITE_URL, "_blank", "noopener,noreferrer")}
                         className="mt-3 h-11 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                       >
-                        <DiscordIcon className="mr-2 h-4 w-4" />
+                        <Globe className="mr-2 h-4 w-4" />
                         Перейти в Discord
                       </Button>
                     </div>
