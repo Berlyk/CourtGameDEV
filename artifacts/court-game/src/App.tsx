@@ -304,6 +304,7 @@ const LEGAL_DOCS = {
         paragraphs: [
           "Запрещены оскорбления, угрозы, дискриминация, спам, массовый флуд и деструктивное поведение, мешающее ходу матча.",
           "Запрещены попытки взлома, эксплуатации багов, подмены данных клиента и любые действия, направленные на нарушение работы сервиса.",
+          "Запрещается использовать сервис для обсуждения политических тем, политической агитации, пропаганды, разжигания общественной розни, а также для любых дискуссий, способных перевести игровой процесс в конфликт на политической почве.",
         ],
       },
       {
@@ -7618,9 +7619,7 @@ export default function App() {
                           )}{" "}
                           ·{" "}
                           {getSubscriptionDurationLabel(
-                            normalizeSubscriptionDuration(
-                              adminUserLookupResult.subscription?.duration ?? "1_month",
-                            ),
+                            adminUserLookupResult.subscription?.duration ?? "1_month",
                           )}
                         </div>
                         <div className="mt-1 text-zinc-400">
@@ -8258,7 +8257,7 @@ export default function App() {
               </div>
 
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
-                <div
+              <div
                   className="relative min-h-[122px] md:min-h-[122px] p-5 md:p-6 flex flex-col justify-end cursor-pointer group/banner"
                   style={getBannerStyle(profileBannerDraft, profileAvatarDraft, playerName || "Игрок")}
                   onClick={() => {
@@ -8275,9 +8274,9 @@ export default function App() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
                   <div className="absolute inset-0 opacity-0 group-hover/banner:opacity-100 transition-opacity bg-black/15" />
                   {profileBannerLocked && (
-                    <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-red-500/45 bg-zinc-950/80 px-2.5 py-1 text-[11px] text-red-100">
-                      <Lock className="h-3 w-3" />
-                      Баннер: Практик+
+                    <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-zinc-600/80 bg-zinc-950/88 px-2.5 py-1 text-[11px] font-medium text-zinc-200 shadow-[0_0_14px_rgba(0,0,0,0.4)]">
+                      <Lock className="h-3.5 w-3.5" />
+                      <span>Баннер закрыт</span>
                     </div>
                   )}
                   <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -8580,21 +8579,24 @@ export default function App() {
                 </div>
 
                 <div className="self-start flex flex-col gap-4">
-                  <div
-                      className={`rounded-2xl border bg-zinc-950/70 p-4 md:p-5 space-y-3 transition-all ${
-                        profileSubscriptionPulse
-                        ? "border-red-400/65 shadow-[0_0_0_1px_rgba(239,68,68,0.35),0_0_30px_rgba(239,68,68,0.25)] animate-[pulse_1.4s_ease-in-out_2]"
-                        : "border-zinc-800"
-                    }`}
-                  >
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5 space-y-3 transition-all">
                     <div className="text-lg font-semibold">Подписка</div>
                     <div
-                      className={`rounded-xl border px-3 py-3 ${
+                      className={`relative rounded-xl border px-3 py-3 ${
                         profileTier === "free"
                           ? "border-zinc-800 bg-zinc-900/55"
                           : "border-red-500/45 bg-[linear-gradient(140deg,rgba(52,16,20,0.55),rgba(18,11,12,0.72))]"
                       }`}
                     >
+                      {profileSubscriptionPulse && (
+                        <motion.div
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0 rounded-xl border border-red-400/80"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: [0.15, 0.95, 0.25, 0.9, 0.2] }}
+                          transition={{ duration: 2.2, ease: "easeInOut" }}
+                        />
+                      )}
                       <div className="text-sm text-zinc-500">Текущий статус</div>
                       <div className="mt-1 flex items-center justify-between gap-3">
                         <span className="text-xl font-semibold text-zinc-100">
@@ -9600,7 +9602,10 @@ export default function App() {
                 }
               }}
             >
-              <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+              <DialogContent
+                overlayClassName="bg-black/88 backdrop-blur-[1.5px]"
+                className="max-w-[520px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)]"
+              >
                 {authView === "rules" ? (
                   <>
                     <DialogHeader>
@@ -9640,7 +9645,8 @@ export default function App() {
                     </DialogHeader>
 
                     <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-2xl border border-zinc-700/80 bg-zinc-900/80 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                      <div className="grid grid-cols-2 gap-1.5">
                         <Button
                           type="button"
                           variant={authMode === "login" ? "secondary" : "outline"}
@@ -9652,7 +9658,7 @@ export default function App() {
                           }}
                           className={
                             authMode === "login"
-                              ? "rounded-xl border border-zinc-600 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+                              ? "rounded-xl border border-red-500/55 bg-red-600 text-zinc-100 hover:bg-red-500"
                               : "rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                           }
                         >
@@ -9669,12 +9675,13 @@ export default function App() {
                           }}
                           className={
                             authMode === "register"
-                              ? "rounded-xl border border-zinc-600 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+                              ? "rounded-xl border border-red-500/55 bg-red-600 text-zinc-100 hover:bg-red-500"
                               : "rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                           }
                         >
                           Регистрация
                         </Button>
+                      </div>
                       </div>
 
                       {authMode === "login" ? (
@@ -10199,6 +10206,9 @@ export default function App() {
               open={createMatchDialogOpen}
               onOpenChange={(open) => {
                 setCreateMatchDialogOpen(open);
+                if (open) {
+                  setUpsellModalOpen(false);
+                }
                 if (!open) {
                   setCreateRoomPasswordVisible(false);
                   setCreatePackCatalogOpen(false);
@@ -10208,7 +10218,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="bg-black/88"
-                className={`z-[150] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? "max-w-[1120px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
+                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? "max-w-[1120px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
