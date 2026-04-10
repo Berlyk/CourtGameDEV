@@ -101,6 +101,17 @@ const DEFAULT_GAME_STAGES = [
   "Решение судьи",
 ];
 
+const DiscordLogoIcon = ({ className }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M20.317 4.369A19.791 19.791 0 0 0 15.43 3c-.21.375-.455.88-.623 1.275a18.27 18.27 0 0 0-5.614 0A12.46 12.46 0 0 0 8.57 3a19.736 19.736 0 0 0-4.89 1.37C.587 9.046-.247 13.607.17 18.1a19.902 19.902 0 0 0 5.993 3.03 14.43 14.43 0 0 0 1.284-2.089 12.9 12.9 0 0 1-2.03-.97c.171-.128.338-.262.499-.4 3.918 1.84 8.165 1.84 12.037 0 .163.14.33.274.5.4a12.87 12.87 0 0 1-2.033.972c.37.73.799 1.426 1.285 2.087a19.857 19.857 0 0 0 5.996-3.03c.49-5.208-.837-9.727-3.384-13.73ZM8.02 15.337c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.95-2.418 2.155-2.418 1.216 0 2.17 1.095 2.157 2.418 0 1.334-.95 2.42-2.155 2.42Zm7.958 0c-1.184 0-2.156-1.085-2.156-2.419 0-1.333.95-2.418 2.155-2.418 1.216 0 2.17 1.095 2.157 2.418 0 1.334-.95 2.42-2.156 2.42Z" />
+  </svg>
+);
+
 type RoomModeKey =
   | "quick_flex"
   | "civil_3"
@@ -8350,7 +8361,7 @@ export default function App() {
 
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
               <div
-                  className="relative min-h-[150px] md:min-h-[122px] p-4 md:p-6 flex items-end cursor-pointer group/banner"
+                  className="relative min-h-[172px] md:min-h-[122px] p-4 md:p-6 flex items-end cursor-pointer group/banner"
                   style={getBannerStyle(profileBannerDraft, profileAvatarDraft, playerName || "Игрок")}
                   onClick={() => {
                     if (profileBannerLocked) {
@@ -8371,8 +8382,8 @@ export default function App() {
                       <span>Баннер</span>
                     </div>
                   )}
-                  <div className="relative z-10 flex w-full items-end justify-between gap-3 md:gap-4">
-                      <div className="flex min-w-0 flex-1 items-center gap-3 md:gap-4 text-left">
+                  <div className="relative z-10 flex w-full flex-col gap-3 md:flex-row md:items-end md:justify-between md:gap-4">
+                      <div className="flex min-w-0 w-full items-center gap-3 md:gap-4 text-left">
                       <div
                         className="relative cursor-pointer group/avatar"
                         onClick={(e) => {
@@ -8380,12 +8391,12 @@ export default function App() {
                           avatarInputRef.current?.click();
                         }}
                       >
-                        <Avatar src={profileAvatarDraft} name={playerName || "?"} size={112} />
+                        <Avatar src={profileAvatarDraft} name={playerName || "?"} size={96} />
                         <div className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
                           <Camera className="w-6 h-6 text-white" />
                         </div>
                       </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="text-2xl md:text-3xl font-bold leading-none">{playerName || "Игрок"}</div>
                             {selectedBadgeKey && (
@@ -8402,7 +8413,7 @@ export default function App() {
                               </span>
                             )}
                           </div>
-                          <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+                          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs">
                             <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
                               Возраст: {ageLabel}
                           </span>
@@ -8415,10 +8426,10 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                    <div className="flex items-center justify-end">
+                    <div className="flex items-center justify-end md:justify-end">
                       <Button
                         variant="outline"
-                        className="h-10 min-w-[118px] rounded-xl border-zinc-500/70 bg-black/30 text-zinc-100 hover:bg-black/50 hover:text-zinc-100"
+                        className="h-10 w-full min-w-[118px] rounded-xl border-zinc-500/70 bg-black/30 text-zinc-100 hover:bg-black/50 hover:text-zinc-100 md:w-auto"
                         onClick={(e) => {
                           e.stopPropagation();
                           void resetProfileMedia();
@@ -9586,7 +9597,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="md:hidden h-12" />
+        <div className="md:hidden h-14" />
 
         <div className="max-w-6xl mx-auto mb-2 md:mb-8 flex justify-center">
           <div className="relative w-full min-w-0">
@@ -9608,9 +9619,9 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.22 }}
-                    className="md:hidden fixed inset-0 z-[240] flex items-start justify-center px-4 pt-20 pb-3"
+                    className="md:hidden fixed inset-0 z-[240] flex items-center justify-center px-4 py-4"
                   >
-                    <div className="w-full max-h-full overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950/98 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
+                    <div className="w-full max-h-[92vh] overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950/98 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
                     <div className="mb-6 flex items-center justify-between">
                       <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
                       <Button
@@ -9622,6 +9633,9 @@ export default function App() {
                       >
                         <X className="h-5 w-5" />
                       </Button>
+                    </div>
+                    <div className="mb-5 text-sm text-zinc-400">
+                      Быстрые переходы по разделам сайта и личному кабинету.
                     </div>
                     <div className="mb-8 flex justify-center">
                       {isAuthenticated ? (
@@ -9716,7 +9730,7 @@ export default function App() {
                         onClick={() => window.open(DISCORD_INVITE_URL, "_blank", "noopener,noreferrer")}
                         className="mt-3 h-11 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                       >
-                        <Globe className="mr-2 h-4 w-4" />
+                        <DiscordLogoIcon className="mr-2 h-4 w-4" />
                         Перейти в Discord
                       </Button>
                     </div>
@@ -11330,7 +11344,7 @@ export default function App() {
           }}
         >
           {activeLegalDoc ? (
-            <DialogContent overlayClassName="bg-black/94" className={`max-w-3xl max-h-[86vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.45)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/55 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/70`}>
+            <DialogContent overlayClassName="bg-black/94" className={`max-w-3xl max-h-[86vh] overflow-y-auto border-zinc-800 bg-zinc-950 pr-14 pt-8 text-zinc-100 sm:pt-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.45)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/55 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/70`}>
               <DialogHeader>
                 <DialogTitle className="text-xl">{activeLegalDoc.title}</DialogTitle>
                 <DialogDescription className="text-zinc-400">
