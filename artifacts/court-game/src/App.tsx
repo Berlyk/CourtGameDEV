@@ -1683,7 +1683,9 @@ function HelpCenter({
   }, [hasSearchQuery, groupedTopics]);
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      <div className="pointer-events-none absolute -top-8 right-8 h-24 w-24 rounded-full bg-red-500/10 blur-2xl" />
+      <div className="pointer-events-none absolute bottom-8 left-8 h-24 w-24 rounded-full bg-cyan-500/10 blur-2xl" />
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
         <Input
@@ -1717,7 +1719,7 @@ function HelpCenter({
               transition={{ duration: 0.24, delay: idx * 0.045, ease: "easeOut" }}
             >
               <AccordionItem value={group.category} className="border-0">
-                <Card className="rounded-2xl border-zinc-800 bg-zinc-900/80 text-zinc-100">
+                <Card className="rounded-2xl border-zinc-800 bg-[linear-gradient(145deg,rgba(24,24,27,0.92),rgba(17,17,23,0.92))] text-zinc-100">
                 <CardHeader className="p-0">
                   <AccordionTrigger className="relative h-16 px-5 py-0 text-zinc-100 hover:no-underline !justify-center text-center [&>svg]:absolute [&>svg]:right-5">
                     <span
@@ -10341,16 +10343,14 @@ export default function App() {
                       >
                         Назад
                       </Button>
-                      <Button
+                      <button
                         type="button"
                         disabled
-                        className="h-9 rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                        aria-disabled="true"
+                        className="h-11 min-w-[132px] rounded-2xl bg-red-600 px-5 text-base font-semibold text-white opacity-95 cursor-not-allowed"
                       >
-                        <span className="inline-flex items-center gap-1.5">
-                          <Lock className="h-3.5 w-3.5" />
-                          Создать пак · Скоро
-                        </span>
-                      </Button>
+                        Создать пак
+                      </button>
                     </div>
                     <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                       {[...casePacks]
@@ -11098,9 +11098,11 @@ export default function App() {
             initial={{ opacity: 0, y: 10, scale: 0.992 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.28, ease: "easeOut" }}
-            className="max-w-7xl mx-auto w-full"
+            className="relative max-w-7xl mx-auto w-full"
           >
-            <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100">
+            <div className="pointer-events-none absolute -left-6 top-10 h-36 w-36 rounded-full bg-red-600/10 blur-3xl" />
+            <div className="pointer-events-none absolute right-6 bottom-10 h-36 w-36 rounded-full bg-cyan-500/10 blur-3xl" />
+            <Card className="relative rounded-[28px] border-zinc-800 bg-[linear-gradient(140deg,rgba(23,23,30,0.96),rgba(15,15,22,0.96))] text-zinc-100 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
               <CardContent className="p-6 md:p-8 lg:p-10">
                 <div className="mb-5 rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 via-zinc-900/80 to-zinc-900 px-5 py-4">
                   <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Справка CourtGame</div>
@@ -11134,41 +11136,38 @@ export default function App() {
                 Пользовательское соглашение
               </button>
             </div>
-            <div className="mt-1 text-zinc-700">© 2026 CourtGame. Все права защищены.</div>
-            <div className="mt-1 text-zinc-700">support@courtgame.site</div>
+            <div className="mt-1 text-zinc-700">© 2026 CourtGame. Все права защищены. • support@courtgame.site</div>
           </div>
         )}
         <Dialog
-          open={legalDialogType !== null}
+          open={activeLegalDoc !== null}
           onOpenChange={(open) => {
             if (!open) setLegalDialogType(null);
           }}
         >
-          <DialogContent overlayClassName="bg-black/94" className={`max-w-3xl max-h-[86vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.45)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/55 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/70`}>
-            {activeLegalDoc && (
-              <>
-                <DialogHeader>
-                  <DialogTitle className="text-xl">{activeLegalDoc.title}</DialogTitle>
-                  <DialogDescription className="text-zinc-400">
-                    Обновлено: {activeLegalDoc.updatedAt}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 text-sm text-zinc-300">
-                  <p className="text-zinc-200">{activeLegalDoc.intro}</p>
-                  {activeLegalDoc.sections.map((section) => (
-                    <div key={section.title} className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-4 py-3">
-                      <div className="text-sm font-semibold text-zinc-100">{section.title}</div>
-                      <div className="mt-2 space-y-2 text-zinc-300">
-                        {section.paragraphs.map((paragraph) => (
-                          <p key={paragraph}>{paragraph}</p>
-                        ))}
-                      </div>
+          {activeLegalDoc ? (
+            <DialogContent overlayClassName="bg-black/94" className={`max-w-3xl max-h-[86vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.45)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/55 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/70`}>
+              <DialogHeader>
+                <DialogTitle className="text-xl">{activeLegalDoc.title}</DialogTitle>
+                <DialogDescription className="text-zinc-400">
+                  Обновлено: {activeLegalDoc.updatedAt}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 text-sm text-zinc-300">
+                <p className="text-zinc-200">{activeLegalDoc.intro}</p>
+                {activeLegalDoc.sections.map((section) => (
+                  <div key={section.title} className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-4 py-3">
+                    <div className="text-sm font-semibold text-zinc-100">{section.title}</div>
+                    <div className="mt-2 space-y-2 text-zinc-300">
+                      {section.paragraphs.map((paragraph) => (
+                        <p key={paragraph}>{paragraph}</p>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </DialogContent>
+                  </div>
+                ))}
+              </div>
+            </DialogContent>
+          ) : null}
         </Dialog>
         {renderPublicProfileDialog()}
         {renderAdminTools()}
