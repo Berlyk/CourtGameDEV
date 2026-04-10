@@ -1719,7 +1719,7 @@ function HelpCenter({
               transition={{ duration: 0.24, delay: idx * 0.045, ease: "easeOut" }}
             >
               <AccordionItem value={group.category} className="border-0">
-                <Card className="rounded-2xl border-zinc-800 bg-[linear-gradient(145deg,rgba(30,30,36,0.94),rgba(26,26,32,0.94)_58%,rgba(23,23,30,0.94))] text-zinc-100 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+                <Card className="rounded-2xl border-zinc-700/90 bg-[linear-gradient(145deg,rgba(39,39,46,0.95),rgba(35,35,42,0.95)_58%,rgba(32,32,40,0.95))] text-zinc-100 shadow-[0_10px_28px_rgba(0,0,0,0.28)]">
                 <CardHeader className="p-0">
                   <AccordionTrigger className="relative h-16 px-5 py-0 text-zinc-100 hover:no-underline !justify-between text-left [&>svg]:right-5">
                     <span
