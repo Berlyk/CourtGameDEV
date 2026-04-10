@@ -103,10 +103,10 @@ const CAPABILITIES_BY_TIER: Record<SubscriptionTier, SubscriptionCapabilities> =
 };
 
 const LABEL_BY_TIER: Record<SubscriptionTier, string> = {
-  free: "Р‘РµСЃРїР»Р°С‚РЅС‹Р№ РґРѕСЃС‚СѓРї",
-  trainee: "РЎС‚Р°Р¶РµСЂ",
-  practitioner: "РџСЂР°РєС‚РёРє",
-  arbiter: "РђСЂР±РёС‚СЂ",
+  free: "Бесплатный доступ",
+  trainee: "Стажер",
+  practitioner: "Практик",
+  arbiter: "Арбитр",
 };
 
 const DURATION_SET = new Set<SubscriptionDuration>([
