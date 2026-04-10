@@ -6870,34 +6870,32 @@ export default function App() {
   }, [socket, room, roomControlSessionToken]);
 
   const addAdminBots = useCallback(() => {
-    if (!adminTargetRoomCode || !authToken || !isCreatorAdmin) return;
+    if (!adminTargetRoomCode || !adminAccessGranted) return;
     socket.emit("admin_add_bots", {
       code: adminTargetRoomCode,
-      authToken,
+      authToken: authToken || undefined,
       adminKey: adminPanelKeyTrimmed || undefined,
       count: Math.max(1, Math.min(6, adminBotCount)),
     });
   }, [
     socket,
-    room,
-    game,
     authToken,
-    isCreatorAdmin,
+    adminAccessGranted,
     adminBotCount,
     adminTargetRoomCode,
     adminPanelKeyTrimmed,
   ]);
 
   const controlAdminPlayer = useCallback((targetPlayerId: string) => {
-    if (!adminTargetRoomCode || !authToken || !isCreatorAdmin) return;
+    if (!adminTargetRoomCode || !adminAccessGranted) return;
     if (!targetPlayerId) return;
     socket.emit("admin_control_player", {
       code: adminTargetRoomCode,
       targetPlayerId,
-      authToken,
+      authToken: authToken || undefined,
       adminKey: adminPanelKeyTrimmed || undefined,
     });
-  }, [socket, adminTargetRoomCode, authToken, isCreatorAdmin, adminPanelKeyTrimmed]);
+  }, [socket, adminTargetRoomCode, authToken, adminAccessGranted, adminPanelKeyTrimmed]);
 
   const kickPlayerFromRoom = useCallback(
     (targetPlayerId: string) => {
@@ -7496,11 +7494,11 @@ export default function App() {
           <div className="mt-3 text-center text-xl text-zinc-200">
             {activeBan.reason?.trim() ? activeBan.reason.trim() : "Нарушение правил проекта."}
           </div>
-          <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-2.5">
+          <div className="mt-4">
             {activeBan.isPermanent ? (
               <div className="text-center text-xl font-bold text-red-200">Навсегда</div>
             ) : (
-              <div className="mx-auto flex max-w-[560px] items-center justify-between rounded-xl border border-zinc-700/80 bg-zinc-950/70 px-2 py-2">
+              <div className="mx-auto flex max-w-[520px] items-center justify-center gap-1.5">
                 {[
                   { key: "d", value: countdown?.days ?? 0, label: "дней" },
                   { key: "h", value: countdown?.hours ?? 0, label: "часов" },
@@ -7508,11 +7506,11 @@ export default function App() {
                   { key: "s", value: countdown?.seconds ?? 0, label: "секунд" },
                 ].map((item, idx, arr) => (
                   <div key={`ban-timer-${item.key}`} className="flex items-center">
-                    <div className="w-[108px] rounded-lg border border-zinc-700/75 bg-zinc-950 px-2 py-1.5 text-center">
-                      <div className="text-[18px] font-bold leading-none text-zinc-100">{String(item.value).padStart(2, "0")}</div>
-                      <div className="mt-1 text-[9px] uppercase tracking-[0.14em] text-zinc-500">{item.label}</div>
+                    <div className="w-[92px] rounded-md border border-zinc-700/70 bg-zinc-950/70 px-2 py-1 text-center">
+                      <div className="text-[17px] font-bold leading-none text-zinc-100">{String(item.value).padStart(2, "0")}</div>
+                      <div className="mt-1 text-[8px] uppercase tracking-[0.14em] text-zinc-500">{item.label}</div>
                     </div>
-                    {idx < arr.length - 1 && <div className="mx-1 text-zinc-600">:</div>}
+                    {idx < arr.length - 1 && <div className="mx-0.5 text-zinc-700">:</div>}
                   </div>
                 ))}
               </div>
@@ -10314,7 +10312,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="bg-black/88"
-                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? "max-w-[1120px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
+                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? "max-w-[820px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -11149,7 +11147,7 @@ export default function App() {
             if (!open) setLegalDialogType(null);
           }}
         >
-          <DialogContent className={`max-w-3xl max-h-[86vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.45)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/55 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/70`}>
+          <DialogContent overlayClassName="bg-black/94" className={`max-w-3xl max-h-[86vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.45)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/55 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/70`}>
             {activeLegalDoc && (
               <>
                 <DialogHeader>
@@ -11419,7 +11417,26 @@ export default function App() {
                 <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/55 p-3 xl:col-span-2">
                   <div className="text-xs font-semibold tracking-[0.2em] uppercase text-zinc-500">Пак дел</div>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {casePacks.map((pack) => {
+                    {[...casePacks]
+                      .sort((a, b) => {
+                        const orderByKey: Record<string, number> = {
+                          classic: 0,
+                          hard_cases: 1,
+                          adult_18_plus: 2,
+                          wild_west: 3,
+                        };
+                        const aTitle = String(a.title ?? "").toLowerCase();
+                        const bTitle = String(b.title ?? "").toLowerCase();
+                        const aOrder =
+                          orderByKey[a.key] ??
+                          (aTitle.includes("18+") ? 2 : Number.MAX_SAFE_INTEGER);
+                        const bOrder =
+                          orderByKey[b.key] ??
+                          (bTitle.includes("18+") ? 2 : Number.MAX_SAFE_INTEGER);
+                        if (aOrder !== bOrder) return aOrder - bOrder;
+                        return getCasePackSortOrder(a) - getCasePackSortOrder(b);
+                      })
+                      .map((pack) => {
                       const isLocked = isPackLockedForTier(pack, myTier);
                       return (
                         <button
