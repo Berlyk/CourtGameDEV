@@ -3752,7 +3752,6 @@ export default function App() {
         rewards: normalizedRewards,
       });
       setPromoRewardsDialogOpen(true);
-      setPromoDialogOpen(false);
       try {
         const profilePayload = await authRequest<{ profile: PublicUserProfile }>("/auth/profile", {
           token: authToken,
@@ -7497,23 +7496,23 @@ export default function App() {
           <div className="mt-3 text-center text-xl text-zinc-200">
             {activeBan.reason?.trim() ? activeBan.reason.trim() : "Нарушение правил проекта."}
           </div>
-          <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-2">
+          <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-2.5">
             {activeBan.isPermanent ? (
               <div className="text-center text-xl font-bold text-red-200">Навсегда</div>
             ) : (
-              <div className="mx-auto grid max-w-[420px] grid-cols-4 gap-2">
+              <div className="mx-auto flex max-w-[560px] items-center justify-between rounded-xl border border-zinc-700/80 bg-zinc-950/70 px-2 py-2">
                 {[
                   { key: "d", value: countdown?.days ?? 0, label: "дней" },
                   { key: "h", value: countdown?.hours ?? 0, label: "часов" },
                   { key: "m", value: countdown?.minutes ?? 0, label: "минут" },
                   { key: "s", value: countdown?.seconds ?? 0, label: "секунд" },
-                ].map((item) => (
-                  <div
-                    key={`ban-timer-${item.key}`}
-                    className="rounded-lg border border-zinc-700 bg-zinc-950/92 px-2 py-1 text-center"
-                  >
-                    <div className="text-lg font-bold leading-none text-zinc-100">{String(item.value).padStart(2, "0")}</div>
-                    <div className="mt-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">{item.label}</div>
+                ].map((item, idx, arr) => (
+                  <div key={`ban-timer-${item.key}`} className="flex items-center">
+                    <div className="w-[108px] rounded-lg border border-zinc-700/75 bg-zinc-950 px-2 py-1.5 text-center">
+                      <div className="text-[18px] font-bold leading-none text-zinc-100">{String(item.value).padStart(2, "0")}</div>
+                      <div className="mt-1 text-[9px] uppercase tracking-[0.14em] text-zinc-500">{item.label}</div>
+                    </div>
+                    {idx < arr.length - 1 && <div className="mx-1 text-zinc-600">:</div>}
                   </div>
                 ))}
               </div>
@@ -8359,8 +8358,8 @@ export default function App() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
                   <div className="absolute inset-0 opacity-0 group-hover/banner:opacity-100 transition-opacity bg-black/15" />
                   {profileBannerLocked && (
-                    <div className="pointer-events-none absolute right-6 top-5 inline-flex h-9 items-center gap-1.5 rounded-full border border-zinc-600/80 bg-zinc-950/90 px-3 text-[11px] font-medium text-zinc-200">
-                      <Lock className="h-3.5 w-3.5" />
+                    <div className="pointer-events-none absolute right-6 top-5 inline-flex h-10 items-center gap-1.5 rounded-full border border-zinc-500/80 bg-zinc-900/80 px-3.5 text-[12px] font-semibold text-zinc-100">
+                      <Lock className="h-4 w-4" />
                       <span>Баннер</span>
                     </div>
                   )}
@@ -9703,9 +9702,9 @@ export default function App() {
                       </DialogDescription>
                     </DialogHeader>
                     <div className={`space-y-2 max-h-[65vh] overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS}`}>
-                      <p className="text-sm text-zinc-400">{LEGAL_DOCUMENTS.terms.intro}</p>
+                      <p className="text-sm text-zinc-400">{LEGAL_DOCS.terms.intro}</p>
                       <div className="space-y-3">
-                        {LEGAL_DOCUMENTS.terms.sections.map((section) => (
+                        {LEGAL_DOCS.terms.sections.map((section) => (
                           <div key={section.title} className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-3">
                             <div className="text-sm font-semibold text-zinc-100">{section.title}</div>
                             <div className="mt-2 space-y-1.5 text-xs text-zinc-300">
@@ -10932,11 +10931,12 @@ export default function App() {
                 setPromoRewardsDialogOpen(open);
                 if (!open) {
                   setPromoRewardsResult(null);
+                  setPromoDialogOpen(false);
                 }
               }}
             >
               <DialogContent
-                overlayClassName="bg-black/90"
+                overlayClassName="!bg-transparent"
                 className="max-w-[520px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.26),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100 p-8 sm:p-9"
               >
                 <div className="space-y-5">
@@ -10978,16 +10978,21 @@ export default function App() {
                           ) : (
                             <BadgeCheck className="h-4 w-4 shrink-0" />
                           )}
-                          {reward.type === "subscription" && /\(([^)]+)\)/.test(reward.label) ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-semibold">{reward.label.replace(/\s*\([^)]+\)\s*$/, "")}</span>
-                              <span className="rounded-full border border-red-400/45 bg-red-950/45 px-2 py-0.5 text-[11px] text-red-200">
-                                Срок: {reward.label.match(/\(([^)]+)\)/)?.[1] ?? ""}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="font-medium">{reward.label}</span>
-                          )}
+                          <div className="flex min-w-0 flex-col">
+                            <span className="text-[10px] uppercase tracking-[0.12em] text-zinc-400">
+                              {reward.type === "subscription" ? "Подписка" : "Бейдж"}
+                            </span>
+                            {reward.type === "subscription" && /\(([^)]+)\)/.test(reward.label) ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-semibold">{reward.label.replace(/\s*\([^)]+\)\s*$/, "")}</span>
+                                <span className="rounded-full border border-red-400/45 bg-red-950/45 px-2 py-0.5 text-[11px] text-red-200">
+                                  {reward.label.match(/\(([^)]+)\)/)?.[1] ?? ""}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="font-medium">{reward.label}</span>
+                            )}
+                          </div>
                         </motion.div>
                       ))}
                     </div>
@@ -10998,6 +11003,7 @@ export default function App() {
                     onClick={() => {
                       setPromoRewardsDialogOpen(false);
                       setPromoRewardsResult(null);
+                      setPromoDialogOpen(false);
                     }}
                   >
                     Забрать
