@@ -1,4 +1,4 @@
-export type SubscriptionTier = "free" | "trainee" | "practitioner" | "arbiter";
+﻿export type SubscriptionTier = "free" | "trainee" | "practitioner" | "arbiter";
 export type SubscriptionDuration =
   | "1_day"
   | "3_days"
@@ -57,10 +57,10 @@ export const SUBSCRIPTION_TIER_ORDER: SubscriptionTier[] = [
 ];
 
 export const SUBSCRIPTION_LABELS: Record<SubscriptionTier, string> = {
-  free: "Бесплатный доступ",
-  trainee: "Стажер",
-  practitioner: "Практик",
-  arbiter: "Арбитр",
+  free: "Р‘РµСЃРїР»Р°С‚РЅС‹Р№ РґРѕСЃС‚СѓРї",
+  trainee: "РЎС‚Р°Р¶РµСЂ",
+  practitioner: "РџСЂР°РєС‚РёРє",
+  arbiter: "РђСЂР±РёС‚СЂ",
 };
 
 const FREE_CAPABILITIES: SubscriptionCapabilities = {
@@ -115,49 +115,49 @@ export const SUBSCRIPTION_CAPABILITIES: Record<
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     tier: "trainee",
-    title: "Стажер",
-    shortLabel: "Базовый старт",
+    title: "РЎС‚Р°Р¶РµСЂ",
+    shortLabel: "Р‘Р°Р·РѕРІС‹Р№ СЃС‚Р°СЂС‚",
     monthPriceRub: 250,
     yearPriceRub: 2500,
-    badge: "Тариф 1",
+    badge: "РўР°СЂРёС„ 1",
     features: [
-      "Доступ к пакам «Особо тяжкие» и «18+»",
-      "Рейтинг и ранговая прогрессия",
-      "Выбор своей роли в своём лобби",
-      "Уникальный бейдж подписки",
+      "Р”РѕСЃС‚СѓРї Рє РїР°РєР°Рј В«РћСЃРѕР±Рѕ С‚СЏР¶РєРёРµВ» Рё В«18+В»",
+      "Р РµР№С‚РёРЅРі Рё СЂР°РЅРіРѕРІР°СЏ РїСЂРѕРіСЂРµСЃСЃРёСЏ",
+      "Р’С‹Р±РѕСЂ СЃРІРѕРµР№ СЂРѕР»Рё РІ СЃРІРѕС‘Рј Р»РѕР±Р±Рё",
+      "РЈРЅРёРєР°Р»СЊРЅС‹Р№ Р±РµР№РґР¶ РїРѕРґРїРёСЃРєРё",
     ],
   },
   {
     tier: "practitioner",
-    title: "Практик",
-    shortLabel: "Самый популярный",
+    title: "РџСЂР°РєС‚РёРє",
+    shortLabel: "РЎР°РјС‹Р№ РїРѕРїСѓР»СЏСЂРЅС‹Р№",
     monthPriceRub: 500,
     yearPriceRub: 5000,
-    badge: "Тариф 2",
+    badge: "РўР°СЂРёС„ 2",
     isPopular: true,
     features: [
-      "Всё из «Стажер»",
-      "Доступ ко всем пакам",
-      "Баннер профиля",
-      "Разрешение игрокам выбирать роли",
-      "Подсветка комнаты в подборе матчей",
-      "Уникальный бейдж подписки",
+      "Р’СЃС‘ РёР· В«РЎС‚Р°Р¶РµСЂВ»",
+      "Р”РѕСЃС‚СѓРї РєРѕ РІСЃРµРј РїР°РєР°Рј",
+      "Р‘Р°РЅРЅРµСЂ РїСЂРѕС„РёР»СЏ",
+      "Р Р°Р·СЂРµС€РµРЅРёРµ РёРіСЂРѕРєР°Рј РІС‹Р±РёСЂР°С‚СЊ СЂРѕР»Рё",
+      "РџРѕРґСЃРІРµС‚РєР° РєРѕРјРЅР°С‚С‹ РІ РїРѕРґР±РѕСЂРµ РјР°С‚С‡РµР№",
+      "РЈРЅРёРєР°Р»СЊРЅС‹Р№ Р±РµР№РґР¶ РїРѕРґРїРёСЃРєРё",
     ],
   },
   {
     tier: "arbiter",
-    title: "Арбитр",
-    shortLabel: "Премиум доступ",
+    title: "РђСЂР±РёС‚СЂ",
+    shortLabel: "РџСЂРµРјРёСѓРј РґРѕСЃС‚СѓРї",
     monthPriceRub: 800,
     yearPriceRub: 8000,
-    badge: "Тариф 3",
+    badge: "РўР°СЂРёС„ 3",
     features: [
-      "Всё из «Практик»",
-      "GIF-аватар и GIF-баннер",
-      "Приватные комнаты с паролем",
-      "Выбор роли в чужих лобби",
-      "Создание паков (скоро)",
-      "Уникальный бейдж подписки",
+      "Р’СЃС‘ РёР· В«РџСЂР°РєС‚РёРєВ»",
+      "GIF-Р°РІР°С‚Р°СЂ Рё GIF-Р±Р°РЅРЅРµСЂ",
+      "РџСЂРёРІР°С‚РЅС‹Рµ РєРѕРјРЅР°С‚С‹ СЃ РїР°СЂРѕР»РµРј",
+      "Р’С‹Р±РѕСЂ СЂРѕР»Рё РІ С‡СѓР¶РёС… Р»РѕР±Р±Рё",
+      "РЎРѕР·РґР°РЅРёРµ РїР°РєРѕРІ (СЃРєРѕСЂРѕ)",
+      "РЈРЅРёРєР°Р»СЊРЅС‹Р№ Р±РµР№РґР¶ РїРѕРґРїРёСЃРєРё",
     ],
   },
 ];
@@ -245,7 +245,12 @@ export function resolveSubscriptionView(raw: unknown): SubscriptionView {
 }
 
 function normalizePackText(value: string | undefined | null): string {
-  return (value ?? "").trim().toLowerCase().replace(/ё/g, "е");
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
 }
 
 export function getRequiredTierForPack(pack: {
@@ -256,11 +261,14 @@ export function getRequiredTierForPack(pack: {
   const key = normalizePackText(pack.key);
   const title = normalizePackText(pack.title);
   if (!key && !title) return "free";
-  if (key === "classic" || title.includes("классик")) return "free";
+  if (key === "classic" || title.includes("класс")) return "free";
   if (
+    key.includes("template pack b") ||
+    key.includes("template pack f") ||
     key.includes("hard") ||
     title.includes("особо тяж") ||
     key.includes("adult_18_plus") ||
+    key.includes("adult 18 plus") ||
     title.includes("18+") ||
     !!pack.isAdult
   ) {
@@ -279,3 +287,4 @@ export function canAccessPack(
     SUBSCRIPTION_TIER_ORDER.indexOf(requiredTier)
   );
 }
+

@@ -1,4 +1,4 @@
-export type SubscriptionTier = "free" | "trainee" | "practitioner" | "arbiter";
+﻿export type SubscriptionTier = "free" | "trainee" | "practitioner" | "arbiter";
 export type SubscriptionDuration =
   | "1_day"
   | "3_days"
@@ -103,10 +103,10 @@ const CAPABILITIES_BY_TIER: Record<SubscriptionTier, SubscriptionCapabilities> =
 };
 
 const LABEL_BY_TIER: Record<SubscriptionTier, string> = {
-  free: "Бесплатный доступ",
-  trainee: "Стажер",
-  practitioner: "Практик",
-  arbiter: "Арбитр",
+  free: "Р‘РµСЃРїР»Р°С‚РЅС‹Р№ РґРѕСЃС‚СѓРї",
+  trainee: "РЎС‚Р°Р¶РµСЂ",
+  practitioner: "РџСЂР°РєС‚РёРє",
+  arbiter: "РђСЂР±РёС‚СЂ",
 };
 
 const DURATION_SET = new Set<SubscriptionDuration>([
@@ -247,18 +247,26 @@ type PackInput = {
 };
 
 function normalizeLabel(value: string | null | undefined): string {
-  return (value ?? "").trim().toLowerCase().replace(/ё/g, "е");
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
 }
 
 export function getRequiredTierForCasePack(pack: PackInput): SubscriptionTier {
   const key = normalizeLabel(pack.key);
   const title = normalizeLabel(pack.title);
   if (!key && !title) return "free";
-  if (key === "classic" || title.includes("классик")) return "free";
+  if (key === "classic" || title.includes("класс")) return "free";
   if (
+    key.includes("template pack b") ||
+    key.includes("template pack f") ||
     key.includes("hard") ||
     title.includes("особо тяж") ||
     key.includes("adult_18_plus") ||
+    key.includes("adult 18 plus") ||
     title.includes("18+") ||
     pack.isAdult
   ) {
@@ -271,3 +279,4 @@ export function canAccessCasePack(tier: SubscriptionTier, pack: PackInput): bool
   const requiredTier = getRequiredTierForCasePack(pack);
   return tierHasAccess(tier, requiredTier);
 }
+

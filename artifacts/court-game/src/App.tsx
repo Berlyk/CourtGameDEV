@@ -7458,7 +7458,7 @@ export default function App() {
             {upsellDescription}
           </DialogDescription>
           {upsellTitle !== "Оплата скоро" && (
-            <div className="mt-2 inline-flex w-fit items-center gap-2 rounded-full border border-red-400/45 bg-red-500/18 px-3 py-1 text-xs font-medium text-red-100">
+            <div className="mt-2 inline-flex w-fit items-center gap-2 rounded-full border border-red-400/45 bg-red-500/18 px-3 py-1 text-xs font-medium text-red-100 mx-auto sm:mx-0">
               <Crown className="h-3.5 w-3.5" />
               План: {getSubscriptionTierLabel(upsellRequiredTier)}
             </div>
@@ -9561,16 +9561,16 @@ export default function App() {
 
         <div className="max-w-6xl mx-auto mb-8 flex justify-center">
           <div className="relative w-full sm:w-auto min-w-0">
-            <div className="w-full sm:w-auto rounded-[28px] border border-zinc-800 bg-zinc-900/90 p-1.5 shadow-sm shadow-black/30 overflow-visible">
+            <div className="w-full sm:w-auto rounded-[28px] border border-zinc-800 bg-zinc-900/90 p-2 shadow-sm shadow-black/30 overflow-visible">
               <div className="sm:flex sm:items-center sm:gap-1">
-                <div className={`flex items-center gap-1 overflow-x-auto overflow-y-visible pr-0.5 ${HIDE_SCROLLBAR_CLASS}`}>
+                <div className={`grid grid-cols-2 gap-1 sm:flex sm:items-center sm:gap-1 overflow-visible sm:overflow-x-auto sm:pr-0.5 ${HIDE_SCROLLBAR_CLASS}`}>
                   <Button
                     variant="ghost"
                     onClick={() => {
                       setHomeTab("play");
                       setProfileMenuOpen(false);
                     }}
-                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
+                    className={`h-11 w-full sm:w-auto shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
                       homeTab === "play"
                         ? "bg-red-600 text-white hover:bg-red-500"
                         : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800"
@@ -9585,7 +9585,7 @@ export default function App() {
                       setHomeTab("shop");
                       setProfileMenuOpen(false);
                     }}
-                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
+                    className={`h-11 w-full sm:w-auto shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
                       homeTab === "shop"
                         ? "bg-red-600 text-white hover:bg-red-500"
                         : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800"
@@ -9600,7 +9600,7 @@ export default function App() {
                       setHomeTab("development");
                       setProfileMenuOpen(false);
                     }}
-                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
+                    className={`h-11 w-full sm:w-auto shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
                       homeTab === "development"
                         ? "bg-red-600 text-white hover:bg-red-500"
                         : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800"
@@ -9616,7 +9616,7 @@ export default function App() {
                       setMainHelpQuery("");
                       setProfileMenuOpen(false);
                     }}
-                    className={`h-10 shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
+                    className={`h-11 w-full sm:w-auto shrink-0 rounded-full px-3 sm:px-4 gap-1.5 sm:gap-2 text-[13px] sm:text-sm transition-all duration-200 ${
                       homeTab === "help"
                         ? "bg-red-600 text-white hover:bg-red-500"
                         : "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800"
@@ -9627,12 +9627,12 @@ export default function App() {
                   </Button>
                 </div>
 
-                <div className="mt-1.5 border-t border-zinc-800/80 pt-1.5 sm:mt-0 sm:pt-0 sm:border-t-0 sm:ml-1 sm:pl-2 sm:border-l sm:border-zinc-700/80">
+                <div className="mt-2 border-t border-zinc-800/80 pt-2 sm:mt-0 sm:pt-0 sm:border-t-0 sm:ml-1 sm:pl-2 sm:border-l sm:border-zinc-700/80 flex justify-center sm:block">
                   {isAuthenticated ? (
                     <Button
                       variant="outline"
                       onClick={() => setProfileMenuOpen((prev) => !prev)}
-                      className="h-10 w-full sm:w-auto rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 pl-1 pr-3 gap-2.5 justify-start transition-all duration-200"
+                      className="h-11 w-auto min-w-[220px] sm:min-w-0 sm:w-auto rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 pl-1 pr-3 gap-2.5 justify-start transition-all duration-200"
                     >
                       <Avatar src={avatar} name={playerName || "Игрок"} size={32} />
                       <span className="max-w-[130px] truncate text-sm">{playerName || "Игрок"}</span>
@@ -9646,7 +9646,7 @@ export default function App() {
                         setAuthView("form");
                         setAuthDialogOpen(true);
                       }}
-                      className="h-10 w-full sm:w-[124px] rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center transition-all duration-200"
+                      className="h-11 w-auto min-w-[220px] sm:min-w-0 sm:w-[124px] rounded-full border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center transition-all duration-200"
                     >
                       <LogIn className="w-4 h-4" />
                       Войти
@@ -10319,7 +10319,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="bg-black/88"
-                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? "max-w-[770px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
+                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? "max-w-[770px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60 [&>button]:h-12 [&>button]:w-12 [&>button>svg]:h-7 [&>button>svg]:w-7 [&>button]:top-2 [&>button]:right-2`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -11018,7 +11018,7 @@ export default function App() {
                   rel="noopener noreferrer"
                   whileHover={{ y: -1 }}
                   whileTap={{ scale: 0.99 }}
-                  className="absolute right-8 top-8 md:right-10 md:top-10 z-10"
+                  className="absolute right-8 top-8 md:right-10 md:top-10 z-10 hidden md:block"
                 >
                   <Button
                     variant="outline"
@@ -11037,6 +11037,16 @@ export default function App() {
                       {CURRENT_VERSION}
                     </div>
                   </div>
+                </div>
+                <div className="md:hidden flex justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open(DISCORD_INVITE_URL, "_blank", "noopener,noreferrer")}
+                    className="h-10 rounded-xl border-red-500/35 bg-red-950/20 text-red-100 hover:bg-red-900/30 hover:text-white gap-2 px-4"
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    <span>Сообщить о баге</span>
+                  </Button>
                 </div>
 
                 <div className="space-y-4">
@@ -11123,7 +11133,7 @@ export default function App() {
         )}
         <div className="flex-1" />
         {showLegalFooter && (
-          <div className="mx-auto mt-auto max-w-6xl pb-1 pt-10 text-center text-[11px] text-zinc-600 sm:text-xs">
+          <div className="mx-auto mt-auto max-w-6xl pb-1 pt-10 text-center text-[11px] text-zinc-600 sm:text-xs px-2">
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
               <button
                 type="button"
@@ -11141,7 +11151,8 @@ export default function App() {
                 Пользовательское соглашение
               </button>
             </div>
-            <div className="mt-1 text-zinc-700">© 2026 CourtGame. Все права защищены. • support@courtgame.site</div>
+            <div className="mt-1 text-zinc-700">© 2026 CourtGame. Все права защищены.</div>
+            <div className="mt-1 text-zinc-700">support@courtgame.site</div>
           </div>
         )}
         <Dialog
