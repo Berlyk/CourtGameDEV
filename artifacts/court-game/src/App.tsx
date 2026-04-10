@@ -11047,7 +11047,7 @@ export default function App() {
                     }
                     disabled={currentDevlogPage >= devlogTotalPages}
                   >
-                    След. >
+                    {"След. >"}
                   </Button>
                 </div>
               </CardContent>
@@ -12553,7 +12553,7 @@ export default function App() {
                           onClick={retreatStage}
                           disabled={game.stageIndex <= 0 || game.finished}
                         >
-                          < Пред.
+                          {"< Пред."}
                         </Button>
                         <Button
                           variant="secondary"
