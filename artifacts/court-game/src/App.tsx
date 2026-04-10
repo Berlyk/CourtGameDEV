@@ -10067,7 +10067,6 @@ export default function App() {
               </DialogContent>
             </Dialog>
           </div>
-        </div>
 
         {homeTab === "play" && (
           <div className="w-full max-w-6xl mx-auto space-y-6 min-w-0">
