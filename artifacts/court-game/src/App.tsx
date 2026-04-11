@@ -3655,7 +3655,7 @@ export default function App() {
   );
   const myTier = normalizeSubscriptionTier(mySubscription.tier);
   const roomHostTier = normalizeSubscriptionTier(room?.hostSubscriptionTier ?? "free");
-  const isMyHostRoom = !!room && room.hostId === roomControlPlayerId;
+  const isMyHostRoom = !!room && room.hostId === (myId ?? "");
   const effectiveLobbyTier = isMyHostRoom
     ? getHigherSubscriptionTier(myTier, roomHostTier)
     : myTier;
@@ -9061,7 +9061,7 @@ export default function App() {
           )}
         </div>
         <Dialog open={profileMatchesOpen} onOpenChange={setProfileMatchesOpen}>
-          <DialogContent className="relative !left-1/2 !top-1/2 !translate-x-[-50%] !translate-y-[-50%] w-[min(96vw,56rem)] max-w-3xl max-h-[82vh] overflow-hidden border-zinc-800 bg-zinc-950 text-zinc-100">
+          <DialogContent className="relative !left-1/2 !top-[8vh] !translate-x-[-50%] !translate-y-0 w-[calc(100vw-1rem)] sm:w-[min(96vw,56rem)] max-w-3xl max-h-[82vh] overflow-hidden border-zinc-800 bg-zinc-950 text-zinc-100">
             {viewPlayerProfileOpen && (
               <div className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] bg-black/45" />
             )}
