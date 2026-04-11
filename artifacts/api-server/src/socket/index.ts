@@ -29,6 +29,7 @@ import {
   transferRoomHost,
   chooseLobbyRole,
   addAdminBotsToRoom,
+  listRooms,
   validateLobbyRolesBeforeStart,
   removeDisconnectedLobbyPlayersBeforeStart,
   updatePlayerAvatar,
@@ -117,6 +118,7 @@ const VERDICT_ROOM_CLOSE_MS = 30_000;
 const PROTEST_COOLDOWN_MS = 30_000;
 const JUDGE_SILENCE_COOLDOWN_MS = 15_000;
 const INFLUENCE_ANNOUNCEMENT_DURATION_MS = 3_000;
+const SINGLETON_MATCH_CLOSE_MS = 5 * 60 * 1000;
 type SpeechOwnerRole =
   | "plaintiff"
   | "defendant"
@@ -148,6 +150,7 @@ function resolveExpectedVerdictFromTruth(truthRaw: string | undefined): string {
 function normalizeRoleKey(roleKey: string | undefined): CanonicalRole | null {
   if (!roleKey) return null;
   const normalized = roleKey.trim();
+  const compact = normalized.replace(/[^a-zA-Zа-яА-ЯёЁ]/g, "").toLowerCase();
   const alias: Record<string, CanonicalRole> = {
     plaintiff: "plaintiff",
     defendant: "defendant",
@@ -158,8 +161,25 @@ function normalizeRoleKey(roleKey: string | undefined): CanonicalRole | null {
     judge: "judge",
     witness: "witness",
     observer: "observer",
+    plaintifflawyer: "plaintiffLawyer",
+    defenselawyer: "defenseLawyer",
+    defendantlawyer: "defenseLawyer",
+    istets: "plaintiff",
+    otvetchik: "defendant",
+    prokuror: "prosecutor",
+    sudya: "judge",
+    svidetel: "witness",
+    nablyudatel: "observer",
+    истец: "plaintiff",
+    ответчик: "defendant",
+    прокурор: "prosecutor",
+    судья: "judge",
+    свидетель: "witness",
+    наблюдатель: "observer",
+    адвокатистца: "plaintiffLawyer",
+    адвокатответчика: "defenseLawyer",
   };
-  return alias[normalized] ?? null;
+  return alias[normalized] ?? alias[compact] ?? null;
 }
 
 function resolveLawyerPartnerRole(role: CanonicalRole | null): CanonicalRole | null {
@@ -577,6 +597,7 @@ export function setupSocket(httpServer: HttpServer) {
   const createRoomInFlight = new Set<string>();
   const reconnectCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const verdictRoomCloseTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const singletonMatchSinceByRoom = new Map<string, number>();
   const actionCooldowns = new Map<string, number>();
   const lawyerChats = new Map<string, LawyerChatMessage[]>();
   const normalizeRoomCode = (code: string): string => code.trim().toUpperCase();
@@ -593,6 +614,7 @@ export function setupSocket(httpServer: HttpServer) {
   };
 
   const cleanupRoomCaches = (roomCode: string) => {
+    singletonMatchSinceByRoom.delete(roomCode);
     [...actionCooldowns.keys()]
       .filter((key) => key.startsWith(`${roomCode}:`))
       .forEach((key) => actionCooldowns.delete(key));
@@ -951,11 +973,42 @@ export function setupSocket(httpServer: HttpServer) {
     return true;
   };
 
+  const closeSingletonRunningMatches = () => {
+    const nowMs = Date.now();
+    const rooms = listRooms();
+    for (const room of rooms) {
+      if (!room.game || room.game.finished) {
+        singletonMatchSinceByRoom.delete(room.code);
+        continue;
+      }
+      const connectedMainPlayers = room.game.players.filter((player: any) => {
+        if (player?.roleKey === "observer") return false;
+        return typeof player?.socketId === "string" && player.socketId.trim().length > 0;
+      }).length;
+      if (connectedMainPlayers !== 1) {
+        singletonMatchSinceByRoom.delete(room.code);
+        continue;
+      }
+      const since = singletonMatchSinceByRoom.get(room.code) ?? nowMs;
+      if (!singletonMatchSinceByRoom.has(room.code)) {
+        singletonMatchSinceByRoom.set(room.code, since);
+      }
+      if (nowMs - since >= SINGLETON_MATCH_CLOSE_MS) {
+        singletonMatchSinceByRoom.delete(room.code);
+        closeRoomAndNotify(
+          room.code,
+          "Матч закрыт автоматически: в игре остался только один игрок более 5 минут.",
+        );
+      }
+    }
+  };
+
   setInterval(() => {
     markMissingSocketPlayersDisconnected((socketId) => io.sockets.sockets.has(socketId));
     const removed = cleanupStaleRooms();
     cleanupOldSnapshots(72).catch(() => undefined);
     cleanupDanglingRoomCaches();
+    closeSingletonRunningMatches();
     if (removed > 0) {
       emitPublicMatches(io);
     }

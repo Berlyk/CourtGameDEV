@@ -3019,7 +3019,10 @@ function PlayerCard({
                   </span>
                 ) : null}
               </div>
-              <div className="text-sm text-zinc-400">
+              <div
+                className="text-sm text-zinc-200"
+                style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85), 0 0 10px rgba(0,0,0,0.45)" }}
+              >
                 {playerRoleLabel}
               </div>
             </div>
@@ -7569,19 +7572,19 @@ export default function App() {
             {activeBan.isPermanent ? (
               <div className="text-center text-xl font-bold text-red-200">Навсегда</div>
             ) : (
-              <div className="mx-auto grid w-full max-w-[500px] grid-cols-2 gap-1.5 rounded-2xl border border-zinc-800/85 bg-zinc-950/45 px-2 py-2 sm:flex sm:items-center sm:justify-center">
+              <div className="mx-auto flex w-full max-w-[520px] items-center justify-start gap-1.5 overflow-x-auto rounded-2xl border border-zinc-800/85 bg-zinc-950/45 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
                 {[
                   { key: "d", value: countdown?.days ?? 0, label: "дней" },
                   { key: "h", value: countdown?.hours ?? 0, label: "часов" },
                   { key: "m", value: countdown?.minutes ?? 0, label: "минут" },
                   { key: "s", value: countdown?.seconds ?? 0, label: "секунд" },
                 ].map((item, idx, arr) => (
-                  <div key={`ban-timer-${item.key}`} className="flex items-center justify-center">
-                    <div className="w-full sm:w-[84px] rounded-lg border border-zinc-700/70 bg-zinc-950/80 px-2 py-1.5 text-center">
+                  <div key={`ban-timer-${item.key}`} className="flex shrink-0 items-center justify-center">
+                    <div className="w-[74px] rounded-lg border border-zinc-700/70 bg-zinc-950/80 px-2 py-1.5 text-center sm:w-[84px]">
                       <div className="text-[16px] font-bold leading-none text-zinc-100">{String(item.value).padStart(2, "0")}</div>
                       <div className="mt-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">{item.label}</div>
                     </div>
-                    {idx < arr.length - 1 && <div className="mx-1 hidden sm:block text-zinc-700">:</div>}
+                    {idx < arr.length - 1 && <div className="mx-1 text-zinc-700">:</div>}
                   </div>
                 ))}
               </div>
@@ -9001,7 +9004,10 @@ export default function App() {
           )}
         </div>
         <Dialog open={profileMatchesOpen} onOpenChange={setProfileMatchesOpen}>
-          <DialogContent className="max-w-3xl border-zinc-800 bg-zinc-950 text-zinc-100">
+          <DialogContent className="relative max-w-3xl border-zinc-800 bg-zinc-950 text-zinc-100">
+            {viewPlayerProfileOpen && (
+              <div className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] bg-black/45" />
+            )}
             <DialogHeader>
               <DialogTitle>Последние матчи</DialogTitle>
               <DialogDescription className="text-zinc-400">
@@ -12463,7 +12469,15 @@ export default function App() {
     const lawyerChatButtonLabel = isLawyerRole
       ? "Чат с клиентом"
       : "Чат с адвокатом";
-    const canRevealFactsAtCurrentStage = game.me.canRevealFactsNow === true;
+    const localSpeechRole = resolveNormalizedSpeechRole(
+      game.me.roleKey,
+      game.me.roleTitle,
+    );
+    const canRevealFactsAtCurrentStage =
+      game.me.canRevealFactsNow === true ||
+      (!!localSpeechRole &&
+        !isPreparationStage &&
+        canRoleRevealFactsAtStage(localSpeechRole, currentStage));
     const hasActiveProtest = !!game.activeProtest;
     const verdictCloseAt =
       typeof game.verdictCloseAt === "number" ? game.verdictCloseAt : null;
@@ -13084,7 +13098,7 @@ export default function App() {
                     animate="animate"
                   >
                     <Card className="rounded-2xl border-dashed border-zinc-700 bg-zinc-900/80 text-zinc-100">
-                      <CardContent className="p-4 text-sm min-h-[74px] flex items-center">{item}</CardContent>
+                      <CardContent className="p-4 text-base leading-relaxed min-h-[74px] flex items-center">{item}</CardContent>
                     </Card>
                   </motion.div>
                 ))}

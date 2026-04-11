@@ -970,6 +970,10 @@ export function getRoom(code: string): Room | undefined {
   return rooms.get(code);
 }
 
+export function listRooms(): Room[] {
+  return [...rooms.values()];
+}
+
 export function deleteRoom(code: string): boolean {
   return rooms.delete(code);
 }
