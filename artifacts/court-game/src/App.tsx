@@ -9061,7 +9061,10 @@ export default function App() {
           )}
         </div>
         <Dialog open={profileMatchesOpen} onOpenChange={setProfileMatchesOpen}>
-          <DialogContent className="relative !left-1/2 !top-20 !-translate-x-1/2 !translate-y-0 max-w-3xl max-h-[82vh] overflow-hidden border-zinc-800 bg-zinc-950 text-zinc-100">
+          <DialogContent
+            className="relative max-w-3xl max-h-[82vh] overflow-hidden border-zinc-800 bg-zinc-950 text-zinc-100"
+            style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}
+          >
             {viewPlayerProfileOpen && (
               <div className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] bg-black/45" />
             )}
