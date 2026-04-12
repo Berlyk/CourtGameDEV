@@ -4883,6 +4883,12 @@ export default function App() {
       nextProfile: PublicUserProfile,
       previousRank?: PublicUserProfile["rank"] | null,
     ) => {
+      const canUseRatingNow = !!resolveSubscriptionView(nextProfile.subscription ?? null).capabilities
+        .canUseRating;
+      if (!canUseRatingNow) {
+        setRankResultToast(null);
+        return;
+      }
       const nextRank = nextProfile.rank;
       if (!nextRank) return;
       const safePreviousRank = previousRank ?? myProfileRef.current?.rank ?? nextRank;
@@ -6058,7 +6064,7 @@ export default function App() {
     socket.on("room_closed", () => {
       clearRoomActionPending();
       const previousRank = myProfileRef.current?.rank;
-      if (authToken) {
+      if (authToken && myProfileRef.current?.subscription?.capabilities?.canUseRating) {
         localStorage.setItem(RANK_TOAST_PENDING_STORAGE_KEY, "1");
       }
       clearReconnectWindow();
@@ -7193,7 +7199,7 @@ export default function App() {
     setProfileMenuOpen(false);
     setCreateMatchDialogOpen(false);
     if (finishedWithVerdict) {
-      if (authToken) {
+      if (authToken && myProfileRef.current?.subscription?.capabilities?.canUseRating) {
         localStorage.setItem(RANK_TOAST_PENDING_STORAGE_KEY, "1");
       }
       void syncRankResultAfterMatch(previousRank);
@@ -7235,7 +7241,7 @@ export default function App() {
     setProfileMenuOpen(false);
     setCreateMatchDialogOpen(false);
     if (finishedWithVerdict) {
-      if (authToken) {
+      if (authToken && myProfileRef.current?.subscription?.capabilities?.canUseRating) {
         localStorage.setItem(RANK_TOAST_PENDING_STORAGE_KEY, "1");
       }
       void syncRankResultAfterMatch(previousRank);
@@ -8888,51 +8894,41 @@ export default function App() {
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5 space-y-3">
                     <div className="text-lg font-semibold">Ранг</div>
                     <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
-                      {lockedRatingForProfile ? (
-                        <div className="space-y-3">
-                          <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-200">
-                            <Lock className="h-3.5 w-3.5" />
-                            Рейтинг заблокирован
-                          </div>
-                          <div className="text-sm text-zinc-300 leading-relaxed">
-                            Рейтинг открывается с подпиской «Стажер».
-                          </div>
-                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2 text-xs text-zinc-400">
-                            До активации подписки рейтинговая прогрессия недоступна.
-                          </div>
+                      {lockedRatingForProfile && (
+                        <div className="mb-3 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                          Прогресс ранга сохранен. Новые очки снова начнут начисляться после активации подписки «Стажер».
                         </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="inline-flex items-center gap-2 text-base font-semibold text-zinc-100">
-                              <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${currentRankTheme.icon}`}>
-                                <BadgeGlyph
-                                  badgeKey={currentRankVisualKey}
-                                  className={`h-4 w-4 ${currentRankTheme.iconOnly ?? "text-zinc-300"}`}
-                                />
-                              </span>
-                              <span>{currentRank?.title ?? "НОВИЧОК"}</span>
-                            </div>
-                            <div className="text-xs text-zinc-400">
-                              Очки: {currentRank?.points ?? 0}
-                            </div>
-                          </div>
-                          <div className="mt-2 h-2 w-full rounded-full bg-zinc-800">
-                            <div
-                              className="h-2 rounded-full bg-red-500 transition-all"
-                              style={{ width: `${rankProgressPercent}%` }}
-                            />
-                          </div>
-                          <div className="mt-2 text-xs text-zinc-400">
-                            {currentRank?.nextTitle
-                              ? `До ранга «${currentRank.nextTitle}»: ${Math.max(
-                                  0,
-                                  (currentRank.nextPoints ?? 0) - currentRank.points,
-                                )} очк.`
-                              : "Максимальный ранг достигнут"}
-                          </div>
-                        </>
                       )}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="inline-flex items-center gap-2 text-base font-semibold text-zinc-100">
+                          <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${currentRankTheme.icon}`}>
+                            <BadgeGlyph
+                              badgeKey={currentRankVisualKey}
+                              className={`h-4 w-4 ${currentRankTheme.iconOnly ?? "text-zinc-300"}`}
+                            />
+                          </span>
+                          <span>{currentRank?.title ?? "НОВИЧОК"}</span>
+                        </div>
+                        <div className="text-xs text-zinc-400">
+                          Очки: {currentRank?.points ?? 0}
+                        </div>
+                      </div>
+                      <div className="mt-2 h-2 w-full rounded-full bg-zinc-800">
+                        <div
+                          className="h-2 rounded-full bg-red-500 transition-all"
+                          style={{ width: `${rankProgressPercent}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 text-xs text-zinc-400">
+                        {lockedRatingForProfile
+                          ? "Прокачка ранга временно приостановлена до продления подписки."
+                          : currentRank?.nextTitle
+                            ? `До ранга «${currentRank.nextTitle}»: ${Math.max(
+                                0,
+                                (currentRank.nextPoints ?? 0) - currentRank.points,
+                              )} очк.`
+                            : "Максимальный ранг достигнут"}
+                      </div>
                     </div>
                   </div>
 

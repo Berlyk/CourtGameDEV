@@ -1187,6 +1187,7 @@ export async function updateProfileByToken(
       const userMeta = await pool.query<{
         login: string;
         created_at: Date;
+        selected_badge_key: string | null;
         subscription_tier: string | null;
         subscription_start_at: Date | null;
         subscription_end_at: Date | null;
@@ -1198,6 +1199,7 @@ export async function updateProfileByToken(
           SELECT
             login,
             created_at,
+            selected_badge_key,
             subscription_tier,
             subscription_start_at,
             subscription_end_at,
@@ -1232,7 +1234,11 @@ export async function updateProfileByToken(
             .filter((badge) => badge.active)
             .map((badge) => badge.key),
         );
-        if (!available.has(selectedBadgeKey)) {
+        const currentSelectedBadgeKey =
+          typeof userMeta.rows[0].selected_badge_key === "string"
+            ? userMeta.rows[0].selected_badge_key.trim()
+            : "";
+        if (!available.has(selectedBadgeKey) && selectedBadgeKey !== currentSelectedBadgeKey) {
           throw new Error("Бейдж недоступен для выбора.");
         }
       }
@@ -1526,7 +1532,7 @@ function buildBadgeList(input: {
   for (let i = 0; i < RANK_DEFINITIONS.length; i += 1) {
     const rankDef = RANK_DEFINITIONS[i];
     const nextRankDef = RANK_DEFINITIONS[i + 1];
-    const isCurrentRank = canUseRating && rank.key === rankDef.key;
+    const isCurrentRank = rank.key === rankDef.key;
     const progressCurrent = isCurrentRank
       ? rank.progressCurrent
       : rank.points >= rankDef.minPoints
@@ -1726,10 +1732,9 @@ export async function getProfileByToken(
     manualBadgeMap,
     subscription,
   });
-  const activeBadgeKeys = new Set(badges.filter((badge) => badge.active).map((badge) => badge.key));
   const selectedBadgeKey =
-    row.selected_badge_key && activeBadgeKeys.has(row.selected_badge_key)
-      ? row.selected_badge_key
+    typeof row.selected_badge_key === "string" && row.selected_badge_key.trim()
+      ? row.selected_badge_key.trim()
       : undefined;
   return {
     ...base,
@@ -2025,10 +2030,9 @@ export async function getPublicUserProfileById(
     manualBadgeMap,
     subscription,
   });
-  const activeBadgeKeys = new Set(badges.filter((badge) => badge.active).map((badge) => badge.key));
   const selectedBadgeKey =
-    row.selected_badge_key && activeBadgeKeys.has(row.selected_badge_key)
-      ? row.selected_badge_key
+    typeof row.selected_badge_key === "string" && row.selected_badge_key.trim()
+      ? row.selected_badge_key.trim()
       : undefined;
   return {
     ...base,
