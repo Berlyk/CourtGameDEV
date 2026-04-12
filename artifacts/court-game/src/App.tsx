@@ -9204,6 +9204,32 @@ export default function App() {
                         <div className="text-xs text-zinc-300">{badge.active ? "Доступен" : "Закрыт"}</div>
                       </div>
                       <div className="mt-2 text-xs text-zinc-300/90">{badge.description}</div>
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between text-[11px] text-zinc-300/80">
+                          <span>Прогресс</span>
+                          <span>{badge.progressLabel ?? (badge.active ? "Получен" : "Не получен")}</span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-full rounded-full bg-black/35">
+                          <div
+                            className={`h-1.5 rounded-full transition-all ${
+                              badge.active ? "bg-red-400" : "bg-zinc-500"
+                            }`}
+                            style={{
+                              width: `${Math.max(
+                                0,
+                                Math.min(
+                                  100,
+                                  badge.progressTarget && badge.progressTarget > 0
+                                    ? ((badge.progressCurrent ?? 0) / badge.progressTarget) * 100
+                                    : badge.active
+                                      ? 100
+                                      : 0,
+                                ),
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   ))}
                 <div className="relative z-20 mt-1 rounded-lg border border-zinc-800 bg-zinc-950/95 px-3 py-2 text-center text-xs uppercase tracking-[0.12em] text-zinc-400">
