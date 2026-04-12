@@ -86,6 +86,7 @@ export interface PlayerFact {
 export interface Player {
   id: string;
   userId?: string;
+  subscriptionTier?: SubscriptionTier;
   name: string;
   isBot?: boolean;
   selectedBadgeKey?: string;
@@ -442,6 +443,12 @@ function normalizeLoadedPlayer(player: any): Player | null {
   return {
     id: player.id,
     userId: typeof player.userId === "string" ? player.userId : undefined,
+    subscriptionTier:
+      player.subscriptionTier === "trainee" ||
+      player.subscriptionTier === "practitioner" ||
+      player.subscriptionTier === "arbiter"
+        ? player.subscriptionTier
+        : undefined,
     name: player.name,
     isBot: !!player.isBot,
     preferredRole:

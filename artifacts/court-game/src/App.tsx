@@ -1831,6 +1831,7 @@ function HelpCenter({
 interface PlayerInfo {
   id: string;
   userId?: string;
+  subscriptionTier?: SubscriptionTier;
   name: string;
   isBot?: boolean;
   avatar?: string;
@@ -3665,7 +3666,6 @@ export default function App() {
   const canCreatePrivateRooms = hasCapability(myTier, "canCreatePrivateRooms");
   const canLetPlayersChooseRoles = hasCapability(effectiveLobbyTier, "canLetPlayersChooseRoles");
   const canChooseRoleInOwnLobby = hasCapability(effectiveLobbyTier, "canChooseRoleInOwnLobby");
-  const canChooseRoleInOtherLobbies = hasCapability(myTier, "canChooseRoleInOtherLobbies");
   const canCreatePacks = hasCapability(myTier, "canCreatePacks");
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
@@ -6909,6 +6909,12 @@ export default function App() {
     if (!room || !roomControlSessionToken) return;
     const isHost = room.hostId === roomControlPlayerId;
     const selfPlayerId = roomControlPlayerId ?? myId ?? "";
+    const selfPlayer = room.players.find((player) => player.id === selfPlayerId);
+    const selfLobbyTier = normalizeSubscriptionTier(selfPlayer?.subscriptionTier ?? myTier);
+    const canChooseRoleInOtherLobbiesNow = hasCapability(
+      selfLobbyTier,
+      "canChooseRoleInOtherLobbies",
+    );
     const targetId = targetPlayerId ?? selfPlayerId;
     const isSelf = !targetId || targetId === selfPlayerId;
     if (isHost) {
@@ -6926,7 +6932,7 @@ export default function App() {
         );
         return;
       }
-    } else if (!room.usePreferredRoles && !canChooseRoleInOtherLobbies) {
+    } else if (!room.usePreferredRoles && !canChooseRoleInOtherLobbiesNow) {
       openSubscriptionUpsell(
         "canChooseRoleInOtherLobbies",
         "Выбор роли в чужом лобби доступен только в подписке «Арбитр».",
@@ -6950,9 +6956,9 @@ export default function App() {
     room,
     roomControlSessionToken,
     roomControlPlayerId,
+    myTier,
     canChooseRoleInOwnLobby,
     canLetPlayersChooseRoles,
-    canChooseRoleInOtherLobbies,
     openSubscriptionUpsell,
   ]);
 
@@ -11573,6 +11579,11 @@ export default function App() {
       }
     });
     const myLobbyPlayer = room.players.find((player) => player.id === myId) ?? null;
+    const selfLobbyTier = normalizeSubscriptionTier(myLobbyPlayer?.subscriptionTier ?? myTier);
+    const canChooseRoleInOtherLobbiesInRoom = hasCapability(
+      selfLobbyTier,
+      "canChooseRoleInOtherLobbies",
+    );
     const hostTransferCandidates = room.players.filter((player) => player.id !== room.hostId);
     const hasRoomHostControl = roomControlPlayerId === room.hostId;
     const hostRoomCapabilityTier = normalizeSubscriptionTier(room.hostSubscriptionTier ?? "free");
@@ -11601,7 +11612,7 @@ export default function App() {
       }
       if (!isSelf) return null;
       if (!usePreferredRoles && player.roleAssignmentSource === "manual") return null;
-      if (!usePreferredRoles && !canChooseRoleInOtherLobbies) return null;
+      if (!usePreferredRoles && !canChooseRoleInOtherLobbiesInRoom) return null;
       return {
         label: "Выбрать роль",
         locked: false,
@@ -11620,7 +11631,7 @@ export default function App() {
           ? canChooseRoleInOwnLobby
           : !usePreferredRoles && canLetPlayersChooseRoles
         : roleDialogTargetPlayer.id === (myLobbyPlayer?.id ?? roomControlPlayerId ?? myId) &&
-          (usePreferredRoles || canChooseRoleInOtherLobbies) &&
+          (usePreferredRoles || canChooseRoleInOtherLobbiesInRoom) &&
           (usePreferredRoles || roleDialogTargetPlayer.roleAssignmentSource !== "manual"));
     const canStartRoomNow = isQuickRoomMode
       ? activeLobbyPlayersCount >= 3 && activeLobbyPlayersCount <= roomMaxPlayers

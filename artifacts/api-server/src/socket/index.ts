@@ -324,6 +324,12 @@ function mapGamePlayers(players: any[]) {
     .map((p: any) => ({
     id: p.id,
     userId: p.userId ?? undefined,
+    subscriptionTier:
+      p?.subscriptionTier === "trainee" ||
+      p?.subscriptionTier === "practitioner" ||
+      p?.subscriptionTier === "arbiter"
+        ? p.subscriptionTier
+        : undefined,
     name: p.name,
     isBot: !!p.isBot,
     avatar: p.avatar,
@@ -368,6 +374,12 @@ function mapLobbyPlayers(players: any[]) {
     .map((p: any) => ({
     id: p.id,
     userId: p.userId ?? undefined,
+    subscriptionTier:
+      p?.subscriptionTier === "trainee" ||
+      p?.subscriptionTier === "practitioner" ||
+      p?.subscriptionTier === "arbiter"
+        ? p.subscriptionTier
+        : undefined,
     name: p.name,
     isBot: !!p.isBot,
     avatar: p.avatar,
@@ -1188,6 +1200,7 @@ export function setupSocket(httpServer: HttpServer) {
           const player = {
             id: playerId,
             userId: authUser?.id,
+            subscriptionTier,
             name: normalizedPlayerName,
             isBot: false,
             socketId: socket.id,
@@ -1252,6 +1265,16 @@ export function setupSocket(httpServer: HttpServer) {
             ? normalizeSubscriptionTier(authPublicProfile.subscription.tier)
             : (await getSubscriptionByUserId(authUser.id)).tier
           : "free";
+        const syncRecoveredPlayerTier = (roomState: any, playerId: string) => {
+          const lobbyPlayer = roomState?.players?.find((entry: any) => entry.id === playerId);
+          if (lobbyPlayer) {
+            lobbyPlayer.subscriptionTier = subscriptionTier;
+          }
+          const gamePlayer = roomState?.game?.players?.find((entry: any) => entry.id === playerId);
+          if (gamePlayer) {
+            gamePlayer.subscriptionTier = subscriptionTier;
+          }
+        };
         const sanitizedMedia = sanitizeProfileMediaByTier(subscriptionTier, {
           avatar: avatar || authUser?.avatar || undefined,
           banner: banner || authUser?.banner || undefined,
@@ -1289,6 +1312,7 @@ export function setupSocket(httpServer: HttpServer) {
             profileBanner,
           );
           if (reclaimedByUser) {
+            syncRecoveredPlayerTier(reclaimedByUser.room, reclaimedByUser.playerId);
             clearReconnectCleanup(roomCode, reclaimedByUser.playerId);
             socketToRoom.set(socket.id, {
               roomCode,
@@ -1328,6 +1352,7 @@ export function setupSocket(httpServer: HttpServer) {
               profileBanner,
             );
             if (restoreResult) {
+              syncRecoveredPlayerTier(restoreResult.room, restoreResult.playerId);
               clearReconnectCleanup(roomCode, restoreResult.playerId);
               socketToRoom.set(socket.id, {
                 roomCode,
@@ -1364,6 +1389,7 @@ export function setupSocket(httpServer: HttpServer) {
           sanitizedMedia.banner,
         );
         if (reclaimed) {
+          syncRecoveredPlayerTier(reclaimed.room, reclaimed.playerId);
           clearReconnectCleanup(roomCode, reclaimed.playerId);
           socketToRoom.set(socket.id, {
             roomCode,
@@ -1402,6 +1428,7 @@ export function setupSocket(httpServer: HttpServer) {
         const player = {
           id: playerId,
           userId: authUser?.id,
+          subscriptionTier,
           name: effectiveName,
           isBot: false,
           socketId: socket.id,
