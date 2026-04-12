@@ -9096,7 +9096,7 @@ export default function App() {
                   .map((badge) => (
                     <div
                       key={`rules-${badge.key}`}
-                      className={`rounded-xl border px-3 py-3 ${getBadgeTheme(badge.key).chip}`}
+                      className={`rounded-xl border px-3 py-3 min-h-[124px] flex flex-col ${getBadgeTheme(badge.key).chip}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
@@ -9144,7 +9144,7 @@ export default function App() {
                   .map((badge) => (
                     <div
                       key={`rules-${badge.key}`}
-                      className={`rounded-xl border px-3 py-3 ${getBadgeTheme(badge.key).chip}`}
+                      className={`rounded-xl border px-3 py-3 min-h-[124px] flex flex-col ${getBadgeTheme(badge.key).chip}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
@@ -9192,7 +9192,7 @@ export default function App() {
                   .map((badge) => (
                     <div
                       key={`rules-${badge.key}`}
-                      className={`rounded-xl border px-3 py-3 ${getBadgeTheme(badge.key).chip}`}
+                      className={`rounded-xl border px-3 py-3 min-h-[124px] flex flex-col ${getBadgeTheme(badge.key).chip}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
@@ -9240,7 +9240,7 @@ export default function App() {
                   .map((badge) => (
                     <div
                       key={`rules-${badge.key}`}
-                      className={`rounded-xl border px-3 py-3 ${getBadgeTheme(badge.key).chip}`}
+                      className={`rounded-xl border px-3 py-3 min-h-[124px] flex flex-col ${getBadgeTheme(badge.key).chip}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
