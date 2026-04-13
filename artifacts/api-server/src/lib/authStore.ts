@@ -458,50 +458,53 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="x-apple-disable-message-reformatting" />
+    <meta name="format-detection" content="telephone=no,date=no,address=no,email=no,url=no" />
+    <meta name="color-scheme" content="dark only" />
+    <meta name="supported-color-schemes" content="dark only" />
     <title>${message.subject}</title>
+    <style>
+      body, table, td, div, p, a { font-family: Arial, sans-serif; }
+    </style>
   </head>
-  <body style="margin:0;padding:0;background:#f3f4f6;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0;padding:0;background:#f3f4f6;">
+  <body style="margin:0;padding:0;background:#ffffff;-webkit-text-size-adjust:100%;text-size-adjust:100%;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0;padding:0;background:#ffffff;">
       <tr>
         <td align="center" style="padding:16px 10px;">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#0b0e17" style="max-width:640px;background:#0b0e17;background-image:linear-gradient(180deg,#0b0e17,#0b0e17);border:1px solid #22283a;border-radius:18px;border-collapse:separate;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#060914" style="max-width:640px;background:#060914;border-radius:18px;border-collapse:separate;">
             <tr>
-              <td bgcolor="#0b0e17" style="padding:24px 20px;font-family:Arial,sans-serif;color:#f4f4f5;background:#0b0e17;background-image:linear-gradient(180deg,#0b0e17,#0b0e17);border-radius:18px;">
+              <td bgcolor="#060914" style="padding:24px 20px;background:#060914;border-radius:18px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:16px;">
                   <tr>
-                    <td style="width:52px;vertical-align:middle;">
+                    <td style="width:56px;vertical-align:middle;">
                       <img src="${logoUrl}" width="46" height="46" alt="" style="display:block;border:0;outline:none;text-decoration:none;" />
                     </td>
-                    <td style="vertical-align:middle;font-size:24px;line-height:1.05;font-weight:800;color:#f4f4f5;">
+                    <td style="vertical-align:middle;font-size:28px;line-height:1.05;font-weight:700;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5;">
                       CourtGame
                     </td>
                   </tr>
                 </table>
-
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                   <tr>
-                    <td style="font-size:30px;line-height:1.16;font-weight:800;color:#f4f4f5;padding:0 0 10px 0;">
+                    <td style="font-size:30px;line-height:1.16;font-weight:600;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5;padding:0 0 10px 0;">
                       ${message.title}
                     </td>
                   </tr>
                   <tr>
-                    <td style="font-size:16px;line-height:1.4;color:#b5bdce;padding:0 0 16px 0;">
+                    <td style="font-size:16px;line-height:1.4;color:#b5bdce !important;-webkit-text-fill-color:#b5bdce;padding:0 0 16px 0;">
                       ${message.subtitle}
                     </td>
                   </tr>
                 </table>
-
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#171b27" style="background:#171b27;background-image:linear-gradient(180deg,#171b27,#171b27);border:1px solid #2f364b;border-radius:12px;margin:0 0 12px 0;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#151922" style="background:#151922;border-radius:12px;margin:0 0 12px 0;">
                   <tr>
-                    <td align="center" style="padding:16px 10px;font-size:42px;line-height:1.1;letter-spacing:9px;font-weight:800;color:#ffffff;">
+                    <td align="center" style="padding:16px 10px;font-size:42px;line-height:1.1;letter-spacing:9px;font-weight:800;color:#ffffff !important;-webkit-text-fill-color:#ffffff;">
                       ${code}
                     </td>
                   </tr>
                 </table>
-
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                   <tr>
-                    <td style="font-size:14px;line-height:1.45;color:#a8b0c1;padding:0 0 12px 0;">
+                    <td style="font-size:14px;line-height:1.45;color:#a8b0c1 !important;-webkit-text-fill-color:#a8b0c1;padding:0 0 12px 0;">
                       Код действует 10 минут. Никому его не сообщайте.
                     </td>
                   </tr>
@@ -509,12 +512,12 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
                     <td style="padding:0 0 14px 0;border-top:1px solid #2a3042;"></td>
                   </tr>
                   <tr>
-                    <td style="font-size:13px;line-height:1.45;color:#8f98ab;padding:0 0 8px 0;">
+                    <td style="font-size:13px;line-height:1.45;color:#8f98ab !important;-webkit-text-fill-color:#8f98ab;padding:0 0 8px 0;">
                       Если вы не запрашивали это письмо, просто проигнорируйте его.
                     </td>
                   </tr>
                   <tr>
-                    <td style="font-size:13px;line-height:1.45;color:#8f98ab;">
+                    <td style="font-size:13px;line-height:1.45;color:#8f98ab !important;-webkit-text-fill-color:#8f98ab;">
                       Это автоматическое сообщение, отвечать на него не нужно.
                     </td>
                   </tr>
