@@ -8439,6 +8439,21 @@ export default function App() {
         className="relative isolate min-h-screen overflow-x-hidden overflow-y-scroll bg-[#0b0b0f] text-zinc-100 p-6 md:p-10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         <CourtAtmosphereBackground />
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              key="profile-global-error"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="pointer-events-none fixed left-1/2 top-4 z-[530] w-[min(92vw,500px)] -translate-x-1/2"
+            >
+              <div className="rounded-xl border border-red-500/45 bg-zinc-950/95 px-4 py-3 text-center text-sm text-red-200 shadow-[0_14px_34px_rgba(0,0,0,0.45)]">
+                {error}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="max-w-7xl mx-auto">
           <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100 overflow-visible">
             <CardContent className="p-6 md:p-8 space-y-6">
@@ -8460,20 +8475,6 @@ export default function App() {
                   Назад
                 </Button>
               </div>
-              <AnimatePresence>
-                {error && (
-                  <motion.div
-                    key="profile-inline-error"
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    className="rounded-xl border border-red-500/40 bg-red-950/25 px-4 py-3 text-sm text-red-200 shadow-[0_10px_26px_rgba(0,0,0,0.36)]"
-                  >
-                    {error}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
                 <div
                   className="relative h-[176px] md:min-h-[122px] p-3.5 md:p-6 flex items-start md:items-end cursor-pointer group/banner"
