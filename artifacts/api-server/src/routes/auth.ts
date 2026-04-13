@@ -640,12 +640,15 @@ authRouter.patch("/auth/email/code/confirm", async (req, res) => {
 });
 
 authRouter.post("/auth/password/recovery/request", async (req, res) => {
-  const loginOrEmail = String(req.body?.loginOrEmail ?? "").trim();
-  if (!loginOrEmail) {
-    return res.status(400).json({ message: "Введите логин или почту." });
+  const email = String(req.body?.email ?? "").trim();
+  if (!email) {
+    return res.status(400).json({ message: "Введите почту." });
+  }
+  if (!email.includes("@")) {
+    return res.status(400).json({ message: "Введите корректную почту." });
   }
   try {
-    await requestPasswordRecoveryCode(loginOrEmail, resolveClientIp(req));
+    await requestPasswordRecoveryCode(email, resolveClientIp(req));
     return res.status(200).json({
       ok: true,
       message: "Если аккаунт найден, код отправлен на почту.",
@@ -657,17 +660,20 @@ authRouter.post("/auth/password/recovery/request", async (req, res) => {
 });
 
 authRouter.post("/auth/password/recovery/confirm", async (req, res) => {
-  const loginOrEmail = String(req.body?.loginOrEmail ?? "").trim();
+  const email = String(req.body?.email ?? "").trim();
   const code = String(req.body?.code ?? "");
   const nextPassword = String(req.body?.nextPassword ?? "");
-  if (!loginOrEmail || !code || !nextPassword) {
+  if (!email || !code || !nextPassword) {
     return res.status(400).json({ message: "Заполните обязательные поля." });
+  }
+  if (!email.includes("@")) {
+    return res.status(400).json({ message: "Введите корректную почту." });
   }
   if (nextPassword.length < 6) {
     return res.status(400).json({ message: "Пароль должен быть не короче 6 символов." });
   }
   try {
-    await confirmPasswordRecoveryByCode(loginOrEmail, code, nextPassword);
+    await confirmPasswordRecoveryByCode(email, code, nextPassword);
     return res.status(200).json({
       ok: true,
       message: "Пароль обновлен. Войдите с новым паролем.",

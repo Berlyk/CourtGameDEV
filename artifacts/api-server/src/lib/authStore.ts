@@ -420,20 +420,20 @@ function getEmailCodeMessage(purpose: EmailCodePurpose): {
 } {
   if (purpose === "password_reset") {
     return {
-      subject: "CourtGame — код восстановления пароля",
+      subject: "Код восстановления пароля",
       title: "Код восстановления пароля",
       subtitle: "Используйте этот код, чтобы восстановить доступ к аккаунту.",
     };
   }
   if (purpose === "password_change") {
     return {
-      subject: "CourtGame — код смены пароля",
+      subject: "Код смены пароля",
       title: "Код подтверждения смены пароля",
       subtitle: "Введите код в приложении, чтобы сменить пароль.",
     };
   }
   return {
-    subject: "CourtGame — код смены почты",
+    subject: "Код смены почты",
     title: "Код подтверждения новой почты",
     subtitle: "Введите код в приложении, чтобы привязать новую почту.",
   };
@@ -441,21 +441,73 @@ function getEmailCodeMessage(purpose: EmailCodePurpose): {
 
 async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: string): Promise<void> {
   const message = getEmailCodeMessage(purpose);
+  const siteBase = String(
+    process.env.PUBLIC_APP_URL ??
+      process.env.APP_PUBLIC_URL ??
+      process.env.FRONTEND_PUBLIC_URL ??
+      "https://courtgame.site",
+  )
+    .trim()
+    .replace(/\/+$/, "");
+  const logoUrl = `${siteBase}/favicon.ico`;
   const html = `
-    <div style="font-family:Arial,sans-serif;background:#0b0b0f;color:#f4f4f5;padding:24px;">
-      <div style="max-width:560px;margin:0 auto;background:#111218;border:1px solid #27272a;border-radius:14px;padding:20px;">
-        <div style="font-size:20px;font-weight:700;margin-bottom:8px;">${message.title}</div>
-        <div style="font-size:14px;color:#a1a1aa;margin-bottom:16px;">${message.subtitle}</div>
-        <div style="font-size:32px;letter-spacing:8px;font-weight:700;color:#fff;background:#18181b;border:1px solid #3f3f46;border-radius:12px;padding:12px 16px;text-align:center;">
-          ${code}
-        </div>
-        <div style="font-size:13px;color:#a1a1aa;margin-top:14px;">
-          Код действует 10 минут. Никому его не сообщайте.
-        </div>
-      </div>
-    </div>
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <meta name="supported-color-schemes" content="light" />
+    <title>${message.title}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#ffffff;font-family:Arial,sans-serif;color:#f4f4f5;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ffffff;padding:26px 0;">
+      <tr>
+        <td align="center" style="padding:0 14px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#0b0e17;border:1px solid #22283a;border-radius:16px;padding:24px;">
+            <tr>
+              <td>
+                <table role="presentation" cellspacing="0" cellpadding="0" style="margin-bottom:18px;">
+                  <tr>
+                    <td style="vertical-align:middle;padding-right:10px;">
+                      <img src="${logoUrl}" width="28" height="28" alt="CourtGame" style="display:block;border-radius:6px;" />
+                    </td>
+                    <td style="vertical-align:middle;font-size:18px;font-weight:700;color:#f4f4f5;">
+                      CourtGame
+                    </td>
+                  </tr>
+                </table>
+                <div style="font-size:30px;line-height:1.2;font-weight:700;margin-bottom:10px;color:#f4f4f5;">
+                  ${message.title}
+                </div>
+                <div style="font-size:15px;line-height:1.5;color:#b5bdce;margin-bottom:16px;">
+                  ${message.subtitle}
+                </div>
+                <div style="font-size:13px;line-height:1.45;color:#8f98ab;margin-bottom:16px;">
+                  Если письма нет во входящих, проверьте папку «Спам».
+                </div>
+                <div style="font-size:38px;letter-spacing:9px;font-weight:700;color:#ffffff;background:#171b27;border:1px solid #2f364b;border-radius:12px;padding:14px 16px;text-align:center;margin-bottom:16px;">
+                  ${code}
+                </div>
+                <div style="font-size:13px;line-height:1.55;color:#a8b0c1;">
+                  Код действует 10 минут. Никому его не сообщайте.
+                </div>
+                <div style="margin-top:18px;padding-top:16px;border-top:1px solid #21273a;font-size:12px;line-height:1.55;color:#8f98ab;">
+                  <div>Если вы не запрашивали это письмо, просто проигнорируйте его.</div>
+                  <div style="margin-top:6px;">
+                    Это автоматическое сообщение, отвечать на него не нужно.
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
   `;
-  const text = `${message.title}\n\nКод: ${code}\nКод действует 10 минут. Никому его не сообщайте.`;
+  const text = `${message.title}\n\nКод: ${code}\nКод действует 10 минут.\nЕсли письма нет во входящих, проверьте папку "Спам".\n\nЕсли вы не запрашивали это письмо, просто проигнорируйте его.`;
   await sendResendEmail({
     to: toEmail,
     subject: message.subject,
@@ -1741,15 +1793,15 @@ async function getUserWithSecretsByToken(token: string): Promise<{
   };
 }
 
-async function getUserWithSecretsByLoginOrEmail(loginOrEmailRaw: string): Promise<{
+async function getUserWithSecretsByEmail(emailRaw: string): Promise<{
   userId: string;
   email: string;
   passwordSalt: string;
   passwordHash: string;
 } | null> {
   await cleanupSessions();
-  const needle = normalizeLogin(loginOrEmailRaw);
-  if (!needle) return null;
+  const normalizedEmail = normalizeEmail(emailRaw);
+  if (!normalizedEmail || !normalizedEmail.includes("@")) return null;
   const result = await pool.query<{
     id: string;
     email: string;
@@ -1759,10 +1811,10 @@ async function getUserWithSecretsByLoginOrEmail(loginOrEmailRaw: string): Promis
     `
       SELECT id, email, password_salt, password_hash
       FROM auth_users
-      WHERE login_normalized = $1 OR email_normalized = $1
+      WHERE email_normalized = $1
       LIMIT 1
     `,
-    [needle],
+    [normalizedEmail],
   );
   if (!result.rowCount) return null;
   const row = result.rows[0];
@@ -1834,10 +1886,10 @@ export async function changeEmailByToken(
 }
 
 export async function requestPasswordRecoveryCode(
-  loginOrEmail: string,
+  email: string,
   clientIp?: string | null,
 ): Promise<void> {
-  const user = await getUserWithSecretsByLoginOrEmail(loginOrEmail);
+  const user = await getUserWithSecretsByEmail(email);
   if (!user) return;
   await issueEmailCode({
     purpose: "password_reset",
@@ -1848,11 +1900,11 @@ export async function requestPasswordRecoveryCode(
 }
 
 export async function confirmPasswordRecoveryByCode(
-  loginOrEmail: string,
+  email: string,
   code: string,
   nextPassword: string,
 ): Promise<void> {
-  const user = await getUserWithSecretsByLoginOrEmail(loginOrEmail);
+  const user = await getUserWithSecretsByEmail(email);
   if (!user) {
     throw new Error("Аккаунт не найден.");
   }
