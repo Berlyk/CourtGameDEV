@@ -8446,7 +8446,7 @@ export default function App() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="pointer-events-none fixed left-1/2 top-4 z-[530] w-[min(92vw,500px)] -translate-x-1/2"
+              className="pointer-events-none fixed left-1/2 top-4 z-[530] w-[min(90vw,420px)] -translate-x-1/2"
             >
               <div className="rounded-xl border border-red-500/45 bg-zinc-950/95 px-4 py-3 text-center text-sm text-red-200 shadow-[0_14px_34px_rgba(0,0,0,0.45)]">
                 {error}
