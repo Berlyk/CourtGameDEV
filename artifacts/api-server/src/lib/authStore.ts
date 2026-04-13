@@ -452,6 +452,7 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
     normalizeBaseUrl(process.env.FRONTEND_PUBLIC_URL) ??
     "https://courtgame.site";
   const logoUrl = String(process.env.EMAIL_LOGO_URL ?? `${baseUrl}/favicon.png`).trim();
+  const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   const html = `<!doctype html>
 <html lang="ru">
   <head>
@@ -460,58 +461,47 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
     <meta name="x-apple-disable-message-reformatting" />
     <title>${message.subject}</title>
   </head>
-  <body style="margin:0;padding:0;background:#ffffff;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="margin:0;padding:0;background:#ffffff;">
+  <body style="margin:0;padding:24px 16px;background:#ffffff;color:#111827;font-family:Arial,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;margin:0 auto;">
       <tr>
-        <td align="center" style="padding:16px 10px;">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#060914" style="max-width:640px;background:#060914;border-radius:18px;">
+        <td style="padding:0;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:14px;">
             <tr>
-              <td style="padding:24px 20px;font-family:Arial,sans-serif;color:#f4f4f5;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:16px;">
-                  <tr>
-                    <td style="width:56px;vertical-align:middle;">
-                      <img src="${logoUrl}" width="46" height="46" alt="" style="display:block;border:0;outline:none;text-decoration:none;" />
-                    </td>
-                    <td style="vertical-align:middle;font-size:28px;line-height:1.05;font-weight:700;color:#f4f4f5;">
-                      CourtGame
-                    </td>
-                  </tr>
-                </table>
-
-                <div style="margin:0 0 10px 0;font-size:30px;line-height:1.16;font-weight:500;color:#f4f4f5;">
-                  ${message.title}
-                </div>
-                <div style="margin:0 0 16px 0;font-size:16px;line-height:1.4;color:#b5bdce;">
-                  ${message.subtitle}
-                </div>
-
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#151922" style="background:#151922;border-radius:12px;margin:0 0 12px 0;">
-                  <tr>
-                    <td align="center" style="padding:16px 10px;font-size:42px;line-height:1.1;letter-spacing:9px;font-weight:800;color:#ffffff;">
-                      ${code}
-                    </td>
-                  </tr>
-                </table>
-
-                <div style="margin:0;font-size:14px;line-height:1.45;color:#a8b0c1;">
-                  Код действует 10 минут. Никому его не сообщайте.
-                </div>
-                <div style="margin-top:14px;border-top:1px solid #2a3042;"></div>
-                <div style="margin:14px 0 8px 0;font-size:13px;line-height:1.45;color:#8f98ab;">
-                  Если вы не запрашивали это письмо, просто проигнорируйте его.
-                </div>
-                <div style="margin:0;font-size:13px;line-height:1.45;color:#8f98ab;">
-                  Это автоматическое сообщение, отвечать на него не нужно.
-                </div>
+              <td style="width:44px;vertical-align:middle;">
+                <img src="${logoUrl}" width="36" height="36" alt="" style="display:block;border:0;outline:none;text-decoration:none;" />
+              </td>
+              <td style="vertical-align:middle;font-size:24px;line-height:1.1;font-weight:700;color:#111827;">
+                CourtGame
               </td>
             </tr>
           </table>
+
+          <div style="font-size:34px;line-height:1.12;font-weight:500;color:#111827;margin:0 0 10px 0;">
+            ${message.title}
+          </div>
+          <div style="font-size:18px;line-height:1.4;color:#374151;margin:0 0 18px 0;">
+            ${message.subtitle}
+          </div>
+
+          <div style="font-size:48px;line-height:1.1;letter-spacing:8px;font-weight:700;color:#111827;margin:0 0 12px 0;">
+            ${code}
+          </div>
+
+          <div style="font-size:15px;line-height:1.45;color:#4b5563;margin:0 0 8px 0;">
+            Код действует 10 минут.
+          </div>
+          <div style="font-size:13px;line-height:1.45;color:#6b7280;margin:0;">
+            Если это были не вы, просто проигнорируйте письмо.
+          </div>
+          <div style="font-size:12px;line-height:1.4;color:#9ca3af;margin-top:8px;">
+            ID запроса: ${requestId}
+          </div>
         </td>
       </tr>
     </table>
   </body>
 </html>`;
-  const text = `${message.title}\n\nКод: ${code}\nКод действует 10 минут.\n\nЕсли вы не запрашивали это письмо, просто проигнорируйте его.`;
+  const text = `${message.title}\n\nКод: ${code}\nКод действует 10 минут.\nЕсли это были не вы, просто проигнорируйте письмо.\nID запроса: ${requestId}`;
   await sendResendEmail({
     to: toEmail,
     subject: message.subject,
