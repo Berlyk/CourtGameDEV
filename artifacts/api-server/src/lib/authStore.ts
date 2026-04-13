@@ -399,6 +399,12 @@ function toPublicUser(row: {
   selected_badge_key?: string | null;
   preferred_role?: string | null;
   admin_role?: string | null;
+  subscription_tier?: string | null;
+  subscription_start_at?: Date | null;
+  subscription_end_at?: Date | null;
+  subscription_is_lifetime?: boolean | null;
+  subscription_source?: string | null;
+  subscription_duration?: string | null;
   ban_until?: Date | null;
   ban_permanent?: boolean | null;
   ban_reason?: string | null;
@@ -418,13 +424,34 @@ function toPublicUser(row: {
           ban_reason: row.ban_reason ?? null,
         })
       : undefined;
+  const hasSubscriptionData =
+    row.subscription_tier !== undefined ||
+    row.subscription_start_at !== undefined ||
+    row.subscription_end_at !== undefined ||
+    row.subscription_is_lifetime !== undefined ||
+    row.subscription_source !== undefined ||
+    row.subscription_duration !== undefined;
+  const media = sanitizePublicMediaBySubscription(
+    row.avatar,
+    row.banner,
+    hasSubscriptionData
+      ? resolveSubscriptionView({
+          subscription_tier: row.subscription_tier ?? null,
+          subscription_start_at: row.subscription_start_at ?? null,
+          subscription_end_at: row.subscription_end_at ?? null,
+          subscription_is_lifetime: row.subscription_is_lifetime ?? false,
+          subscription_source: row.subscription_source ?? null,
+          subscription_duration: row.subscription_duration ?? null,
+        })
+      : null,
+  );
   return {
     id: row.id,
     login: row.login,
     email: row.email,
     nickname: row.nickname,
-    avatar: row.avatar ?? undefined,
-    banner: row.banner ?? undefined,
+    avatar: media.avatar,
+    banner: media.banner,
     bio: row.bio ?? undefined,
     gender:
       row.gender === "male" || row.gender === "female" || row.gender === "other"
@@ -492,6 +519,48 @@ function resolveSubscriptionView(row: SubscriptionRowShape): UserSubscriptionVie
   };
 }
 
+function isAnimatedProfileMedia(value: string | null | undefined): boolean {
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith("cgif1:")) return true;
+  if (normalized.startsWith("data:image/gif")) return true;
+  return normalized.includes(".gif");
+}
+
+function sanitizePublicMediaBySubscription(
+  avatar: string | null | undefined,
+  banner: string | null | undefined,
+  subscription: UserSubscriptionView | null,
+): { avatar?: string; banner?: string } {
+  const safeAvatar = typeof avatar === "string" && avatar.trim() ? avatar : undefined;
+  let safeBanner = typeof banner === "string" && banner.trim() ? banner : undefined;
+
+  if (!subscription) {
+    return { avatar: safeAvatar, banner: safeBanner };
+  }
+
+  if (!subscription.capabilities.canUseProfileBanner) {
+    safeBanner = undefined;
+  }
+  if (!subscription.capabilities.canUseAnimatedProfileMedia) {
+    if (isAnimatedProfileMedia(safeAvatar)) {
+      return {
+        avatar: undefined,
+        banner: safeBanner && !isAnimatedProfileMedia(safeBanner) ? safeBanner : undefined,
+      };
+    }
+    if (safeBanner && isAnimatedProfileMedia(safeBanner)) {
+      safeBanner = undefined;
+    }
+  }
+
+  return {
+    avatar: safeAvatar,
+    banner: safeBanner,
+  };
+}
+
 function toPublicProfile(row: {
   id: string;
   nickname: string;
@@ -502,14 +571,29 @@ function toPublicProfile(row: {
   birth_date: Date | null;
   hide_age: boolean | null;
   preferred_role?: string | null;
+  subscription_tier?: string | null;
+  subscription_start_at?: Date | null;
+  subscription_end_at?: Date | null;
+  subscription_is_lifetime?: boolean | null;
+  subscription_source?: string | null;
+  subscription_duration?: string | null;
   created_at: Date;
 }): AuthUserPublicProfile {
   const age = computeAge(row.birth_date);
+  const subscription = resolveSubscriptionView({
+    subscription_tier: row.subscription_tier ?? null,
+    subscription_start_at: row.subscription_start_at ?? null,
+    subscription_end_at: row.subscription_end_at ?? null,
+    subscription_is_lifetime: row.subscription_is_lifetime ?? false,
+    subscription_source: row.subscription_source ?? null,
+    subscription_duration: row.subscription_duration ?? null,
+  });
+  const media = sanitizePublicMediaBySubscription(row.avatar, row.banner, subscription);
   return {
     id: row.id,
     nickname: row.nickname,
-    avatar: row.avatar ?? undefined,
-    banner: row.banner ?? undefined,
+    avatar: media.avatar,
+    banner: media.banner,
     bio: row.bio ?? undefined,
     gender:
       row.gender === "male" || row.gender === "female" || row.gender === "other"
@@ -897,6 +981,12 @@ export async function registerAccount(input: {
     selected_badge_key: string | null;
     preferred_role: string | null;
     admin_role: string | null;
+    subscription_tier: string | null;
+    subscription_start_at: Date | null;
+    subscription_end_at: Date | null;
+    subscription_is_lifetime: boolean | null;
+    subscription_source: string | null;
+    subscription_duration: string | null;
     created_at: Date;
   }>(
     `
@@ -913,7 +1003,7 @@ export async function registerAccount(input: {
         accepted_rules_at
       )
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-      RETURNING id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, admin_role, created_at
+      RETURNING id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, admin_role, subscription_tier, subscription_start_at, subscription_end_at, subscription_is_lifetime, subscription_source, subscription_duration, created_at
     `,
     [
       userId,
@@ -978,6 +1068,12 @@ export async function loginAccount(input: {
     selected_badge_key: string | null;
     preferred_role: string | null;
     admin_role: string | null;
+    subscription_tier: string | null;
+    subscription_start_at: Date | null;
+    subscription_end_at: Date | null;
+    subscription_is_lifetime: boolean | null;
+    subscription_source: string | null;
+    subscription_duration: string | null;
     created_at: Date;
     password_salt: string;
     password_hash: string;
@@ -986,7 +1082,7 @@ export async function loginAccount(input: {
     ban_reason: string | null;
   }>(
     `
-      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, admin_role, created_at, password_salt, password_hash, ban_until, ban_permanent, ban_reason
+      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, admin_role, subscription_tier, subscription_start_at, subscription_end_at, subscription_is_lifetime, subscription_source, subscription_duration, created_at, password_salt, password_hash, ban_until, ban_permanent, ban_reason
       FROM auth_users
       WHERE login_normalized = $1 OR email_normalized = $1
       LIMIT 1
@@ -1044,13 +1140,19 @@ export async function getUserByToken(
     selected_badge_key: string | null;
     preferred_role: string | null;
     admin_role: string | null;
+    subscription_tier: string | null;
+    subscription_start_at: Date | null;
+    subscription_end_at: Date | null;
+    subscription_is_lifetime: boolean | null;
+    subscription_source: string | null;
+    subscription_duration: string | null;
     created_at: Date;
     ban_until: Date | null;
     ban_permanent: boolean | null;
     ban_reason: string | null;
   }>(
     `
-      SELECT u.id, u.login, u.email, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.selected_badge_key, u.preferred_role, u.admin_role, u.created_at, u.ban_until, u.ban_permanent, u.ban_reason
+      SELECT u.id, u.login, u.email, u.nickname, u.avatar, u.banner, u.bio, u.gender, u.birth_date, u.hide_age, u.selected_badge_key, u.preferred_role, u.admin_role, u.subscription_tier, u.subscription_start_at, u.subscription_end_at, u.subscription_is_lifetime, u.subscription_source, u.subscription_duration, u.created_at, u.ban_until, u.ban_permanent, u.ban_reason
       FROM auth_sessions s
       JOIN auth_users u ON u.id = s.user_id
       WHERE s.token = $1
@@ -1278,10 +1380,17 @@ export async function updateProfileByToken(
     hide_age: boolean | null;
     selected_badge_key: string | null;
     preferred_role: string | null;
+    admin_role: string | null;
+    subscription_tier: string | null;
+    subscription_start_at: Date | null;
+    subscription_end_at: Date | null;
+    subscription_is_lifetime: boolean | null;
+    subscription_source: string | null;
+    subscription_duration: string | null;
     created_at: Date;
   }>(
     `
-      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, admin_role, created_at
+      SELECT id, login, email, nickname, avatar, banner, bio, gender, birth_date, hide_age, selected_badge_key, preferred_role, admin_role, subscription_tier, subscription_start_at, subscription_end_at, subscription_is_lifetime, subscription_source, subscription_duration, created_at
       FROM auth_users
       WHERE id = $1
       LIMIT 1

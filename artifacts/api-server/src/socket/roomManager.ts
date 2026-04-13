@@ -1752,13 +1752,21 @@ export function startGame(
   if (room.isHostJudge) {
     const host = mainPlayers.find((player) => player.id === room.hostId);
     if (host) {
+      for (const [playerId, assignedRole] of [...roleByPlayerId.entries()]) {
+        if (assignedRole === "judge" && playerId !== host.id) {
+          roleByPlayerId.delete(playerId);
+        }
+      }
       const currentHostRole = roleByPlayerId.get(host.id);
       if (currentHostRole && currentHostRole !== "judge") {
-        remainingRoles.push(currentHostRole);
+        if (!remainingRoles.includes(currentHostRole)) {
+          remainingRoles.push(currentHostRole);
+        }
       }
-      const judgeRoleIndex = remainingRoles.indexOf("judge");
-      if (judgeRoleIndex !== -1) {
-        remainingRoles.splice(judgeRoleIndex, 1);
+      for (let i = remainingRoles.length - 1; i >= 0; i -= 1) {
+        if (remainingRoles[i] === "judge") {
+          remainingRoles.splice(i, 1);
+        }
       }
       roleByPlayerId.set(host.id, "judge");
     }
