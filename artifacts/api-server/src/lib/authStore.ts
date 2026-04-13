@@ -452,6 +452,7 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
     normalizeBaseUrl(process.env.FRONTEND_PUBLIC_URL) ??
     "https://courtgame.site";
   const logoUrl = String(process.env.EMAIL_LOGO_URL ?? `${baseUrl}/favicon.png`).trim();
+  const issuedAt = new Date().toISOString().replace("T", " ").slice(0, 16);
   const html = `<!doctype html>
 <html lang="ru">
   <head>
@@ -459,78 +460,83 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="x-apple-disable-message-reformatting" />
     <meta name="format-detection" content="telephone=no,date=no,address=no,email=no,url=no" />
-    <meta name="color-scheme" content="dark only" />
-    <meta name="supported-color-schemes" content="dark only" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="supported-color-schemes" content="light dark" />
     <title>${message.subject}</title>
     <style>
       body, table, td, div, p, a { font-family: Arial, sans-serif; }
+      u + .body .gmail-blend-screen { background: #000; mix-blend-mode: screen; }
+      u + .body .gmail-blend-difference { background: #000; mix-blend-mode: difference; }
     </style>
   </head>
-  <body style="margin:0;padding:0;background:#ffffff;-webkit-text-size-adjust:100%;text-size-adjust:100%;">
+  <body class="body" style="margin:0;padding:0;background:#ffffff;-webkit-text-size-adjust:100%;text-size-adjust:100%;">
+    <u style="display:none !important;">&nbsp;</u>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0;padding:0;background:#ffffff;">
       <tr>
         <td align="center" style="padding:16px 10px;">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#060914" style="max-width:640px;background:#060914;border-radius:18px;border-collapse:separate;">
-            <tr>
-              <td bgcolor="#060914" style="padding:24px 20px;background:#060914;border-radius:18px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:16px;">
-                  <tr>
-                    <td style="width:56px;vertical-align:middle;">
-                      <img src="${logoUrl}" width="46" height="46" alt="" style="display:block;border:0;outline:none;text-decoration:none;" />
-                    </td>
-                    <td style="vertical-align:middle;font-size:28px;line-height:1.05;font-weight:700;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5;">
-                      CourtGame
-                    </td>
-                  </tr>
-                </table>
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                  <tr>
-                    <td style="font-size:30px;line-height:1.16;font-weight:600;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5;padding:0 0 10px 0;">
-                      ${message.title}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="font-size:16px;line-height:1.4;color:#b5bdce !important;-webkit-text-fill-color:#b5bdce;padding:0 0 16px 0;">
-                      ${message.subtitle}
-                    </td>
-                  </tr>
-                </table>
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#151922" style="background:#151922;border-radius:12px;margin:0 0 12px 0;">
-                  <tr>
-                    <td align="center" style="padding:16px 10px;font-size:42px;line-height:1.1;letter-spacing:9px;font-weight:800;color:#ffffff !important;-webkit-text-fill-color:#ffffff;">
-                      ${code}
-                    </td>
-                  </tr>
-                </table>
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                  <tr>
-                    <td style="font-size:14px;line-height:1.45;color:#a8b0c1 !important;-webkit-text-fill-color:#a8b0c1;padding:0 0 12px 0;">
-                      Код действует 10 минут. Никому его не сообщайте.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding:0 0 14px 0;border-top:1px solid #2a3042;"></td>
-                  </tr>
-                  <tr>
-                    <td style="font-size:13px;line-height:1.45;color:#8f98ab !important;-webkit-text-fill-color:#8f98ab;padding:0 0 8px 0;">
-                      Если вы не запрашивали это письмо, просто проигнорируйте его.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="font-size:13px;line-height:1.45;color:#8f98ab !important;-webkit-text-fill-color:#8f98ab;">
-                      Это автоматическое сообщение, отвечать на него не нужно.
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
+          <div class="gmail-blend-screen">
+            <div class="gmail-blend-difference">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#060914" style="max-width:640px;background:#060914;border-radius:18px;border-collapse:separate;">
+                <tr>
+                  <td bgcolor="#060914" style="padding:24px 20px;background:#060914;border-radius:18px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:16px;">
+                      <tr>
+                        <td style="width:56px;vertical-align:middle;">
+                          <img src="${logoUrl}" width="46" height="46" alt="" style="display:block;border:0;outline:none;text-decoration:none;" />
+                        </td>
+                        <td style="vertical-align:middle;font-size:28px;line-height:1.05;font-weight:700;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5;">
+                          CourtGame
+                        </td>
+                      </tr>
+                    </table>
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="font-size:30px;line-height:1.16;font-weight:500;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5;padding:0 0 10px 0;">
+                          ${message.title}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:16px;line-height:1.4;color:#b5bdce !important;-webkit-text-fill-color:#b5bdce;padding:0 0 16px 0;">
+                          ${message.subtitle}
+                        </td>
+                      </tr>
+                    </table>
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#151922" style="background:#151922;border-radius:12px;margin:0 0 12px 0;">
+                      <tr>
+                        <td align="center" style="padding:16px 10px;font-size:42px;line-height:1.1;letter-spacing:9px;font-weight:800;color:#ffffff !important;-webkit-text-fill-color:#ffffff;">
+                          ${code}
+                        </td>
+                      </tr>
+                    </table>
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="font-size:14px;line-height:1.45;color:#a8b0c1 !important;-webkit-text-fill-color:#a8b0c1;padding:0;">
+                          Код действует 10 минут. Никому его не сообщайте.
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:12px;line-height:1.45;color:#7f8799 !important;-webkit-text-fill-color:#7f8799;padding-top:8px;">
+                          Запрос: ${issuedAt} UTC
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </div>
+          <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;font-size:1px;line-height:1px;color:#ffffff;">
+            Код ${code}. Используйте его для подтверждения смены пароля.
+          </div>
+          <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;font-size:1px;line-height:1px;color:#ffffff;">
+            CourtGame Security Notice
+          </div>
         </td>
       </tr>
     </table>
   </body>
 </html>`;
-  const text = `${message.title}\n\nКод: ${code}\nКод действует 10 минут.\n\nЕсли вы не запрашивали это письмо, просто проигнорируйте его.`;
+  const text = `${message.title}\n\nКод: ${code}\nКод действует 10 минут.\nЗапрос: ${issuedAt} UTC\n\nЕсли вы не запрашивали это письмо, просто проигнорируйте его.`;
   await sendResendEmail({
     to: toEmail,
     subject: message.subject,
