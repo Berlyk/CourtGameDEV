@@ -453,39 +453,33 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
     "https://courtgame.site";
   const logoUrl = String(process.env.EMAIL_LOGO_URL ?? `${baseUrl}/favicon.png`).trim();
   const html = `
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0;padding:0;background:#ffffff;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0;padding:0;">
       <tr>
-        <td align="center" style="padding:24px 12px;">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#0b0e17;border:1px solid #22283a;border-radius:16px;">
+        <td align="center" style="padding:12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#0b0e17" style="max-width:640px;background:#0b0e17;border:1px solid #22283a;border-radius:16px;">
             <tr>
-              <td style="padding:24px 22px 22px;font-family:Arial,sans-serif;">
-                <table role="presentation" cellspacing="0" cellpadding="0" style="margin-bottom:18px;">
+              <td bgcolor="#0b0e17" style="padding:22px 18px 20px;font-family:Arial,sans-serif;background:#0b0e17;">
+                <table role="presentation" cellspacing="0" cellpadding="0" style="margin-bottom:14px;">
                   <tr>
                     <td style="vertical-align:middle;padding-right:10px;">
-                      <img src="${logoUrl}" width="28" height="28" alt="" style="display:block;border-radius:6px;outline:none;border:0;" />
+                      <img src="${logoUrl}" width="40" height="40" alt="" style="display:block;outline:none;border:0;text-decoration:none;" />
                     </td>
                     <td style="vertical-align:middle;font-size:18px;font-weight:700;color:#f4f4f5;line-height:1;">
                       CourtGame
                     </td>
                   </tr>
                 </table>
-                <div style="font-size:20px;line-height:1.2;font-weight:700;color:#f4f4f5;margin-bottom:10px;">
+                <div style="font-size:28px;line-height:1.16;font-weight:700;color:#f4f4f5;margin-bottom:10px;">
                   ${message.title}
                 </div>
-                <div style="font-size:15px;line-height:1.45;color:#b5bdce;margin-bottom:18px;">
+                <div style="font-size:16px;line-height:1.4;color:#b5bdce;margin-bottom:14px;">
                   ${message.subtitle}
                 </div>
-                <div style="font-size:38px;letter-spacing:9px;font-weight:700;color:#ffffff;background:#171b27;border:1px solid #2f364b;border-radius:12px;padding:14px 16px;text-align:center;margin-bottom:16px;">
+                <div style="font-size:42px;letter-spacing:9px;font-weight:700;color:#ffffff;background:#171b27;border:1px solid #2f364b;border-radius:12px;padding:14px 12px;text-align:center;margin-bottom:12px;">
                   ${code}
                 </div>
-                <div style="font-size:13px;line-height:1.55;color:#a8b0c1;margin-bottom:18px;">
+                <div style="font-size:14px;line-height:1.5;color:#a8b0c1;">
                   Код действует 10 минут. Никому его не сообщайте.
-                </div>
-                <div style="margin-top:8px;padding-top:16px;border-top:1px solid #21273a;font-size:12px;line-height:1.55;color:#8f98ab;">
-                  <div>Если вы не запрашивали это письмо, просто проигнорируйте его.</div>
-                  <div style="margin-top:6px;">
-                    Это автоматическое сообщение, отвечать на него не нужно.
-                  </div>
                 </div>
               </td>
             </tr>
