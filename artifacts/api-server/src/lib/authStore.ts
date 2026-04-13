@@ -429,70 +429,59 @@ function getEmailCodeMessage(purpose: EmailCodePurpose): {
     return {
       subject: "Код смены пароля",
       title: "Код подтверждения смены пароля",
-      subtitle: "Введите код в приложении, чтобы сменить пароль.",
+      subtitle: "Введите код на сайте, чтобы сменить пароль.",
     };
   }
   return {
     subject: "Код смены почты",
     title: "Код подтверждения новой почты",
-    subtitle: "Введите код в приложении, чтобы привязать новую почту.",
+    subtitle: "Введите код на сайте, чтобы привязать новую почту.",
   };
 }
 
 async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: string): Promise<void> {
   const message = getEmailCodeMessage(purpose);
-  const siteBase = String(
-    process.env.PUBLIC_APP_URL ??
-      process.env.APP_PUBLIC_URL ??
-      process.env.FRONTEND_PUBLIC_URL ??
-      "https://courtgame.site",
-  )
-    .trim()
-    .replace(/\/+$/, "");
-  const logoUrl = `${siteBase}/favicon.ico`;
+  const normalizeBaseUrl = (value: string | undefined | null): string | null => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return null;
+    return raw.replace(/\/+$/, "");
+  };
+  const baseUrl =
+    normalizeBaseUrl(process.env.PUBLIC_APP_URL) ??
+    normalizeBaseUrl(process.env.APP_PUBLIC_URL) ??
+    normalizeBaseUrl(process.env.FRONTEND_PUBLIC_URL) ??
+    "https://courtgame.site";
+  const logoUrl = String(process.env.EMAIL_LOGO_URL ?? `${baseUrl}/favicon.png`).trim();
   const html = `
-<!doctype html>
-<html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light" />
-    <meta name="supported-color-schemes" content="light" />
-    <title>${message.title}</title>
-  </head>
-  <body style="margin:0;padding:0;background:#ffffff;font-family:Arial,sans-serif;color:#f4f4f5;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ffffff;padding:26px 0;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0;padding:0;background:#ffffff;">
       <tr>
-        <td align="center" style="padding:0 14px;">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#0b0e17;border:1px solid #22283a;border-radius:16px;padding:24px;">
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#0b0e17;border:1px solid #22283a;border-radius:16px;">
             <tr>
-              <td>
+              <td style="padding:24px 22px 22px;font-family:Arial,sans-serif;">
                 <table role="presentation" cellspacing="0" cellpadding="0" style="margin-bottom:18px;">
                   <tr>
                     <td style="vertical-align:middle;padding-right:10px;">
-                      <img src="${logoUrl}" width="28" height="28" alt="CourtGame" style="display:block;border-radius:6px;" />
+                      <img src="${logoUrl}" width="28" height="28" alt="" style="display:block;border-radius:6px;outline:none;border:0;" />
                     </td>
-                    <td style="vertical-align:middle;font-size:18px;font-weight:700;color:#f4f4f5;">
+                    <td style="vertical-align:middle;font-size:18px;font-weight:700;color:#f4f4f5;line-height:1;">
                       CourtGame
                     </td>
                   </tr>
                 </table>
-                <div style="font-size:30px;line-height:1.2;font-weight:700;margin-bottom:10px;color:#f4f4f5;">
+                <div style="font-size:20px;line-height:1.2;font-weight:700;color:#f4f4f5;margin-bottom:10px;">
                   ${message.title}
                 </div>
-                <div style="font-size:15px;line-height:1.5;color:#b5bdce;margin-bottom:16px;">
+                <div style="font-size:15px;line-height:1.45;color:#b5bdce;margin-bottom:18px;">
                   ${message.subtitle}
-                </div>
-                <div style="font-size:13px;line-height:1.45;color:#8f98ab;margin-bottom:16px;">
-                  Если письма нет во входящих, проверьте папку «Спам».
                 </div>
                 <div style="font-size:38px;letter-spacing:9px;font-weight:700;color:#ffffff;background:#171b27;border:1px solid #2f364b;border-radius:12px;padding:14px 16px;text-align:center;margin-bottom:16px;">
                   ${code}
                 </div>
-                <div style="font-size:13px;line-height:1.55;color:#a8b0c1;">
+                <div style="font-size:13px;line-height:1.55;color:#a8b0c1;margin-bottom:18px;">
                   Код действует 10 минут. Никому его не сообщайте.
                 </div>
-                <div style="margin-top:18px;padding-top:16px;border-top:1px solid #21273a;font-size:12px;line-height:1.55;color:#8f98ab;">
+                <div style="margin-top:8px;padding-top:16px;border-top:1px solid #21273a;font-size:12px;line-height:1.55;color:#8f98ab;">
                   <div>Если вы не запрашивали это письмо, просто проигнорируйте его.</div>
                   <div style="margin-top:6px;">
                     Это автоматическое сообщение, отвечать на него не нужно.
@@ -504,10 +493,8 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
         </td>
       </tr>
     </table>
-  </body>
-</html>
   `;
-  const text = `${message.title}\n\nКод: ${code}\nКод действует 10 минут.\nЕсли письма нет во входящих, проверьте папку "Спам".\n\nЕсли вы не запрашивали это письмо, просто проигнорируйте его.`;
+  const text = `${message.title}\n\nКод: ${code}\nКод действует 10 минут.\n\nЕсли вы не запрашивали это письмо, просто проигнорируйте его.`;
   await sendResendEmail({
     to: toEmail,
     subject: message.subject,

@@ -3418,7 +3418,6 @@ export default function App() {
   const [emailChangeCooldownUntil, setEmailChangeCooldownUntil] = useState(0);
   const [showEmailChangeCurrentPassword, setShowEmailChangeCurrentPassword] = useState(false);
   const [passwordChangeNext, setPasswordChangeNext] = useState("");
-  const [passwordChangeConfirm, setPasswordChangeConfirm] = useState("");
   const [passwordChangeCode, setPasswordChangeCode] = useState("");
   const [passwordChangeCodeSent, setPasswordChangeCodeSent] = useState(false);
   const [passwordChangeNotice, setPasswordChangeNotice] = useState("");
@@ -3427,18 +3426,20 @@ export default function App() {
   );
   const [passwordChangeCooldownUntil, setPasswordChangeCooldownUntil] = useState(0);
   const [showPasswordChangeNext, setShowPasswordChangeNext] = useState(false);
-  const [showPasswordChangeConfirm, setShowPasswordChangeConfirm] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [passwordRecoveryDialogOpen, setPasswordRecoveryDialogOpen] = useState(false);
   const [passwordRecoveryReturnToAuth, setPasswordRecoveryReturnToAuth] = useState(false);
   const [passwordRecoveryEmail, setPasswordRecoveryEmail] = useState("");
   const [passwordRecoveryCode, setPasswordRecoveryCode] = useState("");
-  const [passwordRecoveryCodeSent, setPasswordRecoveryCodeSent] = useState(false);
+  const [passwordRecoveryStep, setPasswordRecoveryStep] = useState<"email" | "code" | "password">("email");
+  const [passwordRecoveryNotice, setPasswordRecoveryNotice] = useState("");
+  const [passwordRecoveryNoticeKind, setPasswordRecoveryNoticeKind] = useState<
+    "info" | "success" | "error"
+  >("info");
+  const [passwordRecoveryCooldownUntil, setPasswordRecoveryCooldownUntil] = useState(0);
   const [passwordRecoveryNextPassword, setPasswordRecoveryNextPassword] = useState("");
-  const [passwordRecoveryConfirmPassword, setPasswordRecoveryConfirmPassword] = useState("");
   const [showPasswordRecoveryNext, setShowPasswordRecoveryNext] = useState(false);
-  const [showPasswordRecoveryConfirm, setShowPasswordRecoveryConfirm] = useState(false);
   const [passwordRecoveryLoading, setPasswordRecoveryLoading] = useState(false);
   const [profileActionLoading, setProfileActionLoading] = useState(false);
   const [myProfileLoading, setMyProfileLoading] = useState(false);
@@ -3497,6 +3498,10 @@ export default function App() {
     Math.ceil((passwordChangeCooldownUntil - nowMs) / 1000),
   );
   const emailChangeCooldownLeft = Math.max(0, Math.ceil((emailChangeCooldownUntil - nowMs) / 1000));
+  const passwordRecoveryCooldownLeft = Math.max(
+    0,
+    Math.ceil((passwordRecoveryCooldownUntil - nowMs) / 1000),
+  );
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false);
@@ -6589,13 +6594,7 @@ export default function App() {
   const changePassword = useCallback(async (): Promise<boolean> => {
     if (!authToken) return false;
     const nextPassword = passwordChangeNext;
-    const confirmPassword = passwordChangeConfirm;
     if (!nextPassword) return false;
-    if (nextPassword !== confirmPassword) {
-      setPasswordChangeNoticeKind("error");
-      setPasswordChangeNotice("Пароли не совпадают.");
-      return false;
-    }
     setProfileActionLoading(true);
     try {
       if (!passwordChangeCodeSent) {
@@ -6630,7 +6629,6 @@ export default function App() {
         },
       });
       setPasswordChangeNext("");
-      setPasswordChangeConfirm("");
       setPasswordChangeCode("");
       setPasswordChangeCodeSent(false);
       await reloadMyProfile();
@@ -6653,7 +6651,6 @@ export default function App() {
     authToken,
     passwordChangeCode,
     passwordChangeCodeSent,
-    passwordChangeConfirm,
     passwordChangeCooldownLeft,
     passwordChangeNext,
     reloadMyProfile,
@@ -6734,7 +6731,13 @@ export default function App() {
   const requestPasswordRecoveryCode = useCallback(async (): Promise<boolean> => {
     const email = passwordRecoveryEmail.trim();
     if (!email || !email.includes("@")) {
-      setAuthError("Введите корректную почту.");
+      setPasswordRecoveryNoticeKind("error");
+      setPasswordRecoveryNotice("Введите корректную почту.");
+      return false;
+    }
+    if (passwordRecoveryCooldownLeft > 0) {
+      setPasswordRecoveryNoticeKind("error");
+      setPasswordRecoveryNotice(`Повторный код можно запросить через ${passwordRecoveryCooldownLeft} сек.`);
       return false;
     }
     setPasswordRecoveryLoading(true);
@@ -6743,27 +6746,44 @@ export default function App() {
         method: "POST",
         body: { email },
       });
-      setPasswordRecoveryCodeSent(true);
-      setAuthError(payload.message || "Код отправлен на почту.");
+      setPasswordRecoveryCode("");
+      setPasswordRecoveryStep("code");
+      setPasswordRecoveryCooldownUntil(Date.now() + 60_000);
+      setPasswordRecoveryNoticeKind("info");
+      setPasswordRecoveryNotice(
+        payload.message || "Код отправлен на почту. Если письма нет, проверьте папку «Спам».",
+      );
       return true;
     } catch (err) {
       const message = err instanceof Error ? localizeAuthError(err.message) : "Не удалось отправить код.";
-      setAuthError(message);
+      const cooldownSeconds = extractCooldownSeconds(message);
+      if (cooldownSeconds !== null) {
+        setPasswordRecoveryCooldownUntil(Date.now() + cooldownSeconds * 1000);
+      }
+      setPasswordRecoveryNoticeKind("error");
+      setPasswordRecoveryNotice(message);
       return false;
     } finally {
       setPasswordRecoveryLoading(false);
     }
-  }, [passwordRecoveryEmail]);
+  }, [passwordRecoveryCooldownLeft, passwordRecoveryEmail]);
+
+  const movePasswordRecoveryToPasswordStep = useCallback(() => {
+    const code = passwordRecoveryCode.trim();
+    if (!code) {
+      setPasswordRecoveryNoticeKind("error");
+      setPasswordRecoveryNotice("Введите код из письма.");
+      return;
+    }
+    setPasswordRecoveryNotice("");
+    setPasswordRecoveryStep("password");
+  }, [passwordRecoveryCode]);
 
   const confirmPasswordRecovery = useCallback(async (): Promise<boolean> => {
     const email = passwordRecoveryEmail.trim();
     const code = passwordRecoveryCode.trim();
     const nextPassword = passwordRecoveryNextPassword;
-    if (!email || !email.includes("@") || !code || !nextPassword || !passwordRecoveryConfirmPassword) {
-      return false;
-    }
-    if (nextPassword !== passwordRecoveryConfirmPassword) {
-      setAuthError("Пароли не совпадают.");
+    if (!email || !email.includes("@") || !code || !nextPassword) {
       return false;
     }
     setPasswordRecoveryLoading(true);
@@ -6778,10 +6798,10 @@ export default function App() {
       });
       setPasswordRecoveryReturnToAuth(false);
       setPasswordRecoveryDialogOpen(false);
-      setPasswordRecoveryCodeSent(false);
+      setPasswordRecoveryStep("email");
+      setPasswordRecoveryNotice("");
       setPasswordRecoveryCode("");
       setPasswordRecoveryNextPassword("");
-      setPasswordRecoveryConfirmPassword("");
       setPasswordRecoveryEmail("");
       setAuthMode("login");
       setAuthDialogOpen(true);
@@ -6790,17 +6810,13 @@ export default function App() {
     } catch (err) {
       const message =
         err instanceof Error ? localizeAuthError(err.message) : "Не удалось восстановить пароль.";
-      setAuthError(message);
+      setPasswordRecoveryNoticeKind("error");
+      setPasswordRecoveryNotice(message);
       return false;
     } finally {
       setPasswordRecoveryLoading(false);
     }
-  }, [
-    passwordRecoveryCode,
-    passwordRecoveryConfirmPassword,
-    passwordRecoveryEmail,
-    passwordRecoveryNextPassword,
-  ]);
+  }, [passwordRecoveryCode, passwordRecoveryEmail, passwordRecoveryNextPassword]);
 
   const openUserProfile = useCallback(
     async (userId?: string) => {
@@ -9557,10 +9573,8 @@ export default function App() {
               setPasswordChangeCodeSent(false);
               setPasswordChangeCode("");
               setPasswordChangeNext("");
-              setPasswordChangeConfirm("");
               setPasswordChangeNotice("");
               setShowPasswordChangeNext(false);
-              setShowPasswordChangeConfirm(false);
             }
           }}
         >
@@ -9572,54 +9586,39 @@ export default function App() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
-              <div className="relative">
-                <Input
-                  type={showPasswordChangeNext ? "text" : "password"}
-                  value={passwordChangeNext}
-                  onChange={(e) => setPasswordChangeNext(e.target.value)}
-                  placeholder="Новый пароль"
-                  className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-11 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordChangeNext((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
-                >
-                  {showPasswordChangeNext ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <div className="relative">
-                <Input
-                  type={showPasswordChangeConfirm ? "text" : "password"}
-                  value={passwordChangeConfirm}
-                  onChange={(e) => setPasswordChangeConfirm(e.target.value)}
-                  placeholder="Повторите новый пароль"
-                  className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-11 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordChangeConfirm((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
-                >
-                  {showPasswordChangeConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {passwordChangeCodeSent && (
+              {!passwordChangeCodeSent ? (
+                <div className="relative">
+                  <Input
+                    type={showPasswordChangeNext ? "text" : "password"}
+                    value={passwordChangeNext}
+                    onChange={(e) => setPasswordChangeNext(e.target.value)}
+                    placeholder="Новый пароль"
+                    className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-11 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordChangeNext((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                  >
+                    {showPasswordChangeNext ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              ) : (
                 <>
-                  <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/80 px-3 py-2 text-xs text-zinc-300">
-                    Если письма нет, проверьте папку «Спам».
-                    <div className="mt-1 text-zinc-400">
-                      {passwordChangeCooldownLeft > 0
-                        ? `Новый код можно запросить через ${passwordChangeCooldownLeft} сек.`
-                        : "Новый код уже можно запрашивать."}
-                    </div>
-                  </div>
                   <Input
                     value={passwordChangeCode}
                     onChange={(e) => setPasswordChangeCode(e.target.value)}
                     placeholder="Код из письма"
                     className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
                   />
+                  <div className="px-1 text-xs text-zinc-400">
+                    Если письма нет, проверьте папку «Спам».
+                  </div>
+                  <div className="px-1 text-xs text-zinc-500">
+                    {passwordChangeCooldownLeft > 0
+                      ? `Новый код можно запросить через ${passwordChangeCooldownLeft} сек.`
+                      : "Новый код уже можно запрашивать."}
+                  </div>
                 </>
               )}
               <Button
@@ -9630,13 +9629,11 @@ export default function App() {
                 disabled={
                   profileActionLoading ||
                   !passwordChangeNext ||
-                  !passwordChangeConfirm ||
-                  passwordChangeNext !== passwordChangeConfirm ||
                   (passwordChangeCodeSent && !passwordChangeCode.trim())
                 }
                 className="w-full h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
               >
-                {passwordChangeCodeSent ? "Подтвердить код и сменить пароль" : "Отправить код"}
+                {passwordChangeCodeSent ? "Сменить пароль" : "Отправить код"}
               </Button>
               {passwordChangeNotice && (
                 <div
@@ -10539,13 +10536,11 @@ export default function App() {
                               setPasswordRecoveryReturnToAuth(true);
                               setPasswordRecoveryDialogOpen(true);
                               setPasswordRecoveryEmail(prefillEmail);
+                              setPasswordRecoveryStep("email");
                               setPasswordRecoveryCode("");
                               setPasswordRecoveryNextPassword("");
-                              setPasswordRecoveryConfirmPassword("");
-                              setPasswordRecoveryCodeSent(false);
+                              setPasswordRecoveryNotice("");
                               setShowPasswordRecoveryNext(false);
-                              setShowPasswordRecoveryConfirm(false);
-                              setAuthError("");
                             }}
                             className="w-full h-10 rounded-xl border border-zinc-700 bg-zinc-900/70 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
                           >
@@ -10671,14 +10666,13 @@ export default function App() {
                 setPasswordRecoveryDialogOpen(open);
                 if (!open) {
                   const shouldReturnToAuth = passwordRecoveryReturnToAuth;
-                  setPasswordRecoveryCodeSent(false);
+                  setPasswordRecoveryStep("email");
+                  setPasswordRecoveryNotice("");
                   setPasswordRecoveryCode("");
                   setPasswordRecoveryEmail("");
                   setPasswordRecoveryNextPassword("");
-                  setPasswordRecoveryConfirmPassword("");
                   setPasswordRecoveryLoading(false);
                   setShowPasswordRecoveryNext(false);
-                  setShowPasswordRecoveryConfirm(false);
                   setPasswordRecoveryReturnToAuth(false);
                   if (shouldReturnToAuth) {
                     setAuthError("");
@@ -10695,102 +10689,131 @@ export default function App() {
                 <DialogHeader>
                   <DialogTitle>Восстановление пароля</DialogTitle>
                   <DialogDescription className="text-zinc-400">
-                    Введите почту, получите код и задайте новый пароль.
+                    {passwordRecoveryStep === "email" &&
+                      "Шаг 1: введите почту, на нее придет код подтверждения."}
+                    {passwordRecoveryStep === "code" &&
+                      "Шаг 2: введите код из письма, затем перейдите к смене пароля."}
+                    {passwordRecoveryStep === "password" &&
+                      "Шаг 3: задайте новый пароль для входа в аккаунт."}
                   </DialogDescription>
                   <div className="pt-1 text-[11px] uppercase tracking-[0.14em] text-zinc-500">
                     CourtGame Account
                   </div>
                 </DialogHeader>
                 <div className="space-y-3">
-                  <Input
-                    type="email"
-                    value={passwordRecoveryEmail}
-                    onChange={(event) => setPasswordRecoveryEmail(event.target.value)}
-                    placeholder="Почта"
-                    className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
-                  />
-                  {passwordRecoveryCodeSent && (
+                  {passwordRecoveryStep === "email" && (
+                    <Input
+                      type="email"
+                      value={passwordRecoveryEmail}
+                      onChange={(event) => setPasswordRecoveryEmail(event.target.value)}
+                      placeholder="Почта"
+                      className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                    />
+                  )}
+                  {passwordRecoveryStep === "code" && (
                     <>
-                      <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/80 px-3 py-2 text-xs text-zinc-300">
-                        Если письма нет, проверьте папку «Спам».
-                      </div>
                       <Input
                         value={passwordRecoveryCode}
                         onChange={(event) => setPasswordRecoveryCode(event.target.value)}
                         placeholder="Код из письма"
                         className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
                       />
-                      <div className="relative">
-                        <Input
-                          type={showPasswordRecoveryNext ? "text" : "password"}
-                          value={passwordRecoveryNextPassword}
-                          onChange={(event) => setPasswordRecoveryNextPassword(event.target.value)}
-                          placeholder="Новый пароль"
-                          className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-11 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPasswordRecoveryNext((prev) => !prev)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
-                        >
-                          {showPasswordRecoveryNext ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </button>
+                      <div className="px-1 text-xs text-zinc-400">
+                        Если письма нет, проверьте папку «Спам».
                       </div>
-                      <div className="relative">
-                        <Input
-                          type={showPasswordRecoveryConfirm ? "text" : "password"}
-                          value={passwordRecoveryConfirmPassword}
-                          onChange={(event) => setPasswordRecoveryConfirmPassword(event.target.value)}
-                          placeholder="Повторите новый пароль"
-                          className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-11 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPasswordRecoveryConfirm((prev) => !prev)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
-                        >
-                          {showPasswordRecoveryConfirm ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </button>
+                      <div className="px-1 text-xs text-zinc-500">
+                        {passwordRecoveryCooldownLeft > 0
+                          ? `Новый код можно запросить через ${passwordRecoveryCooldownLeft} сек.`
+                          : "Новый код уже можно запрашивать."}
                       </div>
                     </>
+                  )}
+                  {passwordRecoveryStep === "password" && (
+                    <div className="relative">
+                      <Input
+                        type={showPasswordRecoveryNext ? "text" : "password"}
+                        value={passwordRecoveryNextPassword}
+                        onChange={(event) => setPasswordRecoveryNextPassword(event.target.value)}
+                        placeholder="Новый пароль"
+                        className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 pr-11 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordRecoveryNext((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                      >
+                        {showPasswordRecoveryNext ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   )}
                   <Button
                     type="button"
                     onClick={async () => {
-                      if (!passwordRecoveryCodeSent) {
+                      if (passwordRecoveryStep === "email") {
                         await requestPasswordRecoveryCode();
+                        return;
+                      }
+                      if (passwordRecoveryStep === "code") {
+                        movePasswordRecoveryToPasswordStep();
                         return;
                       }
                       await confirmPasswordRecovery();
                     }}
                     disabled={
                       passwordRecoveryLoading ||
-                      !passwordRecoveryEmail.trim() ||
-                      !passwordRecoveryEmail.includes("@") ||
-                      (passwordRecoveryCodeSent &&
-                        (!passwordRecoveryCode.trim() ||
-                          !passwordRecoveryNextPassword ||
-                          !passwordRecoveryConfirmPassword))
+                      (passwordRecoveryStep === "email" &&
+                        (!passwordRecoveryEmail.trim() || !passwordRecoveryEmail.includes("@"))) ||
+                      (passwordRecoveryStep === "code" && !passwordRecoveryCode.trim()) ||
+                      (passwordRecoveryStep === "password" && !passwordRecoveryNextPassword)
                     }
                     className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
                   >
-                    {passwordRecoveryLoading
+                    {passwordRecoveryLoading && passwordRecoveryStep !== "code"
                       ? "Подождите..."
-                      : passwordRecoveryCodeSent
-                        ? "Сменить пароль"
-                        : "Отправить код"}
+                      : passwordRecoveryStep === "email"
+                        ? "Отправить код"
+                        : passwordRecoveryStep === "code"
+                          ? "Продолжить"
+                          : "Сменить пароль"}
                   </Button>
-                  {authError && (
-                    <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-                      {authError}
+                  {passwordRecoveryStep === "code" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={requestPasswordRecoveryCode}
+                      disabled={passwordRecoveryLoading || passwordRecoveryCooldownLeft > 0}
+                      className="w-full h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                    >
+                      Отправить код повторно
+                    </Button>
+                  )}
+                  {passwordRecoveryStep !== "email" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (passwordRecoveryStep === "password") {
+                          setPasswordRecoveryStep("code");
+                          return;
+                        }
+                        setPasswordRecoveryStep("email");
+                      }}
+                      className="w-full h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                    >
+                      Назад
+                    </Button>
+                  )}
+                  {passwordRecoveryNotice && (
+                    <div
+                      className={`rounded-xl border px-3 py-2 text-sm ${
+                        passwordRecoveryNoticeKind === "error"
+                          ? "border-red-500/40 bg-red-500/10 text-red-300"
+                          : passwordRecoveryNoticeKind === "success"
+                            ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
+                            : "border-zinc-700 bg-zinc-900/80 text-zinc-300"
+                      }`}
+                    >
+                      {passwordRecoveryNotice}
                     </div>
                   )}
                 </div>
