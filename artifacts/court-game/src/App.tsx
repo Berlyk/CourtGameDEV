@@ -8923,7 +8923,7 @@ export default function App() {
                       </div>
                       <div className="mt-2 text-xs text-zinc-400">
                         {lockedRatingForProfile
-                          ? "Прогресс сохранен. Для продолжения прокачки активируйте подписку «Стажер»."
+                          ? "Прогресс сохранен. Для продолжения прокачки активируйте подписку."
                           : currentRank?.nextTitle
                             ? `До ранга «${currentRank.nextTitle}»: ${Math.max(
                                 0,
