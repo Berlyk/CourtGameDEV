@@ -10584,8 +10584,8 @@ export default function App() {
               }}
             >
               <DialogContent
-                overlayClassName="bg-black/88 backdrop-blur-[1.5px] data-[state=open]:animate-none data-[state=closed]:animate-none"
-                className="max-w-[400px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)] data-[state=open]:animate-none data-[state=closed]:animate-none"
+                overlayClassName="bg-black/88 backdrop-blur-[1.5px] data-[state=open]:animate-none data-[state=closed]:animate-none data-[state=closed]:hidden"
+                className="max-w-[400px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)] data-[state=open]:animate-none data-[state=closed]:animate-none data-[state=closed]:hidden"
               >
                 {authView === "rules" ? (
                   <>
