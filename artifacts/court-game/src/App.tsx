@@ -8439,6 +8439,21 @@ export default function App() {
         className="relative isolate min-h-screen overflow-x-hidden overflow-y-scroll bg-[#0b0b0f] text-zinc-100 p-6 md:p-10 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         <CourtAtmosphereBackground />
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              key="profile-global-error"
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              className="pointer-events-none fixed inset-x-0 top-4 z-[530] flex justify-center px-4"
+            >
+              <div className="w-full max-w-xl rounded-xl border border-red-500/45 bg-zinc-950/95 px-4 py-3 text-sm text-red-200 shadow-[0_14px_34px_rgba(0,0,0,0.45)]">
+                {error}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="max-w-7xl mx-auto">
           <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100 overflow-visible">
             <CardContent className="p-6 md:p-8 space-y-6">
