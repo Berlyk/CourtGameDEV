@@ -10699,8 +10699,10 @@ export default function App() {
                               const prefillEmail = loginOrEmail.trim().includes("@")
                                 ? loginOrEmail.trim()
                                 : "";
-                              setPasswordRecoveryDialogOpen(true);
                               setAuthDialogOpen(false);
+                              window.requestAnimationFrame(() => {
+                                setPasswordRecoveryDialogOpen(true);
+                              });
                               setPasswordRecoveryEmail(prefillEmail);
                               setPasswordRecoveryEmailError("");
                               setPasswordRecoveryStep("email");
