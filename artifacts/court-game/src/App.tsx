@@ -8892,13 +8892,15 @@ export default function App() {
                   </div>
 
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5 space-y-3">
-                    <div className="text-lg font-semibold">Ранг</div>
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-lg font-semibold">Ранг</div>
                       {lockedRatingForProfile && (
-                        <div className="mb-3 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                          Прогресс ранга сохранен. Новые очки снова начнут начисляться после активации подписки «Стажер».
-                        </div>
+                        <span className="inline-flex items-center rounded-full border border-zinc-700 bg-zinc-900/80 px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+                          Пауза прокачки
+                        </span>
                       )}
+                    </div>
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="inline-flex items-center gap-2 text-base font-semibold text-zinc-100">
                           <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${currentRankTheme.icon}`}>
@@ -8921,7 +8923,7 @@ export default function App() {
                       </div>
                       <div className="mt-2 text-xs text-zinc-400">
                         {lockedRatingForProfile
-                          ? "Прокачка ранга временно приостановлена до продления подписки."
+                          ? "Прогресс сохранен. Для продолжения прокачки активируйте подписку «Стажер»."
                           : currentRank?.nextTitle
                             ? `До ранга «${currentRank.nextTitle}»: ${Math.max(
                                 0,
