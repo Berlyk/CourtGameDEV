@@ -3,8 +3,11 @@ import { Router } from "express";
 import {
   applyPromoCodeByToken,
   assignSubscriptionByUserId,
+  changeEmailByTokenWithCode,
   changeEmailByToken,
+  changePasswordByTokenWithCode,
   changePasswordByToken,
+  confirmPasswordRecoveryByCode,
   clearUserBanByAdmin,
   deletePromoCodeByAdmin,
   findUserByAdminQuery,
@@ -16,6 +19,9 @@ import {
   loginAccount,
   logoutByToken,
   registerAccount,
+  requestEmailChangeCodeByToken,
+  requestPasswordChangeCodeByToken,
+  requestPasswordRecoveryCode,
   setAdminStaffRoleByUserId,
   setUserBanByAdmin,
   upsertPromoCodeByAdmin,
@@ -501,6 +507,52 @@ authRouter.patch("/auth/password", async (req, res) => {
   }
 });
 
+authRouter.post("/auth/password/code/request", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  try {
+    const result = await requestPasswordChangeCodeByToken(token, resolveClientIp(req));
+    if (!result) {
+      return res.status(401).json({ message: "Сессия недействительна." });
+    }
+    return res.status(200).json({
+      ok: true,
+      maskedEmail: result.maskedEmail,
+      message: `Код отправлен на ${result.maskedEmail}.`,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось отправить код.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.patch("/auth/password/code/confirm", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  try {
+    const code = String(req.body?.code ?? "");
+    const nextPassword = String(req.body?.nextPassword ?? "");
+    if (!code || !nextPassword) {
+      return res.status(400).json({ message: "Заполните обязательные поля." });
+    }
+    if (nextPassword.length < 6) {
+      return res.status(400).json({ message: "Пароль должен быть не короче 6 символов." });
+    }
+    const user = await changePasswordByTokenWithCode(token, code, nextPassword);
+    if (!user) {
+      return res.status(401).json({ message: "Сессия недействительна." });
+    }
+    return res.status(200).json({ ok: true, user });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось сменить пароль.";
+    return res.status(400).json({ message });
+  }
+});
+
 authRouter.patch("/auth/email", async (req, res) => {
   const token = getRequestToken(req.headers as Record<string, unknown>);
   if (!token) {
@@ -524,6 +576,104 @@ authRouter.patch("/auth/email", async (req, res) => {
     return res.status(200).json({ user, ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось сменить почту.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.post("/auth/email/code/request", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  try {
+    const currentPassword = String(req.body?.currentPassword ?? "");
+    const nextEmail = String(req.body?.nextEmail ?? "").trim();
+    if (!currentPassword || !nextEmail) {
+      return res.status(400).json({ message: "Заполните обязательные поля." });
+    }
+    if (!nextEmail.includes("@")) {
+      return res.status(400).json({ message: "Введите корректную почту." });
+    }
+    const result = await requestEmailChangeCodeByToken(
+      token,
+      currentPassword,
+      nextEmail,
+      resolveClientIp(req),
+    );
+    if (!result) {
+      return res.status(401).json({ message: "Сессия недействительна." });
+    }
+    return res.status(200).json({
+      ok: true,
+      maskedEmail: result.maskedEmail,
+      message: `Код отправлен на ${result.maskedEmail}.`,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось отправить код.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.patch("/auth/email/code/confirm", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  try {
+    const nextEmail = String(req.body?.nextEmail ?? "").trim();
+    const code = String(req.body?.code ?? "");
+    if (!nextEmail || !code) {
+      return res.status(400).json({ message: "Заполните обязательные поля." });
+    }
+    if (!nextEmail.includes("@")) {
+      return res.status(400).json({ message: "Введите корректную почту." });
+    }
+    const user = await changeEmailByTokenWithCode(token, nextEmail, code);
+    if (!user) {
+      return res.status(401).json({ message: "Сессия недействительна." });
+    }
+    return res.status(200).json({ ok: true, user });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось сменить почту.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.post("/auth/password/recovery/request", async (req, res) => {
+  const loginOrEmail = String(req.body?.loginOrEmail ?? "").trim();
+  if (!loginOrEmail) {
+    return res.status(400).json({ message: "Введите логин или почту." });
+  }
+  try {
+    await requestPasswordRecoveryCode(loginOrEmail, resolveClientIp(req));
+    return res.status(200).json({
+      ok: true,
+      message: "Если аккаунт найден, код отправлен на почту.",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось отправить код.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.post("/auth/password/recovery/confirm", async (req, res) => {
+  const loginOrEmail = String(req.body?.loginOrEmail ?? "").trim();
+  const code = String(req.body?.code ?? "");
+  const nextPassword = String(req.body?.nextPassword ?? "");
+  if (!loginOrEmail || !code || !nextPassword) {
+    return res.status(400).json({ message: "Заполните обязательные поля." });
+  }
+  if (nextPassword.length < 6) {
+    return res.status(400).json({ message: "Пароль должен быть не короче 6 символов." });
+  }
+  try {
+    await confirmPasswordRecoveryByCode(loginOrEmail, code, nextPassword);
+    return res.status(200).json({
+      ok: true,
+      message: "Пароль обновлен. Войдите с новым паролем.",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось восстановить пароль.";
     return res.status(400).json({ message });
   }
 });

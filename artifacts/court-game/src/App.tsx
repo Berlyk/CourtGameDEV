@@ -3399,10 +3399,19 @@ export default function App() {
   const [profileHideAge, setProfileHideAge] = useState(false);
   const [emailChangeCurrentPassword, setEmailChangeCurrentPassword] = useState("");
   const [emailChangeNext, setEmailChangeNext] = useState("");
-  const [passwordChangeCurrent, setPasswordChangeCurrent] = useState("");
+  const [emailChangeCode, setEmailChangeCode] = useState("");
+  const [emailChangeCodeSent, setEmailChangeCodeSent] = useState(false);
   const [passwordChangeNext, setPasswordChangeNext] = useState("");
+  const [passwordChangeCode, setPasswordChangeCode] = useState("");
+  const [passwordChangeCodeSent, setPasswordChangeCodeSent] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [passwordRecoveryDialogOpen, setPasswordRecoveryDialogOpen] = useState(false);
+  const [passwordRecoveryLoginOrEmail, setPasswordRecoveryLoginOrEmail] = useState("");
+  const [passwordRecoveryCode, setPasswordRecoveryCode] = useState("");
+  const [passwordRecoveryCodeSent, setPasswordRecoveryCodeSent] = useState(false);
+  const [passwordRecoveryNextPassword, setPasswordRecoveryNextPassword] = useState("");
+  const [passwordRecoveryLoading, setPasswordRecoveryLoading] = useState(false);
   const [profileActionLoading, setProfileActionLoading] = useState(false);
   const [myProfileLoading, setMyProfileLoading] = useState(false);
   const [myProfile, setMyProfile] = useState<PublicUserProfile | null>(null);
@@ -6546,19 +6555,35 @@ export default function App() {
 
   const changePassword = useCallback(async (): Promise<boolean> => {
     if (!authToken) return false;
-    if (!passwordChangeCurrent || !passwordChangeNext) return false;
+    if (!passwordChangeNext) return false;
     setProfileActionLoading(true);
     try {
-      await authRequest<{ ok: boolean }>("/auth/password", {
+      if (!passwordChangeCodeSent) {
+        const payload = await authRequest<{ ok: boolean; message?: string }>("/auth/password/code/request", {
+          method: "POST",
+          token: authToken,
+        });
+        setPasswordChangeCodeSent(true);
+        setError(payload.message || "Код отправлен на почту.");
+        setTimeout(() => setError(""), 3200);
+        return false;
+      }
+
+      if (!passwordChangeCode.trim()) {
+        return false;
+      }
+
+      await authRequest<{ ok: boolean }>("/auth/password/code/confirm", {
         method: "PATCH",
         token: authToken,
         body: {
-          currentPassword: passwordChangeCurrent,
+          code: passwordChangeCode.trim(),
           nextPassword: passwordChangeNext,
         },
       });
-      setPasswordChangeCurrent("");
       setPasswordChangeNext("");
+      setPasswordChangeCode("");
+      setPasswordChangeCodeSent(false);
       await reloadMyProfile();
       setError("Пароль обновлен.");
       setTimeout(() => setError(""), 2500);
@@ -6571,25 +6596,46 @@ export default function App() {
     } finally {
       setProfileActionLoading(false);
     }
-  }, [authToken, passwordChangeCurrent, passwordChangeNext, reloadMyProfile]);
+  }, [authToken, passwordChangeCode, passwordChangeCodeSent, passwordChangeNext, reloadMyProfile]);
 
   const changeEmail = useCallback(async (): Promise<boolean> => {
     if (!authToken) return false;
     if (!emailChangeCurrentPassword || !emailChangeNext.trim()) return false;
     setProfileActionLoading(true);
     try {
-      const payload = await authRequest<{ user: AuthUser }>("/auth/email", {
+      if (!emailChangeCodeSent) {
+        const payload = await authRequest<{ ok: boolean; message?: string }>("/auth/email/code/request", {
+          method: "POST",
+          token: authToken,
+          body: {
+            currentPassword: emailChangeCurrentPassword,
+            nextEmail: emailChangeNext.trim(),
+          },
+        });
+        setEmailChangeCodeSent(true);
+        setError(payload.message || "Код отправлен на новую почту.");
+        setTimeout(() => setError(""), 3200);
+        return false;
+      }
+
+      if (!emailChangeCode.trim()) {
+        return false;
+      }
+
+      const payload = await authRequest<{ user: AuthUser }>("/auth/email/code/confirm", {
         method: "PATCH",
         token: authToken,
         body: {
-          currentPassword: emailChangeCurrentPassword,
           nextEmail: emailChangeNext.trim(),
+          code: emailChangeCode.trim(),
         },
       });
       setAuthUser(payload.user);
       persistAuthUserToLocalCache(payload.user);
       setEmailChangeCurrentPassword("");
       setEmailChangeNext("");
+      setEmailChangeCode("");
+      setEmailChangeCodeSent(false);
       await reloadMyProfile();
       setError("Почта обновлена.");
       setTimeout(() => setError(""), 2500);
@@ -6602,7 +6648,68 @@ export default function App() {
     } finally {
       setProfileActionLoading(false);
     }
-  }, [authToken, emailChangeCurrentPassword, emailChangeNext, reloadMyProfile]);
+  }, [
+    authToken,
+    emailChangeCode,
+    emailChangeCodeSent,
+    emailChangeCurrentPassword,
+    emailChangeNext,
+    reloadMyProfile,
+  ]);
+
+  const requestPasswordRecoveryCode = useCallback(async (): Promise<boolean> => {
+    const loginOrEmail = passwordRecoveryLoginOrEmail.trim();
+    if (!loginOrEmail) return false;
+    setPasswordRecoveryLoading(true);
+    try {
+      const payload = await authRequest<{ ok: boolean; message?: string }>("/auth/password/recovery/request", {
+        method: "POST",
+        body: { loginOrEmail },
+      });
+      setPasswordRecoveryCodeSent(true);
+      setAuthError(payload.message || "Код отправлен на почту.");
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? localizeAuthError(err.message) : "Не удалось отправить код.";
+      setAuthError(message);
+      return false;
+    } finally {
+      setPasswordRecoveryLoading(false);
+    }
+  }, [passwordRecoveryLoginOrEmail]);
+
+  const confirmPasswordRecovery = useCallback(async (): Promise<boolean> => {
+    const loginOrEmail = passwordRecoveryLoginOrEmail.trim();
+    const code = passwordRecoveryCode.trim();
+    const nextPassword = passwordRecoveryNextPassword;
+    if (!loginOrEmail || !code || !nextPassword) return false;
+    setPasswordRecoveryLoading(true);
+    try {
+      const payload = await authRequest<{ ok: boolean; message?: string }>("/auth/password/recovery/confirm", {
+        method: "POST",
+        body: {
+          loginOrEmail,
+          code,
+          nextPassword,
+        },
+      });
+      setPasswordRecoveryDialogOpen(false);
+      setPasswordRecoveryCodeSent(false);
+      setPasswordRecoveryCode("");
+      setPasswordRecoveryNextPassword("");
+      setPasswordRecoveryLoginOrEmail("");
+      setAuthMode("login");
+      setAuthError(payload.message || "Пароль обновлен. Войдите с новым паролем.");
+      return true;
+    } catch (err) {
+      const message =
+        err instanceof Error ? localizeAuthError(err.message) : "Не удалось восстановить пароль.";
+      setAuthError(message);
+      return false;
+    } finally {
+      setPasswordRecoveryLoading(false);
+    }
+  }, [passwordRecoveryCode, passwordRecoveryLoginOrEmail, passwordRecoveryNextPassword]);
 
   const openUserProfile = useCallback(
     async (userId?: string) => {
@@ -9351,22 +9458,24 @@ export default function App() {
             </div>
           </DialogContent>
         </Dialog>
-        <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <Dialog
+          open={passwordDialogOpen}
+          onOpenChange={(open) => {
+            setPasswordDialogOpen(open);
+            if (!open) {
+              setPasswordChangeCodeSent(false);
+              setPasswordChangeCode("");
+            }
+          }}
+        >
           <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
             <DialogHeader>
               <DialogTitle>Сменить пароль</DialogTitle>
               <DialogDescription className="text-zinc-400">
-                Подтвердите текущий пароль и введите новый.
+                Введите новый пароль. Мы отправим код подтверждения на вашу почту.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
-              <Input
-                type="password"
-                value={passwordChangeCurrent}
-                onChange={(e) => setPasswordChangeCurrent(e.target.value)}
-                placeholder="Текущий пароль"
-                className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
-              />
               <Input
                 type="password"
                 value={passwordChangeNext}
@@ -9374,25 +9483,46 @@ export default function App() {
                 placeholder="Новый пароль"
                 className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
               />
+              {passwordChangeCodeSent && (
+                <Input
+                  value={passwordChangeCode}
+                  onChange={(e) => setPasswordChangeCode(e.target.value)}
+                  placeholder="Код из письма"
+                  className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                />
+              )}
               <Button
                 onClick={async () => {
                   const ok = await changePassword();
                   if (ok) setPasswordDialogOpen(false);
                 }}
-                disabled={profileActionLoading || !passwordChangeCurrent || !passwordChangeNext}
+                disabled={
+                  profileActionLoading ||
+                  !passwordChangeNext ||
+                  (passwordChangeCodeSent && !passwordChangeCode.trim())
+                }
                 className="w-full h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
               >
-                Сохранить пароль
+                {passwordChangeCodeSent ? "Подтвердить код и сменить пароль" : "Отправить код"}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
-        <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <Dialog
+          open={emailDialogOpen}
+          onOpenChange={(open) => {
+            setEmailDialogOpen(open);
+            if (!open) {
+              setEmailChangeCodeSent(false);
+              setEmailChangeCode("");
+            }
+          }}
+        >
           <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
             <DialogHeader>
               <DialogTitle>Сменить почту</DialogTitle>
               <DialogDescription className="text-zinc-400">
-                Введите новую почту и подтвердите текущий пароль.
+                Введите новую почту и текущий пароль. Код подтверждения придет на новую почту.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -9410,15 +9540,28 @@ export default function App() {
                 placeholder="Текущий пароль"
                 className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
               />
+              {emailChangeCodeSent && (
+                <Input
+                  value={emailChangeCode}
+                  onChange={(e) => setEmailChangeCode(e.target.value)}
+                  placeholder="Код из письма"
+                  className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                />
+              )}
               <Button
                 onClick={async () => {
                   const ok = await changeEmail();
                   if (ok) setEmailDialogOpen(false);
                 }}
-                disabled={profileActionLoading || !emailChangeCurrentPassword || !emailChangeNext.trim()}
+                disabled={
+                  profileActionLoading ||
+                  !emailChangeCurrentPassword ||
+                  !emailChangeNext.trim() ||
+                  (emailChangeCodeSent && !emailChangeCode.trim())
+                }
                 className="w-full h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
               >
-                Сохранить почту
+                {emailChangeCodeSent ? "Подтвердить код и сменить почту" : "Отправить код"}
               </Button>
             </div>
           </DialogContent>
@@ -10206,6 +10349,20 @@ export default function App() {
                           >
                             {authLoading ? "Входим" : "Войти"}
                           </Button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPasswordRecoveryDialogOpen(true);
+                              setPasswordRecoveryLoginOrEmail(loginOrEmail.trim());
+                              setPasswordRecoveryCode("");
+                              setPasswordRecoveryNextPassword("");
+                              setPasswordRecoveryCodeSent(false);
+                              setAuthError("");
+                            }}
+                            className="w-full text-center text-xs text-zinc-400 underline underline-offset-2 hover:text-zinc-200"
+                          >
+                            Забыли пароль?
+                          </button>
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -10318,6 +10475,75 @@ export default function App() {
                     </div>
                   </>
                 )}
+              </DialogContent>
+            </Dialog>
+            <Dialog
+              open={passwordRecoveryDialogOpen}
+              onOpenChange={(open) => {
+                setPasswordRecoveryDialogOpen(open);
+                if (!open) {
+                  setPasswordRecoveryCodeSent(false);
+                  setPasswordRecoveryCode("");
+                  setPasswordRecoveryNextPassword("");
+                  setPasswordRecoveryLoading(false);
+                }
+              }}
+            >
+              <DialogContent className="max-w-[400px] border-zinc-800 bg-zinc-950 text-zinc-100">
+                <DialogHeader>
+                  <DialogTitle>Восстановление пароля</DialogTitle>
+                  <DialogDescription className="text-zinc-400">
+                    Введите логин или почту, получите код и задайте новый пароль.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <Input
+                    value={passwordRecoveryLoginOrEmail}
+                    onChange={(event) => setPasswordRecoveryLoginOrEmail(event.target.value)}
+                    placeholder="Логин или почта"
+                    className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                  />
+                  {passwordRecoveryCodeSent && (
+                    <>
+                      <Input
+                        value={passwordRecoveryCode}
+                        onChange={(event) => setPasswordRecoveryCode(event.target.value)}
+                        placeholder="Код из письма"
+                        className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                      />
+                      <Input
+                        type="password"
+                        value={passwordRecoveryNextPassword}
+                        onChange={(event) => setPasswordRecoveryNextPassword(event.target.value)}
+                        placeholder="Новый пароль"
+                        className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                      />
+                    </>
+                  )}
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      if (!passwordRecoveryCodeSent) {
+                        await requestPasswordRecoveryCode();
+                        return;
+                      }
+                      await confirmPasswordRecovery();
+                    }}
+                    disabled={
+                      passwordRecoveryLoading ||
+                      !passwordRecoveryLoginOrEmail.trim() ||
+                      (passwordRecoveryCodeSent &&
+                        (!passwordRecoveryCode.trim() || !passwordRecoveryNextPassword))
+                    }
+                    className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
+                  >
+                    {passwordRecoveryLoading
+                      ? "Подождите..."
+                      : passwordRecoveryCodeSent
+                        ? "Сменить пароль"
+                        : "Отправить код"}
+                  </Button>
+                </div>
               </DialogContent>
             </Dialog>
           </div>

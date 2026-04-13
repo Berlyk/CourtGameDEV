@@ -13,6 +13,7 @@ import {
   type SubscriptionSource,
   type SubscriptionTier,
 } from "./subscriptions.js";
+import { sendResendEmail } from "./resendMailer.js";
 
 export type PreferredRole =
   | "judge"
@@ -176,6 +177,9 @@ export interface AuthUserPublicProfile {
 }
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
+const EMAIL_CODE_RESEND_COOLDOWN_MS = 60 * 1000;
+const EMAIL_CODE_MAX_ATTEMPTS = 5;
 const RANK_DEFINITIONS: Array<{
   key: string;
   title: string;
@@ -306,6 +310,8 @@ const ROLE_TITLES: Record<string, string> = {
   witness: "Свидетель",
 };
 
+type EmailCodePurpose = "password_reset" | "password_change" | "email_change";
+
 let initPromise: Promise<void> | null = null;
 
 function normalizeLogin(value: string): string {
@@ -383,6 +389,79 @@ function normalizeIpAddress(value: string | null | undefined): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
   return trimmed.slice(0, 120);
+}
+
+function generateEmailCode(): string {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+}
+
+function hashEmailCode(code: string): string {
+  const secret = String(process.env.AUTH_EMAIL_CODE_SECRET ?? "courtgame-email-code-secret");
+  return crypto
+    .createHash("sha256")
+    .update(`${secret}:${code}`, "utf8")
+    .digest("hex");
+}
+
+function formatMaskedEmail(email: string): string {
+  const trimmed = String(email ?? "").trim();
+  const [name = "", domain = ""] = trimmed.split("@");
+  if (!name || !domain) return "вашу почту";
+  if (name.length <= 2) {
+    return `${name.slice(0, 1)}*@${domain}`;
+  }
+  return `${name.slice(0, 2)}***@${domain}`;
+}
+
+function getEmailCodeMessage(purpose: EmailCodePurpose): {
+  subject: string;
+  title: string;
+  subtitle: string;
+} {
+  if (purpose === "password_reset") {
+    return {
+      subject: "CourtGame — код восстановления пароля",
+      title: "Код восстановления пароля",
+      subtitle: "Используйте этот код, чтобы восстановить доступ к аккаунту.",
+    };
+  }
+  if (purpose === "password_change") {
+    return {
+      subject: "CourtGame — код смены пароля",
+      title: "Код подтверждения смены пароля",
+      subtitle: "Введите код в приложении, чтобы сменить пароль.",
+    };
+  }
+  return {
+    subject: "CourtGame — код смены почты",
+    title: "Код подтверждения новой почты",
+    subtitle: "Введите код в приложении, чтобы привязать новую почту.",
+  };
+}
+
+async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: string): Promise<void> {
+  const message = getEmailCodeMessage(purpose);
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#0b0b0f;color:#f4f4f5;padding:24px;">
+      <div style="max-width:560px;margin:0 auto;background:#111218;border:1px solid #27272a;border-radius:14px;padding:20px;">
+        <div style="font-size:20px;font-weight:700;margin-bottom:8px;">${message.title}</div>
+        <div style="font-size:14px;color:#a1a1aa;margin-bottom:16px;">${message.subtitle}</div>
+        <div style="font-size:32px;letter-spacing:8px;font-weight:700;color:#fff;background:#18181b;border:1px solid #3f3f46;border-radius:12px;padding:12px 16px;text-align:center;">
+          ${code}
+        </div>
+        <div style="font-size:13px;color:#a1a1aa;margin-top:14px;">
+          Код действует 10 минут. Никому его не сообщайте.
+        </div>
+      </div>
+    </div>
+  `;
+  const text = `${message.title}\n\nКод: ${code}\nКод действует 10 минут. Никому его не сообщайте.`;
+  await sendResendEmail({
+    to: toEmail,
+    subject: message.subject,
+    html,
+    text,
+  });
 }
 
 function toPublicUser(row: {
@@ -778,6 +857,38 @@ async function ensureTables(): Promise<void> {
       `);
 
       await pool.query(`
+        CREATE TABLE IF NOT EXISTS auth_email_codes (
+          id UUID PRIMARY KEY,
+          purpose TEXT NOT NULL,
+          user_id UUID REFERENCES auth_users(id) ON DELETE CASCADE,
+          email_normalized TEXT NOT NULL,
+          email_display TEXT NOT NULL,
+          code_hash TEXT NOT NULL,
+          attempts_left INTEGER NOT NULL DEFAULT 5,
+          request_ip TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          expires_at TIMESTAMPTZ NOT NULL,
+          consumed_at TIMESTAMPTZ
+        );
+      `);
+      await pool.query(`
+        ALTER TABLE auth_email_codes
+          ADD COLUMN IF NOT EXISTS request_ip TEXT;
+      `);
+      await pool.query(`
+        ALTER TABLE auth_email_codes
+          ADD COLUMN IF NOT EXISTS attempts_left INTEGER NOT NULL DEFAULT 5;
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS auth_email_codes_lookup_idx
+        ON auth_email_codes(purpose, email_normalized, created_at DESC);
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS auth_email_codes_user_idx
+        ON auth_email_codes(user_id, created_at DESC);
+      `);
+
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS auth_user_ips (
           user_id UUID NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
           ip_address TEXT NOT NULL,
@@ -910,6 +1021,191 @@ async function cleanupSessions(now = Date.now()) {
   await ensureTables();
   const threshold = new Date(now - SESSION_TTL_MS);
   await pool.query("DELETE FROM auth_sessions WHERE created_at < $1", [threshold]);
+}
+
+async function cleanupEmailCodes(now = Date.now()): Promise<void> {
+  await ensureTables();
+  const threshold = new Date(now - 24 * 60 * 60 * 1000);
+  await pool.query(
+    `
+      DELETE FROM auth_email_codes
+      WHERE (consumed_at IS NOT NULL AND consumed_at < $1)
+         OR (expires_at < $1 AND consumed_at IS NULL)
+    `,
+    [threshold],
+  );
+}
+
+function normalizeEmailCode(rawCode: string): string {
+  const code = String(rawCode ?? "")
+    .trim()
+    .replace(/\D+/g, "");
+  if (code.length !== 6) {
+    throw new Error("Введите 6-значный код.");
+  }
+  return code;
+}
+
+async function issueEmailCode(input: {
+  purpose: EmailCodePurpose;
+  userId: string | null;
+  email: string;
+  clientIp?: string | null;
+}): Promise<{ maskedEmail: string }> {
+  const emailNormalized = normalizeEmail(input.email);
+  const emailDisplay = input.email.trim();
+  await cleanupEmailCodes();
+
+  const cooldownResult = await pool.query<{ created_at: Date }>(
+    `
+      SELECT created_at
+      FROM auth_email_codes
+      WHERE purpose = $1
+        AND email_normalized = $2
+        AND (user_id IS NOT DISTINCT FROM $3::uuid)
+        AND consumed_at IS NULL
+        AND expires_at > NOW()
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [input.purpose, emailNormalized, input.userId],
+  );
+
+  if (cooldownResult.rowCount) {
+    const lastCreatedAt = cooldownResult.rows[0].created_at.getTime();
+    const waitMs = EMAIL_CODE_RESEND_COOLDOWN_MS - (Date.now() - lastCreatedAt);
+    if (waitMs > 0) {
+      const waitSec = Math.max(1, Math.ceil(waitMs / 1000));
+      throw new Error(`Повторный код можно запросить через ${waitSec} сек.`);
+    }
+  }
+
+  await pool.query(
+    `
+      UPDATE auth_email_codes
+      SET consumed_at = NOW()
+      WHERE purpose = $1
+        AND email_normalized = $2
+        AND (user_id IS NOT DISTINCT FROM $3::uuid)
+        AND consumed_at IS NULL
+    `,
+    [input.purpose, emailNormalized, input.userId],
+  );
+
+  const code = generateEmailCode();
+  const codeHash = hashEmailCode(code);
+  const codeId = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + EMAIL_CODE_TTL_MS);
+  await pool.query(
+    `
+      INSERT INTO auth_email_codes (
+        id,
+        purpose,
+        user_id,
+        email_normalized,
+        email_display,
+        code_hash,
+        attempts_left,
+        request_ip,
+        expires_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `,
+    [
+      codeId,
+      input.purpose,
+      input.userId,
+      emailNormalized,
+      emailDisplay,
+      codeHash,
+      EMAIL_CODE_MAX_ATTEMPTS,
+      normalizeIpAddress(input.clientIp),
+      expiresAt,
+    ],
+  );
+
+  try {
+    await sendEmailCode(input.purpose, emailDisplay, code);
+  } catch (error) {
+    await pool.query(`DELETE FROM auth_email_codes WHERE id = $1`, [codeId]);
+    throw error;
+  }
+
+  return { maskedEmail: formatMaskedEmail(emailDisplay) };
+}
+
+async function consumeEmailCode(input: {
+  purpose: EmailCodePurpose;
+  userId: string | null;
+  email: string;
+  code: string;
+}): Promise<void> {
+  const emailNormalized = normalizeEmail(input.email);
+  const normalizedCode = normalizeEmailCode(input.code);
+  await cleanupEmailCodes();
+  const result = await pool.query<{
+    id: string;
+    code_hash: string;
+    attempts_left: number;
+    expires_at: Date;
+  }>(
+    `
+      SELECT id, code_hash, attempts_left, expires_at
+      FROM auth_email_codes
+      WHERE purpose = $1
+        AND email_normalized = $2
+        AND (user_id IS NOT DISTINCT FROM $3::uuid)
+        AND consumed_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [input.purpose, emailNormalized, input.userId],
+  );
+
+  if (!result.rowCount) {
+    throw new Error("Код неверный или уже истек.");
+  }
+
+  const row = result.rows[0];
+  if (row.expires_at.getTime() <= Date.now()) {
+    await pool.query(`UPDATE auth_email_codes SET consumed_at = NOW() WHERE id = $1`, [row.id]);
+    throw new Error("Код неверный или уже истек.");
+  }
+  if ((Number(row.attempts_left) || 0) <= 0) {
+    await pool.query(`UPDATE auth_email_codes SET consumed_at = NOW() WHERE id = $1`, [row.id]);
+    throw new Error("Код неверный или уже истек.");
+  }
+
+  const expected = Buffer.from(String(row.code_hash), "hex");
+  const received = Buffer.from(hashEmailCode(normalizedCode), "hex");
+  const isValid =
+    expected.length === received.length && crypto.timingSafeEqual(expected, received);
+  if (!isValid) {
+    const nextAttempts = Math.max(0, (Number(row.attempts_left) || 0) - 1);
+    await pool.query(
+      `
+        UPDATE auth_email_codes
+        SET attempts_left = $2,
+            consumed_at = CASE WHEN $2 <= 0 THEN NOW() ELSE consumed_at END
+        WHERE id = $1
+      `,
+      [row.id, nextAttempts],
+    );
+    if (nextAttempts > 0) {
+      throw new Error(`Неверный код. Осталось попыток: ${nextAttempts}.`);
+    }
+    throw new Error("Код неверный или уже истек.");
+  }
+
+  await pool.query(
+    `
+      UPDATE auth_email_codes
+      SET consumed_at = NOW(),
+          attempts_left = GREATEST(attempts_left, 0)
+      WHERE id = $1
+    `,
+    [row.id],
+  );
 }
 
 export async function registerAccount(input: {
@@ -1445,6 +1741,52 @@ async function getUserWithSecretsByToken(token: string): Promise<{
   };
 }
 
+async function getUserWithSecretsByLoginOrEmail(loginOrEmailRaw: string): Promise<{
+  userId: string;
+  email: string;
+  passwordSalt: string;
+  passwordHash: string;
+} | null> {
+  await cleanupSessions();
+  const needle = normalizeLogin(loginOrEmailRaw);
+  if (!needle) return null;
+  const result = await pool.query<{
+    id: string;
+    email: string;
+    password_salt: string;
+    password_hash: string;
+  }>(
+    `
+      SELECT id, email, password_salt, password_hash
+      FROM auth_users
+      WHERE login_normalized = $1 OR email_normalized = $1
+      LIMIT 1
+    `,
+    [needle],
+  );
+  if (!result.rowCount) return null;
+  const row = result.rows[0];
+  return {
+    userId: row.id,
+    email: row.email,
+    passwordSalt: row.password_salt,
+    passwordHash: row.password_hash,
+  };
+}
+
+async function updatePasswordByUserId(userId: string, nextPassword: string): Promise<void> {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = hashPassword(nextPassword, salt);
+  await pool.query(
+    `UPDATE auth_users SET password_salt = $1, password_hash = $2 WHERE id = $3`,
+    [salt, hash, userId],
+  );
+}
+
+async function clearSessionsByUserId(userId: string): Promise<void> {
+  await pool.query(`DELETE FROM auth_sessions WHERE user_id = $1`, [userId]);
+}
+
 export async function changePasswordByToken(
   token: string,
   currentPassword: string,
@@ -1457,12 +1799,7 @@ export async function changePasswordByToken(
     throw new Error("Текущий пароль введен неверно.");
   }
 
-  const salt = crypto.randomBytes(16).toString("hex");
-  const hash = hashPassword(nextPassword, salt);
-  await pool.query(
-    `UPDATE auth_users SET password_salt = $1, password_hash = $2 WHERE id = $3`,
-    [salt, hash, data.userId],
-  );
+  await updatePasswordByUserId(data.userId, nextPassword);
 
   return getUserByToken(token);
 }
@@ -1493,6 +1830,137 @@ export async function changeEmailByToken(
     [nextEmail.trim(), emailNormalized, data.userId],
   );
 
+  return getUserByToken(token);
+}
+
+export async function requestPasswordRecoveryCode(
+  loginOrEmail: string,
+  clientIp?: string | null,
+): Promise<void> {
+  const user = await getUserWithSecretsByLoginOrEmail(loginOrEmail);
+  if (!user) return;
+  await issueEmailCode({
+    purpose: "password_reset",
+    userId: user.userId,
+    email: user.email,
+    clientIp,
+  });
+}
+
+export async function confirmPasswordRecoveryByCode(
+  loginOrEmail: string,
+  code: string,
+  nextPassword: string,
+): Promise<void> {
+  const user = await getUserWithSecretsByLoginOrEmail(loginOrEmail);
+  if (!user) {
+    throw new Error("Аккаунт не найден.");
+  }
+  await consumeEmailCode({
+    purpose: "password_reset",
+    userId: user.userId,
+    email: user.email,
+    code,
+  });
+  await updatePasswordByUserId(user.userId, nextPassword);
+  await clearSessionsByUserId(user.userId);
+}
+
+export async function requestPasswordChangeCodeByToken(
+  token: string,
+  clientIp?: string | null,
+): Promise<{ maskedEmail: string } | null> {
+  const user = await getUserWithSecretsByToken(token);
+  if (!user) return null;
+  return issueEmailCode({
+    purpose: "password_change",
+    userId: user.userId,
+    email: user.email,
+    clientIp,
+  });
+}
+
+export async function changePasswordByTokenWithCode(
+  token: string,
+  code: string,
+  nextPassword: string,
+): Promise<AuthUserPublic | null> {
+  const user = await getUserWithSecretsByToken(token);
+  if (!user) return null;
+  await consumeEmailCode({
+    purpose: "password_change",
+    userId: user.userId,
+    email: user.email,
+    code,
+  });
+  await updatePasswordByUserId(user.userId, nextPassword);
+  return getUserByToken(token);
+}
+
+export async function requestEmailChangeCodeByToken(
+  token: string,
+  currentPassword: string,
+  nextEmail: string,
+  clientIp?: string | null,
+): Promise<{ maskedEmail: string } | null> {
+  const user = await getUserWithSecretsByToken(token);
+  if (!user) return null;
+  if (!verifyPassword(currentPassword, user.passwordSalt, user.passwordHash)) {
+    throw new Error("Текущий пароль введен неверно.");
+  }
+  const normalizedEmail = normalizeEmail(nextEmail);
+  if (!normalizedEmail.includes("@")) {
+    throw new Error("Введите корректную почту.");
+  }
+  if (normalizedEmail === normalizeEmail(user.email)) {
+    throw new Error("Новая почта совпадает с текущей.");
+  }
+  const conflict = await pool.query(
+    `SELECT 1 FROM auth_users WHERE id <> $1 AND email_normalized = $2 LIMIT 1`,
+    [user.userId, normalizedEmail],
+  );
+  if (conflict.rowCount) {
+    throw new Error("Эта почта уже используется.");
+  }
+  return issueEmailCode({
+    purpose: "email_change",
+    userId: user.userId,
+    email: nextEmail.trim(),
+    clientIp,
+  });
+}
+
+export async function changeEmailByTokenWithCode(
+  token: string,
+  nextEmail: string,
+  code: string,
+): Promise<AuthUserPublic | null> {
+  const user = await getUserWithSecretsByToken(token);
+  if (!user) return null;
+  const normalizedEmail = normalizeEmail(nextEmail);
+  if (!normalizedEmail.includes("@")) {
+    throw new Error("Введите корректную почту.");
+  }
+  if (normalizedEmail === normalizeEmail(user.email)) {
+    throw new Error("Новая почта совпадает с текущей.");
+  }
+  const conflict = await pool.query(
+    `SELECT 1 FROM auth_users WHERE id <> $1 AND email_normalized = $2 LIMIT 1`,
+    [user.userId, normalizedEmail],
+  );
+  if (conflict.rowCount) {
+    throw new Error("Эта почта уже используется.");
+  }
+  await consumeEmailCode({
+    purpose: "email_change",
+    userId: user.userId,
+    email: nextEmail.trim(),
+    code,
+  });
+  await pool.query(
+    `UPDATE auth_users SET email = $1, email_normalized = $2 WHERE id = $3`,
+    [nextEmail.trim(), normalizedEmail, user.userId],
+  );
   return getUserByToken(token);
 }
 
