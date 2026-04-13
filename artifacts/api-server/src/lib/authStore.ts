@@ -465,7 +465,7 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="margin:0;padding:0;background:#ffffff;">
       <tr>
         <td align="center" style="padding:16px 10px;">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#0a1026" style="max-width:640px;background:#0a1026;border-radius:18px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#060913" style="max-width:640px;background:#060913;border-radius:18px;">
             <tr>
               <td style="padding:24px 20px;font-family:Arial,sans-serif;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:8px;">
@@ -486,7 +486,7 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
                   ${message.subtitle}
                 </div>
 
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#2f374a" style="background:#2f374a;border-radius:12px;margin:0 0 12px 0;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#343c50" style="background:#343c50;border-radius:12px;margin:0 0 12px 0;">
                   <tr>
                     <td align="center" style="padding:16px 10px;font-size:62px;line-height:1.02;letter-spacing:9px;font-weight:700;color:#ffffff;">
                       ${code}
@@ -503,7 +503,9 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
                 </div>
                 <div style="margin:0;font-size:13px;line-height:1.45;color:#8f98ab;">
                   Это автоматическое сообщение, отвечать на него не нужно.
-                  <span style="font-size:1px;line-height:1;color:#0a1026;">${requestId}</span>
+                </div>
+                <div style="margin:8px 0 0 0;font-size:10px;line-height:1.4;color:#5f6879;">
+                  Код запроса: ${requestId}
                 </div>
               </td>
             </tr>
@@ -1266,6 +1268,70 @@ async function consumeEmailCode(input: {
   );
 }
 
+async function verifyEmailCodeWithoutConsuming(input: {
+  purpose: EmailCodePurpose;
+  userId: string | null;
+  email: string;
+  code: string;
+}): Promise<void> {
+  const emailNormalized = normalizeEmail(input.email);
+  const normalizedCode = normalizeEmailCode(input.code);
+  await cleanupEmailCodes();
+  const result = await pool.query<{
+    id: string;
+    code_hash: string;
+    attempts_left: number;
+    expires_at: Date;
+  }>(
+    `
+      SELECT id, code_hash, attempts_left, expires_at
+      FROM auth_email_codes
+      WHERE purpose = $1
+        AND email_normalized = $2
+        AND (user_id IS NOT DISTINCT FROM $3::uuid)
+        AND consumed_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [input.purpose, emailNormalized, input.userId],
+  );
+
+  if (!result.rowCount) {
+    throw new Error("Код неверный или уже истек.");
+  }
+
+  const row = result.rows[0];
+  if (row.expires_at.getTime() <= Date.now()) {
+    await pool.query(`UPDATE auth_email_codes SET consumed_at = NOW() WHERE id = $1`, [row.id]);
+    throw new Error("Код неверный или уже истек.");
+  }
+  if ((Number(row.attempts_left) || 0) <= 0) {
+    await pool.query(`UPDATE auth_email_codes SET consumed_at = NOW() WHERE id = $1`, [row.id]);
+    throw new Error("Код неверный или уже истек.");
+  }
+
+  const expected = Buffer.from(String(row.code_hash), "hex");
+  const received = Buffer.from(hashEmailCode(normalizedCode), "hex");
+  const isValid =
+    expected.length === received.length && crypto.timingSafeEqual(expected, received);
+  if (!isValid) {
+    const nextAttempts = Math.max(0, (Number(row.attempts_left) || 0) - 1);
+    await pool.query(
+      `
+        UPDATE auth_email_codes
+        SET attempts_left = $2,
+            consumed_at = CASE WHEN $2 <= 0 THEN NOW() ELSE consumed_at END
+        WHERE id = $1
+      `,
+      [row.id, nextAttempts],
+    );
+    if (nextAttempts > 0) {
+      throw new Error(`Неверный код. Осталось попыток: ${nextAttempts}.`);
+    }
+    throw new Error("Код неверный или уже истек.");
+  }
+}
+
 export async function registerAccount(input: {
   login: string;
   email: string;
@@ -1902,6 +1968,24 @@ export async function requestPasswordRecoveryCode(
     userId: user.userId,
     email: user.email,
     clientIp,
+  });
+}
+
+export async function checkPasswordRecoveryEmailExists(email: string): Promise<boolean> {
+  const user = await getUserWithSecretsByEmail(email);
+  return Boolean(user);
+}
+
+export async function verifyPasswordRecoveryCode(email: string, code: string): Promise<void> {
+  const user = await getUserWithSecretsByEmail(email);
+  if (!user) {
+    throw new Error("Аккаунт не найден.");
+  }
+  await verifyEmailCodeWithoutConsuming({
+    purpose: "password_reset",
+    userId: user.userId,
+    email: user.email,
+    code,
   });
 }
 

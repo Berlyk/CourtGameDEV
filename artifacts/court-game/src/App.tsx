@@ -2603,8 +2603,11 @@ function localizeAuthError(message: string): string {
   if (normalized.includes("passwords do not match")) {
     return "Пароли не совпадают.";
   }
+  if (normalized.includes("password must be at least 8")) {
+    return "Пароль должен быть не короче 8 символов.";
+  }
   if (normalized.includes("password must be at least 6")) {
-    return "Пароль должен быть не короче 6 символов.";
+    return "Пароль должен быть не короче 8 символов.";
   }
   if (normalized.includes("invalid birth date")) {
     return "Укажите корректную дату рождения.";
@@ -3431,8 +3434,8 @@ export default function App() {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [passwordRecoveryDialogOpen, setPasswordRecoveryDialogOpen] = useState(false);
-  const [passwordRecoveryReturnToAuth, setPasswordRecoveryReturnToAuth] = useState(false);
   const [passwordRecoveryEmail, setPasswordRecoveryEmail] = useState("");
+  const [passwordRecoveryEmailError, setPasswordRecoveryEmailError] = useState("");
   const [passwordRecoveryCode, setPasswordRecoveryCode] = useState("");
   const [passwordRecoveryStep, setPasswordRecoveryStep] = useState<"email" | "code" | "password">("email");
   const [passwordRecoveryNotice, setPasswordRecoveryNotice] = useState("");
@@ -6622,6 +6625,11 @@ export default function App() {
     const nextPassword = passwordChangeNext;
     const confirmPassword = passwordChangeConfirm;
     if (!nextPassword) return false;
+    if (nextPassword.length < 8) {
+      setPasswordChangeNoticeKind("error");
+      setPasswordChangeNotice("Пароль должен быть не короче 8 символов.");
+      return false;
+    }
     setProfileActionLoading(true);
     try {
       if (!passwordChangeCodeSent) {
@@ -6765,27 +6773,24 @@ export default function App() {
 
   const requestPasswordRecoveryCode = useCallback(async (): Promise<boolean> => {
     const email = passwordRecoveryEmail.trim();
+    setPasswordRecoveryEmailError("");
     if (!email || !email.includes("@")) {
       setPasswordRecoveryNoticeKind("error");
       setPasswordRecoveryNotice("Введите корректную почту.");
+      setPasswordRecoveryEmailError("Введите корректную почту.");
       return false;
     }
-    if (passwordRecoveryCooldownLeft > 0) {
-      setPasswordRecoveryNoticeKind("error");
-      setPasswordRecoveryNotice(`Повторный код можно запросить через ${passwordRecoveryCooldownLeft} сек.`);
-      return false;
-    }
+    if (passwordRecoveryCooldownLeft > 0) return false;
     setPasswordRecoveryLoading(true);
     try {
-      const payload = await authRequest<{ ok: boolean; message?: string }>("/auth/password/recovery/request", {
+      await authRequest<{ ok: boolean; message?: string }>("/auth/password/recovery/request", {
         method: "POST",
         body: { email },
       });
       setPasswordRecoveryCode("");
       setPasswordRecoveryStep("code");
       setPasswordRecoveryCooldownUntil(Date.now() + 60_000);
-      setPasswordRecoveryNoticeKind("info");
-      setPasswordRecoveryNotice(payload.message || "Код отправлен на почту.");
+      setPasswordRecoveryNotice("");
       return true;
     } catch (err) {
       const message = err instanceof Error ? localizeAuthError(err.message) : "Не удалось отправить код.";
@@ -6795,22 +6800,48 @@ export default function App() {
       }
       setPasswordRecoveryNoticeKind("error");
       setPasswordRecoveryNotice(message);
+      if (
+        message.toLowerCase().includes("аккаунт") ||
+        message.toLowerCase().includes("почт") ||
+        message.toLowerCase().includes("email")
+      ) {
+        setPasswordRecoveryEmailError(message);
+        setPasswordRecoveryNotice("");
+      }
       return false;
     } finally {
       setPasswordRecoveryLoading(false);
     }
   }, [passwordRecoveryCooldownLeft, passwordRecoveryEmail]);
 
-  const movePasswordRecoveryToPasswordStep = useCallback(() => {
+  const movePasswordRecoveryToPasswordStep = useCallback(async () => {
     const code = passwordRecoveryCode.trim();
     if (!code) {
       setPasswordRecoveryNoticeKind("error");
       setPasswordRecoveryNotice("Введите код из письма.");
-      return;
+      return false;
     }
-    setPasswordRecoveryNotice("");
-    setPasswordRecoveryStep("password");
-  }, [passwordRecoveryCode]);
+    setPasswordRecoveryLoading(true);
+    try {
+      await authRequest<{ ok: boolean }>("/auth/password/recovery/verify", {
+        method: "POST",
+        body: {
+          email: passwordRecoveryEmail.trim(),
+          code,
+        },
+      });
+      setPasswordRecoveryNotice("");
+      setPasswordRecoveryStep("password");
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? localizeAuthError(err.message) : "Код неверный или уже истек.";
+      setPasswordRecoveryNoticeKind("error");
+      setPasswordRecoveryNotice(message);
+      return false;
+    } finally {
+      setPasswordRecoveryLoading(false);
+    }
+  }, [passwordRecoveryCode, passwordRecoveryEmail]);
 
   const confirmPasswordRecovery = useCallback(async (): Promise<boolean> => {
     const email = passwordRecoveryEmail.trim();
@@ -6818,6 +6849,11 @@ export default function App() {
     const nextPassword = passwordRecoveryNextPassword;
     const confirmPassword = passwordRecoveryConfirmPassword;
     if (!email || !email.includes("@") || !code || !nextPassword || !confirmPassword) {
+      return false;
+    }
+    if (nextPassword.length < 8) {
+      setPasswordRecoveryNoticeKind("error");
+      setPasswordRecoveryNotice("Пароль должен быть не короче 8 символов.");
       return false;
     }
     if (nextPassword !== confirmPassword) {
@@ -6835,7 +6871,6 @@ export default function App() {
           nextPassword,
         },
       });
-      setPasswordRecoveryReturnToAuth(false);
       setPasswordRecoveryDialogOpen(false);
       setPasswordRecoveryStep("email");
       setPasswordRecoveryNotice("");
@@ -10621,10 +10656,10 @@ export default function App() {
                               const prefillEmail = loginOrEmail.trim().includes("@")
                                 ? loginOrEmail.trim()
                                 : "";
-                              setAuthDialogOpen(false);
-                              setPasswordRecoveryReturnToAuth(true);
                               setPasswordRecoveryDialogOpen(true);
+                              requestAnimationFrame(() => setAuthDialogOpen(false));
                               setPasswordRecoveryEmail(prefillEmail);
+                              setPasswordRecoveryEmailError("");
                               setPasswordRecoveryStep("email");
                               setPasswordRecoveryCode("");
                               setPasswordRecoveryNextPassword("");
@@ -10756,69 +10791,56 @@ export default function App() {
               onOpenChange={(open) => {
                 setPasswordRecoveryDialogOpen(open);
                 if (!open) {
-                  const shouldReturnToAuth = passwordRecoveryReturnToAuth;
                   setPasswordRecoveryStep("email");
                   setPasswordRecoveryNotice("");
                   setPasswordRecoveryCode("");
                   setPasswordRecoveryEmail("");
+                  setPasswordRecoveryEmailError("");
                   setPasswordRecoveryNextPassword("");
                   setPasswordRecoveryConfirmPassword("");
                   setPasswordRecoveryLoading(false);
                   setShowPasswordRecoveryNext(false);
                   setShowPasswordRecoveryConfirm(false);
-                  setPasswordRecoveryReturnToAuth(false);
-                  if (shouldReturnToAuth) {
-                    setAuthError("");
-                    setAuthMode("login");
-                    setAuthDialogOpen(true);
-                  }
                 }
               }}
             >
               <DialogContent
                 overlayClassName="bg-black/88 backdrop-blur-[1.5px]"
-                className="max-w-[400px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)]"
+                className="max-w-[400px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)] [&>button]:h-7 [&>button]:w-7 [&>button]:sm:h-8 [&>button]:sm:w-8 [&>button_svg]:h-3 [&>button_svg]:w-3"
               >
                 <DialogHeader>
                   <DialogTitle>Восстановление пароля</DialogTitle>
-                  <DialogDescription className="text-zinc-400">
-                    {passwordRecoveryStep === "email" &&
-                      "Шаг 1: введите почту, на нее придет код подтверждения."}
-                    {passwordRecoveryStep === "code" &&
-                      "Шаг 2: введите код из письма, затем перейдите к смене пароля."}
-                    {passwordRecoveryStep === "password" &&
-                      "Шаг 3: задайте новый пароль для входа в аккаунт."}
-                  </DialogDescription>
+                  <DialogDescription className="text-zinc-400">Введите почту, код и новый пароль.</DialogDescription>
                   <div className="pt-1 text-[11px] uppercase tracking-[0.14em] text-zinc-500">
                     CourtGame Account
                   </div>
                 </DialogHeader>
                 <div className="space-y-3">
                   {passwordRecoveryStep === "email" && (
-                    <Input
-                      type="email"
-                      value={passwordRecoveryEmail}
-                      onChange={(event) => setPasswordRecoveryEmail(event.target.value)}
-                      placeholder="Почта"
-                      className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
-                    />
+                    <>
+                      <Input
+                        type="email"
+                        value={passwordRecoveryEmail}
+                        onChange={(event) => {
+                          setPasswordRecoveryEmail(event.target.value);
+                          if (passwordRecoveryEmailError) setPasswordRecoveryEmailError("");
+                        }}
+                        placeholder="Почта"
+                        className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
+                      />
+                      {passwordRecoveryEmailError && (
+                        <div className="px-1 text-xs text-red-300">{passwordRecoveryEmailError}</div>
+                      )}
+                    </>
                   )}
                   {passwordRecoveryStep === "code" && (
                     <>
-                      <div className="px-1 text-xs text-zinc-500">
-                        {passwordRecoveryCooldownLeft > 0
-                          ? `Новый код можно запросить через ${passwordRecoveryCooldownLeft} сек.`
-                          : "Новый код уже можно запрашивать."}
-                      </div>
                       <Input
                         value={passwordRecoveryCode}
                         onChange={(event) => setPasswordRecoveryCode(event.target.value)}
                         placeholder="Код из письма"
                         className="h-11 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-red-500/40"
                       />
-                      <div className="px-1 text-xs text-zinc-400">
-                        Если письма нет, проверьте папку «Спам».
-                      </div>
                     </>
                   )}
                   {passwordRecoveryStep === "password" && (
@@ -10865,7 +10887,7 @@ export default function App() {
                         return;
                       }
                       if (passwordRecoveryStep === "code") {
-                        movePasswordRecoveryToPasswordStep();
+                        await movePasswordRecoveryToPasswordStep();
                         return;
                       }
                       await confirmPasswordRecovery();
@@ -10878,11 +10900,12 @@ export default function App() {
                       (passwordRecoveryStep === "password" &&
                         (!passwordRecoveryNextPassword ||
                           !passwordRecoveryConfirmPassword ||
+                          passwordRecoveryNextPassword.length < 8 ||
                           passwordRecoveryNextPassword !== passwordRecoveryConfirmPassword))
                     }
                     className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
                   >
-                    {passwordRecoveryLoading && passwordRecoveryStep !== "code"
+                    {passwordRecoveryLoading
                       ? "Подождите..."
                       : passwordRecoveryStep === "email"
                         ? "Отправить код"
@@ -10898,23 +10921,9 @@ export default function App() {
                       disabled={passwordRecoveryLoading || passwordRecoveryCooldownLeft > 0}
                       className="w-full h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                     >
-                      Отправить код повторно
-                    </Button>
-                  )}
-                  {passwordRecoveryStep !== "email" && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        if (passwordRecoveryStep === "password") {
-                          setPasswordRecoveryStep("code");
-                          return;
-                        }
-                        setPasswordRecoveryStep("email");
-                      }}
-                      className="w-full h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                    >
-                      Назад
+                      {passwordRecoveryCooldownLeft > 0
+                        ? `Новый код через ${passwordRecoveryCooldownLeft} сек.`
+                        : "Отправить код повторно"}
                     </Button>
                   )}
                   {passwordRecoveryNotice && (

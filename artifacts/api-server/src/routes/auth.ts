@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   applyPromoCodeByToken,
   assignSubscriptionByUserId,
+  checkPasswordRecoveryEmailExists,
   changeEmailByTokenWithCode,
   changeEmailByToken,
   changePasswordByTokenWithCode,
@@ -22,6 +23,7 @@ import {
   requestEmailChangeCodeByToken,
   requestPasswordChangeCodeByToken,
   requestPasswordRecoveryCode,
+  verifyPasswordRecoveryCode,
   setAdminStaffRoleByUserId,
   setUserBanByAdmin,
   upsertPromoCodeByAdmin,
@@ -491,8 +493,8 @@ authRouter.patch("/auth/password", async (req, res) => {
     if (!currentPassword || !nextPassword) {
       return res.status(400).json({ message: "Заполните обязательные поля." });
     }
-    if (nextPassword.length < 6) {
-      return res.status(400).json({ message: "Пароль должен быть не короче 6 символов." });
+    if (nextPassword.length < 8) {
+      return res.status(400).json({ message: "Пароль должен быть не короче 8 символов." });
     }
 
     const user = await changePasswordByToken(token, currentPassword, nextPassword);
@@ -539,8 +541,8 @@ authRouter.patch("/auth/password/code/confirm", async (req, res) => {
     if (!code || !nextPassword) {
       return res.status(400).json({ message: "Заполните обязательные поля." });
     }
-    if (nextPassword.length < 6) {
-      return res.status(400).json({ message: "Пароль должен быть не короче 6 символов." });
+    if (nextPassword.length < 8) {
+      return res.status(400).json({ message: "Пароль должен быть не короче 8 символов." });
     }
     const user = await changePasswordByTokenWithCode(token, code, nextPassword);
     if (!user) {
@@ -648,13 +650,35 @@ authRouter.post("/auth/password/recovery/request", async (req, res) => {
     return res.status(400).json({ message: "Введите корректную почту." });
   }
   try {
+    const exists = await checkPasswordRecoveryEmailExists(email);
+    if (!exists) {
+      return res.status(404).json({ message: "Аккаунт с такой почтой не найден." });
+    }
     await requestPasswordRecoveryCode(email, resolveClientIp(req));
     return res.status(200).json({
       ok: true,
-      message: "Если аккаунт найден, код отправлен на почту.",
+      message: "Код отправлен на почту.",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось отправить код.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.post("/auth/password/recovery/verify", async (req, res) => {
+  const email = String(req.body?.email ?? "").trim();
+  const code = String(req.body?.code ?? "");
+  if (!email || !code) {
+    return res.status(400).json({ message: "Заполните обязательные поля." });
+  }
+  if (!email.includes("@")) {
+    return res.status(400).json({ message: "Введите корректную почту." });
+  }
+  try {
+    await verifyPasswordRecoveryCode(email, code);
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Код неверный или уже истек.";
     return res.status(400).json({ message });
   }
 });
@@ -669,8 +693,8 @@ authRouter.post("/auth/password/recovery/confirm", async (req, res) => {
   if (!email.includes("@")) {
     return res.status(400).json({ message: "Введите корректную почту." });
   }
-  if (nextPassword.length < 6) {
-    return res.status(400).json({ message: "Пароль должен быть не короче 6 символов." });
+  if (nextPassword.length < 8) {
+    return res.status(400).json({ message: "Пароль должен быть не короче 8 символов." });
   }
   try {
     await confirmPasswordRecoveryByCode(email, code, nextPassword);
