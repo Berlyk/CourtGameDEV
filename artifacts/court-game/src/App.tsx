@@ -5614,7 +5614,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!authDialogOpen && openRecoveryAfterAuthClose) {
+    if (openRecoveryAfterAuthClose && !passwordRecoveryDialogOpen) {
       setPasswordRecoveryEmail(recoveryPrefillEmail);
       setPasswordRecoveryEmailError("");
       setPasswordRecoveryStep("email");
@@ -5628,7 +5628,7 @@ export default function App() {
       setOpenRecoveryAfterAuthClose(false);
       setRecoveryPrefillEmail("");
     }
-  }, [authDialogOpen, openRecoveryAfterAuthClose, recoveryPrefillEmail]);
+  }, [openRecoveryAfterAuthClose, passwordRecoveryDialogOpen, recoveryPrefillEmail]);
 
   useEffect(() => {
     if (reconnectPersistent) return;
@@ -10574,7 +10574,7 @@ export default function App() {
             </div>
 
             <Dialog
-              open={authDialogOpen}
+              open={authDialogOpen && !openRecoveryAfterAuthClose}
               onOpenChange={(open) => {
                 setAuthDialogOpen(open);
                 if (!open) {
