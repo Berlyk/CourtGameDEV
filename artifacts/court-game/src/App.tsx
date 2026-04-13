@@ -3448,6 +3448,8 @@ export default function App() {
   const [showPasswordRecoveryNext, setShowPasswordRecoveryNext] = useState(false);
   const [showPasswordRecoveryConfirm, setShowPasswordRecoveryConfirm] = useState(false);
   const [passwordRecoveryLoading, setPasswordRecoveryLoading] = useState(false);
+  const [openRecoveryAfterAuthClose, setOpenRecoveryAfterAuthClose] = useState(false);
+  const [recoveryPrefillEmail, setRecoveryPrefillEmail] = useState("");
   const [profileActionLoading, setProfileActionLoading] = useState(false);
   const [myProfileLoading, setMyProfileLoading] = useState(false);
   const [myProfile, setMyProfile] = useState<PublicUserProfile | null>(null);
@@ -5610,6 +5612,23 @@ export default function App() {
     }, 250);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!authDialogOpen && openRecoveryAfterAuthClose) {
+      setPasswordRecoveryEmail(recoveryPrefillEmail);
+      setPasswordRecoveryEmailError("");
+      setPasswordRecoveryStep("email");
+      setPasswordRecoveryCode("");
+      setPasswordRecoveryNextPassword("");
+      setPasswordRecoveryConfirmPassword("");
+      setPasswordRecoveryNotice("");
+      setShowPasswordRecoveryNext(false);
+      setShowPasswordRecoveryConfirm(false);
+      setPasswordRecoveryDialogOpen(true);
+      setOpenRecoveryAfterAuthClose(false);
+      setRecoveryPrefillEmail("");
+    }
+  }, [authDialogOpen, openRecoveryAfterAuthClose, recoveryPrefillEmail]);
 
   useEffect(() => {
     if (reconnectPersistent) return;
@@ -10699,19 +10718,9 @@ export default function App() {
                               const prefillEmail = loginOrEmail.trim().includes("@")
                                 ? loginOrEmail.trim()
                                 : "";
+                              setRecoveryPrefillEmail(prefillEmail);
+                              setOpenRecoveryAfterAuthClose(true);
                               setAuthDialogOpen(false);
-                              window.requestAnimationFrame(() => {
-                                setPasswordRecoveryDialogOpen(true);
-                              });
-                              setPasswordRecoveryEmail(prefillEmail);
-                              setPasswordRecoveryEmailError("");
-                              setPasswordRecoveryStep("email");
-                              setPasswordRecoveryCode("");
-                              setPasswordRecoveryNextPassword("");
-                              setPasswordRecoveryConfirmPassword("");
-                              setPasswordRecoveryNotice("");
-                              setShowPasswordRecoveryNext(false);
-                              setShowPasswordRecoveryConfirm(false);
                             }}
                             className="w-full h-10 rounded-xl border border-zinc-700 bg-zinc-900/70 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
                           >
