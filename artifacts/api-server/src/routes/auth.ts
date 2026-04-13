@@ -17,6 +17,7 @@ import {
   getProfileByToken,
   getUserByToken,
   listPromoCodesByAdmin,
+  loginOrRegisterWithDiscord,
   loginAccount,
   logoutByToken,
   registerAccount,
@@ -72,6 +73,115 @@ function resolveClientIp(req: Parameters<typeof authRouter.get>[1]): string {
     return String(forwarded[0] ?? "").trim();
   }
   return String(req.ip ?? "").trim();
+}
+
+const DISCORD_STATE_TTL_MS = 10 * 60 * 1000;
+const FALLBACK_OAUTH_STATE_SECRET = crypto.randomBytes(32).toString("hex");
+
+function toBase64Url(value: string): string {
+  return Buffer.from(value, "utf8").toString("base64url");
+}
+
+function fromBase64Url(value: string): string {
+  return Buffer.from(value, "base64url").toString("utf8");
+}
+
+function normalizePublicUrl(value: string | undefined | null): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, "");
+}
+
+function resolvePublicAppUrl(req: Parameters<typeof authRouter.get>[1]): string {
+  const fromEnv =
+    normalizePublicUrl(process.env.PUBLIC_APP_URL) ??
+    normalizePublicUrl(process.env.APP_PUBLIC_URL) ??
+    normalizePublicUrl(process.env.FRONTEND_PUBLIC_URL);
+  if (fromEnv) return fromEnv;
+
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const proto =
+    typeof forwardedProto === "string" && forwardedProto.trim()
+      ? forwardedProto.split(",")[0]!.trim()
+      : "https";
+  const forwardedHost = req.headers["x-forwarded-host"];
+  const hostRaw =
+    typeof forwardedHost === "string" && forwardedHost.trim()
+      ? forwardedHost
+      : Array.isArray(forwardedHost) && forwardedHost.length
+        ? String(forwardedHost[0] ?? "")
+        : String(req.headers.host ?? "");
+  const host = hostRaw.trim();
+  if (!host) return "https://courtgame.site";
+  return `${proto}://${host}`;
+}
+
+function readDiscordConfig() {
+  const clientId = String(process.env.DISCORD_CLIENT_ID ?? "").trim();
+  const clientSecret = String(process.env.DISCORD_CLIENT_SECRET ?? "").trim();
+  const redirectUri = String(process.env.DISCORD_REDIRECT_URI ?? "").trim();
+  return { clientId, clientSecret, redirectUri };
+}
+
+function getDiscordStateSecret(): string {
+  const configured = String(
+    process.env.OAUTH_STATE_SECRET ?? process.env.AUTH_EMAIL_CODE_SECRET ?? "",
+  ).trim();
+  if (configured) return configured;
+  return FALLBACK_OAUTH_STATE_SECRET;
+}
+
+function signDiscordState(payloadPart: string): string {
+  return crypto.createHmac("sha256", getDiscordStateSecret()).update(payloadPart, "utf8").digest("base64url");
+}
+
+function createDiscordState(): string {
+  const payloadPart = toBase64Url(
+    JSON.stringify({
+      ts: Date.now(),
+      nonce: crypto.randomUUID(),
+    }),
+  );
+  const signature = signDiscordState(payloadPart);
+  return `${payloadPart}.${signature}`;
+}
+
+function verifyDiscordState(state: string): boolean {
+  const [payloadPart, signature] = String(state ?? "").split(".");
+  if (!payloadPart || !signature) return false;
+  const expected = signDiscordState(payloadPart);
+  const left = Buffer.from(signature, "utf8");
+  const right = Buffer.from(expected, "utf8");
+  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) {
+    return false;
+  }
+  let payload: any = null;
+  try {
+    payload = JSON.parse(fromBase64Url(payloadPart));
+  } catch {
+    return false;
+  }
+  const issuedAt = Number(payload?.ts ?? 0);
+  if (!Number.isFinite(issuedAt) || issuedAt <= 0) return false;
+  if (Date.now() - issuedAt > DISCORD_STATE_TTL_MS) return false;
+  return true;
+}
+
+function redirectDiscordResult(
+  req: Parameters<typeof authRouter.get>[1],
+  res: Parameters<typeof authRouter.get>[2],
+  payload: { token?: string; error?: string },
+) {
+  const target = new URL("/", resolvePublicAppUrl(req));
+  const hashParams = new URLSearchParams();
+  if (payload.token) {
+    hashParams.set("discord_token", payload.token);
+  }
+  if (payload.error) {
+    hashParams.set("discord_error", payload.error);
+  }
+  target.hash = hashParams.toString();
+  return res.redirect(target.toString());
 }
 
 const ADMIN_GUARD_WINDOW_MS = 15 * 60 * 1000;
@@ -317,6 +427,106 @@ function hasAdminPermission(role: AdminAccessRole, permission: string): boolean 
   if (permission === "manage-subscriptions") return false;
   return false;
 }
+
+authRouter.get("/auth/discord/start", async (req, res) => {
+  const { clientId, redirectUri } = readDiscordConfig();
+  if (!clientId || !redirectUri) {
+    return redirectDiscordResult(req, res, {
+      error: "Discord OAuth не настроен на сервере.",
+    });
+  }
+  const state = createDiscordState();
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "identify email",
+    state,
+  });
+  return res.redirect(`https://discord.com/api/oauth2/authorize?${params.toString()}`);
+});
+
+authRouter.get("/auth/discord/callback", async (req, res) => {
+  const { clientId, clientSecret, redirectUri } = readDiscordConfig();
+  if (!clientId || !clientSecret || !redirectUri) {
+    return redirectDiscordResult(req, res, {
+      error: "Discord OAuth не настроен на сервере.",
+    });
+  }
+
+  const code = String(req.query?.code ?? "").trim();
+  const state = String(req.query?.state ?? "").trim();
+  const oauthError = String(req.query?.error ?? "").trim();
+
+  if (oauthError) {
+    return redirectDiscordResult(req, res, {
+      error: "Вход через Discord отменен или недоступен.",
+    });
+  }
+  if (!state || !verifyDiscordState(state)) {
+    return redirectDiscordResult(req, res, {
+      error: "Не удалось подтвердить вход через Discord.",
+    });
+  }
+  if (!code) {
+    return redirectDiscordResult(req, res, {
+      error: "Discord не вернул код авторизации.",
+    });
+  }
+
+  try {
+    const tokenParams = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+    });
+    const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: tokenParams.toString(),
+    });
+    if (!tokenResponse.ok) {
+      throw new Error("Не удалось получить access token Discord.");
+    }
+    const tokenPayload: any = await tokenResponse.json().catch(() => ({}));
+    const accessToken = String(tokenPayload?.access_token ?? "").trim();
+    if (!accessToken) {
+      throw new Error("Discord не вернул access token.");
+    }
+
+    const profileResponse = await fetch("https://discord.com/api/users/@me", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    if (!profileResponse.ok) {
+      throw new Error("Не удалось получить профиль Discord.");
+    }
+    const discordProfile: any = await profileResponse.json().catch(() => ({}));
+    const email = String(discordProfile?.email ?? "").trim();
+    if (!email || !email.includes("@")) {
+      throw new Error("В Discord-профиле не найдена почта.");
+    }
+    const username =
+      String(discordProfile?.global_name ?? "").trim() ||
+      String(discordProfile?.username ?? "").trim() ||
+      email.split("@")[0]!;
+
+    const { token } = await loginOrRegisterWithDiscord({
+      email,
+      username,
+      clientIp: resolveClientIp(req),
+    });
+    return redirectDiscordResult(req, res, { token });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Ошибка входа через Discord.";
+    return redirectDiscordResult(req, res, { error: message });
+  }
+});
 
 authRouter.post("/auth/register", async (req, res) => {
   try {

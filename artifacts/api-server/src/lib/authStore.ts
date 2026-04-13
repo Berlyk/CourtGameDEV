@@ -326,6 +326,35 @@ function normalizeNickname(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function buildDiscordLoginBase(input: { email: string; username?: string | null }): string {
+  const usernameRaw = String(input.username ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "");
+  const emailLocal = String(input.email ?? "")
+    .trim()
+    .toLowerCase()
+    .split("@")[0]
+    ?.replace(/[^a-z0-9_]/g, "");
+  let base = (usernameRaw || emailLocal || "discord").slice(0, 18);
+  if (base.length < 3) {
+    base = `${base}${crypto.randomBytes(4).toString("hex")}`.slice(0, 8);
+  }
+  if (base.length < 3) {
+    base = "discord";
+  }
+  return base;
+}
+
+function buildDiscordNicknameBase(input: { email: string; username?: string | null }): string {
+  const usernameRaw = String(input.username ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
+  const emailLocal = String(input.email ?? "").trim().split("@")[0];
+  const base = (usernameRaw || emailLocal || "Игрок").trim();
+  return (base || "Игрок").slice(0, 20);
+}
+
 function normalizeAdminStaffRole(value: string | null | undefined): AdminStaffRole | null {
   const normalized = String(value ?? "")
     .trim()
@@ -1537,6 +1566,162 @@ export async function loginAccount(input: {
   await touchUserIpRecord(row.id, clientIp);
 
   return { user: toPublicUser(row, effectiveBan), token };
+}
+
+type AuthUserLoginRow = {
+  id: string;
+  login: string;
+  email: string;
+  nickname: string;
+  avatar: string | null;
+  banner: string | null;
+  bio: string | null;
+  gender: string | null;
+  birth_date: Date | null;
+  hide_age: boolean | null;
+  selected_badge_key: string | null;
+  preferred_role: string | null;
+  admin_role: string | null;
+  subscription_tier: string | null;
+  subscription_start_at: Date | null;
+  subscription_end_at: Date | null;
+  subscription_is_lifetime: boolean | null;
+  subscription_source: string | null;
+  subscription_duration: string | null;
+  created_at: Date;
+  ban_until: Date | null;
+  ban_permanent: boolean | null;
+  ban_reason: string | null;
+};
+
+async function getAuthUserRowByEmailNormalized(
+  emailNormalized: string,
+): Promise<AuthUserLoginRow | null> {
+  const result = await pool.query<AuthUserLoginRow>(
+    `
+      SELECT
+        id,
+        login,
+        email,
+        nickname,
+        avatar,
+        banner,
+        bio,
+        gender,
+        birth_date,
+        hide_age,
+        selected_badge_key,
+        preferred_role,
+        admin_role,
+        subscription_tier,
+        subscription_start_at,
+        subscription_end_at,
+        subscription_is_lifetime,
+        subscription_source,
+        subscription_duration,
+        created_at,
+        ban_until,
+        ban_permanent,
+        ban_reason
+      FROM auth_users
+      WHERE email_normalized = $1
+      LIMIT 1
+    `,
+    [emailNormalized],
+  );
+  if (!result.rowCount) return null;
+  return result.rows[0];
+}
+
+async function createAuthSession(userId: string, clientIp: string | null): Promise<string> {
+  const token = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO auth_sessions (token, user_id, ip_address, created_at) VALUES ($1, $2, $3, NOW())`,
+    [token, userId, clientIp],
+  );
+  await touchUserIpRecord(userId, clientIp);
+  return token;
+}
+
+export async function loginOrRegisterWithDiscord(input: {
+  email: string;
+  username?: string | null;
+  clientIp?: string | null;
+}): Promise<{ user: AuthUserPublic; token: string; isNew: boolean }> {
+  await cleanupSessions();
+  const clientIp = normalizeIpAddress(input.clientIp);
+  const email = String(input.email ?? "").trim();
+  const emailNormalized = normalizeEmail(email);
+  if (!emailNormalized || !emailNormalized.includes("@")) {
+    throw new Error("Discord не передал корректную почту.");
+  }
+
+  const existing = await getAuthUserRowByEmailNormalized(emailNormalized);
+  if (existing) {
+    const userBan = resolveBanView(existing);
+    const ipBan = isProtectedOwnerLogin(existing.login)
+      ? {
+          isBanned: false,
+          isPermanent: false,
+          bannedUntil: null,
+          reason: null,
+        }
+      : await getIpBanViewByAddress(clientIp);
+    const effectiveBan = mergeBanViews(userBan, ipBan);
+    const token = await createAuthSession(existing.id, clientIp);
+    return { user: toPublicUser(existing, effectiveBan), token, isNew: false };
+  }
+
+  const randomPassword = crypto.randomBytes(24).toString("hex");
+  const loginBase = buildDiscordLoginBase({ email, username: input.username });
+  const nicknameBase = buildDiscordNicknameBase({ email, username: input.username });
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const suffix = attempt === 0 ? "" : String(attempt + 1);
+    const loginCandidate = `${loginBase.slice(0, Math.max(3, 20 - suffix.length))}${suffix}`.slice(0, 20);
+    const nickSuffix = attempt === 0 ? "" : ` ${attempt + 1}`;
+    const nicknameCandidate = `${nicknameBase.slice(0, Math.max(1, 20 - nickSuffix.length))}${nickSuffix}`.slice(
+      0,
+      20,
+    );
+
+    try {
+      const created = await registerAccount({
+        login: loginCandidate,
+        email,
+        password: randomPassword,
+        nickname: nicknameCandidate,
+        clientIp,
+      });
+      return { ...created, isNew: true };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Не удалось зарегистрировать аккаунт через Discord.";
+      if (message === "Логин уже занят." || message === "Никнейм уже занят.") {
+        continue;
+      }
+      if (message === "Эта почта уже используется.") {
+        const racedUser = await getAuthUserRowByEmailNormalized(emailNormalized);
+        if (racedUser) {
+          const userBan = resolveBanView(racedUser);
+          const ipBan = isProtectedOwnerLogin(racedUser.login)
+            ? {
+                isBanned: false,
+                isPermanent: false,
+                bannedUntil: null,
+                reason: null,
+              }
+            : await getIpBanViewByAddress(clientIp);
+          const effectiveBan = mergeBanViews(userBan, ipBan);
+          const token = await createAuthSession(racedUser.id, clientIp);
+          return { user: toPublicUser(racedUser, effectiveBan), token, isNew: false };
+        }
+      }
+      throw error;
+    }
+  }
+
+  throw new Error("Не удалось подобрать уникальный логин для Discord.");
 }
 
 export async function getUserByToken(

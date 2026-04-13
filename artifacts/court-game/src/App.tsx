@@ -3516,6 +3516,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false);
   const createMatchDialogRef = useRef<HTMLDivElement | null>(null);
+  const discordAuthHashHandledRef = useRef("");
   const passwordUpdatedToastTimerRef = useRef<number | null>(null);
   const [publicMatches, setPublicMatches] = useState<PublicMatchInfo[]>([]);
   const [joinPasswordDialogOpen, setJoinPasswordDialogOpen] = useState(false);
@@ -3859,7 +3860,11 @@ export default function App() {
     if (!routeSyncInitializedRef.current) return;
     const nextPath = resolvePathFromState();
     if (window.location.pathname !== nextPath) {
-      window.history.replaceState(window.history.state, "", nextPath);
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${nextPath}${window.location.search}${window.location.hash}`,
+      );
     }
   }, [resolvePathFromState]);
   const openSubscriptionUpsell = useCallback(
@@ -7088,6 +7093,57 @@ export default function App() {
     }
     setScreen("profile");
   }, [activeRoomCode, mySessionToken, socket]);
+
+  const startDiscordAuth = useCallback(() => {
+    window.location.href = "/api/auth/discord/start";
+  }, []);
+
+  useEffect(() => {
+    const hashRaw = window.location.hash.startsWith("#")
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    if (!hashRaw || hashRaw === discordAuthHashHandledRef.current) return;
+    const params = new URLSearchParams(hashRaw);
+    const discordToken = String(params.get("discord_token") ?? "").trim();
+    const discordError = String(params.get("discord_error") ?? "").trim();
+    if (!discordToken && !discordError) return;
+
+    discordAuthHashHandledRef.current = hashRaw;
+    const clearHash = () => {
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${window.location.search}`,
+      );
+    };
+
+    if (discordError) {
+      setAuthMode("login");
+      setAuthView("form");
+      setAuthError(localizeAuthError(discordError));
+      setAuthDialogOpen(true);
+      clearHash();
+      return;
+    }
+
+    setAuthLoading(true);
+    authRequest<{ user: AuthUser }>("/auth/me", { token: discordToken })
+      .then(({ user }) => {
+        handleAuthSuccess(user, discordToken);
+      })
+      .catch((err) => {
+        const message =
+          err instanceof Error ? localizeAuthError(err.message) : "Не удалось войти через Discord.";
+        setAuthMode("login");
+        setAuthView("form");
+        setAuthError(message);
+        setAuthDialogOpen(true);
+      })
+      .finally(() => {
+        setAuthLoading(false);
+        clearHash();
+      });
+  }, [handleAuthSuccess]);
 
   const submitLogin = useCallback(async () => {
     if (authLoading) return;
@@ -10726,6 +10782,15 @@ export default function App() {
                           >
                             Забыли пароль?
                           </button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={startDiscordAuth}
+                            disabled={authLoading}
+                            className="w-full h-11 rounded-xl border-[#5865F2]/45 bg-[#20253a] text-zinc-100 hover:bg-[#2a314b] hover:text-white"
+                          >
+                            Войти через Discord
+                          </Button>
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -10826,6 +10891,15 @@ export default function App() {
                             className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
                           >
                             {authLoading ? "Создаем..." : "Зарегистрироваться"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={startDiscordAuth}
+                            disabled={authLoading}
+                            className="w-full h-11 rounded-xl border-[#5865F2]/45 bg-[#20253a] text-zinc-100 hover:bg-[#2a314b] hover:text-white"
+                          >
+                            Регистрация через Discord
                           </Button>
                         </div>
                       )}
