@@ -6620,6 +6620,54 @@ export default function App() {
     openSubscriptionUpsell,
   ]);
 
+  const requestPasswordChangeCode = useCallback(async (): Promise<boolean> => {
+    if (!authToken) return false;
+    const nextPassword = passwordChangeNext;
+    const confirmPassword = passwordChangeConfirm;
+    if (!nextPassword) return false;
+    if (nextPassword.length < 8) {
+      setPasswordChangeNoticeKind("error");
+      setPasswordChangeNotice("Пароль должен быть не короче 8 символов.");
+      return false;
+    }
+    if (!confirmPassword) {
+      setPasswordChangeNoticeKind("error");
+      setPasswordChangeNotice("Повторите новый пароль.");
+      return false;
+    }
+    if (nextPassword !== confirmPassword) {
+      setPasswordChangeNoticeKind("error");
+      setPasswordChangeNotice("Пароли не совпадают.");
+      return false;
+    }
+    if (passwordChangeCooldownLeft > 0) {
+      return false;
+    }
+    setProfileActionLoading(true);
+    try {
+      const payload = await authRequest<{ ok: boolean; message?: string }>("/auth/password/code/request", {
+        method: "POST",
+        token: authToken,
+      });
+      setPasswordChangeCodeSent(true);
+      setPasswordChangeCooldownUntil(Date.now() + 60_000);
+      setPasswordChangeNoticeKind("info");
+      setPasswordChangeNotice(payload.message || "Код отправлен на почту.");
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? localizeAuthError(err.message) : "Не удалось отправить код.";
+      const cooldownSeconds = extractCooldownSeconds(message);
+      if (cooldownSeconds !== null) {
+        setPasswordChangeCooldownUntil(Date.now() + cooldownSeconds * 1000);
+      }
+      setPasswordChangeNoticeKind("error");
+      setPasswordChangeNotice(message);
+      return false;
+    } finally {
+      setProfileActionLoading(false);
+    }
+  }, [authToken, passwordChangeConfirm, passwordChangeCooldownLeft, passwordChangeNext]);
+
   const changePassword = useCallback(async (): Promise<boolean> => {
     if (!authToken) return false;
     const nextPassword = passwordChangeNext;
@@ -6630,35 +6678,22 @@ export default function App() {
       setPasswordChangeNotice("Пароль должен быть не короче 8 символов.");
       return false;
     }
+    if (!confirmPassword) {
+      setPasswordChangeNoticeKind("error");
+      setPasswordChangeNotice("Повторите новый пароль.");
+      return false;
+    }
+    if (nextPassword !== confirmPassword) {
+      setPasswordChangeNoticeKind("error");
+      setPasswordChangeNotice("Пароли не совпадают.");
+      return false;
+    }
+    if (!passwordChangeCodeSent) {
+      return requestPasswordChangeCode();
+    }
+
     setProfileActionLoading(true);
     try {
-      if (!passwordChangeCodeSent) {
-        if (!confirmPassword) {
-          setPasswordChangeNoticeKind("error");
-          setPasswordChangeNotice("Повторите новый пароль.");
-          return false;
-        }
-        if (nextPassword !== confirmPassword) {
-          setPasswordChangeNoticeKind("error");
-          setPasswordChangeNotice("Пароли не совпадают.");
-          return false;
-        }
-        if (passwordChangeCooldownLeft > 0) {
-          setPasswordChangeNoticeKind("error");
-          setPasswordChangeNotice(`Повторный код можно запросить через ${passwordChangeCooldownLeft} сек.`);
-          return false;
-        }
-        const payload = await authRequest<{ ok: boolean; message?: string }>("/auth/password/code/request", {
-          method: "POST",
-          token: authToken,
-        });
-        setPasswordChangeCodeSent(true);
-        setPasswordChangeCooldownUntil(Date.now() + 60_000);
-        setPasswordChangeNoticeKind("info");
-        setPasswordChangeNotice(payload.message || "Код отправлен на почту.");
-        return false;
-      }
-
       if (!passwordChangeCode.trim()) {
         return false;
       }
@@ -6693,8 +6728,8 @@ export default function App() {
     passwordChangeCode,
     passwordChangeCodeSent,
     passwordChangeConfirm,
-    passwordChangeCooldownLeft,
     passwordChangeNext,
+    requestPasswordChangeCode,
     reloadMyProfile,
     showPasswordUpdatedToast,
   ]);
@@ -9720,11 +9755,6 @@ export default function App() {
                 </>
               ) : (
                 <>
-                  <div className="px-1 text-xs text-zinc-500">
-                    {passwordChangeCooldownLeft > 0
-                      ? `Новый код можно запросить через ${passwordChangeCooldownLeft} сек.`
-                      : "Новый код уже можно запрашивать."}
-                  </div>
                   <Input
                     value={passwordChangeCode}
                     onChange={(e) => setPasswordChangeCode(e.target.value)}
@@ -9748,6 +9778,19 @@ export default function App() {
               >
                 {passwordChangeCodeSent ? "Сменить пароль" : "Отправить код"}
               </Button>
+              {passwordChangeCodeSent && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={requestPasswordChangeCode}
+                  disabled={profileActionLoading || passwordChangeCooldownLeft > 0}
+                  className="w-full h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                >
+                  {passwordChangeCooldownLeft > 0
+                    ? `Новый код через ${passwordChangeCooldownLeft} сек.`
+                    : "Отправить код повторно"}
+                </Button>
+              )}
               {passwordChangeNotice && (
                 <div
                   className={`rounded-xl border px-3 py-2 text-sm ${
@@ -10522,8 +10565,8 @@ export default function App() {
               }}
             >
               <DialogContent
-                overlayClassName="bg-black/88 backdrop-blur-[1.5px]"
-                className="max-w-[400px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)]"
+                overlayClassName="bg-black/88 backdrop-blur-[1.5px] data-[state=open]:animate-none data-[state=closed]:animate-none"
+                className="max-w-[400px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)] data-[state=open]:animate-none data-[state=closed]:animate-none"
               >
                 {authView === "rules" ? (
                   <>
@@ -10657,7 +10700,7 @@ export default function App() {
                                 ? loginOrEmail.trim()
                                 : "";
                               setPasswordRecoveryDialogOpen(true);
-                              requestAnimationFrame(() => setAuthDialogOpen(false));
+                              setAuthDialogOpen(false);
                               setPasswordRecoveryEmail(prefillEmail);
                               setPasswordRecoveryEmailError("");
                               setPasswordRecoveryStep("email");
@@ -10805,8 +10848,8 @@ export default function App() {
               }}
             >
               <DialogContent
-                overlayClassName="bg-black/88 backdrop-blur-[1.5px]"
-                className="max-w-[400px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)] [&>button]:h-7 [&>button]:w-7 [&>button]:sm:h-8 [&>button]:sm:w-8 [&>button_svg]:h-3 [&>button_svg]:w-3"
+                overlayClassName="bg-black/88 backdrop-blur-[1.5px] data-[state=open]:animate-none data-[state=closed]:animate-none"
+                className="max-w-[400px] border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_54%),linear-gradient(155deg,rgba(15,15,20,0.98),rgba(8,8,12,0.98))] text-zinc-100 shadow-[0_34px_110px_rgba(0,0,0,0.76)] data-[state=open]:animate-none data-[state=closed]:animate-none [&>button]:h-7 [&>button]:w-7 [&>button]:sm:h-8 [&>button]:sm:w-8 [&>button_svg]:h-3 [&>button_svg]:w-3"
               >
                 <DialogHeader>
                   <DialogTitle>Восстановление пароля</DialogTitle>

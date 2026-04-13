@@ -465,7 +465,7 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="margin:0;padding:0;background:#ffffff;">
       <tr>
         <td align="center" style="padding:16px 10px;">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#060913" style="max-width:640px;background:#060913;border-radius:18px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#0b0b0f" style="max-width:640px;background:#0b0b0f;border-radius:18px;">
             <tr>
               <td style="padding:24px 20px;font-family:Arial,sans-serif;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:8px;">
@@ -482,11 +482,11 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
                 <div style="margin:0 0 12px 0;font-size:30px;line-height:1.16;font-weight:500;color:#f4f4f5;">
                   ${message.title}
                 </div>
-                <div style="margin:0 0 16px 0;font-size:16px;line-height:1.4;color:#b5bdce;">
+                <div style="margin:0 0 16px 0;font-size:16px;line-height:1.4;color:#b8bcc8;">
                   ${message.subtitle}
                 </div>
 
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#343c50" style="background:#343c50;border-radius:12px;margin:0 0 12px 0;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#2b2f38" style="background:#2b2f38;border-radius:12px;margin:0 0 12px 0;">
                   <tr>
                     <td align="center" style="padding:16px 10px;font-size:62px;line-height:1.02;letter-spacing:9px;font-weight:700;color:#ffffff;">
                       ${code}
@@ -494,14 +494,14 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
                   </tr>
                 </table>
 
-                <div style="margin:0;font-size:14px;line-height:1.45;color:#b7c0d3;">
+                <div style="margin:0;font-size:14px;line-height:1.45;color:#babfcb;">
                   Код действует 10 минут. Никому его не сообщайте.
                 </div>
-                <div style="height:1px;line-height:1px;font-size:1px;background:#2a3042;margin:14px 0 14px 0;">&nbsp;</div>
-                <div style="margin:0 0 8px 0;font-size:13px;line-height:1.45;color:#8f98ab;">
+                <div style="height:1px;line-height:1px;font-size:1px;background:#262a34;margin:14px 0 14px 0;">&nbsp;</div>
+                <div style="margin:0 0 8px 0;font-size:13px;line-height:1.45;color:#9299a8;">
                   Если вы не запрашивали это письмо, просто проигнорируйте его.
                 </div>
-                <div style="margin:0;font-size:13px;line-height:1.45;color:#8f98ab;">
+                <div style="margin:0;font-size:13px;line-height:1.45;color:#9299a8;">
                   Это автоматическое сообщение, отвечать на него не нужно.
                 </div>
                 <div style="margin:8px 0 0 0;font-size:10px;line-height:1.4;color:#5f6879;">
