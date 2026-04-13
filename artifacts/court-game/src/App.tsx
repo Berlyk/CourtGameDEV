@@ -3460,6 +3460,7 @@ export default function App() {
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
   const [kickedAlert, setKickedAlert] = useState("");
+  const [passwordUpdatedToast, setPasswordUpdatedToast] = useState(false);
   const [rankResultToast, setRankResultToast] = useState<{
     fromKey: string;
     toKey: string;
@@ -3510,6 +3511,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false);
   const createMatchDialogRef = useRef<HTMLDivElement | null>(null);
+  const passwordUpdatedToastTimerRef = useRef<number | null>(null);
   const [publicMatches, setPublicMatches] = useState<PublicMatchInfo[]>([]);
   const [joinPasswordDialogOpen, setJoinPasswordDialogOpen] = useState(false);
   const [observerListDialogOpen, setObserverListDialogOpen] = useState(false);
@@ -3605,6 +3607,26 @@ export default function App() {
     startOffsetX: number;
     startOffsetY: number;
   } | null>(null);
+  const showPasswordUpdatedToast = useCallback(() => {
+    if (passwordUpdatedToastTimerRef.current !== null) {
+      window.clearTimeout(passwordUpdatedToastTimerRef.current);
+    }
+    setPasswordUpdatedToast(true);
+    passwordUpdatedToastTimerRef.current = window.setTimeout(() => {
+      setPasswordUpdatedToast(false);
+      passwordUpdatedToastTimerRef.current = null;
+    }, 2200);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (passwordUpdatedToastTimerRef.current !== null) {
+        window.clearTimeout(passwordUpdatedToastTimerRef.current);
+      }
+    },
+    [],
+  );
+
   const imageCropViewport = useMemo(() => {
     if (imageCropTarget === "avatar") {
       return { width: AVATAR_CROP_VIEW_SIZE, height: AVATAR_CROP_VIEW_SIZE };
@@ -6641,13 +6663,10 @@ export default function App() {
           nextPassword,
         },
       });
-      setPasswordChangeNext("");
-      setPasswordChangeConfirm("");
-      setPasswordChangeCode("");
-      setPasswordChangeCodeSent(false);
       await reloadMyProfile();
-      setPasswordChangeNoticeKind("success");
-      setPasswordChangeNotice("Пароль обновлен.");
+      setPasswordChangeNotice("");
+      setPasswordDialogOpen(false);
+      showPasswordUpdatedToast();
       return true;
     } catch (err) {
       const message = err instanceof Error ? localizeAuthError(err.message) : "Не удалось сменить пароль.";
@@ -6669,6 +6688,7 @@ export default function App() {
     passwordChangeCooldownLeft,
     passwordChangeNext,
     reloadMyProfile,
+    showPasswordUpdatedToast,
   ]);
 
   const changeEmail = useCallback(async (): Promise<boolean> => {
@@ -6807,7 +6827,7 @@ export default function App() {
     }
     setPasswordRecoveryLoading(true);
     try {
-      const payload = await authRequest<{ ok: boolean; message?: string }>("/auth/password/recovery/confirm", {
+      await authRequest<{ ok: boolean; message?: string }>("/auth/password/recovery/confirm", {
         method: "POST",
         body: {
           email,
@@ -6825,7 +6845,8 @@ export default function App() {
       setPasswordRecoveryEmail("");
       setAuthMode("login");
       setAuthDialogOpen(true);
-      setAuthError(payload.message || "Пароль обновлен. Войдите с новым паролем.");
+      setAuthError("");
+      showPasswordUpdatedToast();
       return true;
     } catch (err) {
       const message =
@@ -6841,6 +6862,7 @@ export default function App() {
     passwordRecoveryConfirmPassword,
     passwordRecoveryEmail,
     passwordRecoveryNextPassword,
+    showPasswordUpdatedToast,
   ]);
 
   const openUserProfile = useCallback(
@@ -9084,7 +9106,18 @@ export default function App() {
                       <Button
                         variant="outline"
                         className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                        onClick={() => setPasswordDialogOpen(true)}
+                        onClick={() => {
+                          setPasswordChangeCodeSent(false);
+                          setPasswordChangeCode("");
+                          setPasswordChangeNext("");
+                          setPasswordChangeConfirm("");
+                          setPasswordChangeNotice("");
+                          setPasswordChangeNoticeKind("info");
+                          setPasswordChangeCooldownUntil(0);
+                          setShowPasswordChangeNext(false);
+                          setShowPasswordChangeConfirm(false);
+                          setPasswordDialogOpen(true);
+                        }}
                       >
                         Сменить пароль
                       </Button>
@@ -9600,6 +9633,8 @@ export default function App() {
               setPasswordChangeNext("");
               setPasswordChangeConfirm("");
               setPasswordChangeNotice("");
+              setPasswordChangeNoticeKind("info");
+              setPasswordChangeCooldownUntil(0);
               setShowPasswordChangeNext(false);
               setShowPasswordChangeConfirm(false);
             }
@@ -9665,8 +9700,7 @@ export default function App() {
               )}
               <Button
                 onClick={async () => {
-                  const ok = await changePassword();
-                  if (ok) setPasswordDialogOpen(false);
+                  await changePassword();
                 }}
                 disabled={
                   profileActionLoading ||
@@ -9968,6 +10002,17 @@ export default function App() {
       >
         <CourtAtmosphereBackground />
         <AnimatePresence>
+          {passwordUpdatedToast && (
+            <motion.div
+              key="password-updated"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="fixed left-1/2 top-4 z-[260] -translate-x-1/2 rounded-2xl border border-emerald-500/45 bg-emerald-500/18 px-5 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-emerald-200 shadow-[0_16px_50px_rgba(0,0,0,0.5)]"
+            >
+              ПАРОЛЬ ИЗМЕНЕН!
+            </motion.div>
+          )}
           {kickedAlert && (
             <motion.div
               key="kicked"

@@ -452,42 +452,81 @@ async function sendEmailCode(purpose: EmailCodePurpose, toEmail: string, code: s
     normalizeBaseUrl(process.env.FRONTEND_PUBLIC_URL) ??
     "https://courtgame.site";
   const logoUrl = String(process.env.EMAIL_LOGO_URL ?? `${baseUrl}/favicon.png`).trim();
-  const html = `
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0;padding:0;">
+  const html = `<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>${message.subject}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f3f4f6;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0;padding:0;background:#f3f4f6;">
       <tr>
-        <td align="center" style="padding:12px;">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#0b0e17" style="max-width:640px;background:#0b0e17;border:1px solid #22283a;border-radius:16px;">
+        <td align="center" style="padding:16px 10px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#0b0e17" style="max-width:640px;background:#0b0e17;background-image:linear-gradient(180deg,#0b0e17,#0b0e17);border:1px solid #22283a;border-radius:18px;border-collapse:separate;">
             <tr>
-              <td bgcolor="#0b0e17" style="padding:22px 18px 20px;font-family:Arial,sans-serif;background:#0b0e17;">
-                <table role="presentation" cellspacing="0" cellpadding="0" style="margin-bottom:14px;">
+              <td bgcolor="#0b0e17" style="padding:24px 20px;font-family:Arial,sans-serif;color:#f4f4f5;background:#0b0e17;background-image:linear-gradient(180deg,#0b0e17,#0b0e17);border-radius:18px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:16px;">
                   <tr>
-                    <td style="vertical-align:middle;padding-right:10px;">
-                      <img src="${logoUrl}" width="40" height="40" alt="" style="display:block;outline:none;border:0;text-decoration:none;" />
+                    <td style="width:52px;vertical-align:middle;">
+                      <img src="${logoUrl}" width="46" height="46" alt="" style="display:block;border:0;outline:none;text-decoration:none;" />
                     </td>
-                    <td style="vertical-align:middle;font-size:18px;font-weight:700;color:#f4f4f5;line-height:1;">
+                    <td style="vertical-align:middle;font-size:24px;line-height:1.05;font-weight:800;color:#f4f4f5;">
                       CourtGame
                     </td>
                   </tr>
                 </table>
-                <div style="font-size:28px;line-height:1.16;font-weight:700;color:#f4f4f5;margin-bottom:10px;">
-                  ${message.title}
-                </div>
-                <div style="font-size:16px;line-height:1.4;color:#b5bdce;margin-bottom:14px;">
-                  ${message.subtitle}
-                </div>
-                <div style="font-size:42px;letter-spacing:9px;font-weight:700;color:#ffffff;background:#171b27;border:1px solid #2f364b;border-radius:12px;padding:14px 12px;text-align:center;margin-bottom:12px;">
-                  ${code}
-                </div>
-                <div style="font-size:14px;line-height:1.5;color:#a8b0c1;">
-                  Код действует 10 минут. Никому его не сообщайте.
-                </div>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="font-size:30px;line-height:1.16;font-weight:800;color:#f4f4f5;padding:0 0 10px 0;">
+                      ${message.title}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:16px;line-height:1.4;color:#b5bdce;padding:0 0 16px 0;">
+                      ${message.subtitle}
+                    </td>
+                  </tr>
+                </table>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#171b27" style="background:#171b27;background-image:linear-gradient(180deg,#171b27,#171b27);border:1px solid #2f364b;border-radius:12px;margin:0 0 12px 0;">
+                  <tr>
+                    <td align="center" style="padding:16px 10px;font-size:42px;line-height:1.1;letter-spacing:9px;font-weight:800;color:#ffffff;">
+                      ${code}
+                    </td>
+                  </tr>
+                </table>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="font-size:14px;line-height:1.45;color:#a8b0c1;padding:0 0 12px 0;">
+                      Код действует 10 минут. Никому его не сообщайте.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:0 0 14px 0;border-top:1px solid #2a3042;"></td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:13px;line-height:1.45;color:#8f98ab;padding:0 0 8px 0;">
+                      Если вы не запрашивали это письмо, просто проигнорируйте его.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:13px;line-height:1.45;color:#8f98ab;">
+                      Это автоматическое сообщение, отвечать на него не нужно.
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
           </table>
         </td>
       </tr>
     </table>
-  `;
+  </body>
+</html>`;
   const text = `${message.title}\n\nКод: ${code}\nКод действует 10 минут.\n\nЕсли вы не запрашивали это письмо, просто проигнорируйте его.`;
   await sendResendEmail({
     to: toEmail,
