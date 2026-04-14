@@ -18,6 +18,7 @@ import {
   getUserByToken,
   listPromoCodesByAdmin,
   loginOrRegisterWithDiscord,
+  loginOrRegisterWithGoogle,
   loginAccount,
   logoutByToken,
   registerAccount,
@@ -123,6 +124,13 @@ function readDiscordConfig() {
   return { clientId, clientSecret, redirectUri };
 }
 
+function readGoogleConfig() {
+  const clientId = String(process.env.GOOGLE_CLIENT_ID ?? "").trim();
+  const clientSecret = String(process.env.GOOGLE_CLIENT_SECRET ?? "").trim();
+  const redirectUri = String(process.env.GOOGLE_REDIRECT_URI ?? "").trim();
+  return { clientId, clientSecret, redirectUri };
+}
+
 function getDiscordStateSecret(): string {
   const configured = String(
     process.env.OAUTH_STATE_SECRET ?? process.env.AUTH_EMAIL_CODE_SECRET ?? "",
@@ -179,6 +187,23 @@ function redirectDiscordResult(
   }
   if (payload.error) {
     hashParams.set("discord_error", payload.error);
+  }
+  target.hash = hashParams.toString();
+  return res.redirect(target.toString());
+}
+
+function redirectGoogleResult(
+  req: Parameters<typeof authRouter.get>[1],
+  res: Parameters<typeof authRouter.get>[2],
+  payload: { token?: string; error?: string },
+) {
+  const target = new URL("/", resolvePublicAppUrl(req));
+  const hashParams = new URLSearchParams();
+  if (payload.token) {
+    hashParams.set("google_token", payload.token);
+  }
+  if (payload.error) {
+    hashParams.set("google_error", payload.error);
   }
   target.hash = hashParams.toString();
   return res.redirect(target.toString());
@@ -525,6 +550,107 @@ authRouter.get("/auth/discord/callback", async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Ошибка входа через Discord.";
     return redirectDiscordResult(req, res, { error: message });
+  }
+});
+
+authRouter.get("/auth/google/start", async (req, res) => {
+  const { clientId, redirectUri } = readGoogleConfig();
+  if (!clientId || !redirectUri) {
+    return redirectGoogleResult(req, res, {
+      error: "Google OAuth не настроен на сервере.",
+    });
+  }
+  const state = createDiscordState();
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    state,
+    prompt: "select_account",
+  });
+  return res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+});
+
+authRouter.get("/auth/google/callback", async (req, res) => {
+  const { clientId, clientSecret, redirectUri } = readGoogleConfig();
+  if (!clientId || !clientSecret || !redirectUri) {
+    return redirectGoogleResult(req, res, {
+      error: "Google OAuth не настроен на сервере.",
+    });
+  }
+
+  const code = String(req.query?.code ?? "").trim();
+  const state = String(req.query?.state ?? "").trim();
+  const oauthError = String(req.query?.error ?? "").trim();
+
+  if (oauthError) {
+    return redirectGoogleResult(req, res, {
+      error: "Вход через Google отменен или недоступен.",
+    });
+  }
+  if (!state || !verifyDiscordState(state)) {
+    return redirectGoogleResult(req, res, {
+      error: "Не удалось подтвердить вход через Google.",
+    });
+  }
+  if (!code) {
+    return redirectGoogleResult(req, res, {
+      error: "Google не вернул код авторизации.",
+    });
+  }
+
+  try {
+    const tokenParams = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+    });
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: tokenParams.toString(),
+    });
+    if (!tokenResponse.ok) {
+      throw new Error("Не удалось получить access token Google.");
+    }
+    const tokenPayload: any = await tokenResponse.json().catch(() => ({}));
+    const accessToken = String(tokenPayload?.access_token ?? "").trim();
+    if (!accessToken) {
+      throw new Error("Google не вернул access token.");
+    }
+
+    const profileResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    if (!profileResponse.ok) {
+      throw new Error("Не удалось получить профиль Google.");
+    }
+    const googleProfile: any = await profileResponse.json().catch(() => ({}));
+    const email = String(googleProfile?.email ?? "").trim();
+    if (!email || !email.includes("@")) {
+      throw new Error("В Google-профиле не найдена почта.");
+    }
+    const name =
+      String(googleProfile?.name ?? "").trim() ||
+      String(googleProfile?.given_name ?? "").trim() ||
+      email.split("@")[0]!;
+
+    const { token } = await loginOrRegisterWithGoogle({
+      email,
+      name,
+      clientIp: resolveClientIp(req),
+    });
+    return redirectGoogleResult(req, res, { token });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Ошибка входа через Google.";
+    return redirectGoogleResult(req, res, { error: message });
   }
 });
 

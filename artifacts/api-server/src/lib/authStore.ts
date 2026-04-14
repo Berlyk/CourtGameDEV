@@ -355,6 +355,35 @@ function buildDiscordNicknameBase(input: { email: string; username?: string | nu
   return (base || "Игрок").slice(0, 20);
 }
 
+function buildGoogleLoginBase(input: { email: string; name?: string | null }): string {
+  const nameRaw = String(input.name ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "");
+  const emailLocal = String(input.email ?? "")
+    .trim()
+    .toLowerCase()
+    .split("@")[0]
+    ?.replace(/[^a-z0-9_]/g, "");
+  let base = (nameRaw || emailLocal || "google").slice(0, 18);
+  if (base.length < 3) {
+    base = `${base}${crypto.randomBytes(4).toString("hex")}`.slice(0, 8);
+  }
+  if (base.length < 3) {
+    base = "google";
+  }
+  return base;
+}
+
+function buildGoogleNicknameBase(input: { email: string; name?: string | null }): string {
+  const nameRaw = String(input.name ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
+  const emailLocal = String(input.email ?? "").trim().split("@")[0];
+  const base = (nameRaw || emailLocal || "Игрок").trim();
+  return (base || "Игрок").slice(0, 20);
+}
+
 function normalizeAdminStaffRole(value: string | null | undefined): AdminStaffRole | null {
   const normalized = String(value ?? "")
     .trim()
@@ -1741,6 +1770,87 @@ export async function loginOrRegisterWithDiscord(input: {
   }
 
   throw new Error("Не удалось подобрать уникальный логин для Discord.");
+}
+
+export async function loginOrRegisterWithGoogle(input: {
+  email: string;
+  name?: string | null;
+  clientIp?: string | null;
+}): Promise<{ user: AuthUserPublic; token: string; isNew: boolean }> {
+  await cleanupSessions();
+  const clientIp = normalizeIpAddress(input.clientIp);
+  const email = String(input.email ?? "").trim();
+  const emailNormalized = normalizeEmail(email);
+  if (!emailNormalized || !emailNormalized.includes("@")) {
+    throw new Error("Google не передал корректную почту.");
+  }
+
+  const existing = await getAuthUserRowByEmailNormalized(emailNormalized);
+  if (existing) {
+    const userBan = resolveBanView(existing);
+    const ipBan = isProtectedOwnerLogin(existing.login)
+      ? {
+          isBanned: false,
+          isPermanent: false,
+          bannedUntil: null,
+          reason: null,
+        }
+      : await getIpBanViewByAddress(clientIp);
+    const effectiveBan = mergeBanViews(userBan, ipBan);
+    const token = await createAuthSession(existing.id, clientIp);
+    return { user: toPublicUser(existing, effectiveBan), token, isNew: false };
+  }
+
+  const randomPassword = crypto.randomBytes(24).toString("hex");
+  const loginBase = buildGoogleLoginBase({ email, name: input.name });
+  const nicknameBase = buildGoogleNicknameBase({ email, name: input.name });
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const suffix = attempt === 0 ? "" : String(attempt + 1);
+    const loginCandidate = `${loginBase.slice(0, Math.max(3, 20 - suffix.length))}${suffix}`.slice(0, 20);
+    const nickSuffix = attempt === 0 ? "" : ` ${attempt + 1}`;
+    const nicknameCandidate = `${nicknameBase.slice(0, Math.max(1, 20 - nickSuffix.length))}${nickSuffix}`.slice(
+      0,
+      20,
+    );
+
+    try {
+      const created = await registerAccount({
+        login: loginCandidate,
+        email,
+        password: randomPassword,
+        nickname: nicknameCandidate,
+        clientIp,
+      });
+      return { ...created, isNew: true };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Не удалось зарегистрировать аккаунт через Google.";
+      if (message === "Логин уже занят." || message === "Никнейм уже занят.") {
+        continue;
+      }
+      if (message === "Эта почта уже используется.") {
+        const racedUser = await getAuthUserRowByEmailNormalized(emailNormalized);
+        if (racedUser) {
+          const userBan = resolveBanView(racedUser);
+          const ipBan = isProtectedOwnerLogin(racedUser.login)
+            ? {
+                isBanned: false,
+                isPermanent: false,
+                bannedUntil: null,
+                reason: null,
+              }
+            : await getIpBanViewByAddress(clientIp);
+          const effectiveBan = mergeBanViews(userBan, ipBan);
+          const token = await createAuthSession(racedUser.id, clientIp);
+          return { user: toPublicUser(racedUser, effectiveBan), token, isNew: false };
+        }
+      }
+      throw error;
+    }
+  }
+
+  throw new Error("Не удалось подобрать уникальный логин для Google.");
 }
 
 export async function getUserByToken(

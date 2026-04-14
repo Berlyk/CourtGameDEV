@@ -112,6 +112,27 @@ const DiscordLogoIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const GoogleLogoIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <path
+      fill="#EA4335"
+      d="M12.24 10.285v3.94h5.516c-.237 1.275-.95 2.355-2.02 3.081l3.266 2.534c1.904-1.755 3-4.336 3-7.4 0-.7-.063-1.372-.179-2.024l-9.583-.131z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 22c2.7 0 4.965-.895 6.62-2.428l-3.266-2.534c-.907.607-2.069.967-3.354.967-2.577 0-4.76-1.739-5.54-4.078H3.09v2.628A9.997 9.997 0 0 0 12 22z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M6.46 13.927a5.996 5.996 0 0 1 0-3.854V7.445H3.09a10 10 0 0 0 0 9.11l3.37-2.628z"
+    />
+    <path
+      fill="#4285F4"
+      d="M12 6.005c1.468 0 2.786.505 3.824 1.496l2.866-2.866C16.96 3.036 14.696 2 12 2a9.997 9.997 0 0 0-8.91 5.445l3.37 2.628c.78-2.339 2.963-4.068 5.54-4.068z"
+    />
+  </svg>
+);
+
 type RoomModeKey =
   | "quick_flex"
   | "civil_3"
@@ -3516,7 +3537,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false);
   const createMatchDialogRef = useRef<HTMLDivElement | null>(null);
-  const discordAuthHashHandledRef = useRef("");
+  const oauthAuthHashHandledRef = useRef("");
   const passwordUpdatedToastTimerRef = useRef<number | null>(null);
   const [publicMatches, setPublicMatches] = useState<PublicMatchInfo[]>([]);
   const [joinPasswordDialogOpen, setJoinPasswordDialogOpen] = useState(false);
@@ -7098,17 +7119,27 @@ export default function App() {
     window.location.href = "/api/auth/discord/start";
   }, []);
 
+  const startGoogleAuth = useCallback(() => {
+    window.location.href = "/api/auth/google/start";
+  }, []);
+
   useEffect(() => {
     const hashRaw = window.location.hash.startsWith("#")
       ? window.location.hash.slice(1)
       : window.location.hash;
-    if (!hashRaw || hashRaw === discordAuthHashHandledRef.current) return;
+    if (!hashRaw || hashRaw === oauthAuthHashHandledRef.current) return;
     const params = new URLSearchParams(hashRaw);
     const discordToken = String(params.get("discord_token") ?? "").trim();
     const discordError = String(params.get("discord_error") ?? "").trim();
-    if (!discordToken && !discordError) return;
+    const googleToken = String(params.get("google_token") ?? "").trim();
+    const googleError = String(params.get("google_error") ?? "").trim();
+    if (!discordToken && !discordError && !googleToken && !googleError) return;
 
-    discordAuthHashHandledRef.current = hashRaw;
+    const oauthToken = discordToken || googleToken;
+    const oauthError = discordError || googleError;
+    const provider = discordToken || discordError ? "Discord" : "Google";
+
+    oauthAuthHashHandledRef.current = hashRaw;
     const clearHash = () => {
       window.history.replaceState(
         window.history.state,
@@ -7117,23 +7148,25 @@ export default function App() {
       );
     };
 
-    if (discordError) {
+    if (oauthError) {
       setAuthMode("login");
       setAuthView("form");
-      setAuthError(localizeAuthError(discordError));
+      setAuthError(localizeAuthError(oauthError));
       setAuthDialogOpen(true);
       clearHash();
       return;
     }
 
     setAuthLoading(true);
-    authRequest<{ user: AuthUser }>("/auth/me", { token: discordToken })
+    authRequest<{ user: AuthUser }>("/auth/me", { token: oauthToken })
       .then(({ user }) => {
-        handleAuthSuccess(user, discordToken);
+        handleAuthSuccess(user, oauthToken);
       })
       .catch((err) => {
         const message =
-          err instanceof Error ? localizeAuthError(err.message) : "Не удалось войти через Discord.";
+          err instanceof Error
+            ? localizeAuthError(err.message)
+            : `Не удалось войти через ${provider}.`;
         setAuthMode("login");
         setAuthView("form");
         setAuthError(message);
@@ -10786,7 +10819,16 @@ export default function App() {
                           >
                             {authLoading ? "Входим" : "Войти"}
                           </Button>
-                          <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-2">
+                          <div className="grid grid-cols-[44px_44px_minmax(0,1fr)] gap-2">
+                            <button
+                              type="button"
+                              onClick={startGoogleAuth}
+                              disabled={authLoading}
+                              className="inline-flex h-10 w-11 items-center justify-center rounded-xl border border-zinc-600/55 bg-zinc-900 text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-60"
+                              title="Войти через Google"
+                            >
+                              <GoogleLogoIcon className="h-5 w-5" />
+                            </button>
                             <button
                               type="button"
                               onClick={startDiscordAuth}
@@ -10898,7 +10940,16 @@ export default function App() {
                             </span>
                           </label>
                           <div className="px-1 pt-1 text-xs text-zinc-500">Войти с помощью</div>
-                          <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-2">
+                          <div className="grid grid-cols-[44px_44px_minmax(0,1fr)] gap-2">
+                            <button
+                              type="button"
+                              onClick={startGoogleAuth}
+                              disabled={authLoading}
+                              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-600/55 bg-zinc-900 text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-60"
+                              title="Регистрация через Google"
+                            >
+                              <GoogleLogoIcon className="h-5 w-5" />
+                            </button>
                             <button
                               type="button"
                               onClick={startDiscordAuth}
