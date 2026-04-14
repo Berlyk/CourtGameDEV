@@ -9379,10 +9379,10 @@ export default function App() {
                             <Lock className="h-3 w-3 text-zinc-300" />
                             Рейтинг заблокирован
                           </div>
-                          <div className="pl-0.5 text-[15px] font-normal leading-[1.75] text-zinc-200 md:text-[15px]">
+                          <div className="pl-0.5 text-[15px] font-normal leading-[2.0] text-zinc-200 md:text-[15px]">
                             Рейтинг открывается с подпиской «Стажер».
                           </div>
-                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/85 px-2.5 py-1 text-[13px] font-normal leading-[1.75] text-zinc-400">
+                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/85 px-2.5 py-1 text-[13px] font-normal leading-[2.0] text-zinc-400">
                             До активации подписки рейтинговая прогрессия недоступна.
                           </div>
                         </div>
