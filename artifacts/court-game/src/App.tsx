@@ -9371,17 +9371,17 @@ export default function App() {
                         </span>
                       )}
                     </div>
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-2.5">
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-2">
                       {ratingUnavailableForProfile ? (
-                        <div className="space-y-2">
-                          <div className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs font-medium text-zinc-100">
+                        <div className="space-y-1.5">
+                          <div className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-zinc-100">
                             <Lock className="h-3 w-3 text-zinc-300" />
                             Рейтинг заблокирован
                           </div>
-                          <div className="pl-0.5 text-sm font-normal leading-relaxed text-zinc-100 md:text-base">
+                          <div className="pl-0.5 text-[15px] font-normal leading-snug text-zinc-100 md:text-[15px]">
                             Рейтинг открывается с подпиской «Стажер».
                           </div>
-                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/85 px-2.5 py-1.5 text-sm font-normal leading-relaxed text-zinc-300">
+                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/85 px-2.5 py-1 text-[13px] font-normal leading-snug text-zinc-300">
                             До активации подписки рейтинговая прогрессия недоступна.
                           </div>
                         </div>
