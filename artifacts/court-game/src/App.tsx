@@ -10845,19 +10845,21 @@ export default function App() {
                               type="button"
                               onClick={startGoogleAuth}
                               disabled={authLoading}
-                              className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-600/55 bg-zinc-900 text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-60"
+                              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-zinc-600/55 bg-zinc-900 text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-60"
                               title="Войти через Google"
                             >
                               <GoogleLogoIcon className="h-5 w-5" />
+                              <span className="text-sm font-medium">Google</span>
                             </button>
                             <button
                               type="button"
                               onClick={startDiscordAuth}
                               disabled={authLoading}
-                              className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-[#5865F2]/45 bg-[#20253a] text-zinc-100 transition-colors hover:bg-[#2a314b] hover:text-white disabled:opacity-60"
+                              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#5865F2]/45 bg-[#20253a] text-zinc-100 transition-colors hover:bg-[#2a314b] hover:text-white disabled:opacity-60"
                               title="Войти через Discord"
                             >
                               <DiscordLogoIcon className="h-5 w-5 text-[#d4d7ff]" />
+                              <span className="text-sm font-medium">Discord</span>
                             </button>
                           </div>
                         </div>
@@ -10967,19 +10969,21 @@ export default function App() {
                               type="button"
                               onClick={startGoogleAuth}
                               disabled={authLoading}
-                              className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-zinc-600/55 bg-zinc-900 text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-60"
+                              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-zinc-600/55 bg-zinc-900 text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-60"
                               title="Регистрация через Google"
                             >
                               <GoogleLogoIcon className="h-5 w-5" />
+                              <span className="text-sm font-medium">Google</span>
                             </button>
                             <button
                               type="button"
                               onClick={startDiscordAuth}
                               disabled={authLoading}
-                              className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-[#5865F2]/45 bg-[#20253a] text-zinc-100 transition-colors hover:bg-[#2a314b] hover:text-white disabled:opacity-60"
+                              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#5865F2]/45 bg-[#20253a] text-zinc-100 transition-colors hover:bg-[#2a314b] hover:text-white disabled:opacity-60"
                               title="Регистрация через Discord"
                             >
                               <DiscordLogoIcon className="h-5 w-5 text-[#d4d7ff]" />
+                              <span className="text-sm font-medium">Discord</span>
                             </button>
                           </div>
                         </div>
