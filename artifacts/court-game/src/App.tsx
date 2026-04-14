@@ -9373,10 +9373,16 @@ export default function App() {
                     </div>
                     <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
                       {ratingUnavailableForProfile ? (
-                        <div className="text-xs text-zinc-400">
-                          <div className="text-base font-semibold text-zinc-200">Ранг недоступен</div>
-                          <div className="mt-2">
-                            Активируйте подписку «Стажер», чтобы открыть рейтинг и ранговые бейджи.
+                        <div className="space-y-3">
+                          <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-sm font-semibold text-zinc-100">
+                            <Lock className="h-3.5 w-3.5 text-zinc-300" />
+                            Рейтинг заблокирован
+                          </div>
+                          <div className="text-2xl font-semibold leading-tight text-zinc-100 md:text-3xl">
+                            Рейтинг открывается с подпиской «Стажер».
+                          </div>
+                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/85 px-3 py-2 text-base text-zinc-300">
+                            До активации подписки рейтинговая прогрессия недоступна.
                           </div>
                         </div>
                       ) : (
@@ -10819,12 +10825,27 @@ export default function App() {
                           >
                             {authLoading ? "Входим" : "Войти"}
                           </Button>
-                          <div className="grid grid-cols-[44px_44px_minmax(0,1fr)] gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const prefillEmail = loginOrEmail.trim().includes("@")
+                                ? loginOrEmail.trim()
+                                : "";
+                              setRecoveryPrefillEmail(prefillEmail);
+                              setOpenRecoveryAfterAuthClose(true);
+                              setAuthDialogOpen(false);
+                            }}
+                            className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-900/70 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+                          >
+                            Забыли пароль?
+                          </button>
+                          <div className="px-1 pt-1 text-xs text-zinc-500">Войти с помощью</div>
+                          <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               onClick={startGoogleAuth}
                               disabled={authLoading}
-                              className="inline-flex h-10 w-11 items-center justify-center rounded-xl border border-zinc-600/55 bg-zinc-900 text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-60"
+                              className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-600/55 bg-zinc-900 text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-60"
                               title="Войти через Google"
                             >
                               <GoogleLogoIcon className="h-5 w-5" />
@@ -10833,24 +10854,10 @@ export default function App() {
                               type="button"
                               onClick={startDiscordAuth}
                               disabled={authLoading}
-                              className="inline-flex h-10 w-11 items-center justify-center rounded-xl border border-[#5865F2]/45 bg-[#20253a] text-zinc-100 transition-colors hover:bg-[#2a314b] hover:text-white disabled:opacity-60"
+                              className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-[#5865F2]/45 bg-[#20253a] text-zinc-100 transition-colors hover:bg-[#2a314b] hover:text-white disabled:opacity-60"
                               title="Войти через Discord"
                             >
                               <DiscordLogoIcon className="h-5 w-5 text-[#d4d7ff]" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const prefillEmail = loginOrEmail.trim().includes("@")
-                                  ? loginOrEmail.trim()
-                                  : "";
-                                setRecoveryPrefillEmail(prefillEmail);
-                                setOpenRecoveryAfterAuthClose(true);
-                                setAuthDialogOpen(false);
-                              }}
-                              className="h-10 rounded-xl border border-zinc-700 bg-zinc-900/70 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
-                            >
-                              Забыли пароль?
                             </button>
                           </div>
                         </div>
@@ -10939,13 +10946,28 @@ export default function App() {
                               </button>
                             </span>
                           </label>
-                          <div className="px-1 pt-1 text-xs text-zinc-500">Войти с помощью</div>
-                          <div className="grid grid-cols-[44px_44px_minmax(0,1fr)] gap-2">
+                          <Button
+                            type="button"
+                            onClick={submitRegister}
+                            disabled={
+                              authLoading ||
+                              !registerLogin.trim() ||
+                              !registerEmail.trim() ||
+                              !registerPassword ||
+                              !registerConfirmPassword ||
+                              !registerAcceptRules
+                            }
+                            className="h-11 w-full rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
+                          >
+                            {authLoading ? "Создаем..." : "Зарегистрироваться"}
+                          </Button>
+                          <div className="px-1 pt-1 text-xs text-zinc-500">Зарегистрироваться с помощью</div>
+                          <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               onClick={startGoogleAuth}
                               disabled={authLoading}
-                              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-600/55 bg-zinc-900 text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-60"
+                              className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-zinc-600/55 bg-zinc-900 text-zinc-100 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-60"
                               title="Регистрация через Google"
                             >
                               <GoogleLogoIcon className="h-5 w-5" />
@@ -10954,26 +10976,11 @@ export default function App() {
                               type="button"
                               onClick={startDiscordAuth}
                               disabled={authLoading}
-                              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[#5865F2]/45 bg-[#20253a] text-zinc-100 transition-colors hover:bg-[#2a314b] hover:text-white disabled:opacity-60"
+                              className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-[#5865F2]/45 bg-[#20253a] text-zinc-100 transition-colors hover:bg-[#2a314b] hover:text-white disabled:opacity-60"
                               title="Регистрация через Discord"
                             >
                               <DiscordLogoIcon className="h-5 w-5 text-[#d4d7ff]" />
                             </button>
-                            <Button
-                              type="button"
-                              onClick={submitRegister}
-                              disabled={
-                                authLoading ||
-                                !registerLogin.trim() ||
-                                !registerEmail.trim() ||
-                                !registerPassword ||
-                                !registerConfirmPassword ||
-                                !registerAcceptRules
-                              }
-                              className="h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
-                            >
-                              {authLoading ? "Создаем..." : "Зарегистрироваться"}
-                            </Button>
                           </div>
                         </div>
                       )}
