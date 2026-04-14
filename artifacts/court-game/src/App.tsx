@@ -8787,16 +8787,23 @@ export default function App() {
     const totalMatches = profileData?.stats?.totalMatches ?? 0;
     const totalWins = profileData?.stats?.totalWins ?? 0;
     const totalWinRate = profileData?.stats?.totalWinRate ?? 0;
-            const profileSubscription = resolveSubscriptionView(profileData?.subscription);
-            const profileTier = normalizeSubscriptionTier(profileSubscription.tier);
-            const profileSubscriptionPulse =
-              profileSubscriptionHighlight > 0 && nowMs - profileSubscriptionHighlight < 2800;
-            const lockedRatingForProfile = !hasCapability(profileTier, "canUseRating");
+    const profileSubscription = resolveSubscriptionView(profileData?.subscription);
+    const profileTier = normalizeSubscriptionTier(profileSubscription.tier);
+    const profileSubscriptionPulse =
+      profileSubscriptionHighlight > 0 && nowMs - profileSubscriptionHighlight < 2800;
+    const hasRatingAccessNowForProfile = hasCapability(profileTier, "canUseRating");
+    const hasRatingHistoryForProfile =
+      hasRatingAccessNowForProfile ||
+      profileSubscription.startAt !== null ||
+      profileSubscription.endAt !== null ||
+      profileSubscription.isLifetime;
+    const lockedRatingForProfile = !hasRatingAccessNowForProfile && hasRatingHistoryForProfile;
+    const ratingUnavailableForProfile = !hasRatingHistoryForProfile;
     const profileBannerLocked = !canUseProfileBanner;
     const currentRank = profileData?.rank;
     const currentRankVisualKey = rankKeyToBadgeVisualKey(currentRank?.key);
     const currentRankTheme = getBadgeTheme(currentRankVisualKey);
-    const rankProgressPercent = currentRank
+    const rankProgressPercent = currentRank && !ratingUnavailableForProfile
       ? Math.max(
           0,
           Math.min(
@@ -8821,11 +8828,11 @@ export default function App() {
           ? authUser.gender
           : "") ||
       profileBirthDate !== formatIsoDateToRu(authUser?.birthDate) ||
-            profileHideAge !== !!authUser?.hideAge ||
-            (profileAvatarDraft ?? null) !== (avatar ?? null) ||
-            (profileBannerDraft ?? null) !== (banner ?? null) ||
-            (selectedBadgeKey || "") !== (baseSelectedBadgeKey || "") ||
-            (preferredRoleDraft || "") !== (authUser?.preferredRole || "");
+      profileHideAge !== !!authUser?.hideAge ||
+      (profileAvatarDraft ?? null) !== (avatar ?? null) ||
+      (profileBannerDraft ?? null) !== (banner ?? null) ||
+      (selectedBadgeKey || "") !== (baseSelectedBadgeKey || "") ||
+      (preferredRoleDraft || "") !== (authUser?.preferredRole || "");
     const requestLeaveProfile = async () => {
       if (profileActionLoading) return;
       if (!hasUnsavedProfileChanges) {
@@ -9332,36 +9339,47 @@ export default function App() {
                       )}
                     </div>
                     <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="inline-flex items-center gap-2 text-base font-semibold text-zinc-100">
-                          <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${currentRankTheme.icon}`}>
-                            <BadgeGlyph
-                              badgeKey={currentRankVisualKey}
-                              className={`h-4 w-4 ${currentRankTheme.iconOnly ?? "text-zinc-300"}`}
-                            />
-                          </span>
-                          <span>{currentRank?.title ?? "НОВИЧОК"}</span>
-                        </div>
+                      {ratingUnavailableForProfile ? (
                         <div className="text-xs text-zinc-400">
-                          Очки: {currentRank?.points ?? 0}
+                          <div className="text-base font-semibold text-zinc-200">Ранг недоступен</div>
+                          <div className="mt-2">
+                            Активируйте подписку «Стажер», чтобы открыть рейтинг и ранговые бейджи.
+                          </div>
                         </div>
-                      </div>
-                      <div className="mt-2 h-2 w-full rounded-full bg-zinc-800">
-                        <div
-                          className="h-2 rounded-full bg-red-500 transition-all"
-                          style={{ width: `${rankProgressPercent}%` }}
-                        />
-                      </div>
-                      <div className="mt-2 text-xs text-zinc-400">
-                        {lockedRatingForProfile
-                          ? "Прогресс сохранен. Для продолжения прокачки активируйте подписку."
-                          : currentRank?.nextTitle
-                            ? `До ранга «${currentRank.nextTitle}»: ${Math.max(
-                                0,
-                                (currentRank.nextPoints ?? 0) - currentRank.points,
-                              )} очк.`
-                            : "Максимальный ранг достигнут"}
-                      </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="inline-flex items-center gap-2 text-base font-semibold text-zinc-100">
+                              <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${currentRankTheme.icon}`}>
+                                <BadgeGlyph
+                                  badgeKey={currentRankVisualKey}
+                                  className={`h-4 w-4 ${currentRankTheme.iconOnly ?? "text-zinc-300"}`}
+                                />
+                              </span>
+                              <span>{currentRank?.title ?? "НОВИЧОК"}</span>
+                            </div>
+                            <div className="text-xs text-zinc-400">
+                              Очки: {currentRank?.points ?? 0}
+                            </div>
+                          </div>
+                          <div className="mt-2 h-2 w-full rounded-full bg-zinc-800">
+                            <div
+                              className="h-2 rounded-full bg-red-500 transition-all"
+                              style={{ width: `${rankProgressPercent}%` }}
+                            />
+                          </div>
+                          <div className="mt-2 text-xs text-zinc-400">
+                            {lockedRatingForProfile
+                              ? "Прогресс сохранен. Для продолжения прокачки активируйте подписку."
+                              : currentRank?.nextTitle
+                                ? `До ранга «${currentRank.nextTitle}»: ${Math.max(
+                                    0,
+                                    (currentRank.nextPoints ?? 0) - currentRank.points,
+                                  )} очк.`
+                                : "Максимальный ранг достигнут"}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -10768,29 +10786,31 @@ export default function App() {
                           >
                             {authLoading ? "Входим" : "Войти"}
                           </Button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const prefillEmail = loginOrEmail.trim().includes("@")
-                                ? loginOrEmail.trim()
-                                : "";
-                              setRecoveryPrefillEmail(prefillEmail);
-                              setOpenRecoveryAfterAuthClose(true);
-                              setAuthDialogOpen(false);
-                            }}
-                            className="w-full h-10 rounded-xl border border-zinc-700 bg-zinc-900/70 text-sm font-medium text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
-                          >
-                            Забыли пароль?
-                          </button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={startDiscordAuth}
-                            disabled={authLoading}
-                            className="w-full h-11 rounded-xl border-[#5865F2]/45 bg-[#20253a] text-zinc-100 hover:bg-[#2a314b] hover:text-white"
-                          >
-                            Войти через Discord
-                          </Button>
+                          <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-2">
+                            <button
+                              type="button"
+                              onClick={startDiscordAuth}
+                              disabled={authLoading}
+                              className="inline-flex h-10 w-11 items-center justify-center rounded-xl border border-[#5865F2]/45 bg-[#20253a] text-zinc-100 transition-colors hover:bg-[#2a314b] hover:text-white disabled:opacity-60"
+                              title="Войти через Discord"
+                            >
+                              <DiscordLogoIcon className="h-5 w-5 text-[#d4d7ff]" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const prefillEmail = loginOrEmail.trim().includes("@")
+                                  ? loginOrEmail.trim()
+                                  : "";
+                                setRecoveryPrefillEmail(prefillEmail);
+                                setOpenRecoveryAfterAuthClose(true);
+                                setAuthDialogOpen(false);
+                              }}
+                              className="h-10 rounded-xl border border-zinc-700 bg-zinc-900/70 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+                            >
+                              Забыли пароль?
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -10877,30 +10897,33 @@ export default function App() {
                               </button>
                             </span>
                           </label>
-                          <Button
-                            type="button"
-                            onClick={submitRegister}
-                            disabled={
-                              authLoading ||
-                              !registerLogin.trim() ||
-                              !registerEmail.trim() ||
-                              !registerPassword ||
-                              !registerConfirmPassword ||
-                              !registerAcceptRules
-                            }
-                            className="w-full h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
-                          >
-                            {authLoading ? "Создаем..." : "Зарегистрироваться"}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={startDiscordAuth}
-                            disabled={authLoading}
-                            className="w-full h-11 rounded-xl border-[#5865F2]/45 bg-[#20253a] text-zinc-100 hover:bg-[#2a314b] hover:text-white"
-                          >
-                            Регистрация через Discord
-                          </Button>
+                          <div className="px-1 pt-1 text-xs text-zinc-500">Войти с помощью</div>
+                          <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-2">
+                            <button
+                              type="button"
+                              onClick={startDiscordAuth}
+                              disabled={authLoading}
+                              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[#5865F2]/45 bg-[#20253a] text-zinc-100 transition-colors hover:bg-[#2a314b] hover:text-white disabled:opacity-60"
+                              title="Регистрация через Discord"
+                            >
+                              <DiscordLogoIcon className="h-5 w-5 text-[#d4d7ff]" />
+                            </button>
+                            <Button
+                              type="button"
+                              onClick={submitRegister}
+                              disabled={
+                                authLoading ||
+                                !registerLogin.trim() ||
+                                !registerEmail.trim() ||
+                                !registerPassword ||
+                                !registerConfirmPassword ||
+                                !registerAcceptRules
+                              }
+                              className="h-11 rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
+                            >
+                              {authLoading ? "Создаем..." : "Зарегистрироваться"}
+                            </Button>
+                          </div>
                         </div>
                       )}
 

@@ -599,20 +599,27 @@ function toPublicUser(row: {
     row.subscription_is_lifetime !== undefined ||
     row.subscription_source !== undefined ||
     row.subscription_duration !== undefined;
-  const media = sanitizePublicMediaBySubscription(
-    row.avatar,
-    row.banner,
-    hasSubscriptionData
-      ? resolveSubscriptionView({
-          subscription_tier: row.subscription_tier ?? null,
-          subscription_start_at: row.subscription_start_at ?? null,
-          subscription_end_at: row.subscription_end_at ?? null,
-          subscription_is_lifetime: row.subscription_is_lifetime ?? false,
-          subscription_source: row.subscription_source ?? null,
-          subscription_duration: row.subscription_duration ?? null,
-        })
-      : null,
-  );
+  const subscription = hasSubscriptionData
+    ? resolveSubscriptionView({
+        subscription_tier: row.subscription_tier ?? null,
+        subscription_start_at: row.subscription_start_at ?? null,
+        subscription_end_at: row.subscription_end_at ?? null,
+        subscription_is_lifetime: row.subscription_is_lifetime ?? false,
+        subscription_source: row.subscription_source ?? null,
+        subscription_duration: row.subscription_duration ?? null,
+      })
+    : null;
+  const media = sanitizePublicMediaBySubscription(row.avatar, row.banner, subscription);
+  const selectedBadgeRaw =
+    typeof row.selected_badge_key === "string" && row.selected_badge_key.trim()
+      ? row.selected_badge_key.trim()
+      : undefined;
+  const selectedBadgeIsRank =
+    typeof selectedBadgeRaw === "string" && selectedBadgeRaw.trim().toLowerCase().startsWith("rank_");
+  const selectedBadgeKey =
+    selectedBadgeIsRank && !hasRatingHistoryFromSubscription(subscription)
+      ? undefined
+      : selectedBadgeRaw;
   return {
     id: row.id,
     login: row.login,
@@ -628,7 +635,7 @@ function toPublicUser(row: {
     birthDate: row.birth_date ? row.birth_date.toISOString().slice(0, 10) : undefined,
     hideAge: !!row.hide_age,
     createdAt: row.created_at.getTime(),
-    selectedBadgeKey: row.selected_badge_key ?? undefined,
+    selectedBadgeKey,
     preferredRole:
       row.preferred_role === "judge" ||
       row.preferred_role === "plaintiff" ||
@@ -685,6 +692,18 @@ function resolveSubscriptionView(row: SubscriptionRowShape): UserSubscriptionVie
     daysLeft: resolved.daysLeft,
     capabilities: resolved.capabilities,
   };
+}
+
+function hasRatingHistoryFromSubscription(
+  subscription: UserSubscriptionView | null | undefined,
+): boolean {
+  if (!subscription) return false;
+  return (
+    !!subscription.capabilities.canUseRating ||
+    subscription.startAt !== null ||
+    subscription.endAt !== null ||
+    subscription.isLifetime
+  );
 }
 
 function isAnimatedProfileMedia(value: string | null | undefined): boolean {
@@ -2430,41 +2449,44 @@ function buildBadgeList(input: {
   const { user, rank, stats, manualBadgeMap, subscription } = input;
   const isBerly = isProtectedOwnerLogin(user.login);
   const canUseRating = !!subscription.capabilities.canUseRating;
+  const hasRatingHistory = hasRatingHistoryFromSubscription(subscription);
   const badges: UserBadgeView[] = [];
   const roleStatsMap = new Map(stats.roleStats.map((row) => [row.roleKey, row]));
 
-  for (let i = 0; i < RANK_DEFINITIONS.length; i += 1) {
-    const rankDef = RANK_DEFINITIONS[i];
-    const nextRankDef = RANK_DEFINITIONS[i + 1];
-    const isCurrentRank = rank.key === rankDef.key;
-    const progressCurrent = isCurrentRank
-      ? rank.progressCurrent
-      : rank.points >= rankDef.minPoints
-        ? Math.max(
-            0,
-            (nextRankDef?.minPoints ?? rankDef.minPoints + 1) - rankDef.minPoints,
-          )
-        : Math.max(0, rank.points - rankDef.minPoints);
-    const progressTarget = Math.max(
-      1,
-      (nextRankDef?.minPoints ?? rankDef.minPoints + 1) - rankDef.minPoints,
-    );
-    badges.push({
-      key: `rank_${rankDef.key}`,
-      title: rankDef.title,
-      description: `Доступен при достижении ранга «${rankDef.title}».`,
-      category: "rank",
-      active: isCurrentRank,
-      progressCurrent,
-      progressTarget,
-      progressLabel: isCurrentRank
-        ? "Текущий ранг"
-        : canUseRating && rank.points >= rankDef.minPoints
-          ? "Пройден"
-          : canUseRating
-            ? `${Math.max(0, rank.points)}/${rankDef.minPoints}`
-            : "Открывается с подпиской «Стажер»",
-    });
+  if (hasRatingHistory) {
+    for (let i = 0; i < RANK_DEFINITIONS.length; i += 1) {
+      const rankDef = RANK_DEFINITIONS[i];
+      const nextRankDef = RANK_DEFINITIONS[i + 1];
+      const isCurrentRank = rank.key === rankDef.key;
+      const progressCurrent = isCurrentRank
+        ? rank.progressCurrent
+        : rank.points >= rankDef.minPoints
+          ? Math.max(
+              0,
+              (nextRankDef?.minPoints ?? rankDef.minPoints + 1) - rankDef.minPoints,
+            )
+          : Math.max(0, rank.points - rankDef.minPoints);
+      const progressTarget = Math.max(
+        1,
+        (nextRankDef?.minPoints ?? rankDef.minPoints + 1) - rankDef.minPoints,
+      );
+      badges.push({
+        key: `rank_${rankDef.key}`,
+        title: rankDef.title,
+        description: `Доступен при достижении ранга «${rankDef.title}».`,
+        category: "rank",
+        active: isCurrentRank,
+        progressCurrent,
+        progressTarget,
+        progressLabel: isCurrentRank
+          ? "Текущий ранг"
+          : canUseRating && rank.points >= rankDef.minPoints
+            ? "Пройден"
+            : canUseRating
+              ? `${Math.max(0, rank.points)}/${rankDef.minPoints}`
+              : "Открывается с подпиской «Стажер»",
+      });
+    }
   }
 
   for (const [roleKey, meta] of Object.entries(ROLE_BADGE_META)) {
@@ -2636,9 +2658,13 @@ export async function getProfileByToken(
     manualBadgeMap,
     subscription,
   });
-  const selectedBadgeKey =
+  const selectedBadgeRaw =
     typeof row.selected_badge_key === "string" && row.selected_badge_key.trim()
       ? row.selected_badge_key.trim()
+      : undefined;
+  const selectedBadgeKey =
+    selectedBadgeRaw && badges.some((badge) => badge.active && badge.key === selectedBadgeRaw)
+      ? selectedBadgeRaw
       : undefined;
   return {
     ...base,
@@ -2934,9 +2960,13 @@ export async function getPublicUserProfileById(
     manualBadgeMap,
     subscription,
   });
-  const selectedBadgeKey =
+  const selectedBadgeRaw =
     typeof row.selected_badge_key === "string" && row.selected_badge_key.trim()
       ? row.selected_badge_key.trim()
+      : undefined;
+  const selectedBadgeKey =
+    selectedBadgeRaw && badges.some((badge) => badge.active && badge.key === selectedBadgeRaw)
+      ? selectedBadgeRaw
       : undefined;
   return {
     ...base,

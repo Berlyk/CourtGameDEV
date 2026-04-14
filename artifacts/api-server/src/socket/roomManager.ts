@@ -752,6 +752,7 @@ export function transferRoomHost(
     return { room, ok: false, reason: "Игрок не найден в лобби." };
   }
   room.hostId = target.id;
+  rebalanceLobbyRoleAssignments(room);
   return { room, ok: true };
 }
 
