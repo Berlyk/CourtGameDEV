@@ -9373,15 +9373,15 @@ export default function App() {
                     </div>
                     <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 px-3 py-3">
                       {ratingUnavailableForProfile ? (
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-sm font-semibold text-zinc-100">
                             <Lock className="h-3.5 w-3.5 text-zinc-300" />
                             Рейтинг заблокирован
                           </div>
-                          <div className="text-2xl font-semibold leading-tight text-zinc-100 md:text-3xl">
+                          <div className="text-lg font-medium leading-snug text-zinc-100 md:text-[22px]">
                             Рейтинг открывается с подпиской «Стажер».
                           </div>
-                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/85 px-3 py-2 text-base text-zinc-300">
+                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/85 px-3 py-2 text-sm text-zinc-300 md:text-[15px]">
                             До активации подписки рейтинговая прогрессия недоступна.
                           </div>
                         </div>
@@ -10839,7 +10839,7 @@ export default function App() {
                           >
                             Забыли пароль?
                           </button>
-                          <div className="px-1 pt-1 text-xs text-zinc-500">Войти с помощью</div>
+                          <div className="px-1 pt-1 text-center text-xs text-zinc-500">Войти с помощью</div>
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
@@ -10963,7 +10963,7 @@ export default function App() {
                           >
                             {authLoading ? "Создаем..." : "Зарегистрироваться"}
                           </Button>
-                          <div className="px-1 pt-1 text-xs text-zinc-500">Зарегистрироваться с помощью</div>
+                          <div className="px-1 pt-1 text-center text-xs text-zinc-500">Зарегистрироваться с помощью</div>
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
