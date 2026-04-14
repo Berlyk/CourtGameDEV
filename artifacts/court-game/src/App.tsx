@@ -8849,6 +8849,7 @@ export default function App() {
       : 0;
     const badges = profileData?.badges ?? [];
     const activeBadges = badges.filter((badge) => badge.active);
+    const hasActiveBadges = activeBadges.length > 0;
     const currentSelectedBadgeTitle =
       getBadgeTitleByKey(selectedBadgeKey, badges) || "Без бейджа";
     const baseSelectedBadgeKey =
@@ -9378,10 +9379,10 @@ export default function App() {
                             <Lock className="h-3 w-3 text-zinc-300" />
                             Рейтинг заблокирован
                           </div>
-                          <div className="pl-0.5 text-[15px] font-normal leading-relaxed text-zinc-200 md:text-[15px]">
+                          <div className="pl-0.5 text-[15px] font-normal leading-[1.75] text-zinc-200 md:text-[15px]">
                             Рейтинг открывается с подпиской «Стажер».
                           </div>
-                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/85 px-2.5 py-1 text-[13px] font-normal leading-relaxed text-zinc-400">
+                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/85 px-2.5 py-1 text-[13px] font-normal leading-[1.75] text-zinc-400">
                             До активации подписки рейтинговая прогрессия недоступна.
                           </div>
                         </div>
@@ -9432,8 +9433,13 @@ export default function App() {
                       <div className="relative">
                         <button
                           type="button"
-                          onClick={() => setBadgePickerOpen((prev) => !prev)}
-                          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-left text-zinc-100 hover:bg-zinc-800 transition-colors"
+                          onClick={() => {
+                            if (!hasActiveBadges) return;
+                            setBadgePickerOpen((prev) => !prev);
+                          }}
+                          className={`w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-left text-zinc-100 transition-colors ${
+                            hasActiveBadges ? "hover:bg-zinc-800" : "cursor-default"
+                          }`}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex min-w-0 items-center gap-2">
@@ -9444,14 +9450,16 @@ export default function App() {
                               ) : null}
                               <span className="truncate text-sm font-semibold">{currentSelectedBadgeTitle}</span>
                             </div>
-                            <ChevronDown
-                              className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${
-                                badgePickerOpen ? "rotate-180" : ""
-                              }`}
-                            />
+                            {hasActiveBadges ? (
+                              <ChevronDown
+                                className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${
+                                  badgePickerOpen ? "rotate-180" : ""
+                                }`}
+                              />
+                            ) : null}
                           </div>
                         </button>
-                        {badgePickerOpen && (
+                        {hasActiveBadges && badgePickerOpen && (
                           <div className="absolute top-full z-[170] mt-2 w-full overflow-hidden rounded-lg border border-zinc-700 bg-zinc-950 shadow-[0_18px_44px_rgba(0,0,0,0.55)]">
                             <div className="max-h-[min(18rem,calc(100vh-12rem))] overflow-y-auto p-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
                               {activeBadges.map((badge) => (
