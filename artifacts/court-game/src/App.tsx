@@ -44,9 +44,6 @@ import {
   Diamond,
   Flame,
   Users,
-  Landmark,
-  Wallet,
-  Bitcoin,
   ImageIcon,
   Mic2,
   BrainCircuit,
@@ -226,65 +223,109 @@ const SUBSCRIPTION_DURATION_UI_OPTIONS: Array<{
   { key: "1_month", label: "1 месяц" },
   { key: "1_year", label: "1 год" },
 ];
-type ShopPaymentCategory = "cis" | "crypto" | "europe";
+type ShopPaymentCategory = "russia" | "europe" | "crypto";
 type ShopPaidTier = Exclude<SubscriptionTier, "free">;
 type ShopPaidDuration = Extract<SubscriptionDuration, "1_month" | "1_year">;
 type ShopPaymentMethod = {
   id: number;
-  category: Exclude<ShopPaymentCategory, "europe">;
+  category: ShopPaymentCategory;
+  providerCategory: "cis" | "crypto";
   title: string;
   subtitle: string;
-  icon: LucideIcon;
+  imageSrc: string;
 };
-const SHOP_PAYMENT_CATEGORY_OPTIONS: Array<{
+
+const SHOP_PAYMENT_SECTIONS: Array<{
   key: ShopPaymentCategory;
   title: string;
   description: string;
 }> = [
   {
-    key: "cis",
-    title: "Россия / Украина / СНГ",
-    description: "Банковские карты, СБП и локальные методы через FreeKassa.",
-  },
-  {
-    key: "crypto",
-    title: "Криптовалюта",
-    description: "USDT, BTC, ETH и другие крипто-методы через FreeKassa.",
+    key: "russia",
+    title: "Россия",
+    description: "Оплата через карты, СБП и локальные методы.",
   },
   {
     key: "europe",
     title: "Европа",
     description: "Платежный провайдер для Европы будет добавлен позже.",
   },
+  {
+    key: "crypto",
+    title: "Криптовалюта",
+    description: "USDT, BTC и другие крипто-методы через FreeKassa.",
+  },
 ];
+
+const buildPaymentMethodImage = (
+  title: string,
+  subtitle: string,
+  colors: [string, string],
+): string => {
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="220" viewBox="0 0 640 220">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${colors[0]}"/>
+      <stop offset="100%" stop-color="${colors[1]}"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="640" height="220" rx="26" fill="url(#bg)"/>
+  <rect x="18" y="18" width="604" height="184" rx="18" fill="rgba(0,0,0,0.16)"/>
+  <text x="44" y="106" font-size="52" font-family="Segoe UI, Arial, sans-serif" font-weight="700" fill="#ffffff">${title}</text>
+  <text x="44" y="152" font-size="28" font-family="Segoe UI, Arial, sans-serif" fill="rgba(255,255,255,0.9)">${subtitle}</text>
+</svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+};
+
 const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
   {
-    id: 4,
-    category: "cis",
-    title: "Банковская карта",
-    subtitle: "VISA / MasterCard / МИР",
-    icon: Landmark,
+    id: 42,
+    category: "russia",
+    providerCategory: "cis",
+    title: "СБП",
+    subtitle: "Система быстрых платежей",
+    imageSrc: buildPaymentMethodImage("СБП", "Быстрый перевод", ["#2752B7", "#2B77E7"]),
   },
   {
-    id: 42,
-    category: "cis",
-    title: "СБП",
-    subtitle: "Быстрый перевод по QR",
-    icon: Wallet,
+    id: 4,
+    category: "russia",
+    providerCategory: "cis",
+    title: "Банковская карта",
+    subtitle: "VISA / MasterCard / МИР",
+    imageSrc: buildPaymentMethodImage("CARD", "Банковская карта", ["#5B6478", "#323847"]),
+  },
+  {
+    id: 11,
+    category: "russia",
+    providerCategory: "cis",
+    title: "SberPay",
+    subtitle: "Оплата через SberPay",
+    imageSrc: buildPaymentMethodImage("SberPay", "Быстрая оплата", ["#19B448", "#0C8732"]),
+  },
+  {
+    id: 7,
+    category: "russia",
+    providerCategory: "cis",
+    title: "ЮMoney",
+    subtitle: "Кошелек ЮMoney",
+    imageSrc: buildPaymentMethodImage("ЮMoney", "Электронный кошелек", ["#8B5CF6", "#4C1D95"]),
   },
   {
     id: 15,
     category: "crypto",
+    providerCategory: "crypto",
     title: "USDT TRC20",
     subtitle: "Оплата в стейблкоине",
-    icon: Gem,
+    imageSrc: buildPaymentMethodImage("USDT", "TRC20", ["#059669", "#065F46"]),
   },
   {
     id: 24,
     category: "crypto",
+    providerCategory: "crypto",
     title: "Bitcoin",
     subtitle: "Оплата в BTC",
-    icon: Bitcoin,
+    imageSrc: buildPaymentMethodImage("BTC", "Bitcoin", ["#F59E0B", "#B45309"]),
   },
 ];
 const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
@@ -3424,7 +3465,6 @@ export default function App() {
   } | null>(null);
   const [shopPaymentDialogOpen, setShopPaymentDialogOpen] = useState(false);
   const [shopPaymentTier, setShopPaymentTier] = useState<ShopPaidTier | null>(null);
-  const [shopPaymentCategory, setShopPaymentCategory] = useState<ShopPaymentCategory | null>(null);
   const [shopPaymentLoading, setShopPaymentLoading] = useState(false);
   const [shopPaymentError, setShopPaymentError] = useState("");
   const [loaderForceHidden, setLoaderForceHidden] = useState(false);
@@ -3864,12 +3904,13 @@ export default function App() {
     if (!shopPaymentTier) return 0;
     return SHOP_PRICE_MATRIX_RUB[shopPaymentTier][shopDuration];
   }, [shopPaymentTier, shopDuration]);
-  const shopPaymentMethods = useMemo(() => {
-    if (shopPaymentCategory !== "cis" && shopPaymentCategory !== "crypto") {
-      return [] as ShopPaymentMethod[];
-    }
-    return SHOP_PAYMENT_METHODS.filter((method) => method.category === shopPaymentCategory);
-  }, [shopPaymentCategory]);
+  const shopPaymentMethodsByCategory = useMemo(() => {
+    return {
+      russia: SHOP_PAYMENT_METHODS.filter((method) => method.category === "russia"),
+      europe: [] as ShopPaymentMethod[],
+      crypto: SHOP_PAYMENT_METHODS.filter((method) => method.category === "crypto"),
+    } satisfies Record<ShopPaymentCategory, ShopPaymentMethod[]>;
+  }, []);
   const roomHostTier = normalizeSubscriptionTier(room?.hostSubscriptionTier ?? "free");
   const isMyHostRoom = !!room && room.hostId === (myId ?? "");
   const effectiveLobbyTier = isMyHostRoom
@@ -3896,7 +3937,6 @@ export default function App() {
   const navigateToShop = useCallback(() => {
     setUpsellModalOpen(false);
     setShopPaymentDialogOpen(false);
-    setShopPaymentCategory(null);
     setShopPaymentError("");
     setShopPaymentLoading(false);
     setPromoDialogOpen(false);
@@ -4024,7 +4064,6 @@ export default function App() {
   const handleShopPaymentDialogChange = useCallback((open: boolean) => {
     setShopPaymentDialogOpen(open);
     if (!open) {
-      setShopPaymentCategory(null);
       setShopPaymentError("");
       setShopPaymentLoading(false);
     }
@@ -4039,20 +4078,11 @@ export default function App() {
         return;
       }
       setShopPaymentTier(tier);
-      setShopPaymentCategory("cis");
       setShopPaymentError("");
       setShopPaymentDialogOpen(true);
     },
     [authToken],
   );
-  const selectShopPaymentCategory = useCallback((category: ShopPaymentCategory) => {
-    setShopPaymentCategory(category);
-    if (category === "europe") {
-      setShopPaymentError("Оплата для Европы будет добавлена в следующем обновлении.");
-      return;
-    }
-    setShopPaymentError("");
-  }, []);
   const createShopPayment = useCallback(
     async (method: ShopPaymentMethod) => {
       if (shopPaymentLoading) return;
@@ -4079,7 +4109,7 @@ export default function App() {
             body: {
               tier: shopPaymentTier,
               duration: shopDuration,
-              category: method.category,
+              category: method.providerCategory,
               paymentSystemId: method.id,
             },
           },
@@ -12284,106 +12314,127 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="max-w-[680px] border-zinc-800 bg-[radial-gradient(125%_125%_at_0%_0%,rgba(239,68,68,0.2),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.98))] p-4 text-zinc-100 sm:p-5">
-                <DialogHeader>
-                  <DialogTitle className="text-xl font-semibold">Оплата подписки</DialogTitle>
-                  <DialogDescription className="space-y-1 text-sm leading-relaxed text-zinc-400">
-                    Выберите категорию и способ оплаты.
-                  </DialogDescription>
+              <DialogContent className="max-w-[940px] border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.22),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-4 text-zinc-100 sm:p-5">
+                <DialogHeader className="sr-only">
+                  <DialogTitle>Оплата подписки</DialogTitle>
+                  <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-3 sm:grid-cols-[220px_minmax(0,1fr)]">
-                  <div className="rounded-2xl border border-zinc-700/75 bg-zinc-900/75 p-4">
-                    <div className="mb-3 flex items-center gap-2.5">
-                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-950/85 text-zinc-200">
-                        <Wallet className="h-5 w-5" />
-                      </span>
-                      <div>
-                        <div className="text-sm font-semibold text-zinc-100">CourtGame</div>
-                        <div className="text-xs text-zinc-400">Пополнение подписки</div>
-                      </div>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-zinc-500">Тариф</span>
-                        <span className="text-right font-medium text-zinc-100">
-                          {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-zinc-500">Период</span>
-                        <span className="font-medium text-zinc-100">
-                          {shopDuration === "1_year" ? "1 год" : "1 месяц"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-4 rounded-xl border border-red-500/35 bg-red-500/10 px-3 py-2.5">
-                      <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">К оплате</div>
-                      <div className="mt-0.5 text-xl font-semibold text-red-100">{shopPaymentAmountRub} RUB</div>
-                    </div>
-                  </div>
+                <div className="max-h-[82vh] overflow-y-auto pr-1">
+                  <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+                    <div className="overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/80">
+                      <div className="p-5">
+                        <div className="mb-3 flex justify-center">
+                          <Avatar
+                            src={authUser?.avatar ?? sharedAvatar}
+                            name={authUser?.nickname ?? playerName || "Игрок"}
+                            size={92}
+                          />
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xl font-semibold text-zinc-100">
+                            {(authUser?.nickname ?? playerName || "Игрок").trim() || "Игрок"}
+                          </div>
+                          <div className="mt-1 text-sm text-zinc-400">Покупка подписки</div>
+                        </div>
 
-                  <div className="space-y-3">
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {SHOP_PAYMENT_CATEGORY_OPTIONS.map((category) => {
-                        const isSelected = shopPaymentCategory === category.key;
-                        return (
-                          <button
-                            key={`shop-payment-category-${category.key}`}
+                        <div className="mt-5 space-y-2.5 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-zinc-500">Тариф</span>
+                            <span className="font-medium text-zinc-100">
+                              {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-zinc-500">Период</span>
+                            <span className="font-medium text-zinc-100">
+                              {shopDuration === "1_year" ? "1 год" : "1 месяц"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(22,68,55,0.85),rgba(26,80,63,0.88))] px-5 py-4">
+                        <div className="text-base text-emerald-200">
+                          Сумма к оплате: <span className="text-2xl font-semibold text-emerald-100">{shopPaymentAmountRub} RUB</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-zinc-700/80 bg-zinc-900/70 px-4 py-3">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Оплата</div>
+                          <div className="mt-1 text-2xl font-black uppercase leading-[1.05] text-zinc-100">
+                            Выберите способ оплаты
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2.5 pt-1">
+                          <span className="text-sm font-semibold uppercase text-zinc-500">или</span>
+                          <Button
                             type="button"
-                            onClick={() => selectShopPaymentCategory(category.key)}
-                            className={`rounded-xl border px-3 py-2.5 text-left transition ${
-                              isSelected
-                                ? "border-red-400/60 bg-red-500/15 shadow-[0_0_0_1px_rgba(239,68,68,0.2)_inset]"
-                                : "border-zinc-700/80 bg-zinc-900/75 hover:border-zinc-500 hover:bg-zinc-800/85"
-                            } ${category.key === "europe" ? "sm:col-span-2" : ""}`}
+                            onClick={() => {
+                              setShopPaymentDialogOpen(false);
+                              setPromoDialogOpen(true);
+                            }}
+                            className="h-11 rounded-xl bg-[linear-gradient(135deg,rgba(245,158,11,1),rgba(249,115,22,1))] px-4 text-sm font-extrabold uppercase tracking-wide text-zinc-950 shadow-[0_10px_26px_rgba(249,115,22,0.3)] hover:brightness-110"
                           >
-                            <div className="text-sm font-semibold text-zinc-100">{category.title}</div>
-                            <div className="mt-0.5 text-xs leading-relaxed text-zinc-400">
-                              {category.description}
+                            Активировать ключ
+                          </Button>
+                        </div>
+                      </div>
+
+                      {SHOP_PAYMENT_SECTIONS.map((section) => {
+                        const methods = shopPaymentMethodsByCategory[section.key];
+                        return (
+                          <div
+                            key={`shop-payment-section-${section.key}`}
+                            className="rounded-2xl border border-zinc-700/75 bg-zinc-900/70 p-3"
+                          >
+                            <div className="mb-2">
+                              <div className="text-lg font-semibold text-zinc-100">{section.title}</div>
+                              <div className="text-sm text-zinc-400">{section.description}</div>
                             </div>
-                          </button>
+
+                            {section.key === "europe" ? (
+                              <div className="rounded-xl border border-zinc-700/80 bg-zinc-950/65 px-3 py-4 text-sm text-zinc-400">
+                                Оплата для Европы будет подключена отдельным провайдером.
+                              </div>
+                            ) : (
+                              <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                                {methods.map((method) => (
+                                  <button
+                                    key={`shop-payment-method-${method.category}-${method.id}`}
+                                    type="button"
+                                    disabled={shopPaymentLoading}
+                                    onClick={() => void createShopPayment(method)}
+                                    className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2.5 text-left transition hover:border-red-400/55 hover:bg-zinc-900/90 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <img
+                                      src={method.imageSrc}
+                                      alt={method.title}
+                                      className="h-16 w-full rounded-lg border border-zinc-700/70 object-cover"
+                                      loading="lazy"
+                                    />
+                                    <div className="mt-2">
+                                      <div className="text-sm font-semibold text-zinc-100">{method.title}</div>
+                                      <div className="text-xs text-zinc-400">{method.subtitle}</div>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
+
+                      {shopPaymentError && (
+                        <div className="rounded-xl border border-red-500/45 bg-red-900/25 px-3 py-2 text-sm text-red-200">
+                          {shopPaymentError}
+                        </div>
+                      )}
+                      {shopPaymentLoading && (
+                        <div className="text-xs text-zinc-400">Создаем платеж, подождите…</div>
+                      )}
                     </div>
-
-                    {shopPaymentCategory === "europe" && (
-                      <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/85 px-3 py-2.5 text-sm text-zinc-300">
-                        Для Европы подключим отдельный шлюз оплаты в следующем обновлении.
-                      </div>
-                    )}
-
-                    {shopPaymentMethods.length > 0 && (
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {shopPaymentMethods.map((method) => (
-                          <button
-                            key={`shop-payment-method-${method.category}-${method.id}`}
-                            type="button"
-                            disabled={shopPaymentLoading}
-                            onClick={() => void createShopPayment(method)}
-                            className="rounded-xl border border-zinc-700/80 bg-zinc-900/85 px-3 py-3 text-left transition hover:border-red-400/55 hover:bg-zinc-800/90 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-950/85 text-zinc-200">
-                                {React.createElement(method.icon, { className: "h-4 w-4" })}
-                              </span>
-                              <span className="min-w-0">
-                                <span className="block text-sm font-semibold text-zinc-100">{method.title}</span>
-                                <span className="block text-xs text-zinc-400">{method.subtitle}</span>
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {shopPaymentError && (
-                      <div className="rounded-xl border border-red-500/45 bg-red-900/25 px-3 py-2 text-sm text-red-200">
-                        {shopPaymentError}
-                      </div>
-                    )}
-                    {shopPaymentLoading && (
-                      <div className="text-xs text-zinc-400">Создаем платеж, подождите…</div>
-                    )}
                   </div>
                 </div>
               </DialogContent>
