@@ -44,6 +44,9 @@ import {
   Diamond,
   Flame,
   Users,
+  Landmark,
+  Wallet,
+  Bitcoin,
   ImageIcon,
   Mic2,
   BrainCircuit,
@@ -223,6 +226,72 @@ const SUBSCRIPTION_DURATION_UI_OPTIONS: Array<{
   { key: "1_month", label: "1 месяц" },
   { key: "1_year", label: "1 год" },
 ];
+type ShopPaymentCategory = "cis" | "crypto" | "europe";
+type ShopPaidTier = Exclude<SubscriptionTier, "free">;
+type ShopPaidDuration = Extract<SubscriptionDuration, "1_month" | "1_year">;
+type ShopPaymentMethod = {
+  id: number;
+  category: Exclude<ShopPaymentCategory, "europe">;
+  title: string;
+  subtitle: string;
+  icon: LucideIcon;
+};
+const SHOP_PAYMENT_CATEGORY_OPTIONS: Array<{
+  key: ShopPaymentCategory;
+  title: string;
+  description: string;
+}> = [
+  {
+    key: "cis",
+    title: "Россия / Украина / СНГ",
+    description: "Банковские карты, СБП и локальные методы через FreeKassa.",
+  },
+  {
+    key: "crypto",
+    title: "Криптовалюта",
+    description: "USDT, BTC, ETH и другие крипто-методы через FreeKassa.",
+  },
+  {
+    key: "europe",
+    title: "Европа",
+    description: "Платежный провайдер для Европы будет добавлен позже.",
+  },
+];
+const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
+  {
+    id: 4,
+    category: "cis",
+    title: "Банковская карта",
+    subtitle: "VISA / MasterCard / МИР",
+    icon: Landmark,
+  },
+  {
+    id: 42,
+    category: "cis",
+    title: "СБП",
+    subtitle: "Быстрый перевод по QR",
+    icon: Wallet,
+  },
+  {
+    id: 15,
+    category: "crypto",
+    title: "USDT TRC20",
+    subtitle: "Оплата в стейблкоине",
+    icon: Gem,
+  },
+  {
+    id: 24,
+    category: "crypto",
+    title: "Bitcoin",
+    subtitle: "Оплата в BTC",
+    icon: Bitcoin,
+  },
+];
+const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
+  trainee: { "1_month": 250, "1_year": 2500 },
+  practitioner: { "1_month": 500, "1_year": 5000 },
+  arbiter: { "1_month": 800, "1_year": 8000 },
+};
 type AdminPromoKind = "subscription" | "badge";
 const ADMIN_PROMO_KIND_OPTIONS: Array<{ key: AdminPromoKind; label: string }> = [
   { key: "subscription", label: "Подписка" },
@@ -2672,6 +2741,30 @@ function localizeAuthError(message: string): string {
   if (normalized.includes("unauthorized") || normalized.includes("invalid session")) {
     return "Сессия истекла. Войдите снова.";
   }
+  if (normalized.includes("invalid subscription plan")) {
+    return "Выберите корректный тариф подписки.";
+  }
+  if (normalized.includes("invalid payment region")) {
+    return "Выберите категорию оплаты.";
+  }
+  if (normalized.includes("invalid payment method")) {
+    return "Выберите способ оплаты.";
+  }
+  if (normalized.includes("method is not available")) {
+    return "Этот способ оплаты сейчас недоступен.";
+  }
+  if (normalized.includes("europe payment provider is not available")) {
+    return "Оплата для Европы будет добавлена позже.";
+  }
+  if (normalized.includes("freekassa is not configured")) {
+    return "Платежный шлюз еще не настроен на сервере.";
+  }
+  if (normalized.includes("failed to connect to freekassa")) {
+    return "Не удалось связаться с платежным шлюзом. Попробуйте позже.";
+  }
+  if (normalized.includes("returned an error while creating payment")) {
+    return "Платежный шлюз вернул ошибку при создании оплаты.";
+  }
   if (normalized.includes("not found")) {
     return "Не найдено.";
   }
@@ -3326,6 +3419,11 @@ export default function App() {
     text: string;
     rewards: Array<{ type: "subscription" | "badge"; label: string }>;
   } | null>(null);
+  const [shopPaymentDialogOpen, setShopPaymentDialogOpen] = useState(false);
+  const [shopPaymentTier, setShopPaymentTier] = useState<ShopPaidTier | null>(null);
+  const [shopPaymentCategory, setShopPaymentCategory] = useState<ShopPaymentCategory | null>(null);
+  const [shopPaymentLoading, setShopPaymentLoading] = useState(false);
+  const [shopPaymentError, setShopPaymentError] = useState("");
   const [loaderForceHidden, setLoaderForceHidden] = useState(false);
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const [adminPanelKey, setAdminPanelKey] = useState(
@@ -3755,6 +3853,20 @@ export default function App() {
     myProfile?.subscription ?? authUser?.subscription ?? null,
   );
   const myTier = normalizeSubscriptionTier(mySubscription.tier);
+  const shopPaymentPlan = useMemo(
+    () => (shopPaymentTier ? SUBSCRIPTION_PLANS.find((plan) => plan.tier === shopPaymentTier) ?? null : null),
+    [shopPaymentTier],
+  );
+  const shopPaymentAmountRub = useMemo(() => {
+    if (!shopPaymentTier) return 0;
+    return SHOP_PRICE_MATRIX_RUB[shopPaymentTier][shopDuration];
+  }, [shopPaymentTier, shopDuration]);
+  const shopPaymentMethods = useMemo(() => {
+    if (shopPaymentCategory !== "cis" && shopPaymentCategory !== "crypto") {
+      return [] as ShopPaymentMethod[];
+    }
+    return SHOP_PAYMENT_METHODS.filter((method) => method.category === shopPaymentCategory);
+  }, [shopPaymentCategory]);
   const roomHostTier = normalizeSubscriptionTier(room?.hostSubscriptionTier ?? "free");
   const isMyHostRoom = !!room && room.hostId === (myId ?? "");
   const effectiveLobbyTier = isMyHostRoom
@@ -3780,6 +3892,10 @@ export default function App() {
   );
   const navigateToShop = useCallback(() => {
     setUpsellModalOpen(false);
+    setShopPaymentDialogOpen(false);
+    setShopPaymentCategory(null);
+    setShopPaymentError("");
+    setShopPaymentLoading(false);
     setPromoDialogOpen(false);
     setCreateMatchDialogOpen(false);
     setCreatePackCatalogOpen(false);
@@ -3901,6 +4017,86 @@ export default function App() {
       setUpsellModalOpen(true);
     },
     [],
+  );
+  const handleShopPaymentDialogChange = useCallback((open: boolean) => {
+    setShopPaymentDialogOpen(open);
+    if (!open) {
+      setShopPaymentCategory(null);
+      setShopPaymentError("");
+      setShopPaymentLoading(false);
+    }
+  }, []);
+  const openShopPaymentDialog = useCallback(
+    (tier: ShopPaidTier) => {
+      if (!authToken) {
+        setAuthMode("login");
+        setAuthView("form");
+        setAuthError("Войдите в аккаунт, чтобы продолжить оплату.");
+        setAuthDialogOpen(true);
+        return;
+      }
+      setShopPaymentTier(tier);
+      setShopPaymentCategory(null);
+      setShopPaymentError("");
+      setShopPaymentDialogOpen(true);
+    },
+    [authToken],
+  );
+  const selectShopPaymentCategory = useCallback((category: ShopPaymentCategory) => {
+    setShopPaymentCategory(category);
+    if (category === "europe") {
+      setShopPaymentError("Оплата для Европы будет добавлена в следующем обновлении.");
+      return;
+    }
+    setShopPaymentError("");
+  }, []);
+  const createShopPayment = useCallback(
+    async (method: ShopPaymentMethod) => {
+      if (shopPaymentLoading) return;
+      if (!shopPaymentTier) {
+        setShopPaymentError("Сначала выберите тариф.");
+        return;
+      }
+      if (!authToken) {
+        setShopPaymentDialogOpen(false);
+        setAuthMode("login");
+        setAuthView("form");
+        setAuthError("Сессия истекла. Войдите снова, чтобы продолжить оплату.");
+        setAuthDialogOpen(true);
+        return;
+      }
+      setShopPaymentError("");
+      setShopPaymentLoading(true);
+      try {
+        const payload = await authRequest<{ ok: true; checkoutUrl: string }>(
+          "/payments/freekassa/create",
+          {
+            method: "POST",
+            token: authToken,
+            body: {
+              tier: shopPaymentTier,
+              duration: shopDuration,
+              category: method.category,
+              paymentSystemId: method.id,
+            },
+          },
+        );
+        const checkoutUrl = String(payload?.checkoutUrl ?? "").trim();
+        if (!checkoutUrl) {
+          throw new Error("Не удалось получить ссылку на оплату.");
+        }
+        window.location.href = checkoutUrl;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? localizeAuthError(error.message)
+            : "Не удалось создать платеж. Попробуйте снова.";
+        setShopPaymentError(message);
+      } finally {
+        setShopPaymentLoading(false);
+      }
+    },
+    [authToken, shopDuration, shopPaymentLoading, shopPaymentTier],
   );
   const applyPromoCode = useCallback(async () => {
     if (promoCodeLoading) return;
@@ -12068,12 +12264,7 @@ export default function App() {
                               setProfileSubscriptionHighlightPending(true);
                               return;
                             }
-                            setUpsellTitle("Оплата скоро");
-                            setUpsellDescription(
-                              "Оплата и автоматическая активация подписки будут доступны в ближайшем обновлении.",
-                            );
-                            setUpsellRequiredTier(plan.tier);
-                            setUpsellModalOpen(true);
+                            openShopPaymentDialog(plan.tier as ShopPaidTier);
                           }}
                           className={`mt-auto h-12 w-full rounded-xl font-semibold ${
                             isCurrent
@@ -12089,6 +12280,93 @@ export default function App() {
                 </div>
               </CardContent>
             </Card>
+            <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
+              <DialogContent className="max-w-[560px] border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_55%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.98))] text-zinc-100 p-7 sm:p-8">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl">Выберите способ оплаты</DialogTitle>
+                  <DialogDescription className="space-y-1 text-sm text-zinc-400">
+                    <div>
+                      Тариф:{" "}
+                      <span className="font-medium text-zinc-200">
+                        {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
+                      </span>
+                    </div>
+                    <div>
+                      Период:{" "}
+                      <span className="font-medium text-zinc-200">
+                        {shopDuration === "1_year" ? "1 год" : "1 месяц"}
+                      </span>
+                      <span className="mx-2 text-zinc-600">•</span>
+                      Сумма:{" "}
+                      <span className="font-medium text-red-200">{shopPaymentAmountRub} RUB</span>
+                    </div>
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div className="grid gap-2.5 sm:grid-cols-3">
+                    {SHOP_PAYMENT_CATEGORY_OPTIONS.map((category) => {
+                      const isSelected = shopPaymentCategory === category.key;
+                      return (
+                        <button
+                          key={`shop-payment-category-${category.key}`}
+                          type="button"
+                          onClick={() => selectShopPaymentCategory(category.key)}
+                          className={`rounded-2xl border px-3 py-3 text-left transition ${
+                            isSelected
+                              ? "border-red-400/60 bg-red-500/15"
+                              : "border-zinc-700/80 bg-zinc-900/75 hover:border-zinc-500 hover:bg-zinc-800/85"
+                          }`}
+                        >
+                          <div className="text-sm font-semibold text-zinc-100">{category.title}</div>
+                          <div className="mt-1 text-xs leading-relaxed text-zinc-400">
+                            {category.description}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {shopPaymentCategory === "europe" && (
+                    <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/85 px-4 py-3 text-sm text-zinc-300">
+                      Для Европы подключим отдельный шлюз оплаты в следующем обновлении.
+                    </div>
+                  )}
+
+                  {shopPaymentMethods.length > 0 && (
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      {shopPaymentMethods.map((method) => (
+                        <button
+                          key={`shop-payment-method-${method.category}-${method.id}`}
+                          type="button"
+                          disabled={shopPaymentLoading}
+                          onClick={() => void createShopPayment(method)}
+                          className="rounded-2xl border border-zinc-700/80 bg-zinc-900/80 px-3 py-3 text-left transition hover:border-red-400/55 hover:bg-zinc-800/90 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-950/85 text-zinc-200">
+                              {React.createElement(method.icon, { className: "h-4 w-4" })}
+                            </span>
+                            <span>
+                              <span className="block text-sm font-semibold text-zinc-100">{method.title}</span>
+                              <span className="block text-xs text-zinc-400">{method.subtitle}</span>
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {shopPaymentError && (
+                    <div className="rounded-xl border border-red-500/45 bg-red-900/25 px-3 py-2 text-sm text-red-200">
+                      {shopPaymentError}
+                    </div>
+                  )}
+                  {shopPaymentLoading && (
+                    <div className="text-xs text-zinc-400">Создаем платеж, подождите…</div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
             <Dialog open={promoDialogOpen} onOpenChange={setPromoDialogOpen}>
               <DialogContent className="max-w-[460px] border-zinc-800 bg-[radial-gradient(120%_100%_at_0%_0%,rgba(239,68,68,0.2),transparent_55%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.98))] text-zinc-100 p-8 sm:p-9">
                 <DialogHeader>
