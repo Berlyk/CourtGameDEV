@@ -2765,6 +2765,9 @@ function localizeAuthError(message: string): string {
   if (normalized.includes("returned an error while creating payment")) {
     return "Платежный шлюз вернул ошибку при создании оплаты.";
   }
+  if (normalized.includes("did not return checkout url")) {
+    return "Платежный шлюз не вернул ссылку на оплату.";
+  }
   if (normalized.includes("not found")) {
     return "Не найдено.";
   }
@@ -4036,7 +4039,7 @@ export default function App() {
         return;
       }
       setShopPaymentTier(tier);
-      setShopPaymentCategory(null);
+      setShopPaymentCategory("cis");
       setShopPaymentError("");
       setShopPaymentDialogOpen(true);
     },
@@ -12281,10 +12284,10 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="max-w-[560px] border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_55%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.98))] text-zinc-100 p-7 sm:p-8">
+              <DialogContent className="max-w-[500px] border-zinc-800 bg-[radial-gradient(125%_125%_at_0%_0%,rgba(239,68,68,0.22),transparent_55%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.98))] p-5 text-zinc-100 sm:p-6">
                 <DialogHeader>
-                  <DialogTitle className="text-2xl">Выберите способ оплаты</DialogTitle>
-                  <DialogDescription className="space-y-1 text-sm text-zinc-400">
+                  <DialogTitle className="text-xl font-semibold">Оплата подписки</DialogTitle>
+                  <DialogDescription className="space-y-1 text-sm leading-relaxed text-zinc-400">
                     <div>
                       Тариф:{" "}
                       <span className="font-medium text-zinc-200">
@@ -12302,8 +12305,8 @@ export default function App() {
                     </div>
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-3">
-                  <div className="grid gap-2.5 sm:grid-cols-3">
+                <div className="space-y-3.5">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {SHOP_PAYMENT_CATEGORY_OPTIONS.map((category) => {
                       const isSelected = shopPaymentCategory === category.key;
                       return (
@@ -12311,14 +12314,14 @@ export default function App() {
                           key={`shop-payment-category-${category.key}`}
                           type="button"
                           onClick={() => selectShopPaymentCategory(category.key)}
-                          className={`rounded-2xl border px-3 py-3 text-left transition ${
+                          className={`rounded-xl border px-3 py-2.5 text-left transition ${
                             isSelected
-                              ? "border-red-400/60 bg-red-500/15"
+                              ? "border-red-400/60 bg-red-500/15 shadow-[0_0_0_1px_rgba(239,68,68,0.2)_inset]"
                               : "border-zinc-700/80 bg-zinc-900/75 hover:border-zinc-500 hover:bg-zinc-800/85"
-                          }`}
+                          } ${category.key === "europe" ? "sm:col-span-2" : ""}`}
                         >
                           <div className="text-sm font-semibold text-zinc-100">{category.title}</div>
-                          <div className="mt-1 text-xs leading-relaxed text-zinc-400">
+                          <div className="mt-0.5 text-xs leading-relaxed text-zinc-400">
                             {category.description}
                           </div>
                         </button>
@@ -12327,26 +12330,26 @@ export default function App() {
                   </div>
 
                   {shopPaymentCategory === "europe" && (
-                    <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/85 px-4 py-3 text-sm text-zinc-300">
+                    <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/85 px-3 py-2.5 text-sm text-zinc-300">
                       Для Европы подключим отдельный шлюз оплаты в следующем обновлении.
                     </div>
                   )}
 
                   {shopPaymentMethods.length > 0 && (
-                    <div className="grid gap-2.5 sm:grid-cols-2">
+                    <div className="grid gap-2">
                       {shopPaymentMethods.map((method) => (
                         <button
                           key={`shop-payment-method-${method.category}-${method.id}`}
                           type="button"
                           disabled={shopPaymentLoading}
                           onClick={() => void createShopPayment(method)}
-                          className="rounded-2xl border border-zinc-700/80 bg-zinc-900/80 px-3 py-3 text-left transition hover:border-red-400/55 hover:bg-zinc-800/90 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="rounded-xl border border-zinc-700/80 bg-zinc-900/85 px-3 py-3 text-left transition hover:border-red-400/55 hover:bg-zinc-800/90 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <div className="flex items-center gap-2.5">
                             <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-950/85 text-zinc-200">
                               {React.createElement(method.icon, { className: "h-4 w-4" })}
                             </span>
-                            <span>
+                            <span className="min-w-0">
                               <span className="block text-sm font-semibold text-zinc-100">{method.title}</span>
                               <span className="block text-xs text-zinc-400">{method.subtitle}</span>
                             </span>

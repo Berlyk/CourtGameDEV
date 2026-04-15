@@ -70,13 +70,17 @@ function readFreeKassaConfig() {
       process.env.FREEKASSA_SHOPID ??
       "",
   ).trim();
+  const secret1 = String(
+    process.env.FREEKASSA_SECRET_WORD_1 ?? process.env.FREEKASSA_SECRET1 ?? "",
+  ).trim();
   const apiKey = String(
     process.env.FREEKASSA_API_KEY ?? process.env.FREEKASSA_ORDER_API_KEY ?? "",
   ).trim();
   const secret2 = String(
     process.env.FREEKASSA_SECRET_WORD_2 ?? process.env.FREEKASSA_SECRET2 ?? "",
   ).trim();
-  return { shopId, apiKey, secret2 };
+  const publicAppUrl = String(process.env.PUBLIC_APP_URL ?? "").trim();
+  return { shopId, secret1, apiKey, secret2, publicAppUrl };
 }
 
 function buildApiSignature(payload: Record<string, string | number>, apiKey: string): string {
@@ -176,8 +180,8 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
     return res.status(401).json({ message: "Session is invalid." });
   }
 
-  const { shopId, apiKey } = readFreeKassaConfig();
-  if (!shopId || !apiKey) {
+  const { shopId, secret1, apiKey, publicAppUrl } = readFreeKassaConfig();
+  if (!shopId) {
     return res.status(503).json({ message: "FreeKassa is not configured on the server." });
   }
 
@@ -218,39 +222,90 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
   const paymentId = createMerchantOrderId();
   const clientIp = resolveClientIp(req) || "127.0.0.1";
   const nonce = Date.now();
-  const payloadBase: Record<string, string | number> = {
-    amount: amountRub,
-    currency: "RUB",
-    email: user.email,
-    i: methodId,
-    ip: clientIp,
-    nonce,
-    paymentId,
-    shopId,
-  };
-  const signature = buildApiSignature(payloadBase, apiKey);
+  let checkoutUrl = "";
+  let fkPayload: Record<string, unknown> = {};
 
-  const fkResponse = await fetch("https://api.fk.life/v1/orders/create", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      ...payloadBase,
+  if (secret1) {
+    const amountForSign = amountRub.toFixed(2);
+    const signature = crypto
+      .createHash("md5")
+      .update(`${shopId}:${amountForSign}:${secret1}:${paymentId}`, "utf8")
+      .digest("hex");
+    const checkout = new URL("https://pay.freekassa.ru/");
+    checkout.searchParams.set("m", shopId);
+    checkout.searchParams.set("oa", amountForSign);
+    checkout.searchParams.set("o", paymentId);
+    checkout.searchParams.set("s", signature);
+    checkout.searchParams.set("currency", "RUB");
+    checkout.searchParams.set("lang", "ru");
+    checkout.searchParams.set("i", String(methodId));
+    checkout.searchParams.set("em", user.email);
+    checkout.searchParams.set("us_userId", user.id);
+    checkout.searchParams.set("us_tier", paidTier);
+    checkout.searchParams.set("us_duration", paidDuration);
+    if (publicAppUrl) {
+      const successUrl = new URL(publicAppUrl);
+      successUrl.searchParams.set("payment", "success");
+      const failUrl = new URL(publicAppUrl);
+      failUrl.searchParams.set("payment", "fail");
+      checkout.searchParams.set("success_url", successUrl.toString());
+      checkout.searchParams.set("fail_url", failUrl.toString());
+    }
+    checkoutUrl = checkout.toString();
+    fkPayload = {
+      mode: "redirect",
       signature,
-    }),
-  }).catch(() => null);
+      shopId,
+      paymentId,
+      amount: amountForSign,
+      methodId,
+    };
+  } else if (apiKey) {
+    const payloadBase: Record<string, string | number> = {
+      amount: amountRub,
+      currency: "RUB",
+      email: user.email,
+      i: methodId,
+      ip: clientIp,
+      nonce,
+      paymentId,
+      shopId,
+    };
+    const signature = buildApiSignature(payloadBase, apiKey);
 
-  if (!fkResponse) {
-    return res.status(502).json({ message: "Failed to connect to FreeKassa." });
+    const fkResponse = await fetch("https://api.fk.life/v1/orders/create", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...payloadBase,
+        signature,
+      }),
+    }).catch(() => null);
+
+    if (!fkResponse) {
+      return res.status(502).json({ message: "Failed to connect to FreeKassa." });
+    }
+
+    const apiPayload: any = await fkResponse.json().catch(() => null);
+    if (!fkResponse.ok || !apiPayload || apiPayload.type !== "success" || !apiPayload.location) {
+      const message =
+        String(apiPayload?.message ?? apiPayload?.msg ?? apiPayload?.error ?? "").trim() ||
+        "FreeKassa returned an error while creating payment.";
+      return res.status(502).json({ message });
+    }
+    checkoutUrl = String(apiPayload.location ?? "").trim();
+    fkPayload = safeJsonPayload(apiPayload) as Record<string, unknown>;
+  } else {
+    return res.status(503).json({
+      message:
+        "FreeKassa is not configured on the server. Set FREEKASSA_SECRET_WORD_1 or FREEKASSA_API_KEY.",
+    });
   }
 
-  const fkPayload: any = await fkResponse.json().catch(() => null);
-  if (!fkResponse.ok || !fkPayload || fkPayload.type !== "success" || !fkPayload.location) {
-    const message =
-      String(fkPayload?.message ?? fkPayload?.msg ?? fkPayload?.error ?? "").trim() ||
-      "FreeKassa returned an error while creating payment.";
-    return res.status(502).json({ message });
+  if (!checkoutUrl) {
+    return res.status(502).json({ message: "FreeKassa did not return checkout URL." });
   }
 
   await ensurePaymentTables();
@@ -289,9 +344,9 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
       "RUB",
       region,
       methodId,
-      typeof fkPayload.orderId === "number" ? fkPayload.orderId : null,
-      String(fkPayload.orderHash ?? "").trim() || null,
-      String(fkPayload.location ?? "").trim(),
+      typeof fkPayload["orderId"] === "number" ? (fkPayload["orderId"] as number) : null,
+      String(fkPayload["orderHash"] ?? "").trim() || null,
+      checkoutUrl,
       JSON.stringify(safeJsonPayload(fkPayload)),
     ],
   );
@@ -299,7 +354,7 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
   return res.status(200).json({
     ok: true,
     paymentId,
-    checkoutUrl: String(fkPayload.location),
+    checkoutUrl,
   });
 });
 
