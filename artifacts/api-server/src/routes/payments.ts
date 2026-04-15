@@ -180,7 +180,7 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
     return res.status(401).json({ message: "Session is invalid." });
   }
 
-  const { shopId, secret1, apiKey, publicAppUrl } = readFreeKassaConfig();
+  const { shopId, secret1, apiKey } = readFreeKassaConfig();
   if (!shopId) {
     return res.status(503).json({ message: "FreeKassa is not configured on the server." });
   }
@@ -226,31 +226,24 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
   let fkPayload: Record<string, unknown> = {};
 
   if (secret1) {
+    const currency = "RUB";
     const amountForSign = amountRub.toFixed(2);
     const signature = crypto
       .createHash("md5")
-      .update(`${shopId}:${amountForSign}:${secret1}:${paymentId}`, "utf8")
+      .update(`${shopId}:${amountForSign}:${secret1}:${currency}:${paymentId}`, "utf8")
       .digest("hex");
-    const checkout = new URL("https://pay.freekassa.ru/");
+    const checkout = new URL("https://pay.fk.money/");
     checkout.searchParams.set("m", shopId);
     checkout.searchParams.set("oa", amountForSign);
     checkout.searchParams.set("o", paymentId);
     checkout.searchParams.set("s", signature);
-    checkout.searchParams.set("currency", "RUB");
+    checkout.searchParams.set("currency", currency);
     checkout.searchParams.set("lang", "ru");
     checkout.searchParams.set("i", String(methodId));
     checkout.searchParams.set("em", user.email);
     checkout.searchParams.set("us_userId", user.id);
     checkout.searchParams.set("us_tier", paidTier);
     checkout.searchParams.set("us_duration", paidDuration);
-    if (publicAppUrl) {
-      const successUrl = new URL(publicAppUrl);
-      successUrl.searchParams.set("payment", "success");
-      const failUrl = new URL(publicAppUrl);
-      failUrl.searchParams.set("payment", "fail");
-      checkout.searchParams.set("success_url", successUrl.toString());
-      checkout.searchParams.set("fail_url", failUrl.toString());
-    }
     checkoutUrl = checkout.toString();
     fkPayload = {
       mode: "redirect",
