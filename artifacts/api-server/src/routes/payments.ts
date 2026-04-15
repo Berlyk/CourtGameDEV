@@ -225,35 +225,7 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
   let checkoutUrl = "";
   let fkPayload: Record<string, unknown> = {};
 
-  if (secret1) {
-    const currency = "RUB";
-    const amountForSign = amountRub.toFixed(2);
-    const signature = crypto
-      .createHash("md5")
-      .update(`${shopId}:${amountForSign}:${secret1}:${currency}:${paymentId}`, "utf8")
-      .digest("hex");
-    const checkout = new URL("https://pay.fk.money/");
-    checkout.searchParams.set("m", shopId);
-    checkout.searchParams.set("oa", amountForSign);
-    checkout.searchParams.set("o", paymentId);
-    checkout.searchParams.set("s", signature);
-    checkout.searchParams.set("currency", currency);
-    checkout.searchParams.set("lang", "ru");
-    checkout.searchParams.set("i", String(methodId));
-    checkout.searchParams.set("em", user.email);
-    checkout.searchParams.set("us_userId", user.id);
-    checkout.searchParams.set("us_tier", paidTier);
-    checkout.searchParams.set("us_duration", paidDuration);
-    checkoutUrl = checkout.toString();
-    fkPayload = {
-      mode: "redirect",
-      signature,
-      shopId,
-      paymentId,
-      amount: amountForSign,
-      methodId,
-    };
-  } else if (apiKey) {
+  if (apiKey) {
     const payloadBase: Record<string, string | number> = {
       amount: amountRub,
       currency: "RUB",
@@ -290,6 +262,34 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
     }
     checkoutUrl = String(apiPayload.location ?? "").trim();
     fkPayload = safeJsonPayload(apiPayload) as Record<string, unknown>;
+  } else if (secret1) {
+    const currency = "RUB";
+    const amountForSign = amountRub.toFixed(2);
+    const signature = crypto
+      .createHash("md5")
+      .update(`${shopId}:${amountForSign}:${secret1}:${currency}:${paymentId}`, "utf8")
+      .digest("hex");
+    const checkout = new URL("https://pay.fk.money/");
+    checkout.searchParams.set("m", shopId);
+    checkout.searchParams.set("oa", amountForSign);
+    checkout.searchParams.set("o", paymentId);
+    checkout.searchParams.set("s", signature);
+    checkout.searchParams.set("currency", currency);
+    checkout.searchParams.set("lang", "ru");
+    checkout.searchParams.set("i", String(methodId));
+    checkout.searchParams.set("em", user.email);
+    checkout.searchParams.set("us_userId", user.id);
+    checkout.searchParams.set("us_tier", paidTier);
+    checkout.searchParams.set("us_duration", paidDuration);
+    checkoutUrl = checkout.toString();
+    fkPayload = {
+      mode: "redirect",
+      signature,
+      shopId,
+      paymentId,
+      amount: amountForSign,
+      methodId,
+    };
   } else {
     return res.status(503).json({
       message:

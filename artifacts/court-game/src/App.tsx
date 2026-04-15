@@ -232,7 +232,8 @@ type ShopPaymentMethod = {
   providerCategory: "cis" | "crypto";
   title: string;
   subtitle: string;
-  imageSrc: string;
+  previewGradient: string;
+  logoUrls: string[];
 };
 
 const SHOP_PAYMENT_SECTIONS: Array<{
@@ -257,27 +258,6 @@ const SHOP_PAYMENT_SECTIONS: Array<{
   },
 ];
 
-const buildPaymentMethodImage = (
-  title: string,
-  subtitle: string,
-  colors: [string, string],
-): string => {
-  const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="220" viewBox="0 0 640 220">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="${colors[0]}"/>
-      <stop offset="100%" stop-color="${colors[1]}"/>
-    </linearGradient>
-  </defs>
-  <rect x="0" y="0" width="640" height="220" rx="26" fill="url(#bg)"/>
-  <rect x="18" y="18" width="604" height="184" rx="18" fill="rgba(0,0,0,0.16)"/>
-  <text x="44" y="106" font-size="52" font-family="Segoe UI, Arial, sans-serif" font-weight="700" fill="#ffffff">${title}</text>
-  <text x="44" y="152" font-size="28" font-family="Segoe UI, Arial, sans-serif" fill="rgba(255,255,255,0.9)">${subtitle}</text>
-</svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-};
-
 const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
   {
     id: 42,
@@ -285,7 +265,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "СБП",
     subtitle: "Система быстрых платежей",
-    imageSrc: buildPaymentMethodImage("СБП", "Быстрый перевод", ["#2752B7", "#2B77E7"]),
+    previewGradient: "linear-gradient(135deg, rgba(45,95,196,0.95), rgba(47,132,242,0.85))",
+    logoUrls: ["https://cdn.simpleicons.org/sberbank/ffffff"],
   },
   {
     id: 4,
@@ -293,23 +274,11 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "Банковская карта",
     subtitle: "VISA / MasterCard / МИР",
-    imageSrc: buildPaymentMethodImage("CARD", "Банковская карта", ["#5B6478", "#323847"]),
-  },
-  {
-    id: 11,
-    category: "russia",
-    providerCategory: "cis",
-    title: "SberPay",
-    subtitle: "Оплата через SberPay",
-    imageSrc: buildPaymentMethodImage("SberPay", "Быстрая оплата", ["#19B448", "#0C8732"]),
-  },
-  {
-    id: 7,
-    category: "russia",
-    providerCategory: "cis",
-    title: "ЮMoney",
-    subtitle: "Кошелек ЮMoney",
-    imageSrc: buildPaymentMethodImage("ЮMoney", "Электронный кошелек", ["#8B5CF6", "#4C1D95"]),
+    previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
+    logoUrls: [
+      "https://cdn.simpleicons.org/visa/ffffff",
+      "https://cdn.simpleicons.org/mastercard/ffffff",
+    ],
   },
   {
     id: 15,
@@ -317,7 +286,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "USDT TRC20",
     subtitle: "Оплата в стейблкоине",
-    imageSrc: buildPaymentMethodImage("USDT", "TRC20", ["#059669", "#065F46"]),
+    previewGradient: "linear-gradient(135deg, rgba(7,124,93,0.95), rgba(6,87,69,0.9))",
+    logoUrls: ["https://cdn.simpleicons.org/tether/ffffff"],
   },
   {
     id: 24,
@@ -325,7 +295,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "Bitcoin",
     subtitle: "Оплата в BTC",
-    imageSrc: buildPaymentMethodImage("BTC", "Bitcoin", ["#F59E0B", "#B45309"]),
+    previewGradient: "linear-gradient(135deg, rgba(222,133,5,0.95), rgba(163,89,7,0.9))",
+    logoUrls: ["https://cdn.simpleicons.org/bitcoin/ffffff"],
   },
 ];
 const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
@@ -12314,15 +12285,17 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="max-w-[940px] border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.22),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-4 text-zinc-100 sm:p-5">
+              <DialogContent className="max-w-[1120px] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-30">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
-                <div className="max-h-[82vh] overflow-y-auto pr-1">
-                  <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-                    <div className="overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/80">
-                      <div className="p-5">
+                <div
+                  className={`max-h-[86vh] overflow-y-auto px-4 pb-4 pt-16 sm:px-5 sm:pb-5 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.55)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/60 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/75`}
+                >
+                  <div className="grid items-stretch gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+                    <div className="flex min-h-[620px] flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
+                      <div className="p-5 sm:p-6">
                         <div className="mb-3 flex justify-center">
                           <Avatar
                             src={authUser?.avatar ?? sharedAvatar}
@@ -12352,33 +12325,21 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                      <div className="border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(22,68,55,0.85),rgba(26,80,63,0.88))] px-5 py-4">
-                        <div className="text-base text-emerald-200">
-                          Сумма к оплате: <span className="text-2xl font-semibold text-emerald-100">{shopPaymentAmountRub} RUB</span>
+                      <div className="mt-auto border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(22,68,55,0.88),rgba(26,80,63,0.9))] px-5 py-4 sm:px-6">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="text-lg text-emerald-200">Сумма к оплате:</span>
+                          <span className="text-3xl font-semibold text-emerald-100">{shopPaymentAmountRub} RUB</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="space-y-3">
-                      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-zinc-700/80 bg-zinc-900/70 px-4 py-3">
-                        <div>
+                      <div className="rounded-2xl border border-zinc-700/80 bg-zinc-900/70 px-4 py-3">
+                        <div className="pr-12">
                           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Оплата</div>
                           <div className="mt-1 text-2xl font-black uppercase leading-[1.05] text-zinc-100">
                             Выберите способ оплаты
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2.5 pt-1">
-                          <span className="text-sm font-semibold uppercase text-zinc-500">или</span>
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              setShopPaymentDialogOpen(false);
-                              setPromoDialogOpen(true);
-                            }}
-                            className="h-11 rounded-xl bg-[linear-gradient(135deg,rgba(245,158,11,1),rgba(249,115,22,1))] px-4 text-sm font-extrabold uppercase tracking-wide text-zinc-950 shadow-[0_10px_26px_rgba(249,115,22,0.3)] hover:brightness-110"
-                          >
-                            Активировать ключ
-                          </Button>
                         </div>
                       </div>
 
@@ -12399,7 +12360,7 @@ export default function App() {
                                 Оплата для Европы будет подключена отдельным провайдером.
                               </div>
                             ) : (
-                              <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                              <div className="grid gap-2.5 sm:grid-cols-2">
                                 {methods.map((method) => (
                                   <button
                                     key={`shop-payment-method-${method.category}-${method.id}`}
@@ -12408,12 +12369,35 @@ export default function App() {
                                     onClick={() => void createShopPayment(method)}
                                     className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2.5 text-left transition hover:border-red-400/55 hover:bg-zinc-900/90 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    <img
-                                      src={method.imageSrc}
-                                      alt={method.title}
-                                      className="h-16 w-full rounded-lg border border-zinc-700/70 object-cover"
-                                      loading="lazy"
-                                    />
+                                    <div
+                                      className="relative h-20 w-full overflow-hidden rounded-lg border border-zinc-600/70 px-3 py-2"
+                                      style={{ backgroundImage: method.previewGradient }}
+                                    >
+                                      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_120%_at_0%_0%,rgba(255,255,255,0.2),transparent_55%)]" />
+                                      <div className="relative flex h-full items-center gap-2.5">
+                                        {method.logoUrls.slice(0, 2).map((logoUrl) => (
+                                          <span
+                                            key={`${method.id}-${logoUrl}`}
+                                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/30 bg-black/20 p-1.5"
+                                          >
+                                            <img
+                                              src={logoUrl}
+                                              alt={method.title}
+                                              className="h-full w-full object-contain"
+                                              loading="lazy"
+                                            />
+                                          </span>
+                                        ))}
+                                        <div className="min-w-0">
+                                          <div className="truncate text-base font-extrabold leading-tight text-white">
+                                            {method.title}
+                                          </div>
+                                          <div className="truncate text-[11px] text-zinc-100/85">
+                                            {method.subtitle}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
                                     <div className="mt-2">
                                       <div className="text-sm font-semibold text-zinc-100">{method.title}</div>
                                       <div className="text-xs text-zinc-400">{method.subtitle}</div>
