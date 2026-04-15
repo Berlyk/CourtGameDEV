@@ -32,6 +32,7 @@ import {
   updateUserModerationByAdmin,
   updateProfileByToken,
 } from "../lib/authStore.js";
+import { syncUserProfileInActiveRooms } from "../socket/index.js";
 
 const authRouter = Router();
 
@@ -1392,6 +1393,13 @@ authRouter.patch("/auth/admin/user/moderate", async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "Пользователь не найден." });
     }
+    const publicProfile = await getPublicUserProfileById(user.id).catch(() => null);
+    syncUserProfileInActiveRooms({
+      userId: user.id,
+      nickname: publicProfile?.nickname ?? user.nickname,
+      avatar: publicProfile?.avatar ?? null,
+      banner: publicProfile?.banner ?? null,
+    });
     return res.status(200).json({ ok: true, user });
   } catch (error) {
     const message =

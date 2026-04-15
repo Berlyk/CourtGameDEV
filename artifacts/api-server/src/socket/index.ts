@@ -564,6 +564,69 @@ function emitPublicMatches(io: SocketIOServer) {
   });
 }
 
+let liveIoServer: SocketIOServer | null = null;
+
+export function syncUserProfileInActiveRooms(input: {
+  userId: string;
+  nickname: string;
+  avatar?: string | null;
+  banner?: string | null;
+}): number {
+  const io = liveIoServer;
+  const normalizedUserId = String(input.userId ?? "").trim();
+  if (!io || !normalizedUserId) return 0;
+
+  let touchedRooms = 0;
+  for (const room of listRooms()) {
+    const playerIds = new Set<string>();
+    room.players.forEach((player: any) => {
+      if (typeof player?.userId === "string" && player.userId.trim() === normalizedUserId) {
+        playerIds.add(player.id);
+      }
+    });
+    room.game?.players?.forEach((player: any) => {
+      if (typeof player?.userId === "string" && player.userId.trim() === normalizedUserId) {
+        playerIds.add(player.id);
+      }
+    });
+    if (playerIds.size === 0) continue;
+
+    let updatedRoom: any = null;
+    playerIds.forEach((playerId) => {
+      const next = updatePlayerProfile(room.code, playerId, {
+        name: input.nickname,
+        avatar: input.avatar ?? null,
+        banner: input.banner ?? null,
+      });
+      if (next) updatedRoom = next;
+    });
+    if (!updatedRoom) continue;
+    touchedRooms += 1;
+
+    if (updatedRoom.game) {
+      updatedRoom.game.players.forEach((player: any) => {
+        if (!player.socketId) return;
+        io.to(player.socketId).emit("game_profile_updated", {
+          players: mapGamePlayers(updatedRoom.game.players),
+          revealedFacts: updatedRoom.game.revealedFacts,
+          usedCards: updatedRoom.game.usedCards,
+        });
+      });
+    }
+
+    io.to(room.code).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
+    io.to(room.code).emit("lobby_chat_updated", {
+      messages: updatedRoom.lobbyChat,
+    });
+  }
+
+  if (touchedRooms > 0) {
+    emitPublicMatches(io);
+  }
+
+  return touchedRooms;
+}
+
 function buildRoomUpdatePayload(room: any) {
   return {
     players: mapLobbyPlayers(room.players),
@@ -599,6 +662,7 @@ export function setupSocket(httpServer: HttpServer) {
     path: "/api/socket.io",
     maxHttpBufferSize: 20 * 1024 * 1024,
   });
+  liveIoServer = io;
 
   const socketToRoom = new Map<
     string,
