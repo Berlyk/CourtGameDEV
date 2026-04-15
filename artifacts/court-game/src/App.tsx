@@ -266,14 +266,14 @@ const buildPaymentLogoImage = (
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="72" viewBox="0 0 120 72">
   <rect x="1" y="1" width="118" height="70" rx="12" fill="${background}" stroke="rgba(255,255,255,0.35)"/>
-  <text x="60" y="45" text-anchor="middle" font-size="24" font-family="Segoe UI, Arial, sans-serif" font-weight="700" fill="${foreground}">${label}</text>
+  <text x="60" y="47" text-anchor="middle" font-size="30" font-family="Segoe UI, Arial, sans-serif" font-weight="800" fill="${foreground}">${label}</text>
 </svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 };
 
 const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
   {
-    id: 44,
+    id: 42,
     category: "russia",
     providerCategory: "cis",
     title: "СБП",
@@ -282,7 +282,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     logoUrls: [buildPaymentLogoImage("СБП", "#1D4ED8")],
   },
   {
-    id: 36,
+    id: 4,
     category: "russia",
     providerCategory: "cis",
     title: "Банковская карта",
@@ -12305,16 +12305,16 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="max-w-[1140px] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-30">
+              <DialogContent className="max-w-[1120px] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-30">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
                 <div
-                  className={`max-h-[84vh] overflow-y-auto px-4 pb-4 pt-16 sm:px-5 sm:pb-5 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.55)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/60 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/75`}
+                  className={`max-h-[74vh] overflow-y-auto px-4 pb-4 pt-16 sm:px-5 sm:pb-5 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.55)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/60 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/75`}
                 >
-                  <div className="grid items-stretch gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-                    <div className="flex flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
+                  <div className="grid items-start gap-4 lg:grid-cols-[290px_minmax(0,1fr)]">
+                    <div className="flex self-start flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
                       <div className="p-4 sm:p-5">
                         <div className="mb-2 flex justify-center">
                           <Avatar
@@ -12345,7 +12345,7 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                      <div className="mt-auto border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(22,68,55,0.88),rgba(26,80,63,0.9))] px-4 py-3 sm:px-5">
+                      <div className="border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(22,68,55,0.88),rgba(26,80,63,0.9))] px-4 py-3 sm:px-5">
                         <div className="flex items-baseline justify-between gap-3">
                           <span className="text-base text-emerald-200">Сумма к оплате:</span>
                           <span className="text-2xl font-semibold text-emerald-100">{shopPaymentAmountRub} RUB</span>
@@ -12412,12 +12412,10 @@ export default function App() {
                                           <div className="truncate text-[22px] font-black leading-[1.05] text-white">
                                             {method.title}
                                           </div>
-                                          <div className="truncate text-xs text-zinc-100/85">
-                                            {method.subtitle}
-                                          </div>
                                         </div>
                                       </div>
                                     </div>
+                                    <div className="mt-1.5 text-xs text-zinc-400">{method.subtitle}</div>
                                   </button>
                                 ))}
                               </div>

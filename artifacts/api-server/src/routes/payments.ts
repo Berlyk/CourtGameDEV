@@ -74,7 +74,11 @@ function readFreeKassaConfig() {
     process.env.FREEKASSA_SECRET_WORD_1 ?? process.env.FREEKASSA_SECRET1 ?? "",
   ).trim();
   const apiKey = String(
-    process.env.FREEKASSA_API_KEY ?? process.env.FREEKASSA_ORDER_API_KEY ?? "",
+    process.env.FREEKASSA_API_KEY ??
+      process.env.FREEKASSA_ORDER_API_KEY ??
+      process.env.FREEKASSA_CASHBOX_API_KEY ??
+      process.env.FREEKASSA_CASH_API_KEY ??
+      "",
   ).trim();
   const secret2 = String(
     process.env.FREEKASSA_SECRET_WORD_2 ?? process.env.FREEKASSA_SECRET2 ?? "",
@@ -225,7 +229,37 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
   let checkoutUrl = "";
   let fkPayload: Record<string, unknown> = {};
 
-  if (apiKey) {
+  // Redirect-mode (secret1) is the most stable default for storefront method routing.
+  // API-mode stays as fallback when only API key is configured.
+  if (secret1) {
+    const currency = "RUB";
+    const amountForSign = amountRub.toFixed(2);
+    const signature = crypto
+      .createHash("md5")
+      .update(`${shopId}:${amountForSign}:${secret1}:${currency}:${paymentId}`, "utf8")
+      .digest("hex");
+    const checkout = new URL("https://pay.fk.money/");
+    checkout.searchParams.set("m", shopId);
+    checkout.searchParams.set("oa", amountForSign);
+    checkout.searchParams.set("o", paymentId);
+    checkout.searchParams.set("s", signature);
+    checkout.searchParams.set("currency", currency);
+    checkout.searchParams.set("lang", "ru");
+    checkout.searchParams.set("i", String(methodId));
+    checkout.searchParams.set("em", user.email);
+    checkout.searchParams.set("us_userId", user.id);
+    checkout.searchParams.set("us_tier", paidTier);
+    checkout.searchParams.set("us_duration", paidDuration);
+    checkoutUrl = checkout.toString();
+    fkPayload = {
+      mode: "redirect",
+      signature,
+      shopId,
+      paymentId,
+      amount: amountForSign,
+      methodId,
+    };
+  } else if (apiKey) {
     const payloadBase: Record<string, string | number> = {
       amount: amountRub,
       currency: "RUB",
@@ -262,34 +296,6 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
     }
     checkoutUrl = String(apiPayload.location ?? "").trim();
     fkPayload = safeJsonPayload(apiPayload) as Record<string, unknown>;
-  } else if (secret1) {
-    const currency = "RUB";
-    const amountForSign = amountRub.toFixed(2);
-    const signature = crypto
-      .createHash("md5")
-      .update(`${shopId}:${amountForSign}:${secret1}:${currency}:${paymentId}`, "utf8")
-      .digest("hex");
-    const checkout = new URL("https://pay.fk.money/");
-    checkout.searchParams.set("m", shopId);
-    checkout.searchParams.set("oa", amountForSign);
-    checkout.searchParams.set("o", paymentId);
-    checkout.searchParams.set("s", signature);
-    checkout.searchParams.set("currency", currency);
-    checkout.searchParams.set("lang", "ru");
-    checkout.searchParams.set("i", String(methodId));
-    checkout.searchParams.set("em", user.email);
-    checkout.searchParams.set("us_userId", user.id);
-    checkout.searchParams.set("us_tier", paidTier);
-    checkout.searchParams.set("us_duration", paidDuration);
-    checkoutUrl = checkout.toString();
-    fkPayload = {
-      mode: "redirect",
-      signature,
-      shopId,
-      paymentId,
-      amount: amountForSign,
-      methodId,
-    };
   } else {
     return res.status(503).json({
       message:
