@@ -12326,13 +12326,13 @@ export default function App() {
                         <div className="mb-3 flex justify-center">
                           <Avatar
                             src={authUser?.avatar ?? sharedAvatar}
-                            name={authUser?.nickname ?? playerName || "Игрок"}
+                            name={(authUser?.nickname ?? playerName) || "Игрок"}
                             size={92}
                           />
                         </div>
                         <div className="text-center">
                           <div className="text-xl font-semibold text-zinc-100">
-                            {(authUser?.nickname ?? playerName || "Игрок").trim() || "Игрок"}
+                            {((authUser?.nickname ?? playerName) || "Игрок").trim() || "Игрок"}
                           </div>
                           <div className="mt-1 text-sm text-zinc-400">Покупка подписки</div>
                         </div>
