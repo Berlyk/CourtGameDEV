@@ -258,26 +258,39 @@ const SHOP_PAYMENT_SECTIONS: Array<{
   },
 ];
 
+const buildPaymentLogoImage = (
+  label: string,
+  background: string,
+  foreground = "#FFFFFF",
+): string => {
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="72" viewBox="0 0 120 72">
+  <rect x="1" y="1" width="118" height="70" rx="12" fill="${background}" stroke="rgba(255,255,255,0.35)"/>
+  <text x="60" y="45" text-anchor="middle" font-size="24" font-family="Segoe UI, Arial, sans-serif" font-weight="700" fill="${foreground}">${label}</text>
+</svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+};
+
 const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
   {
-    id: 42,
+    id: 44,
     category: "russia",
     providerCategory: "cis",
     title: "СБП",
     subtitle: "Система быстрых платежей",
     previewGradient: "linear-gradient(135deg, rgba(45,95,196,0.95), rgba(47,132,242,0.85))",
-    logoUrls: ["https://cdn.simpleicons.org/sberbank/ffffff"],
+    logoUrls: [buildPaymentLogoImage("СБП", "#1D4ED8")],
   },
   {
-    id: 4,
+    id: 36,
     category: "russia",
     providerCategory: "cis",
     title: "Банковская карта",
     subtitle: "VISA / MasterCard / МИР",
     previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
     logoUrls: [
-      "https://cdn.simpleicons.org/visa/ffffff",
-      "https://cdn.simpleicons.org/mastercard/ffffff",
+      buildPaymentLogoImage("VISA", "#334155"),
+      buildPaymentLogoImage("MC", "#4B5563"),
     ],
   },
   {
@@ -287,7 +300,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "USDT TRC20",
     subtitle: "Оплата в стейблкоине",
     previewGradient: "linear-gradient(135deg, rgba(7,124,93,0.95), rgba(6,87,69,0.9))",
-    logoUrls: ["https://cdn.simpleicons.org/tether/ffffff"],
+    logoUrls: [buildPaymentLogoImage("USDT", "#0F766E")],
   },
   {
     id: 24,
@@ -296,7 +309,16 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "Bitcoin",
     subtitle: "Оплата в BTC",
     previewGradient: "linear-gradient(135deg, rgba(222,133,5,0.95), rgba(163,89,7,0.9))",
-    logoUrls: ["https://cdn.simpleicons.org/bitcoin/ffffff"],
+    logoUrls: [buildPaymentLogoImage("BTC", "#B45309")],
+  },
+  {
+    id: 26,
+    category: "crypto",
+    providerCategory: "crypto",
+    title: "Ethereum",
+    subtitle: "Оплата в ETH",
+    previewGradient: "linear-gradient(135deg, rgba(99,102,241,0.95), rgba(71,85,105,0.9))",
+    logoUrls: [buildPaymentLogoImage("ETH", "#475569")],
   },
 ];
 const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
@@ -4091,10 +4113,8 @@ export default function App() {
         }
         window.location.href = checkoutUrl;
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? localizeAuthError(error.message)
-            : "Не удалось создать платеж. Попробуйте снова.";
+        const rawMessage = error instanceof Error ? String(error.message ?? "").trim() : "";
+        const message = rawMessage || "Не удалось создать платеж. Попробуйте снова.";
         setShopPaymentError(message);
       } finally {
         setShopPaymentLoading(false);
@@ -12285,32 +12305,32 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="max-w-[1120px] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-30">
+              <DialogContent className="max-w-[1140px] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-30">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
                 <div
-                  className={`max-h-[86vh] overflow-y-auto px-4 pb-4 pt-16 sm:px-5 sm:pb-5 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.55)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/60 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/75`}
+                  className={`max-h-[84vh] overflow-y-auto px-4 pb-4 pt-16 sm:px-5 sm:pb-5 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.55)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/60 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/75`}
                 >
-                  <div className="grid items-stretch gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-                    <div className="flex min-h-[620px] flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
-                      <div className="p-5 sm:p-6">
-                        <div className="mb-3 flex justify-center">
+                  <div className="grid items-stretch gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+                    <div className="flex flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
+                      <div className="p-4 sm:p-5">
+                        <div className="mb-2 flex justify-center">
                           <Avatar
                             src={authUser?.avatar ?? sharedAvatar}
                             name={(authUser?.nickname ?? playerName) || "Игрок"}
-                            size={92}
+                            size={84}
                           />
                         </div>
                         <div className="text-center">
-                          <div className="text-xl font-semibold text-zinc-100">
+                          <div className="text-lg font-semibold text-zinc-100">
                             {((authUser?.nickname ?? playerName) || "Игрок").trim() || "Игрок"}
                           </div>
                           <div className="mt-1 text-sm text-zinc-400">Покупка подписки</div>
                         </div>
 
-                        <div className="mt-5 space-y-2.5 text-sm">
+                        <div className="mt-4 space-y-2 text-sm">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-zinc-500">Тариф</span>
                             <span className="font-medium text-zinc-100">
@@ -12325,19 +12345,19 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                      <div className="mt-auto border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(22,68,55,0.88),rgba(26,80,63,0.9))] px-5 py-4 sm:px-6">
+                      <div className="mt-auto border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(22,68,55,0.88),rgba(26,80,63,0.9))] px-4 py-3 sm:px-5">
                         <div className="flex items-baseline justify-between gap-3">
-                          <span className="text-lg text-emerald-200">Сумма к оплате:</span>
-                          <span className="text-3xl font-semibold text-emerald-100">{shopPaymentAmountRub} RUB</span>
+                          <span className="text-base text-emerald-200">Сумма к оплате:</span>
+                          <span className="text-2xl font-semibold text-emerald-100">{shopPaymentAmountRub} RUB</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="rounded-2xl border border-zinc-700/80 bg-zinc-900/70 px-4 py-3">
+                    <div className="space-y-2.5">
+                      <div className="rounded-2xl border border-zinc-700/80 bg-zinc-900/70 px-4 py-2.5">
                         <div className="pr-12">
                           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Оплата</div>
-                          <div className="mt-1 text-2xl font-black uppercase leading-[1.05] text-zinc-100">
+                          <div className="mt-1 text-[30px] font-black uppercase leading-[1.03] text-zinc-100">
                             Выберите способ оплаты
                           </div>
                         </div>
@@ -12348,15 +12368,15 @@ export default function App() {
                         return (
                           <div
                             key={`shop-payment-section-${section.key}`}
-                            className="rounded-2xl border border-zinc-700/75 bg-zinc-900/70 p-3"
+                            className="rounded-2xl border border-zinc-700/75 bg-zinc-900/70 p-2.5"
                           >
-                            <div className="mb-2">
-                              <div className="text-lg font-semibold text-zinc-100">{section.title}</div>
+                            <div className="mb-1.5">
+                              <div className="text-[30px] font-black leading-none text-zinc-100">{section.title}</div>
                               <div className="text-sm text-zinc-400">{section.description}</div>
                             </div>
 
                             {section.key === "europe" ? (
-                              <div className="rounded-xl border border-zinc-700/80 bg-zinc-950/65 px-3 py-4 text-sm text-zinc-400">
+                              <div className="rounded-xl border border-zinc-700/80 bg-zinc-950/65 px-3 py-2.5 text-sm text-zinc-400">
                                 Оплата для Европы будет подключена отдельным провайдером.
                               </div>
                             ) : (
@@ -12389,18 +12409,14 @@ export default function App() {
                                           </span>
                                         ))}
                                         <div className="min-w-0">
-                                          <div className="truncate text-base font-extrabold leading-tight text-white">
+                                          <div className="truncate text-[22px] font-black leading-[1.05] text-white">
                                             {method.title}
                                           </div>
-                                          <div className="truncate text-[11px] text-zinc-100/85">
+                                          <div className="truncate text-xs text-zinc-100/85">
                                             {method.subtitle}
                                           </div>
                                         </div>
                                       </div>
-                                    </div>
-                                    <div className="mt-2">
-                                      <div className="text-sm font-semibold text-zinc-100">{method.title}</div>
-                                      <div className="text-xs text-zinc-400">{method.subtitle}</div>
                                     </div>
                                   </button>
                                 ))}
