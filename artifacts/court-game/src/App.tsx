@@ -223,7 +223,7 @@ const SUBSCRIPTION_DURATION_UI_OPTIONS: Array<{
   { key: "1_month", label: "1 месяц" },
   { key: "1_year", label: "1 год" },
 ];
-type ShopPaymentCategory = "russia" | "europe" | "crypto";
+type ShopPaymentCategory = "russia" | "crypto";
 type ShopPaidTier = Exclude<SubscriptionTier, "free">;
 type ShopPaidDuration = Extract<SubscriptionDuration, "1_month" | "1_year">;
 type ShopPaymentMethod = {
@@ -231,9 +231,8 @@ type ShopPaymentMethod = {
   category: ShopPaymentCategory;
   providerCategory: "cis" | "crypto";
   title: string;
-  subtitle: string;
   previewGradient: string;
-  logoUrls: string[];
+  logoUrl: string;
 };
 
 const SHOP_PAYMENT_SECTIONS: Array<{
@@ -249,7 +248,7 @@ const SHOP_PAYMENT_SECTIONS: Array<{
   {
     key: "crypto",
     title: "Криптовалюта",
-    description: "USDT, BTC и другие крипто-методы через FreeKassa.",
+    description: "USDT TRC20, ETH и TON через FreeKassa.",
   },
 ];
 
@@ -259,50 +258,65 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     category: "russia",
     providerCategory: "cis",
     title: "СБП",
-    subtitle: "Система быстрых платежей",
     previewGradient: "linear-gradient(135deg, rgba(45,95,196,0.95), rgba(47,132,242,0.85))",
-    logoUrls: [
+    logoUrl:
       "https://sbp.nspk.ru/storage/settings/common/logo/0645d335-8b62-43a1-9a33-0d4c9d1dc0e0.svg",
-    ],
   },
   {
     id: 4,
     category: "russia",
     providerCategory: "cis",
-    title: "Банковская карта",
-    subtitle: "VISA / MasterCard / МИР",
+    title: "Visa",
     previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
-    logoUrls: [
-      "https://cdn.simpleicons.org/visa/ffffff",
-      "https://cdn.simpleicons.org/mastercard/ffffff",
-    ],
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5c/Visa_Inc._logo_%282021%E2%80%93present%29.svg",
+  },
+  {
+    id: 4,
+    category: "russia",
+    providerCategory: "cis",
+    title: "Mastercard",
+    previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg",
+  },
+  {
+    id: 4,
+    category: "russia",
+    providerCategory: "cis",
+    title: "МИР",
+    previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Mir-logo.SVG.svg",
+  },
+  {
+    id: 7,
+    category: "russia",
+    providerCategory: "cis",
+    title: "ЮMoney",
+    previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5d/%D0%AEMoney.png",
   },
   {
     id: 15,
     category: "crypto",
     providerCategory: "crypto",
     title: "USDT TRC20",
-    subtitle: "Оплата в стейблкоине",
     previewGradient: "linear-gradient(135deg, rgba(7,124,93,0.95), rgba(6,87,69,0.9))",
-    logoUrls: ["https://cdn.simpleicons.org/tether/ffffff"],
-  },
-  {
-    id: 24,
-    category: "crypto",
-    providerCategory: "crypto",
-    title: "Bitcoin",
-    subtitle: "Оплата в BTC",
-    previewGradient: "linear-gradient(135deg, rgba(222,133,5,0.95), rgba(163,89,7,0.9))",
-    logoUrls: ["https://cdn.simpleicons.org/bitcoin/ffffff"],
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/7/73/Tether_Logo.svg",
   },
   {
     id: 26,
     category: "crypto",
     providerCategory: "crypto",
     title: "Ethereum",
-    subtitle: "Оплата в ETH",
     previewGradient: "linear-gradient(135deg, rgba(99,102,241,0.95), rgba(71,85,105,0.9))",
-    logoUrls: ["https://cdn.simpleicons.org/ethereum/ffffff"],
+    logoUrl: "https://cryptologos.cc/logos/versions/ethereum-eth-logo-full-horizontal.svg?v=041",
+  },
+  {
+    id: 39,
+    category: "crypto",
+    providerCategory: "crypto",
+    title: "TON",
+    previewGradient: "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(30,64,175,0.9))",
+    logoUrl: "https://genuine-amusement-abf8b52228.media.strapiapp.com/Logo_TON_color_06ebb7798e.svg",
   },
 ];
 const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
@@ -2783,6 +2797,15 @@ function localizeAuthError(message: string): string {
   if (normalized.includes("returned an error while creating payment")) {
     return "Платежный шлюз вернул ошибку при создании оплаты.";
   }
+  if (normalized.includes("merchant api key not exist")) {
+    return "На сервере указан неверный API-ключ кассы.";
+  }
+  if (normalized.includes("invalid merchant")) {
+    return "На сервере указан неверный ID кассы.";
+  }
+  if (normalized.includes("merchant is blocked")) {
+    return "Касса временно недоступна. Обратитесь в поддержку.";
+  }
   if (normalized.includes("did not return checkout url")) {
     return "Платежный шлюз не вернул ссылку на оплату.";
   }
@@ -3884,7 +3907,6 @@ export default function App() {
   const shopPaymentMethodsByCategory = useMemo(() => {
     return {
       russia: SHOP_PAYMENT_METHODS.filter((method) => method.category === "russia"),
-      europe: [] as ShopPaymentMethod[],
       crypto: SHOP_PAYMENT_METHODS.filter((method) => method.category === "crypto"),
     } satisfies Record<ShopPaymentCategory, ShopPaymentMethod[]>;
   }, []);
@@ -4099,7 +4121,7 @@ export default function App() {
       } catch (error) {
         const rawMessage = error instanceof Error ? String(error.message ?? "").trim() : "";
         const message = rawMessage || "Не удалось создать платеж. Попробуйте снова.";
-        setShopPaymentError(message);
+        setShopPaymentError(localizeAuthError(message));
       } finally {
         setShopPaymentLoading(false);
       }
@@ -12289,49 +12311,65 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="max-w-[1160px] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-3 [&>button]:top-3 [&>button]:z-40">
+              <DialogContent className="w-[min(1260px,calc(100vw-1rem))] sm:w-[min(1260px,calc(100vw-2rem))] max-h-[88vh] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-50">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
-                <div className="h-[72vh] px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
-                  <div className="grid h-full gap-4 lg:grid-cols-[330px_minmax(0,1fr)]">
-                    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
-                      <div className="p-4 sm:p-5">
+                <div className="h-[min(740px,88vh)] min-h-[460px] px-3 pb-3 pt-3 sm:px-4 sm:pb-4">
+                  <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[360px_minmax(0,1fr)]">
+                    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
+                      <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
                         <div className="mb-2 flex justify-center">
                           <Avatar
                             src={authUser?.avatar ?? sharedAvatar}
                             name={(authUser?.nickname ?? playerName) || "Игрок"}
-                            size={84}
+                            size={92}
                           />
                         </div>
                         <div className="text-center">
-                          <div className="text-lg font-semibold text-zinc-100">
+                          <div className="text-xl font-semibold text-zinc-100">
                             {((authUser?.nickname ?? playerName) || "Игрок").trim() || "Игрок"}
                           </div>
                           <div className="mt-1 text-sm text-zinc-400">Покупка подписки</div>
                         </div>
 
-                        <div className="mt-4 space-y-2 text-sm">
+                        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-zinc-500">Тип товара</span>
-                            <span className="font-medium text-zinc-100">Подписка</span>
                           </div>
+                          <span className="text-right font-medium text-zinc-100">Подписка</span>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-zinc-500">Тариф</span>
-                            <span className="font-medium text-zinc-100">
-                              {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
-                            </span>
                           </div>
+                          <span className="text-right font-medium text-zinc-100">
+                            {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
+                          </span>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-zinc-500">Период</span>
-                            <span className="font-medium text-zinc-100">
-                              {shopDuration === "1_year" ? "1 год" : "1 месяц"}
-                            </span>
+                          </div>
+                          <span className="text-right font-medium text-zinc-100">
+                            {shopDuration === "1_year" ? "1 год" : "1 месяц"}
+                          </span>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-zinc-500">Автопродление</span>
+                          </div>
+                          <span className="text-right font-medium text-zinc-100">Отключено</span>
+                        </div>
+
+                        <div className="space-y-2 text-xs leading-relaxed text-zinc-400">
+                          <div className="rounded-lg border border-zinc-700/70 bg-zinc-950/50 px-3 py-2">
+                            Подписка не продлевается автоматически. Продление выполняется вручную.
+                          </div>
+                          <div className="rounded-lg border border-zinc-700/70 bg-zinc-950/50 px-3 py-2">
+                            Доступ к функциям открывается сразу после успешной оплаты.
+                          </div>
+                          <div className="rounded-lg border border-zinc-700/70 bg-zinc-950/50 px-3 py-2">
+                            Оплата разовая, без скрытых списаний и автопродлений.
                           </div>
                         </div>
                       </div>
-                      <div className="border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(22,68,55,0.88),rgba(26,80,63,0.9))] px-4 py-3 sm:px-5">
+                      <div className="border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(22,68,55,0.88),rgba(26,80,63,0.9))] px-4 py-4 sm:px-5">
                         <div className="flex items-baseline justify-between gap-3">
                           <span className="text-base text-emerald-200">Сумма к оплате:</span>
                           <span className="text-2xl font-semibold text-emerald-100">{shopPaymentAmountRub} RUB</span>
@@ -12339,17 +12377,17 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div
-                      className={`h-full overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.55)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/60 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/75`}
-                    >
-                      <div className="space-y-2.5 pr-10 sm:pr-12">
+                    <div className="min-h-0 h-full rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-1">
+                      <div
+                        className="h-full overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.6)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/65 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/80"
+                      >
+                      <div className="space-y-3 px-2 pb-2 pr-9 sm:pr-10">
                         <div className="rounded-2xl border border-zinc-700/80 bg-zinc-900/70 px-4 py-2.5">
                           <div className="pr-2">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Оплата</div>
-                          <div className="mt-1 text-[30px] font-black uppercase leading-[1.03] text-zinc-100">
-                            Выберите способ оплаты
+                            <div className="text-[30px] font-black uppercase leading-[1.03] text-zinc-100">
+                              Выберите способ оплаты
+                            </div>
                           </div>
-                        </div>
                         </div>
 
                         {SHOP_PAYMENT_SECTIONS.map((section) => {
@@ -12359,47 +12397,36 @@ export default function App() {
                               key={`shop-payment-section-${section.key}`}
                               className="rounded-2xl border border-zinc-700/75 bg-zinc-900/70 p-2.5"
                             >
-                              <div className="mb-2">
-                                <div className="text-4xl font-black leading-none text-zinc-100">{section.title}</div>
-                                <div className="mt-1 text-sm leading-relaxed text-zinc-400">{section.description}</div>
+                              <div className="mb-3">
+                                <div className="text-[46px] font-black leading-[0.95] text-zinc-100">{section.title}</div>
+                                <div className="mt-2 text-sm leading-6 text-zinc-400">{section.description}</div>
                               </div>
 
-                              <div className="grid gap-2.5 sm:grid-cols-2">
+                              <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                                 {methods.map((method) => (
                                   <button
                                     key={`shop-payment-method-${method.category}-${method.id}`}
                                     type="button"
                                     disabled={shopPaymentLoading}
                                     onClick={() => void createShopPayment(method)}
-                                    className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2 text-left transition hover:border-red-400/55 hover:bg-zinc-900/90 disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2 transition hover:border-red-400/55 hover:bg-zinc-900/90 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
                                     <div
-                                      className="relative h-[88px] w-full overflow-hidden rounded-lg border border-zinc-600/70 px-3 py-2"
+                                      className="relative h-[90px] w-full overflow-hidden rounded-lg border border-zinc-600/70 px-3 py-2"
                                       style={{ backgroundImage: method.previewGradient }}
                                     >
                                       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_120%_at_0%_0%,rgba(255,255,255,0.2),transparent_55%)]" />
-                                      <div className="relative flex h-full items-center gap-2.5">
-                                        {method.logoUrls.slice(0, 2).map((logoUrl) => (
-                                          <span
-                                            key={`${method.id}-${logoUrl}`}
-                                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/30 bg-black/20 p-1.5"
-                                          >
-                                            <img
-                                              src={logoUrl}
-                                              alt={method.title}
-                                              className="h-full w-full object-contain"
-                                              loading="lazy"
-                                            />
-                                          </span>
-                                        ))}
-                                        <div className="min-w-0">
-                                          <div className="truncate text-[20px] font-black leading-[1.05] text-white">
-                                            {method.title}
-                                          </div>
-                                          <div className="truncate text-xs text-zinc-100/90">
-                                            {method.subtitle}
-                                          </div>
-                                        </div>
+                                      <div className="relative flex h-full items-center justify-center">
+                                        <img
+                                          src={method.logoUrl}
+                                          alt={method.title}
+                                          className={`w-auto object-contain ${
+                                            method.title === "СБП"
+                                              ? "max-h-[64px] max-w-[94%]"
+                                              : "max-h-[52px] max-w-[88%]"
+                                          }`}
+                                          loading="lazy"
+                                        />
                                       </div>
                                     </div>
                                   </button>
@@ -12417,6 +12444,7 @@ export default function App() {
                         {shopPaymentLoading && (
                           <div className="text-xs text-zinc-400">Создаем платеж, подождите…</div>
                         )}
+                      </div>
                       </div>
                     </div>
                   </div>

@@ -18,8 +18,8 @@ type PaidDuration = Extract<SubscriptionDuration, "1_month" | "1_year">;
 
 const PAID_TIERS = new Set<PaidTier>(["trainee", "practitioner", "arbiter"]);
 const PAID_DURATIONS = new Set<PaidDuration>(["1_month", "1_year"]);
-const CIS_METHOD_IDS = new Set<number>([4, 12, 36, 42, 44, 11, 7]);
-const CRYPTO_METHOD_IDS = new Set<number>([14, 15, 17, 19, 23, 24, 25, 26, 34, 39]);
+const CIS_METHOD_IDS = new Set<number>([4, 7, 42]);
+const CRYPTO_METHOD_IDS = new Set<number>([15, 26, 39]);
 
 const PRICE_MATRIX_RUB: Record<PaidTier, Record<PaidDuration, number>> = {
   trainee: { "1_month": 250, "1_year": 2500 },
@@ -68,16 +68,25 @@ function readFreeKassaConfig() {
     process.env.FREEKASSA_SHOP_ID ??
       process.env.FREEKASSA_MERCHANT_ID ??
       process.env.FREEKASSA_MERCHANTID ??
+      process.env.FREEKASSA_MERCHANT ??
+      process.env.FREEKASSA_ID ??
       process.env.FREEKASSA_SHOPID ??
       process.env.FREEKASSA_CASHBOX_ID ??
+      process.env.FK_MERCHANT_ID ??
+      process.env.FK_SHOP_ID ??
       "",
   ).trim();
   const secret1 = String(
     process.env.FREEKASSA_SECRET_WORD_1 ??
       process.env.FREEKASSA_SECRET_WORD1 ??
+      process.env.FREEKASSA_SECRET_WORD ??
       process.env.FREEKASSA_SECRET_1 ??
       process.env.FREEKASSA_SECRET1 ??
       process.env.FREEKASSA_CASHBOX_SECRET_1 ??
+      process.env.FREEKASSA_PASSWORD_1 ??
+      process.env.FREEKASSA_PASSWORD1 ??
+      process.env.FK_SECRET_1 ??
+      process.env.FK_SECRET1 ??
       "",
   ).trim();
   const apiKey = String(
@@ -86,10 +95,21 @@ function readFreeKassaConfig() {
       process.env.FREEKASSA_CASHBOX_API_KEY ??
       process.env.FREEKASSA_CASHBOX_APIKEY ??
       process.env.FREEKASSA_CASH_API_KEY ??
+      process.env.FREEKASSA_MERCHANT_API_KEY ??
+      process.env.FREEKASSA_APIKEY ??
+      process.env.FREEKASSA_CASHBOX_KEY ??
+      process.env.FK_API_KEY ??
       "",
   ).trim();
   const secret2 = String(
-    process.env.FREEKASSA_SECRET_WORD_2 ?? process.env.FREEKASSA_SECRET2 ?? "",
+    process.env.FREEKASSA_SECRET_WORD_2 ??
+      process.env.FREEKASSA_SECRET2 ??
+      process.env.FREEKASSA_SECRET_WORD_2_ALT ??
+      process.env.FREEKASSA_PASSWORD_2 ??
+      process.env.FREEKASSA_PASSWORD2 ??
+      process.env.FK_SECRET_2 ??
+      process.env.FK_SECRET2 ??
+      "",
   ).trim();
   const publicAppUrl = String(process.env.PUBLIC_APP_URL ?? "").trim();
   return { shopId, secret1, apiKey, secret2, publicAppUrl };
@@ -253,9 +273,7 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
     checkout.searchParams.set("s", signature);
     checkout.searchParams.set("currency", currency);
     checkout.searchParams.set("lang", "ru");
-    if (region === "cis") {
-      checkout.searchParams.set("i", String(methodId));
-    }
+    checkout.searchParams.set("i", String(methodId));
     checkout.searchParams.set("em", user.email);
     checkout.searchParams.set("us_userId", user.id);
     checkout.searchParams.set("us_tier", paidTier);
