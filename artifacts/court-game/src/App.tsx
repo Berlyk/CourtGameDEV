@@ -260,7 +260,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "СБП",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(75,140,255,0.34), rgba(75,140,255,0.02) 62%)",
     logoUrl:
-      "https://sbp.nspk.ru/storage/settings/common/logo/0645d335-8b62-43a1-9a33-0d4c9d1dc0e0.svg",
+      "https://gist.githubusercontent.com/PonomareVlad/e901e3e50e7b1c1b80c2f05f7b968758/raw/1abed6186b7c7a69ea5f4d284d2e767a9245650b/SBP.svg",
   },
   {
     id: 4,
@@ -271,15 +271,15 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5c/Visa_Inc._logo_%282021%E2%80%93present%29.svg",
   },
   {
-    id: 4,
+    id: 8,
     category: "russia",
     providerCategory: "cis",
     title: "Mastercard",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(244,119,41,0.30), rgba(244,119,41,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard_2019_logo.svg",
   },
   {
-    id: 4,
+    id: 12,
     category: "russia",
     providerCategory: "cis",
     title: "МИР",
@@ -287,20 +287,12 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Mir-logo.SVG.svg",
   },
   {
-    id: 7,
-    category: "russia",
-    providerCategory: "cis",
-    title: "ЮMoney",
-    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(146,78,255,0.32), rgba(146,78,255,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5d/%D0%AEMoney.png",
-  },
-  {
     id: 15,
     category: "crypto",
     providerCategory: "crypto",
     title: "USDT TRC20",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(29,184,146,0.34), rgba(29,184,146,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/7/73/Tether_Logo.svg",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/01/USDT_Logo.png",
   },
   {
     id: 26,
@@ -311,12 +303,12 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Ethereum-icon-purple.svg",
   },
   {
-    id: 39,
+    id: 41,
     category: "crypto",
     providerCategory: "crypto",
     title: "TON",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(59,130,246,0.34), rgba(59,130,246,0.02) 62%)",
-    logoUrl: "https://genuine-amusement-abf8b52228.media.strapiapp.com/Logo_TON_color_06ebb7798e.svg",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/0b/Gram_cryptocurrency_logo.svg",
   },
 ];
 const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
@@ -12311,7 +12303,7 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[1180px] h-[min(88vh,740px)] overflow-hidden border-zinc-800/90 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(127,29,29,0.28),transparent_52%),linear-gradient(165deg,rgba(10,10,14,0.98),rgba(8,8,11,0.98))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-50">
+              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[1180px] h-[min(88vh,740px)] overflow-hidden border-zinc-800/90 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(127,29,29,0.28),transparent_52%),linear-gradient(165deg,rgba(10,10,14,0.98),rgba(8,8,11,0.98))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-50 [&>button]:h-7 [&>button]:w-7 [&>button_svg]:h-3 [&>button_svg]:w-3">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
@@ -12335,23 +12327,23 @@ export default function App() {
                           <div className="mt-1 text-base text-zinc-400">Покупка подписки</div>
                         </div>
 
-                        <div className="rounded-2xl bg-zinc-950/45 px-4 py-3">
-                          <div className="space-y-1.5 text-base text-zinc-300">
-                            <div className="flex items-center justify-between gap-2 py-2">
+                        <div className="rounded-2xl bg-zinc-950/45 px-4 py-4">
+                          <div className="mx-auto w-full max-w-[540px] space-y-2 text-base text-zinc-300">
+                            <div className="grid grid-cols-[130px_minmax(0,1fr)] items-center gap-3 py-1.5">
                               <span className="text-zinc-500">Тип товара</span>
                               <span className="font-semibold text-zinc-100">Подписка</span>
                             </div>
-                            <div className="flex items-center justify-between gap-2 py-2">
+                            <div className="grid grid-cols-[130px_minmax(0,1fr)] items-center gap-3 py-1.5">
                               <span className="text-zinc-500">Тариф</span>
                               <span className="font-semibold text-zinc-100">
                                 {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
                               </span>
                             </div>
-                            <div className="flex items-center justify-between gap-2 py-2">
+                            <div className="grid grid-cols-[130px_minmax(0,1fr)] items-center gap-3 py-1.5">
                               <span className="text-zinc-500">Период</span>
                               <span className="font-semibold text-zinc-100">{shopDuration === "1_year" ? "1 год" : "1 месяц"}</span>
                             </div>
-                            <div className="flex items-center justify-between gap-2 py-2">
+                            <div className="grid grid-cols-[130px_minmax(0,1fr)] items-center gap-3 py-1.5">
                               <span className="text-zinc-500">Автопродление</span>
                               <span className="font-semibold text-zinc-100">Нет</span>
                             </div>
@@ -12408,6 +12400,8 @@ export default function App() {
                                                 className={`h-auto w-auto object-contain ${
                                                   method.title === "СБП"
                                                     ? "max-h-[74px] max-w-[95%]"
+                                                    : method.title === "Ethereum"
+                                                      ? "max-h-[76px] max-w-[94%]"
                                                     : "max-h-[60px] max-w-[88%]"
                                                 }`}
                                                 loading="lazy"

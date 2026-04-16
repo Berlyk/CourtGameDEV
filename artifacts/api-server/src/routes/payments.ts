@@ -18,8 +18,8 @@ type PaidDuration = Extract<SubscriptionDuration, "1_month" | "1_year">;
 
 const PAID_TIERS = new Set<PaidTier>(["trainee", "practitioner", "arbiter"]);
 const PAID_DURATIONS = new Set<PaidDuration>(["1_month", "1_year"]);
-const CIS_METHOD_IDS = new Set<number>([4, 7, 42]);
-const CRYPTO_METHOD_IDS = new Set<number>([15, 26, 39]);
+const CIS_METHOD_IDS = new Set<number>([4, 8, 12, 42]);
+const CRYPTO_METHOD_IDS = new Set<number>([15, 26, 41]);
 
 const PRICE_MATRIX_RUB: Record<PaidTier, Record<PaidDuration, number>> = {
   trainee: { "1_month": 250, "1_year": 2500 },
