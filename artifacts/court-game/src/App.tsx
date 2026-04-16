@@ -12311,63 +12311,67 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[1180px] h-[min(88vh,740px)] overflow-hidden border-zinc-800/90 bg-[#080a11] p-0 text-zinc-100 [&>button]:right-3 [&>button]:top-3 [&>button]:z-50">
+              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[1180px] h-[min(88vh,740px)] overflow-hidden border-zinc-800/90 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(127,29,29,0.28),transparent_52%),linear-gradient(165deg,rgba(10,10,14,0.98),rgba(8,8,11,0.98))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-50">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
                 <div className="relative flex h-full min-h-0 flex-col p-3 sm:p-5">
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(78%_68%_at_0%_0%,rgba(239,68,68,0.24),transparent_62%),radial-gradient(64%_58%_at_100%_100%,rgba(37,99,235,0.22),transparent_60%)]" />
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(72%_66%_at_0%_0%,rgba(220,38,38,0.2),transparent_62%),radial-gradient(55%_52%_at_100%_100%,rgba(120,53,15,0.12),transparent_60%)]" />
                   <div className="relative flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
-                    <div className="rounded-[24px] border border-zinc-700/80 bg-[linear-gradient(140deg,rgba(20,22,32,0.95),rgba(12,14,22,0.94))] p-3 sm:p-4">
-                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(180px,230px)]">
-                        <div className="flex items-center gap-3 rounded-2xl border border-zinc-700/70 bg-zinc-950/45 px-3 py-3">
-                          <Avatar
-                            src={authUser?.avatar ?? sharedAvatar}
-                            name={(authUser?.nickname ?? playerName) || "Игрок"}
-                            size={52}
-                          />
-                          <div className="min-w-0">
-                            <div className="truncate text-xl font-semibold text-zinc-100">
-                              {((authUser?.nickname ?? playerName) || "Игрок").trim() || "Игрок"}
+                    <div className="rounded-[24px] border border-zinc-700/75 bg-[linear-gradient(150deg,rgba(17,18,25,0.95),rgba(10,10,15,0.95))] p-3 sm:p-4">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(190px,230px)]">
+                        <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/55 px-4 py-5 text-center">
+                          <div className="flex justify-center">
+                            <Avatar
+                              src={authUser?.avatar ?? sharedAvatar}
+                              name={(authUser?.nickname ?? playerName) || "Игрок"}
+                              size={88}
+                            />
+                          </div>
+                          <div className="mt-3 truncate text-3xl font-semibold text-zinc-100">
+                            {((authUser?.nickname ?? playerName) || "Игрок").trim() || "Игрок"}
+                          </div>
+                          <div className="mt-1 text-base text-zinc-400">Покупка подписки</div>
+                        </div>
+
+                        <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/55 px-4 py-3">
+                          <div className="grid gap-x-6 gap-y-2.5 text-base text-zinc-300 sm:grid-cols-2">
+                            <div className="flex items-center justify-between gap-2 border-b border-zinc-800/70 py-2.5 sm:col-span-2">
+                              <span className="text-zinc-500">Тип товара</span>
+                              <span className="font-semibold text-zinc-100">Подписка</span>
                             </div>
-                            <div className="mt-0.5 text-sm text-zinc-400">Покупка подписки</div>
+                            <div className="flex items-center justify-between gap-2 border-b border-zinc-800/70 py-2.5">
+                              <span className="text-zinc-500">Тариф</span>
+                              <span className="font-semibold text-zinc-100">
+                                {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 border-b border-zinc-800/70 py-2.5">
+                              <span className="text-zinc-500">Период</span>
+                              <span className="font-semibold text-zinc-100">{shopDuration === "1_year" ? "1 год" : "1 месяц"}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 py-2.5 sm:col-span-2">
+                              <span className="text-zinc-500">Автопродление</span>
+                              <span className="font-semibold text-zinc-100">Нет</span>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="grid gap-2 rounded-2xl border border-zinc-700/70 bg-zinc-950/45 p-3 text-sm sm:grid-cols-2">
-                          <div className="rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Тип товара</div>
-                            <div className="mt-1 font-semibold text-zinc-100">Подписка</div>
+                        <div className="flex items-center justify-center rounded-2xl border border-red-500/40 bg-[linear-gradient(145deg,rgba(127,29,29,0.9),rgba(153,27,27,0.82))] px-4 py-4 text-center text-red-50">
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.16em] text-red-100/90">К оплате</div>
+                            <div className="mt-2 text-5xl font-semibold leading-none">{shopPaymentAmountRub}</div>
+                            <div className="mt-1 text-lg font-semibold text-red-100/95">RUB</div>
                           </div>
-                          <div className="rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Тариф</div>
-                            <div className="mt-1 font-semibold text-zinc-100">
-                              {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
-                            </div>
-                          </div>
-                          <div className="rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Период</div>
-                            <div className="mt-1 font-semibold text-zinc-100">{shopDuration === "1_year" ? "1 год" : "1 месяц"}</div>
-                          </div>
-                          <div className="rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Автопродление</div>
-                            <div className="mt-1 font-semibold text-zinc-100">Нет</div>
-                          </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-emerald-600/45 bg-[linear-gradient(145deg,rgba(10,56,46,0.92),rgba(20,102,80,0.9))] px-4 py-3 text-emerald-50">
-                          <div className="text-[11px] uppercase tracking-[0.16em] text-emerald-100/90">К оплате</div>
-                          <div className="mt-2 text-4xl font-semibold leading-none">{shopPaymentAmountRub}</div>
-                          <div className="mt-1 text-base font-medium text-emerald-100/90">RUB</div>
                         </div>
                       </div>
                     </div>
 
-                    <section className="min-h-0 flex-1 rounded-[24px] border border-zinc-700/80 bg-[linear-gradient(180deg,rgba(22,24,36,0.9),rgba(10,12,19,0.93))] p-3 sm:p-4">
+                    <section className="min-h-0 flex-1 rounded-[24px] border border-zinc-700/80 bg-[linear-gradient(180deg,rgba(20,21,31,0.9),rgba(9,9,14,0.94))] p-3 sm:p-4">
                       <div className="flex h-full min-h-0 flex-col">
                         <header className="rounded-2xl border border-zinc-700/75 bg-zinc-950/50 px-4 py-3">
-                          <h2 className="text-3xl font-black uppercase tracking-[0.02em] text-zinc-100">
+                          <h2 className="text-center text-3xl font-black uppercase tracking-[0.02em] text-zinc-100">
                             Выберите способ оплаты
                           </h2>
                         </header>
@@ -12376,14 +12380,10 @@ export default function App() {
                           <div className="space-y-4 pb-1">
                             {SHOP_PAYMENT_SECTIONS.map((section) => {
                               const methods = shopPaymentMethodsByCategory[section.key];
-                              const sectionTone =
-                                section.key === "russia"
-                                  ? "bg-[linear-gradient(145deg,rgba(30,38,56,0.5),rgba(16,20,31,0.85))] border-blue-500/20"
-                                  : "bg-[linear-gradient(145deg,rgba(36,35,53,0.5),rgba(16,15,26,0.85))] border-violet-500/20";
                               return (
                                 <div
                                   key={`shop-payment-section-${section.key}`}
-                                  className={`overflow-hidden rounded-2xl border ${sectionTone}`}
+                                  className="overflow-hidden rounded-2xl border border-zinc-700/75 bg-zinc-950/55"
                                 >
                                   <div className="border-b border-zinc-700/70 px-4 py-3 sm:px-5">
                                     <h3 className="text-4xl font-black leading-none text-zinc-100">{section.title}</h3>
@@ -12398,14 +12398,11 @@ export default function App() {
                                           type="button"
                                           disabled={shopPaymentLoading}
                                           onClick={() => void createShopPayment(method)}
-                                          className="group relative overflow-hidden rounded-2xl border border-zinc-700/75 bg-[linear-gradient(145deg,rgba(18,20,31,0.88),rgba(8,10,16,0.93))] p-3 transition duration-200 hover:-translate-y-[1px] hover:border-red-400/45 hover:shadow-[0_10px_24px_rgba(0,0,0,0.35)] disabled:cursor-not-allowed disabled:opacity-60"
+                                          className="group relative overflow-hidden rounded-2xl border border-zinc-700/75 bg-[linear-gradient(145deg,rgba(17,18,28,0.92),rgba(8,8,12,0.95))] p-3 transition duration-200 hover:-translate-y-[1px] hover:border-red-400/45 hover:shadow-[0_10px_24px_rgba(0,0,0,0.35)] disabled:cursor-not-allowed disabled:opacity-60"
                                         >
-                                          <div
-                                            className="pointer-events-none absolute inset-0 opacity-[0.46] transition duration-200 group-hover:opacity-[0.72]"
-                                            style={{ backgroundImage: method.previewGradient }}
-                                          />
-                                          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,10,16,0.24),rgba(8,10,16,0.62))]" />
-                                          <div className="relative flex h-full min-h-[116px] flex-col rounded-xl border border-zinc-600/45 bg-zinc-950/45 p-3">
+                                          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(100%_120%_at_0%_0%,rgba(220,38,38,0.14),transparent_60%)] opacity-[0.7] transition duration-200 group-hover:opacity-100" />
+                                          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,8,12,0.26),rgba(8,8,12,0.56))]" />
+                                          <div className="relative flex h-full min-h-[116px] items-center justify-center rounded-xl border border-zinc-600/45 bg-zinc-950/45 p-3">
                                             <div className="flex flex-1 items-center justify-center">
                                               <img
                                                 src={method.logoUrl}
@@ -12418,8 +12415,8 @@ export default function App() {
                                                 loading="lazy"
                                               />
                                             </div>
-                                            <div className="pt-2 text-center text-sm font-semibold text-zinc-100">{method.title}</div>
                                           </div>
+                                          <span className="sr-only">{method.title}</span>
                                         </button>
                                       ))}
                                     </div>
