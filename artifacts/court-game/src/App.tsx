@@ -12317,11 +12317,11 @@ export default function App() {
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
                 <div className="relative flex h-full min-h-0 flex-col p-3 sm:p-5">
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(72%_66%_at_0%_0%,rgba(220,38,38,0.2),transparent_62%),radial-gradient(55%_52%_at_100%_100%,rgba(120,53,15,0.12),transparent_60%)]" />
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(72%_66%_at_0%_0%,rgba(220,38,38,0.2),transparent_62%)]" />
                   <div className="relative flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
-                    <div className="rounded-[24px] border border-zinc-700/75 bg-[linear-gradient(150deg,rgba(17,18,25,0.95),rgba(10,10,15,0.95))] p-3 sm:p-4">
+                    <div className="rounded-[24px] border border-zinc-800/80 bg-[linear-gradient(150deg,rgba(13,13,18,0.96),rgba(8,8,11,0.98))] p-3 sm:p-4">
                       <div className="grid gap-3 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(190px,230px)]">
-                        <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/55 px-4 py-5 text-center">
+                        <div className="rounded-2xl bg-zinc-950/45 px-4 py-5 text-center">
                           <div className="flex justify-center">
                             <Avatar
                               src={authUser?.avatar ?? sharedAvatar}
@@ -12335,23 +12335,23 @@ export default function App() {
                           <div className="mt-1 text-base text-zinc-400">Покупка подписки</div>
                         </div>
 
-                        <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/55 px-4 py-3">
-                          <div className="grid gap-x-6 gap-y-2.5 text-base text-zinc-300 sm:grid-cols-2">
-                            <div className="flex items-center justify-between gap-2 border-b border-zinc-800/70 py-2.5 sm:col-span-2">
+                        <div className="rounded-2xl bg-zinc-950/45 px-4 py-3">
+                          <div className="space-y-1.5 text-base text-zinc-300">
+                            <div className="flex items-center justify-between gap-2 py-2">
                               <span className="text-zinc-500">Тип товара</span>
                               <span className="font-semibold text-zinc-100">Подписка</span>
                             </div>
-                            <div className="flex items-center justify-between gap-2 border-b border-zinc-800/70 py-2.5">
+                            <div className="flex items-center justify-between gap-2 py-2">
                               <span className="text-zinc-500">Тариф</span>
                               <span className="font-semibold text-zinc-100">
                                 {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
                               </span>
                             </div>
-                            <div className="flex items-center justify-between gap-2 border-b border-zinc-800/70 py-2.5">
+                            <div className="flex items-center justify-between gap-2 py-2">
                               <span className="text-zinc-500">Период</span>
                               <span className="font-semibold text-zinc-100">{shopDuration === "1_year" ? "1 год" : "1 месяц"}</span>
                             </div>
-                            <div className="flex items-center justify-between gap-2 py-2.5 sm:col-span-2">
+                            <div className="flex items-center justify-between gap-2 py-2">
                               <span className="text-zinc-500">Автопродление</span>
                               <span className="font-semibold text-zinc-100">Нет</span>
                             </div>
@@ -12360,32 +12360,31 @@ export default function App() {
 
                         <div className="flex items-center justify-center rounded-2xl border border-red-500/40 bg-[linear-gradient(145deg,rgba(127,29,29,0.9),rgba(153,27,27,0.82))] px-4 py-4 text-center text-red-50">
                           <div>
-                            <div className="text-xs uppercase tracking-[0.16em] text-red-100/90">К оплате</div>
-                            <div className="mt-2 text-5xl font-semibold leading-none">{shopPaymentAmountRub}</div>
-                            <div className="mt-1 text-lg font-semibold text-red-100/95">RUB</div>
+                            <div className="text-sm uppercase tracking-[0.18em] text-red-100/90">К оплате</div>
+                            <div className="mt-2 text-6xl font-semibold leading-none">{shopPaymentAmountRub}</div>
+                            <div className="mt-2 text-2xl font-semibold text-red-100/95">RUB</div>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <section className="min-h-0 flex-1 rounded-[24px] border border-zinc-700/80 bg-[linear-gradient(180deg,rgba(20,21,31,0.9),rgba(9,9,14,0.94))] p-3 sm:p-4">
+                    <section className="min-h-0 flex-1 rounded-[24px] border border-zinc-800/80 bg-[linear-gradient(180deg,rgba(14,14,20,0.95),rgba(8,8,11,0.98))] p-3 sm:p-4">
                       <div className="flex h-full min-h-0 flex-col">
-                        <header className="rounded-2xl border border-zinc-700/75 bg-zinc-950/50 px-4 py-3">
-                          <h2 className="text-center text-3xl font-black uppercase tracking-[0.02em] text-zinc-100">
-                            Выберите способ оплаты
-                          </h2>
-                        </header>
-
-                        <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.65)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/70 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/90">
+                        <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.65)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/70 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/90">
                           <div className="space-y-4 pb-1">
+                            <header className="rounded-2xl bg-zinc-950/55 px-4 py-3">
+                              <h2 className="text-center text-3xl font-black uppercase tracking-[0.02em] text-zinc-100">
+                                Выберите способ оплаты
+                              </h2>
+                            </header>
                             {SHOP_PAYMENT_SECTIONS.map((section) => {
                               const methods = shopPaymentMethodsByCategory[section.key];
                               return (
                                 <div
                                   key={`shop-payment-section-${section.key}`}
-                                  className="overflow-hidden rounded-2xl border border-zinc-700/75 bg-zinc-950/55"
+                                  className="overflow-hidden rounded-2xl bg-zinc-950/45"
                                 >
-                                  <div className="border-b border-zinc-700/70 px-4 py-3 sm:px-5">
+                                  <div className="px-4 py-3 sm:px-5">
                                     <h3 className="text-4xl font-black leading-none text-zinc-100">{section.title}</h3>
                                     <div className="mt-2 text-sm leading-6 text-zinc-400">{section.description}</div>
                                   </div>
@@ -12398,11 +12397,10 @@ export default function App() {
                                           type="button"
                                           disabled={shopPaymentLoading}
                                           onClick={() => void createShopPayment(method)}
-                                          className="group relative overflow-hidden rounded-2xl border border-zinc-700/75 bg-[linear-gradient(145deg,rgba(17,18,28,0.92),rgba(8,8,12,0.95))] p-3 transition duration-200 hover:-translate-y-[1px] hover:border-red-400/45 hover:shadow-[0_10px_24px_rgba(0,0,0,0.35)] disabled:cursor-not-allowed disabled:opacity-60"
+                                          className="group relative overflow-hidden rounded-2xl bg-zinc-900/85 p-3 transition duration-200 hover:-translate-y-[1px] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
-                                          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(100%_120%_at_0%_0%,rgba(220,38,38,0.14),transparent_60%)] opacity-[0.7] transition duration-200 group-hover:opacity-100" />
-                                          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,8,12,0.26),rgba(8,8,12,0.56))]" />
-                                          <div className="relative flex h-full min-h-[116px] items-center justify-center rounded-xl border border-zinc-600/45 bg-zinc-950/45 p-3">
+                                          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_90%_at_0%_0%,rgba(220,38,38,0.12),transparent_70%)]" />
+                                          <div className="relative flex h-full min-h-[116px] items-center justify-center rounded-xl bg-zinc-950/50 p-3">
                                             <div className="flex flex-1 items-center justify-center">
                                               <img
                                                 src={method.logoUrl}
