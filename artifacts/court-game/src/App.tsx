@@ -12311,119 +12311,132 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] lg:w-[calc(100vw-3rem)] max-w-[1240px] h-[min(88vh,760px)] overflow-hidden border-zinc-700/80 bg-[radial-gradient(120%_140%_at_0%_0%,rgba(239,68,68,0.20),transparent_52%),radial-gradient(120%_120%_at_100%_0%,rgba(59,130,246,0.16),transparent_48%),linear-gradient(165deg,rgba(11,12,19,0.98),rgba(9,10,16,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-50">
+              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[1180px] h-[min(88vh,740px)] overflow-hidden border-zinc-800/90 bg-[#080a11] p-0 text-zinc-100 [&>button]:right-3 [&>button]:top-3 [&>button]:z-50">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
-                <div className="h-full p-3 sm:p-4">
-                  <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[310px_minmax(0,1fr)]">
-                    <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-zinc-700/80 bg-[linear-gradient(180deg,rgba(25,26,36,0.9),rgba(14,15,22,0.95))]">
-                      <div className="p-4 sm:p-5">
-                        <div className="flex items-center gap-3">
+                <div className="relative flex h-full min-h-0 flex-col p-3 sm:p-5">
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(78%_68%_at_0%_0%,rgba(239,68,68,0.24),transparent_62%),radial-gradient(64%_58%_at_100%_100%,rgba(37,99,235,0.22),transparent_60%)]" />
+                  <div className="relative flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
+                    <div className="rounded-[24px] border border-zinc-700/80 bg-[linear-gradient(140deg,rgba(20,22,32,0.95),rgba(12,14,22,0.94))] p-3 sm:p-4">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(180px,230px)]">
+                        <div className="flex items-center gap-3 rounded-2xl border border-zinc-700/70 bg-zinc-950/45 px-3 py-3">
                           <Avatar
                             src={authUser?.avatar ?? sharedAvatar}
                             name={(authUser?.nickname ?? playerName) || "Игрок"}
-                            size={64}
+                            size={52}
                           />
                           <div className="min-w-0">
-                            <div className="truncate text-lg font-semibold text-zinc-100">
+                            <div className="truncate text-xl font-semibold text-zinc-100">
                               {((authUser?.nickname ?? playerName) || "Игрок").trim() || "Игрок"}
                             </div>
-                            <div className="text-xs text-zinc-400">Покупка подписки</div>
+                            <div className="mt-0.5 text-sm text-zinc-400">Покупка подписки</div>
                           </div>
                         </div>
-                        <div className="mt-5 space-y-3 text-sm">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-zinc-500">Тип товара</span>
-                            <span className="font-medium text-zinc-100">Подписка</span>
+
+                        <div className="grid gap-2 rounded-2xl border border-zinc-700/70 bg-zinc-950/45 p-3 text-sm sm:grid-cols-2">
+                          <div className="rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2">
+                            <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Тип товара</div>
+                            <div className="mt-1 font-semibold text-zinc-100">Подписка</div>
                           </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-zinc-500">Тариф</span>
-                            <span className="font-medium text-zinc-100">
+                          <div className="rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2">
+                            <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Тариф</div>
+                            <div className="mt-1 font-semibold text-zinc-100">
                               {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-zinc-500">Период</span>
-                            <span className="font-medium text-zinc-100">
-                              {shopDuration === "1_year" ? "1 год" : "1 месяц"}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-zinc-500">Автопродление</span>
-                            <span className="font-medium text-zinc-100">Нет</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-auto border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(17,73,58,0.95),rgba(26,96,74,0.94))] px-4 py-4 sm:px-5">
-                        <div className="flex items-end justify-between gap-3">
-                          <span className="text-sm text-emerald-100/90">Сумма к оплате</span>
-                          <span className="text-3xl font-semibold leading-none text-emerald-100">{shopPaymentAmountRub}</span>
-                        </div>
-                        <div className="mt-1 text-right text-sm font-medium text-emerald-200/95">RUB</div>
-                      </div>
-                    </aside>
-
-                    <section className="min-h-0 rounded-[24px] border border-zinc-700/70 bg-[linear-gradient(180deg,rgba(23,24,34,0.8),rgba(14,15,23,0.82))] p-3 sm:p-4">
-                      <div className="h-full overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.58)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/65 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/80">
-                        <div className="space-y-4 pr-8 sm:pr-10">
-                          <div className="rounded-2xl border border-zinc-700/80 bg-zinc-900/55 px-4 py-3">
-                            <div className="text-3xl font-black uppercase tracking-[0.01em] text-zinc-100">
-                              Выберите способ оплаты
                             </div>
                           </div>
+                          <div className="rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2">
+                            <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Период</div>
+                            <div className="mt-1 font-semibold text-zinc-100">{shopDuration === "1_year" ? "1 год" : "1 месяц"}</div>
+                          </div>
+                          <div className="rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2">
+                            <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Автопродление</div>
+                            <div className="mt-1 font-semibold text-zinc-100">Нет</div>
+                          </div>
+                        </div>
 
-                          {SHOP_PAYMENT_SECTIONS.map((section) => {
-                            const methods = shopPaymentMethodsByCategory[section.key];
-                            return (
-                              <div
-                                key={`shop-payment-section-${section.key}`}
-                                className="rounded-2xl border border-zinc-700/75 bg-zinc-900/55 p-3"
-                              >
-                                <div className="mb-3">
-                                  <div className="text-5xl font-black leading-[0.92] text-zinc-100">{section.title}</div>
-                                  <div className="mt-2 text-sm leading-6 text-zinc-400">{section.description}</div>
-                                </div>
+                        <div className="rounded-2xl border border-emerald-600/45 bg-[linear-gradient(145deg,rgba(10,56,46,0.92),rgba(20,102,80,0.9))] px-4 py-3 text-emerald-50">
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-emerald-100/90">К оплате</div>
+                          <div className="mt-2 text-4xl font-semibold leading-none">{shopPaymentAmountRub}</div>
+                          <div className="mt-1 text-base font-medium text-emerald-100/90">RUB</div>
+                        </div>
+                      </div>
+                    </div>
 
-                                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                  {methods.map((method) => (
-                                    <button
-                                      key={`shop-payment-method-${method.category}-${method.id}`}
-                                      type="button"
-                                      disabled={shopPaymentLoading}
-                                      onClick={() => void createShopPayment(method)}
-                                      className="group relative overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-950/72 p-2 transition duration-200 hover:-translate-y-[1px] hover:border-red-400/45 hover:shadow-[0_8px_24px_rgba(0,0,0,0.34)] disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                      <div className="absolute inset-0 opacity-[0.55] transition duration-200 group-hover:opacity-[0.78]" style={{ backgroundImage: method.previewGradient }} />
-                                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(16,17,24,0.55),rgba(9,10,16,0.72))]" />
-                                      <div className="relative flex h-[96px] items-center justify-center rounded-xl border border-white/10 bg-black/15">
-                                        <img
-                                          src={method.logoUrl}
-                                          alt={method.title}
-                                          className={`w-auto object-contain ${
-                                            method.title === "СБП"
-                                              ? "max-h-[70px] max-w-[95%]"
-                                              : "max-h-[56px] max-w-[88%]"
-                                          }`}
-                                          loading="lazy"
-                                        />
-                                      </div>
-                                    </button>
-                                  ))}
+                    <section className="min-h-0 flex-1 rounded-[24px] border border-zinc-700/80 bg-[linear-gradient(180deg,rgba(22,24,36,0.9),rgba(10,12,19,0.93))] p-3 sm:p-4">
+                      <div className="flex h-full min-h-0 flex-col">
+                        <header className="rounded-2xl border border-zinc-700/75 bg-zinc-950/50 px-4 py-3">
+                          <h2 className="text-3xl font-black uppercase tracking-[0.02em] text-zinc-100">
+                            Выберите способ оплаты
+                          </h2>
+                        </header>
+
+                        <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.65)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/70 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/90">
+                          <div className="space-y-4 pb-1">
+                            {SHOP_PAYMENT_SECTIONS.map((section) => {
+                              const methods = shopPaymentMethodsByCategory[section.key];
+                              const sectionTone =
+                                section.key === "russia"
+                                  ? "bg-[linear-gradient(145deg,rgba(30,38,56,0.5),rgba(16,20,31,0.85))] border-blue-500/20"
+                                  : "bg-[linear-gradient(145deg,rgba(36,35,53,0.5),rgba(16,15,26,0.85))] border-violet-500/20";
+                              return (
+                                <div
+                                  key={`shop-payment-section-${section.key}`}
+                                  className={`overflow-hidden rounded-2xl border ${sectionTone}`}
+                                >
+                                  <div className="border-b border-zinc-700/70 px-4 py-3 sm:px-5">
+                                    <h3 className="text-4xl font-black leading-none text-zinc-100">{section.title}</h3>
+                                    <div className="mt-2 text-sm leading-6 text-zinc-400">{section.description}</div>
+                                  </div>
+
+                                  <div className="p-3 sm:p-4">
+                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                      {methods.map((method) => (
+                                        <button
+                                          key={`shop-payment-method-${method.category}-${method.id}-${method.title}`}
+                                          type="button"
+                                          disabled={shopPaymentLoading}
+                                          onClick={() => void createShopPayment(method)}
+                                          className="group relative overflow-hidden rounded-2xl border border-zinc-700/75 bg-[linear-gradient(145deg,rgba(18,20,31,0.88),rgba(8,10,16,0.93))] p-3 transition duration-200 hover:-translate-y-[1px] hover:border-red-400/45 hover:shadow-[0_10px_24px_rgba(0,0,0,0.35)] disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          <div
+                                            className="pointer-events-none absolute inset-0 opacity-[0.46] transition duration-200 group-hover:opacity-[0.72]"
+                                            style={{ backgroundImage: method.previewGradient }}
+                                          />
+                                          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,10,16,0.24),rgba(8,10,16,0.62))]" />
+                                          <div className="relative flex h-full min-h-[116px] flex-col rounded-xl border border-zinc-600/45 bg-zinc-950/45 p-3">
+                                            <div className="flex flex-1 items-center justify-center">
+                                              <img
+                                                src={method.logoUrl}
+                                                alt={method.title}
+                                                className={`h-auto w-auto object-contain ${
+                                                  method.title === "СБП"
+                                                    ? "max-h-[74px] max-w-[95%]"
+                                                    : "max-h-[60px] max-w-[88%]"
+                                                }`}
+                                                loading="lazy"
+                                              />
+                                            </div>
+                                            <div className="pt-2 text-center text-sm font-semibold text-zinc-100">{method.title}</div>
+                                          </div>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
                                 </div>
+                              );
+                            })}
+
+                            {shopPaymentError && (
+                              <div className="rounded-xl border border-red-500/45 bg-red-900/25 px-3 py-2 text-sm text-red-200">
+                                {shopPaymentError}
                               </div>
-                            );
-                          })}
-
-                          {shopPaymentError && (
-                            <div className="rounded-xl border border-red-500/45 bg-red-900/25 px-3 py-2 text-sm text-red-200">
-                              {shopPaymentError}
-                            </div>
-                          )}
-                          {shopPaymentLoading && (
-                            <div className="text-xs text-zinc-400">Создаем платеж, подождите…</div>
-                          )}
+                            )}
+                            {shopPaymentLoading && (
+                              <div className="text-xs text-zinc-400">Создаем платеж, подождите…</div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </section>
