@@ -12312,7 +12312,7 @@ export default function App() {
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(72%_66%_at_0%_0%,rgba(220,38,38,0.2),transparent_62%)]" />
                   <div className="relative flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
                     <div className="rounded-[24px] border border-zinc-800/80 bg-[linear-gradient(150deg,rgba(13,13,18,0.96),rgba(8,8,11,0.98))] p-3 sm:p-4">
-                      <div className="grid gap-3 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(190px,230px)]">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(250px,320px)]">
                         <div className="rounded-2xl bg-zinc-950/45 px-4 py-5 text-center">
                           <div className="flex justify-center">
                             <Avatar
@@ -12328,33 +12328,33 @@ export default function App() {
                         </div>
 
                         <div className="rounded-2xl bg-zinc-950/45 px-4 py-4">
-                          <div className="mx-auto w-full max-w-[540px] space-y-2 text-base text-zinc-300">
-                            <div className="grid grid-cols-[130px_minmax(0,1fr)] items-center gap-3 py-1.5">
+                          <div className="w-full space-y-2 text-base text-zinc-300">
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1.5">
                               <span className="text-zinc-500">Тип товара</span>
                               <span className="font-semibold text-zinc-100">Подписка</span>
                             </div>
-                            <div className="grid grid-cols-[130px_minmax(0,1fr)] items-center gap-3 py-1.5">
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1.5">
                               <span className="text-zinc-500">Тариф</span>
                               <span className="font-semibold text-zinc-100">
                                 {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
                               </span>
                             </div>
-                            <div className="grid grid-cols-[130px_minmax(0,1fr)] items-center gap-3 py-1.5">
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1.5">
                               <span className="text-zinc-500">Период</span>
                               <span className="font-semibold text-zinc-100">{shopDuration === "1_year" ? "1 год" : "1 месяц"}</span>
                             </div>
-                            <div className="grid grid-cols-[130px_minmax(0,1fr)] items-center gap-3 py-1.5">
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1.5">
                               <span className="text-zinc-500">Автопродление</span>
                               <span className="font-semibold text-zinc-100">Нет</span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-center rounded-2xl border border-red-500/40 bg-[linear-gradient(145deg,rgba(127,29,29,0.9),rgba(153,27,27,0.82))] px-4 py-4 text-center text-red-50">
+                        <div className="flex items-center justify-center rounded-2xl border border-red-500/40 bg-[linear-gradient(145deg,rgba(127,29,29,0.9),rgba(153,27,27,0.82))] px-5 py-5 text-center text-red-50">
                           <div>
-                            <div className="text-sm uppercase tracking-[0.18em] text-red-100/90">К оплате</div>
-                            <div className="mt-2 text-6xl font-semibold leading-none">{shopPaymentAmountRub}</div>
-                            <div className="mt-2 text-2xl font-semibold text-red-100/95">RUB</div>
+                            <div className="text-base uppercase tracking-[0.18em] text-red-100/90">К оплате</div>
+                            <div className="mt-2 text-6xl font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
+                            <div className="mt-2 text-3xl font-semibold text-red-100/95">RUB</div>
                           </div>
                         </div>
                       </div>
