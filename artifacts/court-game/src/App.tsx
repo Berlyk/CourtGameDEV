@@ -12311,13 +12311,13 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="w-[min(1260px,calc(100vw-1rem))] sm:w-[min(1260px,calc(100vw-2rem))] max-h-[88vh] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-50">
+              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] md:w-[calc(100vw-3rem)] lg:w-[calc(100vw-4rem)] max-w-[1260px] max-h-[88vh] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-50">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
                 <div className="h-[min(740px,88vh)] min-h-[460px] px-3 pb-3 pt-3 sm:px-4 sm:pb-4">
-                  <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[360px_minmax(0,1fr)]">
+                  <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
                     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
                       <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
                         <div className="mb-2 flex justify-center">
