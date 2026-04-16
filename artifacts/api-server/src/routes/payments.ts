@@ -253,7 +253,9 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
     checkout.searchParams.set("s", signature);
     checkout.searchParams.set("currency", currency);
     checkout.searchParams.set("lang", "ru");
-    checkout.searchParams.set("i", String(methodId));
+    if (region === "cis") {
+      checkout.searchParams.set("i", String(methodId));
+    }
     checkout.searchParams.set("em", user.email);
     checkout.searchParams.set("us_userId", user.id);
     checkout.searchParams.set("us_tier", paidTier);

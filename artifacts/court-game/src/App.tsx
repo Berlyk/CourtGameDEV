@@ -247,28 +247,11 @@ const SHOP_PAYMENT_SECTIONS: Array<{
     description: "Оплата через карты, СБП и локальные методы.",
   },
   {
-    key: "europe",
-    title: "Европа",
-    description: "Платежный провайдер для Европы будет добавлен позже.",
-  },
-  {
     key: "crypto",
     title: "Криптовалюта",
     description: "USDT, BTC и другие крипто-методы через FreeKassa.",
   },
 ];
-
-const buildSbpIconImage = (): string => {
-  const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="120" height="72" viewBox="0 0 120 72">
-  <rect x="1" y="1" width="118" height="70" rx="12" fill="#1D4ED8" stroke="rgba(255,255,255,0.3)"/>
-  <polygon points="25,18 46,29 25,40 14,29" fill="#34D399"/>
-  <polygon points="48,16 69,27 58,48 37,37" fill="#F59E0B"/>
-  <polygon points="70,24 91,35 80,56 59,45" fill="#3B82F6"/>
-  <text x="63" y="44" text-anchor="middle" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="800" fill="#ffffff">СБП</text>
-</svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-};
 
 const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
   {
@@ -278,7 +261,9 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "СБП",
     subtitle: "Система быстрых платежей",
     previewGradient: "linear-gradient(135deg, rgba(45,95,196,0.95), rgba(47,132,242,0.85))",
-    logoUrls: [buildSbpIconImage()],
+    logoUrls: [
+      "https://sbp.nspk.ru/storage/settings/common/logo/0645d335-8b62-43a1-9a33-0d4c9d1dc0e0.svg",
+    ],
   },
   {
     id: 4,
@@ -12304,16 +12289,14 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="max-w-[1120px] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-30">
+              <DialogContent className="max-w-[1160px] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-3 [&>button]:top-3 [&>button]:z-40">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
-                <div
-                  className={`max-h-[70vh] overflow-y-auto px-4 pb-4 pt-16 sm:px-5 sm:pb-5 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.55)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/60 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/75`}
-                >
-                  <div className="grid items-start gap-4 lg:grid-cols-[290px_minmax(0,1fr)]">
-                    <div className="flex self-start flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
+                <div className="h-[72vh] px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
+                  <div className="grid h-full gap-4 lg:grid-cols-[330px_minmax(0,1fr)]">
+                    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
                       <div className="p-4 sm:p-5">
                         <div className="mb-2 flex justify-center">
                           <Avatar
@@ -12356,33 +12339,31 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="space-y-2.5">
-                      <div className="rounded-2xl border border-zinc-700/80 bg-zinc-900/70 px-4 py-2.5">
-                        <div className="pr-12">
+                    <div
+                      className={`h-full overflow-y-auto pr-1 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.55)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/60 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/75`}
+                    >
+                      <div className="space-y-2.5 pr-10 sm:pr-12">
+                        <div className="rounded-2xl border border-zinc-700/80 bg-zinc-900/70 px-4 py-2.5">
+                          <div className="pr-2">
                           <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Оплата</div>
                           <div className="mt-1 text-[30px] font-black uppercase leading-[1.03] text-zinc-100">
                             Выберите способ оплаты
                           </div>
                         </div>
-                      </div>
+                        </div>
 
-                      {SHOP_PAYMENT_SECTIONS.map((section) => {
-                        const methods = shopPaymentMethodsByCategory[section.key];
-                        return (
-                          <div
-                            key={`shop-payment-section-${section.key}`}
-                            className="rounded-2xl border border-zinc-700/75 bg-zinc-900/70 p-2.5"
-                          >
-                            <div className="mb-1.5">
-                              <div className="text-4xl font-black leading-none text-zinc-100">{section.title}</div>
-                              <div className="text-sm text-zinc-400">{section.description}</div>
-                            </div>
-
-                            {section.key === "europe" ? (
-                              <div className="rounded-xl border border-zinc-700/80 bg-zinc-950/65 px-3 py-2.5 text-sm text-zinc-400">
-                                Оплата для Европы будет подключена отдельным провайдером.
+                        {SHOP_PAYMENT_SECTIONS.map((section) => {
+                          const methods = shopPaymentMethodsByCategory[section.key];
+                          return (
+                            <div
+                              key={`shop-payment-section-${section.key}`}
+                              className="rounded-2xl border border-zinc-700/75 bg-zinc-900/70 p-2.5"
+                            >
+                              <div className="mb-2">
+                                <div className="text-4xl font-black leading-none text-zinc-100">{section.title}</div>
+                                <div className="mt-1 text-sm leading-relaxed text-zinc-400">{section.description}</div>
                               </div>
-                            ) : (
+
                               <div className="grid gap-2.5 sm:grid-cols-2">
                                 {methods.map((method) => (
                                   <button
@@ -12424,19 +12405,19 @@ export default function App() {
                                   </button>
                                 ))}
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                            </div>
+                          );
+                        })}
 
-                      {shopPaymentError && (
-                        <div className="rounded-xl border border-red-500/45 bg-red-900/25 px-3 py-2 text-sm text-red-200">
-                          {shopPaymentError}
-                        </div>
-                      )}
-                      {shopPaymentLoading && (
-                        <div className="text-xs text-zinc-400">Создаем платеж, подождите…</div>
-                      )}
+                        {shopPaymentError && (
+                          <div className="rounded-xl border border-red-500/45 bg-red-900/25 px-3 py-2 text-sm text-red-200">
+                            {shopPaymentError}
+                          </div>
+                        )}
+                        {shopPaymentLoading && (
+                          <div className="text-xs text-zinc-400">Создаем платеж, подождите…</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
