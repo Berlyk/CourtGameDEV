@@ -12312,7 +12312,7 @@ export default function App() {
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(72%_66%_at_0%_0%,rgba(220,38,38,0.2),transparent_62%)]" />
                   <div className="relative flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
                     <div className="rounded-[24px] border border-zinc-800/80 bg-[linear-gradient(150deg,rgba(13,13,18,0.96),rgba(8,8,11,0.98))] p-3 sm:p-4">
-                      <div className="grid gap-3 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(250px,320px)]">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(290px,360px)]">
                         <div className="rounded-2xl bg-zinc-950/45 px-4 py-5 text-center">
                           <div className="flex justify-center">
                             <Avatar
