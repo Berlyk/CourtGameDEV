@@ -12328,33 +12328,33 @@ export default function App() {
                         </div>
 
                         <div className="rounded-2xl bg-zinc-950/45 px-4 py-4">
-                          <div className="w-full space-y-2 text-base text-zinc-300">
-                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1.5">
-                              <span className="text-zinc-500">Тип товара</span>
-                              <span className="font-semibold text-zinc-100">Подписка</span>
+                          <div className="w-full space-y-2.5 text-[17px] leading-7 text-zinc-200">
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-2">
+                              <span className="text-zinc-400">Тип товара</span>
+                              <span className="text-[18px] font-semibold text-zinc-100">Подписка</span>
                             </div>
-                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1.5">
-                              <span className="text-zinc-500">Тариф</span>
-                              <span className="font-semibold text-zinc-100">
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-2">
+                              <span className="text-zinc-400">Тариф</span>
+                              <span className="text-[18px] font-semibold text-zinc-100">
                                 {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
                               </span>
                             </div>
-                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1.5">
-                              <span className="text-zinc-500">Период</span>
-                              <span className="font-semibold text-zinc-100">{shopDuration === "1_year" ? "1 год" : "1 месяц"}</span>
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-2">
+                              <span className="text-zinc-400">Период</span>
+                              <span className="text-[18px] font-semibold text-zinc-100">{shopDuration === "1_year" ? "1 год" : "1 месяц"}</span>
                             </div>
-                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1.5">
-                              <span className="text-zinc-500">Автопродление</span>
-                              <span className="font-semibold text-zinc-100">Нет</span>
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-2">
+                              <span className="text-zinc-400">Автопродление</span>
+                              <span className="text-[18px] font-semibold text-zinc-100">Нет</span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-center rounded-2xl border border-red-500/40 bg-[linear-gradient(145deg,rgba(127,29,29,0.9),rgba(153,27,27,0.82))] px-5 py-5 text-center text-red-50">
+                        <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-6 py-6 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                           <div>
-                            <div className="text-base uppercase tracking-[0.18em] text-red-100/90">К оплате</div>
-                            <div className="mt-2 text-6xl font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
-                            <div className="mt-2 text-3xl font-semibold text-red-100/95">RUB</div>
+                            <div className="text-lg uppercase tracking-[0.2em] text-red-100/95">К оплате</div>
+                            <div className="mt-2 text-7xl font-semibold leading-none sm:text-8xl">{shopPaymentAmountRub}</div>
+                            <div className="mt-2 text-4xl font-semibold text-red-100/95">RUB</div>
                           </div>
                         </div>
                       </div>
@@ -12392,17 +12392,17 @@ export default function App() {
                                           className="group relative overflow-hidden rounded-2xl bg-zinc-900/85 p-3 transition duration-200 hover:-translate-y-[1px] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_90%_at_0%_0%,rgba(220,38,38,0.12),transparent_70%)]" />
-                                          <div className="relative flex h-full min-h-[116px] items-center justify-center rounded-xl bg-zinc-950/50 p-3">
+                                          <div className="relative flex h-full min-h-[124px] items-center justify-center rounded-xl bg-zinc-950/50 p-3">
                                             <div className="flex flex-1 items-center justify-center">
                                               <img
                                                 src={method.logoUrl}
                                                 alt={method.title}
                                                 className={`h-auto w-auto object-contain ${
                                                   method.title === "СБП"
-                                                    ? "max-h-[74px] max-w-[95%]"
-                                                    : method.title === "Ethereum"
-                                                      ? "max-h-[76px] max-w-[94%]"
-                                                    : "max-h-[60px] max-w-[88%]"
+                                                    ? "max-h-[88px] max-w-[98%]"
+                                                    : method.category === "crypto"
+                                                      ? "max-h-[82px] max-w-[96%]"
+                                                    : "max-h-[66px] max-w-[90%]"
                                                 }`}
                                                 loading="lazy"
                                               />
