@@ -258,7 +258,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     category: "russia",
     providerCategory: "cis",
     title: "СБП",
-    previewGradient: "linear-gradient(135deg, rgba(45,95,196,0.95), rgba(47,132,242,0.85))",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(75,140,255,0.34), rgba(75,140,255,0.02) 62%)",
     logoUrl:
       "https://sbp.nspk.ru/storage/settings/common/logo/0645d335-8b62-43a1-9a33-0d4c9d1dc0e0.svg",
   },
@@ -267,7 +267,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     category: "russia",
     providerCategory: "cis",
     title: "Visa",
-    previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(69,119,255,0.30), rgba(69,119,255,0.02) 62%)",
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5c/Visa_Inc._logo_%282021%E2%80%93present%29.svg",
   },
   {
@@ -275,7 +275,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     category: "russia",
     providerCategory: "cis",
     title: "Mastercard",
-    previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(244,119,41,0.30), rgba(244,119,41,0.02) 62%)",
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg",
   },
   {
@@ -283,7 +283,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     category: "russia",
     providerCategory: "cis",
     title: "МИР",
-    previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(41,197,143,0.30), rgba(41,197,143,0.02) 62%)",
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Mir-logo.SVG.svg",
   },
   {
@@ -291,7 +291,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     category: "russia",
     providerCategory: "cis",
     title: "ЮMoney",
-    previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(146,78,255,0.32), rgba(146,78,255,0.02) 62%)",
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5d/%D0%AEMoney.png",
   },
   {
@@ -299,7 +299,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     category: "crypto",
     providerCategory: "crypto",
     title: "USDT TRC20",
-    previewGradient: "linear-gradient(135deg, rgba(7,124,93,0.95), rgba(6,87,69,0.9))",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(29,184,146,0.34), rgba(29,184,146,0.02) 62%)",
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/7/73/Tether_Logo.svg",
   },
   {
@@ -307,15 +307,15 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     category: "crypto",
     providerCategory: "crypto",
     title: "Ethereum",
-    previewGradient: "linear-gradient(135deg, rgba(99,102,241,0.95), rgba(71,85,105,0.9))",
-    logoUrl: "https://cryptologos.cc/logos/versions/ethereum-eth-logo-full-horizontal.svg?v=041",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(130,102,255,0.34), rgba(130,102,255,0.02) 62%)",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Ethereum-icon-purple.svg",
   },
   {
     id: 39,
     category: "crypto",
     providerCategory: "crypto",
     title: "TON",
-    previewGradient: "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(30,64,175,0.9))",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(59,130,246,0.34), rgba(59,130,246,0.02) 62%)",
     logoUrl: "https://genuine-amusement-abf8b52228.media.strapiapp.com/Logo_TON_color_06ebb7798e.svg",
   },
 ];
@@ -12311,14 +12311,14 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] md:w-[calc(100vw-3rem)] lg:w-[calc(100vw-4rem)] max-w-[1260px] max-h-[88vh] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-50">
+              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] md:w-[calc(100vw-3rem)] lg:w-[calc(100vw-4rem)] max-w-[1260px] max-h-[88vh] overflow-hidden border-zinc-800 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(15,17,24,0.98),rgba(10,12,18,0.99))] p-0 text-zinc-100 [&>button]:right-5 [&>button]:top-5 [&>button]:z-50">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
-                <div className="h-[min(740px,88vh)] min-h-[460px] px-3 pb-3 pt-3 sm:px-4 sm:pb-4">
+                <div className="h-[min(740px,88vh)] min-h-[460px] px-3 pb-3 pt-4 sm:px-4 sm:pb-4 sm:pt-5">
                   <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[360px_minmax(0,1fr)]">
-                    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
+                    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-[linear-gradient(175deg,rgba(31,31,42,0.88),rgba(17,18,27,0.92))]">
                       <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
                         <div className="mb-2 flex justify-center">
                           <Avatar
@@ -12356,18 +12356,6 @@ export default function App() {
                           </div>
                           <span className="text-right font-medium text-zinc-100">Отключено</span>
                         </div>
-
-                        <div className="space-y-2 text-xs leading-relaxed text-zinc-400">
-                          <div className="rounded-lg border border-zinc-700/70 bg-zinc-950/50 px-3 py-2">
-                            Подписка не продлевается автоматически. Продление выполняется вручную.
-                          </div>
-                          <div className="rounded-lg border border-zinc-700/70 bg-zinc-950/50 px-3 py-2">
-                            Доступ к функциям открывается сразу после успешной оплаты.
-                          </div>
-                          <div className="rounded-lg border border-zinc-700/70 bg-zinc-950/50 px-3 py-2">
-                            Оплата разовая, без скрытых списаний и автопродлений.
-                          </div>
-                        </div>
                       </div>
                       <div className="border-t border-zinc-700/80 bg-[linear-gradient(135deg,rgba(22,68,55,0.88),rgba(26,80,63,0.9))] px-4 py-4 sm:px-5">
                         <div className="flex items-baseline justify-between gap-3">
@@ -12377,12 +12365,12 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="min-h-0 h-full rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-1">
+                    <div className="min-h-0 h-full rounded-2xl border border-zinc-700/70 bg-[linear-gradient(175deg,rgba(26,27,38,0.72),rgba(14,15,23,0.74))] p-2">
                       <div
                         className="h-full overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.6)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/65 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/80"
                       >
-                      <div className="space-y-3 px-2 pb-2 pr-9 sm:pr-10">
-                        <div className="rounded-2xl border border-zinc-700/80 bg-zinc-900/70 px-4 py-2.5">
+                      <div className="space-y-3 px-2 pb-2 pr-12 sm:pr-14">
+                        <div className="rounded-2xl border border-zinc-700/80 bg-zinc-900/60 px-4 py-3">
                           <div className="pr-2">
                             <div className="text-[30px] font-black uppercase leading-[1.03] text-zinc-100">
                               Выберите способ оплаты
@@ -12395,7 +12383,7 @@ export default function App() {
                           return (
                             <div
                               key={`shop-payment-section-${section.key}`}
-                              className="rounded-2xl border border-zinc-700/75 bg-zinc-900/70 p-2.5"
+                              className="rounded-2xl border border-zinc-700/75 bg-zinc-900/60 p-2.5"
                             >
                               <div className="mb-3">
                                 <div className="text-[46px] font-black leading-[0.95] text-zinc-100">{section.title}</div>
@@ -12409,21 +12397,24 @@ export default function App() {
                                     type="button"
                                     disabled={shopPaymentLoading}
                                     onClick={() => void createShopPayment(method)}
-                                    className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2 transition hover:border-red-400/55 hover:bg-zinc-900/90 disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="group rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2 transition hover:border-red-400/45 hover:bg-zinc-900/90 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
                                     <div
-                                      className="relative h-[90px] w-full overflow-hidden rounded-lg border border-zinc-600/70 px-3 py-2"
-                                      style={{ backgroundImage: method.previewGradient }}
+                                      className="relative h-[90px] w-full overflow-hidden rounded-lg border border-zinc-600/70 bg-[linear-gradient(180deg,rgba(31,34,46,0.95),rgba(17,19,28,0.95))] px-3 py-2"
                                     >
-                                      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_120%_at_0%_0%,rgba(255,255,255,0.2),transparent_55%)]" />
+                                      <div
+                                        className="pointer-events-none absolute inset-0 opacity-95"
+                                        style={{ backgroundImage: method.previewGradient }}
+                                      />
+                                      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(115%_120%_at_0%_0%,rgba(255,255,255,0.16),transparent_58%)]" />
                                       <div className="relative flex h-full items-center justify-center">
                                         <img
                                           src={method.logoUrl}
                                           alt={method.title}
                                           className={`w-auto object-contain ${
                                             method.title === "СБП"
-                                              ? "max-h-[64px] max-w-[94%]"
-                                              : "max-h-[52px] max-w-[88%]"
+                                              ? "max-h-[66px] max-w-[94%]"
+                                              : "max-h-[54px] max-w-[88%]"
                                           }`}
                                           loading="lazy"
                                         />
