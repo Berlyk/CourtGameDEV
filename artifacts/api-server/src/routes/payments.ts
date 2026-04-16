@@ -67,16 +67,24 @@ function readFreeKassaConfig() {
   const shopId = String(
     process.env.FREEKASSA_SHOP_ID ??
       process.env.FREEKASSA_MERCHANT_ID ??
+      process.env.FREEKASSA_MERCHANTID ??
       process.env.FREEKASSA_SHOPID ??
+      process.env.FREEKASSA_CASHBOX_ID ??
       "",
   ).trim();
   const secret1 = String(
-    process.env.FREEKASSA_SECRET_WORD_1 ?? process.env.FREEKASSA_SECRET1 ?? "",
+    process.env.FREEKASSA_SECRET_WORD_1 ??
+      process.env.FREEKASSA_SECRET_WORD1 ??
+      process.env.FREEKASSA_SECRET_1 ??
+      process.env.FREEKASSA_SECRET1 ??
+      process.env.FREEKASSA_CASHBOX_SECRET_1 ??
+      "",
   ).trim();
   const apiKey = String(
     process.env.FREEKASSA_API_KEY ??
       process.env.FREEKASSA_ORDER_API_KEY ??
       process.env.FREEKASSA_CASHBOX_API_KEY ??
+      process.env.FREEKASSA_CASHBOX_APIKEY ??
       process.env.FREEKASSA_CASH_API_KEY ??
       "",
   ).trim();

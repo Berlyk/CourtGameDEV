@@ -258,15 +258,14 @@ const SHOP_PAYMENT_SECTIONS: Array<{
   },
 ];
 
-const buildPaymentLogoImage = (
-  label: string,
-  background: string,
-  foreground = "#FFFFFF",
-): string => {
+const buildSbpIconImage = (): string => {
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="72" viewBox="0 0 120 72">
-  <rect x="1" y="1" width="118" height="70" rx="12" fill="${background}" stroke="rgba(255,255,255,0.35)"/>
-  <text x="60" y="47" text-anchor="middle" font-size="30" font-family="Segoe UI, Arial, sans-serif" font-weight="800" fill="${foreground}">${label}</text>
+  <rect x="1" y="1" width="118" height="70" rx="12" fill="#1D4ED8" stroke="rgba(255,255,255,0.3)"/>
+  <polygon points="25,18 46,29 25,40 14,29" fill="#34D399"/>
+  <polygon points="48,16 69,27 58,48 37,37" fill="#F59E0B"/>
+  <polygon points="70,24 91,35 80,56 59,45" fill="#3B82F6"/>
+  <text x="63" y="44" text-anchor="middle" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="800" fill="#ffffff">СБП</text>
 </svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 };
@@ -279,7 +278,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "СБП",
     subtitle: "Система быстрых платежей",
     previewGradient: "linear-gradient(135deg, rgba(45,95,196,0.95), rgba(47,132,242,0.85))",
-    logoUrls: [buildPaymentLogoImage("СБП", "#1D4ED8")],
+    logoUrls: [buildSbpIconImage()],
   },
   {
     id: 4,
@@ -289,8 +288,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     subtitle: "VISA / MasterCard / МИР",
     previewGradient: "linear-gradient(135deg, rgba(84,91,108,0.95), rgba(54,61,79,0.9))",
     logoUrls: [
-      buildPaymentLogoImage("VISA", "#334155"),
-      buildPaymentLogoImage("MC", "#4B5563"),
+      "https://cdn.simpleicons.org/visa/ffffff",
+      "https://cdn.simpleicons.org/mastercard/ffffff",
     ],
   },
   {
@@ -300,7 +299,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "USDT TRC20",
     subtitle: "Оплата в стейблкоине",
     previewGradient: "linear-gradient(135deg, rgba(7,124,93,0.95), rgba(6,87,69,0.9))",
-    logoUrls: [buildPaymentLogoImage("USDT", "#0F766E")],
+    logoUrls: ["https://cdn.simpleicons.org/tether/ffffff"],
   },
   {
     id: 24,
@@ -309,7 +308,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "Bitcoin",
     subtitle: "Оплата в BTC",
     previewGradient: "linear-gradient(135deg, rgba(222,133,5,0.95), rgba(163,89,7,0.9))",
-    logoUrls: [buildPaymentLogoImage("BTC", "#B45309")],
+    logoUrls: ["https://cdn.simpleicons.org/bitcoin/ffffff"],
   },
   {
     id: 26,
@@ -318,7 +317,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "Ethereum",
     subtitle: "Оплата в ETH",
     previewGradient: "linear-gradient(135deg, rgba(99,102,241,0.95), rgba(71,85,105,0.9))",
-    logoUrls: [buildPaymentLogoImage("ETH", "#475569")],
+    logoUrls: ["https://cdn.simpleicons.org/ethereum/ffffff"],
   },
 ];
 const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
@@ -12311,7 +12310,7 @@ export default function App() {
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
                 </DialogHeader>
                 <div
-                  className={`max-h-[74vh] overflow-y-auto px-4 pb-4 pt-16 sm:px-5 sm:pb-5 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.55)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/60 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/75`}
+                  className={`max-h-[70vh] overflow-y-auto px-4 pb-4 pt-16 sm:px-5 sm:pb-5 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.55)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/60 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/75`}
                 >
                   <div className="grid items-start gap-4 lg:grid-cols-[290px_minmax(0,1fr)]">
                     <div className="flex self-start flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900/85">
@@ -12331,6 +12330,10 @@ export default function App() {
                         </div>
 
                         <div className="mt-4 space-y-2 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-zinc-500">Тип товара</span>
+                            <span className="font-medium text-zinc-100">Подписка</span>
+                          </div>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-zinc-500">Тариф</span>
                             <span className="font-medium text-zinc-100">
@@ -12371,7 +12374,7 @@ export default function App() {
                             className="rounded-2xl border border-zinc-700/75 bg-zinc-900/70 p-2.5"
                           >
                             <div className="mb-1.5">
-                              <div className="text-[30px] font-black leading-none text-zinc-100">{section.title}</div>
+                              <div className="text-4xl font-black leading-none text-zinc-100">{section.title}</div>
                               <div className="text-sm text-zinc-400">{section.description}</div>
                             </div>
 
@@ -12387,10 +12390,10 @@ export default function App() {
                                     type="button"
                                     disabled={shopPaymentLoading}
                                     onClick={() => void createShopPayment(method)}
-                                    className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2.5 text-left transition hover:border-red-400/55 hover:bg-zinc-900/90 disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-2 text-left transition hover:border-red-400/55 hover:bg-zinc-900/90 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
                                     <div
-                                      className="relative h-20 w-full overflow-hidden rounded-lg border border-zinc-600/70 px-3 py-2"
+                                      className="relative h-[88px] w-full overflow-hidden rounded-lg border border-zinc-600/70 px-3 py-2"
                                       style={{ backgroundImage: method.previewGradient }}
                                     >
                                       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(110%_120%_at_0%_0%,rgba(255,255,255,0.2),transparent_55%)]" />
@@ -12409,13 +12412,15 @@ export default function App() {
                                           </span>
                                         ))}
                                         <div className="min-w-0">
-                                          <div className="truncate text-[22px] font-black leading-[1.05] text-white">
+                                          <div className="truncate text-[20px] font-black leading-[1.05] text-white">
                                             {method.title}
+                                          </div>
+                                          <div className="truncate text-xs text-zinc-100/90">
+                                            {method.subtitle}
                                           </div>
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="mt-1.5 text-xs text-zinc-400">{method.subtitle}</div>
                                   </button>
                                 ))}
                               </div>
