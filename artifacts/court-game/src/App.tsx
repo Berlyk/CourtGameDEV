@@ -12310,59 +12310,58 @@ export default function App() {
                 </DialogHeader>
                 <div className="relative flex h-full min-h-0 flex-col p-3 sm:p-5">
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(72%_66%_at_0%_0%,rgba(220,38,38,0.2),transparent_62%)]" />
-                  <div className="relative flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
-                    <div className="rounded-[24px] border border-zinc-800/80 bg-[linear-gradient(150deg,rgba(13,13,18,0.96),rgba(8,8,11,0.98))] p-3 sm:p-4">
-                      <div className="grid gap-3 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(290px,360px)]">
-                        <div className="rounded-2xl bg-zinc-950/45 px-4 py-5 text-center">
+                  <div className="relative min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.65)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/70 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/90">
+                    <div className="space-y-3 pb-1 sm:space-y-4">
+                      <div className="rounded-[24px] border border-zinc-800/80 bg-[linear-gradient(150deg,rgba(13,13,18,0.96),rgba(8,8,11,0.98))] p-2.5 sm:p-3">
+                        <div className="grid gap-2.5 lg:grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(290px,360px)]">
+                          <div className="rounded-2xl bg-zinc-950/45 px-4 py-3.5 text-center">
                           <div className="flex justify-center">
                             <Avatar
                               src={authUser?.avatar ?? sharedAvatar}
                               name={(authUser?.nickname ?? playerName) || "Игрок"}
-                              size={88}
+                              size={74}
                             />
                           </div>
-                          <div className="mt-3 truncate text-3xl font-semibold text-zinc-100">
+                          <div className="mt-2.5 truncate text-2xl font-semibold text-zinc-100">
                             {((authUser?.nickname ?? playerName) || "Игрок").trim() || "Игрок"}
                           </div>
-                          <div className="mt-1 text-base text-zinc-400">Покупка подписки</div>
-                        </div>
+                          <div className="mt-1 text-sm text-zinc-400">Покупка подписки</div>
+                          </div>
 
-                        <div className="rounded-2xl bg-zinc-950/45 px-4 py-4">
-                          <div className="w-full space-y-2.5 text-[17px] leading-7 text-zinc-200">
-                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-2">
+                          <div className="rounded-2xl bg-zinc-950/45 px-4 py-3.5">
+                          <div className="w-full space-y-1.5 text-base leading-6 text-zinc-200">
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1">
                               <span className="text-zinc-400">Тип товара</span>
-                              <span className="text-[18px] font-semibold text-zinc-100">Подписка</span>
+                              <span className="text-[17px] font-semibold text-zinc-100">Подписка</span>
                             </div>
-                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-2">
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1">
                               <span className="text-zinc-400">Тариф</span>
-                              <span className="text-[18px] font-semibold text-zinc-100">
+                              <span className="text-[17px] font-semibold text-zinc-100">
                                 {shopPaymentPlan ? getSubscriptionTierLabel(shopPaymentPlan.tier) : "—"}
                               </span>
                             </div>
-                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-2">
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1">
                               <span className="text-zinc-400">Период</span>
-                              <span className="text-[18px] font-semibold text-zinc-100">{shopDuration === "1_year" ? "1 год" : "1 месяц"}</span>
+                              <span className="text-[17px] font-semibold text-zinc-100">{shopDuration === "1_year" ? "1 год" : "1 месяц"}</span>
                             </div>
-                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-2">
+                            <div className="grid grid-cols-[minmax(130px,1fr)_auto] items-center gap-3 py-1">
                               <span className="text-zinc-400">Автопродление</span>
-                              <span className="text-[18px] font-semibold text-zinc-100">Нет</span>
+                              <span className="text-[17px] font-semibold text-zinc-100">Нет</span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-6 py-6 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                          <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-5 py-4.5 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                           <div>
-                            <div className="text-lg uppercase tracking-[0.2em] text-red-100/95">К оплате</div>
-                            <div className="mt-2 text-7xl font-semibold leading-none sm:text-8xl">{shopPaymentAmountRub}</div>
-                            <div className="mt-2 text-4xl font-semibold text-red-100/95">RUB</div>
+                            <div className="text-base uppercase tracking-[0.16em] text-red-100/95">К оплате</div>
+                            <div className="mt-1.5 text-6xl font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
+                            <div className="mt-1.5 text-3xl font-semibold text-red-100/95">RUB</div>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <section className="min-h-0 flex-1 rounded-[24px] border border-zinc-800/80 bg-[linear-gradient(180deg,rgba(14,14,20,0.95),rgba(8,8,11,0.98))] p-3 sm:p-4">
-                      <div className="flex h-full min-h-0 flex-col">
-                        <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.65)_transparent] [&::-webkit-scrollbar]:w-[8px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/70 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/90">
+                      <section className="rounded-[24px] border border-zinc-800/80 bg-[linear-gradient(180deg,rgba(14,14,20,0.95),rgba(8,8,11,0.98))] p-3 sm:p-4">
                           <div className="space-y-4 pb-1">
                             <header className="rounded-2xl bg-zinc-950/55 px-4 py-3">
                               <h2 className="text-center text-3xl font-black uppercase tracking-[0.02em] text-zinc-100">
@@ -12426,9 +12425,8 @@ export default function App() {
                               <div className="text-xs text-zinc-400">Создаем платеж, подождите…</div>
                             )}
                           </div>
-                        </div>
-                      </div>
-                    </section>
+                      </section>
+                    </div>
                   </div>
                 </div>
               </DialogContent>
