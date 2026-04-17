@@ -12721,8 +12721,10 @@ export default function App() {
                                                 className={`h-auto w-auto object-contain ${
                                                   method.title === "СБП"
                                                     ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
+                                                    : method.title === "USDT TRC20"
+                                                      ? "max-h-[66px] max-w-[86%] sm:max-h-[84px] sm:max-w-[90%]"
                                                     : method.title === "TON"
-                                                      ? "max-h-[54px] max-w-[72%] sm:max-h-[72px] sm:max-w-[82%]"
+                                                      ? "max-h-[62px] max-w-[80%] sm:max-h-[80px] sm:max-w-[88%]"
                                                     : method.title === "Ethereum"
                                                       ? "max-h-[70px] max-w-[92%] sm:max-h-[96px] sm:max-w-[99%]"
                                                       : method.category === "crypto"
