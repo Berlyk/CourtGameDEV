@@ -236,10 +236,9 @@ type ShopPaymentMethod = {
   logoFallbackUrl: string;
 };
 
-const SHOP_PAYMENT_BASE_URL = import.meta.env.BASE_URL.endsWith("/")
-  ? import.meta.env.BASE_URL
-  : `${import.meta.env.BASE_URL}/`;
-const SHOP_PAYMENT_LOGO_BASE = `${SHOP_PAYMENT_BASE_URL}payment-logos/`;
+function buildShopPaymentLogoDataUrl(svg: string): string {
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
 
 function buildShopPaymentLogoFallbackDataUrl(title: string): string {
   const safeTitle = String(title || "Payment")
@@ -249,6 +248,16 @@ function buildShopPaymentLogoFallbackDataUrl(title: string): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 96"><rect width="220" height="96" rx="22" fill="#111217"/><rect x="2" y="2" width="216" height="92" rx="20" fill="none" stroke="rgba(248,113,113,0.45)" stroke-width="2"/><text x="110" y="56" text-anchor="middle" fill="#f4f4f5" font-size="22" font-weight="700" font-family="Arial, sans-serif">${safeTitle}</text></svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
+
+const SHOP_PAYMENT_INLINE_LOGOS: Record<string, string> = {
+  sbp: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="СБП"><defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2ec8ff"/><stop offset="100%" stop-color="#2f6bff"/></linearGradient></defs><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(30 30)"><polygon points="70,0 105,60 35,60" fill="#f6a623"/><polygon points="140,60 210,60 175,0" fill="#ef3d7f"/><polygon points="105,70 175,70 140,130" fill="#7047d5"/><polygon points="70,140 105,80 35,80" fill="#2f98ff"/><polygon points="140,140 210,140 175,200" fill="#1dcf72"/><polygon points="105,150 175,150 140,210" fill="#00c7c7"/></g><text x="270" y="120" fill="#f4f6ff" font-size="78" font-weight="700" font-family="Inter,Segoe UI,Arial,sans-serif">СБП</text></svg>`),
+  visa: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="VISA"><rect width="640" height="220" rx="28" fill="transparent"/><text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" fill="#1a4dff" font-size="126" font-weight="800" letter-spacing="2" font-family="Arial Black,Segoe UI,Arial,sans-serif">VISA</text></svg>`),
+  mastercard: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Mastercard"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(170 45)"><circle cx="110" cy="65" r="56" fill="#eb001b"/><circle cx="190" cy="65" r="56" fill="#f79e1b" fill-opacity="0.95"/><path d="M150 20a56 56 0 0 1 0 90a56 56 0 0 1 0-90z" fill="#ff5f00"/></g><text x="320" y="188" text-anchor="middle" fill="#f4f6ff" font-size="44" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">mastercard</text></svg>`),
+  mir: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="МИР"><defs><linearGradient id="mirg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#09b570"/><stop offset="52%" stop-color="#25c58e"/><stop offset="100%" stop-color="#22a9ff"/></linearGradient></defs><rect width="640" height="220" rx="28" fill="transparent"/><text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" fill="url(#mirg)" font-size="130" font-weight="800" font-family="Arial Black,Segoe UI,Arial,sans-serif">МИР</text></svg>`),
+  usdtTrc20: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="USDT TRC20"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(80 45)"><circle cx="65" cy="65" r="58" fill="#25a77a"/><rect x="26" y="38" width="78" height="14" rx="6" fill="#fff"/><rect x="58" y="52" width="14" height="47" rx="6" fill="#fff"/><ellipse cx="65" cy="66" rx="30" ry="11" fill="none" stroke="#fff" stroke-width="9"/></g><text x="200" y="102" fill="#eafbf5" font-size="66" font-weight="700" font-family="Inter,Segoe UI,Arial,sans-serif">USDT</text><text x="200" y="156" fill="#9ee5c9" font-size="40" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">TRC20</text></svg>`),
+  ethereum: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Ethereum"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(290 18)"><polygon points="30,0 72,68 30,88 -12,68" fill="#8f8bf7"/><polygon points="30,96 72,76 30,184 -12,76" fill="#6d65dd"/><polygon points="30,86 72,70 30,92 -12,70" fill="#b3adff"/></g><text x="320" y="207" text-anchor="middle" fill="#d8d5ff" font-size="36" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">Ethereum</text></svg>`),
+  ton: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="TON"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(90 36)"><circle cx="75" cy="75" r="66" fill="#40b7ff"/><path d="M75 30l33 24-33 50-33-50z" fill="none" stroke="#072032" stroke-width="9" stroke-linejoin="round"/></g><text x="250" y="125" fill="#8ad2ff" font-size="84" font-weight="800" font-family="Arial Black,Segoe UI,Arial,sans-serif">TON</text></svg>`),
+};
 
 const SHOP_PAYMENT_SECTIONS: Array<{
   key: ShopPaymentCategory;
@@ -274,8 +283,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "СБП",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(75,140,255,0.34), rgba(75,140,255,0.02) 62%)",
-    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}sbp.svg`,
-    logoFallbackUrl: "/payment-logos/sbp.svg",
+    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.sbp,
+    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.sbp,
   },
   {
     id: 4,
@@ -283,8 +292,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "Visa",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(69,119,255,0.30), rgba(69,119,255,0.02) 62%)",
-    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}visa.svg`,
-    logoFallbackUrl: "/payment-logos/visa.svg",
+    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.visa,
+    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.visa,
   },
   {
     id: 8,
@@ -292,8 +301,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "Mastercard",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(244,119,41,0.30), rgba(244,119,41,0.02) 62%)",
-    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}mastercard.svg`,
-    logoFallbackUrl: "/payment-logos/mastercard.svg",
+    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.mastercard,
+    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.mastercard,
   },
   {
     id: 12,
@@ -301,8 +310,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "МИР",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(41,197,143,0.30), rgba(41,197,143,0.02) 62%)",
-    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}mir.svg`,
-    logoFallbackUrl: "/payment-logos/mir.svg",
+    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.mir,
+    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.mir,
   },
   {
     id: 15,
@@ -310,8 +319,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "USDT TRC20",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(29,184,146,0.34), rgba(29,184,146,0.02) 62%)",
-    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}usdt-trc20.svg`,
-    logoFallbackUrl: "/payment-logos/usdt-trc20.svg",
+    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.usdtTrc20,
+    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.usdtTrc20,
   },
   {
     id: 26,
@@ -319,8 +328,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "Ethereum",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(130,102,255,0.34), rgba(130,102,255,0.02) 62%)",
-    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}ethereum.svg`,
-    logoFallbackUrl: "/payment-logos/ethereum.svg",
+    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.ethereum,
+    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.ethereum,
   },
   {
     id: 41,
@@ -328,8 +337,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "TON",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(59,130,246,0.34), rgba(59,130,246,0.02) 62%)",
-    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}ton.svg`,
-    logoFallbackUrl: "/payment-logos/ton.svg",
+    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.ton,
+    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.ton,
   },
 ];
 const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
@@ -2652,7 +2661,7 @@ function normalizeBadgeVisualKey(badgeKey?: string): string | undefined {
     master: "rankMaster",
     verdict: "rankVerdict",
   };
-  return roleAliases[roleKey] ?? roleAliases[normalizedLookupKey] ?? trimmed;
+  return roleAliases[roleKey] ?? roleAliases[normalizedLookupKey] ?? roleKey ?? trimmed;
 }
 
 function findBadgeByKey<T extends { key: string }>(
@@ -12482,7 +12491,7 @@ export default function App() {
                             <div className="text-xs uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
                             <div className="mt-1 flex items-start justify-center gap-1.5 sm:mt-1.5 sm:block">
                               <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
-                              <div className="pt-1 text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:pt-0 sm:text-3xl sm:tracking-normal">RUB</div>
+                              <div className="translate-y-[2px] text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl sm:tracking-normal">RUB</div>
                             </div>
                           </div>
                         </div>
