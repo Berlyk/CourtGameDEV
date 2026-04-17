@@ -2569,10 +2569,15 @@ function buildBadgeList(input: {
   const isBerly = isProtectedOwnerLogin(user.login);
   const canUseRating = !!subscription.capabilities.canUseRating;
   const hasRatingHistory = hasRatingHistoryFromSubscription(subscription);
+  const shouldShowRankBadges =
+    hasRatingHistory ||
+    canUseRating ||
+    rank.points > 0 ||
+    stats.totalMatches > 0;
   const badges: UserBadgeView[] = [];
   const roleStatsMap = new Map(stats.roleStats.map((row) => [row.roleKey, row]));
 
-  if (hasRatingHistory) {
+  if (shouldShowRankBadges) {
     for (let i = 0; i < RANK_DEFINITIONS.length; i += 1) {
       const rankDef = RANK_DEFINITIONS[i];
       const nextRankDef = RANK_DEFINITIONS[i + 1];

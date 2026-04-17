@@ -233,7 +233,13 @@ type ShopPaymentMethod = {
   title: string;
   previewGradient: string;
   logoUrl: string;
+  logoFallbackUrl: string;
 };
+
+const SHOP_PAYMENT_BASE_URL = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const SHOP_PAYMENT_LOGO_BASE = `${SHOP_PAYMENT_BASE_URL}payment-logos/`;
 
 const SHOP_PAYMENT_SECTIONS: Array<{
   key: ShopPaymentCategory;
@@ -259,7 +265,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "СБП",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(75,140,255,0.34), rgba(75,140,255,0.02) 62%)",
-    logoUrl: "/payment-logos/sbp.svg",
+    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}sbp.svg`,
+    logoFallbackUrl: "/payment-logos/sbp.svg",
   },
   {
     id: 4,
@@ -267,7 +274,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "Visa",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(69,119,255,0.30), rgba(69,119,255,0.02) 62%)",
-    logoUrl: "/payment-logos/visa.svg",
+    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}visa.svg`,
+    logoFallbackUrl: "/payment-logos/visa.svg",
   },
   {
     id: 8,
@@ -275,7 +283,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "Mastercard",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(244,119,41,0.30), rgba(244,119,41,0.02) 62%)",
-    logoUrl: "/payment-logos/mastercard.svg",
+    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}mastercard.svg`,
+    logoFallbackUrl: "/payment-logos/mastercard.svg",
   },
   {
     id: 12,
@@ -283,7 +292,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "МИР",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(41,197,143,0.30), rgba(41,197,143,0.02) 62%)",
-    logoUrl: "/payment-logos/mir.svg",
+    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}mir.svg`,
+    logoFallbackUrl: "/payment-logos/mir.svg",
   },
   {
     id: 15,
@@ -291,7 +301,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "USDT TRC20",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(29,184,146,0.34), rgba(29,184,146,0.02) 62%)",
-    logoUrl: "/payment-logos/usdt-trc20.svg",
+    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}usdt-trc20.svg`,
+    logoFallbackUrl: "/payment-logos/usdt-trc20.svg",
   },
   {
     id: 26,
@@ -299,7 +310,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "Ethereum",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(130,102,255,0.34), rgba(130,102,255,0.02) 62%)",
-    logoUrl: "/payment-logos/ethereum.svg",
+    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}ethereum.svg`,
+    logoFallbackUrl: "/payment-logos/ethereum.svg",
   },
   {
     id: 41,
@@ -307,7 +319,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "TON",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(59,130,246,0.34), rgba(59,130,246,0.02) 62%)",
-    logoUrl: "/payment-logos/ton.svg",
+    logoUrl: `${SHOP_PAYMENT_LOGO_BASE}ton.svg`,
+    logoFallbackUrl: "/payment-logos/ton.svg",
   },
 ];
 const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
@@ -12420,7 +12433,7 @@ export default function App() {
                             <div className="text-xs uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
                             <div className="mt-1 flex items-center justify-center gap-2 sm:mt-1.5 sm:block">
                               <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
-                              <div className="translate-y-1 text-lg font-semibold leading-none text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl">RUB</div>
+                              <div className="-translate-y-0.5 text-lg font-semibold leading-none text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl">RUB</div>
                             </div>
                           </div>
                         </div>
@@ -12462,6 +12475,24 @@ export default function App() {
                                               <img
                                                 src={method.logoUrl}
                                                 alt={method.title}
+                                                onError={(event) => {
+                                                  const image = event.currentTarget;
+                                                  const step = image.dataset.fallbackStep ?? "0";
+                                                  if (step === "0") {
+                                                    image.dataset.fallbackStep = "1";
+                                                    image.src = method.logoFallbackUrl;
+                                                    return;
+                                                  }
+                                                  if (step === "1") {
+                                                    image.dataset.fallbackStep = "2";
+                                                    image.src = method.logoUrl;
+                                                    return;
+                                                  }
+                                                  if (step === "2") {
+                                                    image.dataset.fallbackStep = "3";
+                                                    image.style.visibility = "hidden";
+                                                  }
+                                                }}
                                                 className={`h-auto w-auto object-contain ${
                                                   method.title === "СБП"
                                                     ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
@@ -12471,7 +12502,6 @@ export default function App() {
                                                       ? "max-h-[62px] max-w-[90%] sm:max-h-[88px] sm:max-w-[98%]"
                                                     : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
                                                 }`}
-                                                loading="lazy"
                                               />
                                             </div>
                                             <div className="mt-1 text-center text-[12px] font-medium text-zinc-200 sm:text-sm">
@@ -13879,10 +13909,10 @@ export default function App() {
     );
     const influenceScrollableHeightClass =
       game.players.length >= 8
-        ? "h-[360px] md:h-[430px]"
+        ? "min-h-[360px] max-h-[560px] md:min-h-[430px] md:max-h-[680px]"
         : game.players.length >= 6
-          ? "h-[320px] md:h-[380px]"
-          : "h-[280px] md:h-[320px]";
+          ? "min-h-[320px] max-h-[520px] md:min-h-[380px] md:max-h-[640px]"
+          : "min-h-[280px] max-h-[480px] md:min-h-[320px] md:max-h-[580px]";
     const warningScrollableHeightClass =
       game.players.length >= 8
         ? "max-h-[500px]"
@@ -14467,9 +14497,9 @@ export default function App() {
             </InfoBlock>
 
             <InfoBlock title="Влияние" icon={<Gavel className="w-5 h-5" />}>
-              <div className="space-y-3">
+              <div className="flex h-full min-h-[320px] flex-col gap-3">
                 {influenceView === "chat" && lawyerChatPartner ? (
-                  <div className="space-y-3">
+                  <div className="flex h-full min-h-0 flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-zinc-300">
                         Чат с {lawyerChatPartner.name}
@@ -14486,7 +14516,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${influenceScrollableHeightClass} ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden flex-1 min-h-[220px] ${influenceScrollableHeightClass} ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
