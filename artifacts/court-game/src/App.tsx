@@ -233,7 +233,7 @@ type ShopPaymentMethod = {
   title: string;
   previewGradient: string;
   logoUrl: string;
-  logoFallbackUrl: string;
+  logoFallbackUrl?: string;
 };
 
 function buildShopPaymentLogoDataUrl(svg: string): string {
@@ -283,8 +283,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "СБП",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(75,140,255,0.34), rgba(75,140,255,0.02) 62%)",
-    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.sbp,
-    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.sbp,
+    logoUrl:
+      "https://gist.githubusercontent.com/PonomareVlad/e901e3e50e7b1c1b80c2f05f7b968758/raw/1abed6186b7c7a69ea5f4d284d2e767a9245650b/SBP.svg",
   },
   {
     id: 4,
@@ -292,8 +292,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "Visa",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(69,119,255,0.30), rgba(69,119,255,0.02) 62%)",
-    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.visa,
-    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.visa,
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5c/Visa_Inc._logo_%282021%E2%80%93present%29.svg",
   },
   {
     id: 8,
@@ -301,8 +300,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "Mastercard",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(244,119,41,0.30), rgba(244,119,41,0.02) 62%)",
-    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.mastercard,
-    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.mastercard,
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard_2019_logo.svg",
   },
   {
     id: 12,
@@ -310,8 +308,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "МИР",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(41,197,143,0.30), rgba(41,197,143,0.02) 62%)",
-    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.mir,
-    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.mir,
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Mir-logo.SVG.svg",
   },
   {
     id: 15,
@@ -319,8 +316,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "USDT TRC20",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(29,184,146,0.34), rgba(29,184,146,0.02) 62%)",
-    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.usdtTrc20,
-    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.usdtTrc20,
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/01/USDT_Logo.png",
   },
   {
     id: 26,
@@ -328,8 +324,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "Ethereum",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(130,102,255,0.34), rgba(130,102,255,0.02) 62%)",
-    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.ethereum,
-    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.ethereum,
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Ethereum-icon-purple.svg",
   },
   {
     id: 41,
@@ -337,8 +332,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "TON",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(59,130,246,0.34), rgba(59,130,246,0.02) 62%)",
-    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.ton,
-    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.ton,
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/0b/Gram_cryptocurrency_logo.svg",
   },
 ];
 
@@ -12679,7 +12673,7 @@ export default function App() {
                             <div className="text-xs uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
                             <div className="mt-1 flex items-start justify-center gap-1.5 sm:mt-1.5 sm:block">
                               <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
-                              <div className="translate-y-[4px] text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl sm:tracking-normal">RUB</div>
+                              <div className="translate-y-[6px] text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl sm:tracking-normal">RUB</div>
                             </div>
                           </div>
                         </div>
@@ -12718,7 +12712,20 @@ export default function App() {
                                           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_90%_at_0%_0%,rgba(220,38,38,0.12),transparent_70%)]" />
                                           <div className="relative flex h-full min-h-[96px] flex-col items-center justify-center rounded-xl bg-zinc-950/50 p-2.5 sm:min-h-[124px] sm:p-3">
                                             <div className="flex flex-1 items-center justify-center">
-                                              {renderShopPaymentLogo(method)}
+                                              <img
+                                                src={method.logoUrl}
+                                                alt={method.title}
+                                                className={`h-auto w-auto object-contain ${
+                                                  method.title === "СБП"
+                                                    ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
+                                                    : method.title === "Ethereum"
+                                                      ? "max-h-[70px] max-w-[92%] sm:max-h-[96px] sm:max-w-[99%]"
+                                                      : method.category === "crypto"
+                                                        ? "max-h-[62px] max-w-[90%] sm:max-h-[88px] sm:max-w-[98%]"
+                                                        : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
+                                                }`}
+                                                loading="lazy"
+                                              />
                                             </div>
                                             <div className="mt-1 text-center text-[12px] font-medium text-zinc-200 sm:text-sm">
                                               {method.title}
