@@ -292,7 +292,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "Visa",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(69,119,255,0.30), rgba(69,119,255,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5c/Visa_Inc._logo_%282021%E2%80%93present%29.svg",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Visa_Inc._logo_%282021%E2%80%93present%29.svg/960px-Visa_Inc._logo_%282021%E2%80%93present%29.svg.png",
   },
   {
     id: 8,
@@ -308,7 +308,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "МИР",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(41,197,143,0.30), rgba(41,197,143,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Mir-logo.SVG.svg",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Mir-logo.SVG.svg/960px-Mir-logo.SVG.svg.png",
   },
   {
     id: 15,
@@ -324,7 +324,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "Ethereum",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(130,102,255,0.34), rgba(130,102,255,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Ethereum-icon-purple.svg",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Ethereum-icon-purple.svg/960px-Ethereum-icon-purple.svg.png",
   },
   {
     id: 41,
@@ -332,7 +332,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "TON",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(59,130,246,0.34), rgba(59,130,246,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/0b/Gram_cryptocurrency_logo.svg",
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/TON_ICON.png/960px-TON_ICON.png",
   },
 ];
 
@@ -12673,7 +12673,7 @@ export default function App() {
                             <div className="text-xs uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
                             <div className="mt-1 flex items-start justify-center gap-1.5 sm:mt-1.5 sm:block">
                               <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
-                              <div className="translate-y-[6px] text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl sm:tracking-normal">RUB</div>
+                              <div className="mt-2.5 text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:text-3xl sm:tracking-normal">RUB</div>
                             </div>
                           </div>
                         </div>
