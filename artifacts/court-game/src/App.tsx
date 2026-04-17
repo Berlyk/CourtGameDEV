@@ -552,7 +552,15 @@ const LEGAL_DOCS = {
         ],
       },
       {
-        title: "8. Изменение оферты",
+        title: "8. Ограничение и отзыв подписки",
+        paragraphs: [
+          "Сервис вправе временно ограничить или отозвать подписку (полностью или частично) при нарушении правил платформы, выявлении мошеннических действий, попытках взлома, злоупотреблениях, оспаривании платежа (chargeback) или по требованию уполномоченных органов.",
+          "При существенном нарушении условий сервиса доступ может быть прекращен без компенсации неиспользованного периода, если иное не предусмотрено применимым законодательством.",
+          "Сервис вправе корректировать ошибочно выданный платный доступ, если он был активирован из-за технической ошибки, сбоя интеграции или некорректной оплаты.",
+        ],
+      },
+      {
+        title: "9. Изменение оферты",
         paragraphs: [
           "Сервис вправе обновлять условия оферты при изменении функционала, бизнес-процессов или юридических требований.",
           "Новая редакция вступает в силу с момента публикации в интерфейсе сайта, если в тексте не указано иное.",
@@ -12418,9 +12426,9 @@ export default function App() {
                           <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-3 py-2 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-5 sm:py-4.5">
                           <div>
                             <div className="text-xs uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
-                            <div className="mt-1 flex items-end justify-center gap-2 sm:mt-1.5 sm:block">
+                            <div className="mt-1 flex items-center justify-center gap-2 sm:mt-1.5 sm:block">
                               <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
-                              <div className="text-lg font-semibold leading-none text-red-100/95 sm:mt-1.5 sm:text-3xl">RUB</div>
+                              <div className="-translate-y-1 text-lg font-semibold leading-none text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl">RUB</div>
                             </div>
                           </div>
                         </div>
@@ -12457,7 +12465,7 @@ export default function App() {
                                           className="group relative overflow-hidden rounded-2xl bg-zinc-900/85 p-3 transition duration-200 hover:-translate-y-[1px] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_90%_at_0%_0%,rgba(220,38,38,0.12),transparent_70%)]" />
-                                          <div className="relative flex h-full min-h-[96px] items-center justify-center rounded-xl bg-zinc-950/50 p-2.5 sm:min-h-[124px] sm:p-3">
+                                          <div className="relative flex h-full min-h-[96px] flex-col items-center justify-center rounded-xl bg-zinc-950/50 p-2.5 sm:min-h-[124px] sm:p-3">
                                             <div className="flex flex-1 items-center justify-center">
                                               <img
                                                 src={method.logoUrl}
@@ -12473,6 +12481,9 @@ export default function App() {
                                                 }`}
                                                 loading="lazy"
                                               />
+                                            </div>
+                                            <div className="mt-1 text-center text-[12px] font-medium text-zinc-200 sm:text-sm">
+                                              {method.title}
                                             </div>
                                           </div>
                                           <span className="sr-only">{method.title}</span>
