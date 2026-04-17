@@ -12303,7 +12303,7 @@ export default function App() {
               </CardContent>
             </Card>
             <Dialog open={shopPaymentDialogOpen} onOpenChange={handleShopPaymentDialogChange}>
-              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[1180px] h-[min(88vh,740px)] overflow-hidden border-zinc-800/90 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(127,29,29,0.28),transparent_52%),linear-gradient(165deg,rgba(10,10,14,0.98),rgba(8,8,11,0.98))] p-0 text-zinc-100 [&>button]:right-4 [&>button]:top-4 [&>button]:z-50 [&>button]:h-7 [&>button]:w-7 [&>button_svg]:h-3 [&>button_svg]:w-3">
+              <DialogContent className="w-[calc(100vw-1rem)] sm:w-[calc(100vw-2rem)] max-w-[1180px] h-[min(88vh,740px)] overflow-hidden border-zinc-800/90 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(127,29,29,0.28),transparent_52%),linear-gradient(165deg,rgba(10,10,14,0.98),rgba(8,8,11,0.98))] p-0 text-zinc-100 [&>button]:right-3 [&>button]:top-3 [&>button]:z-50 [&>button]:h-6 [&>button]:w-6 sm:[&>button]:right-4 sm:[&>button]:top-4 sm:[&>button]:h-7 sm:[&>button]:w-7 [&>button_svg]:h-3 [&>button_svg]:w-3">
                 <DialogHeader className="sr-only">
                   <DialogTitle>Оплата подписки</DialogTitle>
                   <DialogDescription>Выберите способ оплаты.</DialogDescription>
@@ -12351,11 +12351,11 @@ export default function App() {
                           </div>
                         </div>
 
-                          <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-4 py-3.5 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-5 sm:py-4.5">
+                          <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-3 py-2.5 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-5 sm:py-4.5">
                           <div>
-                            <div className="text-sm uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
-                            <div className="mt-1 text-5xl font-semibold leading-none sm:mt-1.5 sm:text-7xl">{shopPaymentAmountRub}</div>
-                            <div className="mt-1 text-2xl font-semibold text-red-100/95 sm:mt-1.5 sm:text-3xl">RUB</div>
+                            <div className="text-xs uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
+                            <div className="mt-1 text-4xl font-semibold leading-none sm:mt-1.5 sm:text-7xl">{shopPaymentAmountRub}</div>
+                            <div className="mt-1 text-xl font-semibold text-red-100/95 sm:mt-1.5 sm:text-3xl">RUB</div>
                           </div>
                         </div>
                       </div>
@@ -12400,7 +12400,7 @@ export default function App() {
                                                   method.title === "СБП"
                                                     ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
                                                     : method.category === "crypto"
-                                                      ? "max-h-[58px] max-w-[88%] sm:max-h-[82px] sm:max-w-[96%]"
+                                                      ? "max-h-[62px] max-w-[90%] sm:max-h-[88px] sm:max-w-[98%]"
                                                     : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
                                                 }`}
                                                 loading="lazy"
