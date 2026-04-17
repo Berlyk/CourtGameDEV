@@ -341,6 +341,194 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.ton,
   },
 ];
+
+function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
+  const wrapperClass =
+    method.title === "СБП"
+      ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
+      : method.title === "Ethereum"
+        ? "max-h-[70px] max-w-[92%] sm:max-h-[96px] sm:max-w-[99%]"
+        : method.category === "crypto"
+          ? "max-h-[62px] max-w-[90%] sm:max-h-[88px] sm:max-w-[98%]"
+          : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]";
+
+  const commonClass = `h-auto w-auto object-contain ${wrapperClass}`;
+
+  switch (method.title) {
+    case "СБП":
+      return (
+        <svg viewBox="0 0 640 220" aria-hidden="true" className={commonClass}>
+          <defs>
+            <linearGradient id="shop-logo-sbp" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#2ec8ff" />
+              <stop offset="100%" stopColor="#2f6bff" />
+            </linearGradient>
+          </defs>
+          <g transform="translate(30 30)">
+            <polygon points="70,0 105,60 35,60" fill="#f6a623" />
+            <polygon points="140,60 210,60 175,0" fill="#ef3d7f" />
+            <polygon points="105,70 175,70 140,130" fill="#7047d5" />
+            <polygon points="70,140 105,80 35,80" fill="#2f98ff" />
+            <polygon points="140,140 210,140 175,200" fill="#1dcf72" />
+            <polygon points="105,150 175,150 140,210" fill="#00c7c7" />
+          </g>
+          <text
+            x="270"
+            y="120"
+            fill="#f4f4f5"
+            fontSize="78"
+            fontWeight="700"
+            fontFamily="Inter, Segoe UI, Arial, sans-serif"
+          >
+            СБП
+          </text>
+        </svg>
+      );
+    case "Visa":
+      return (
+        <svg viewBox="0 0 640 220" aria-hidden="true" className={commonClass}>
+          <text
+            x="50%"
+            y="62%"
+            dominantBaseline="middle"
+            textAnchor="middle"
+            fill="#1a4dff"
+            fontSize="126"
+            fontWeight="800"
+            letterSpacing="2"
+            fontFamily="Arial Black, Segoe UI, Arial, sans-serif"
+          >
+            VISA
+          </text>
+        </svg>
+      );
+    case "Mastercard":
+      return (
+        <svg viewBox="0 0 640 220" aria-hidden="true" className={commonClass}>
+          <g transform="translate(170 45)">
+            <circle cx="110" cy="65" r="56" fill="#eb001b" />
+            <circle cx="190" cy="65" r="56" fill="#f79e1b" fillOpacity="0.95" />
+            <path d="M150 20a56 56 0 0 1 0 90a56 56 0 0 1 0-90z" fill="#ff5f00" />
+          </g>
+          <text
+            x="320"
+            y="188"
+            textAnchor="middle"
+            fill="#f4f4f5"
+            fontSize="44"
+            fontWeight="600"
+            fontFamily="Inter, Segoe UI, Arial, sans-serif"
+          >
+            mastercard
+          </text>
+        </svg>
+      );
+    case "МИР":
+      return (
+        <svg viewBox="0 0 640 220" aria-hidden="true" className={commonClass}>
+          <defs>
+            <linearGradient id="shop-logo-mir" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#09b570" />
+              <stop offset="52%" stopColor="#25c58e" />
+              <stop offset="100%" stopColor="#22a9ff" />
+            </linearGradient>
+          </defs>
+          <text
+            x="50%"
+            y="62%"
+            dominantBaseline="middle"
+            textAnchor="middle"
+            fill="url(#shop-logo-mir)"
+            fontSize="130"
+            fontWeight="800"
+            fontFamily="Arial Black, Segoe UI, Arial, sans-serif"
+          >
+            МИР
+          </text>
+        </svg>
+      );
+    case "USDT TRC20":
+      return (
+        <svg viewBox="0 0 640 220" aria-hidden="true" className={commonClass}>
+          <g transform="translate(80 45)">
+            <circle cx="65" cy="65" r="58" fill="#25a77a" />
+            <rect x="26" y="38" width="78" height="14" rx="6" fill="#fff" />
+            <rect x="58" y="52" width="14" height="47" rx="6" fill="#fff" />
+            <ellipse cx="65" cy="66" rx="30" ry="11" fill="none" stroke="#fff" strokeWidth="9" />
+          </g>
+          <text
+            x="200"
+            y="102"
+            fill="#eafbf5"
+            fontSize="66"
+            fontWeight="700"
+            fontFamily="Inter, Segoe UI, Arial, sans-serif"
+          >
+            USDT
+          </text>
+          <text
+            x="200"
+            y="156"
+            fill="#9ee5c9"
+            fontSize="40"
+            fontWeight="600"
+            fontFamily="Inter, Segoe UI, Arial, sans-serif"
+          >
+            TRC20
+          </text>
+        </svg>
+      );
+    case "Ethereum":
+      return (
+        <svg viewBox="0 0 640 220" aria-hidden="true" className={commonClass}>
+          <g transform="translate(290 18)">
+            <polygon points="30,0 72,68 30,88 -12,68" fill="#8f8bf7" />
+            <polygon points="30,96 72,76 30,184 -12,76" fill="#6d65dd" />
+            <polygon points="30,86 72,70 30,92 -12,70" fill="#b3adff" />
+          </g>
+          <text
+            x="320"
+            y="207"
+            textAnchor="middle"
+            fill="#d8d5ff"
+            fontSize="36"
+            fontWeight="600"
+            fontFamily="Inter, Segoe UI, Arial, sans-serif"
+          >
+            Ethereum
+          </text>
+        </svg>
+      );
+    case "TON":
+      return (
+        <svg viewBox="0 0 640 220" aria-hidden="true" className={commonClass}>
+          <g transform="translate(90 36)">
+            <circle cx="75" cy="75" r="66" fill="#40b7ff" />
+            <path
+              d="M75 30l33 24-33 50-33-50z"
+              fill="none"
+              stroke="#072032"
+              strokeWidth="9"
+              strokeLinejoin="round"
+            />
+          </g>
+          <text
+            x="250"
+            y="125"
+            fill="#8ad2ff"
+            fontSize="84"
+            fontWeight="800"
+            fontFamily="Arial Black, Segoe UI, Arial, sans-serif"
+          >
+            TON
+          </text>
+        </svg>
+      );
+    default:
+      return <span className="text-base font-semibold text-zinc-100">{method.title}</span>;
+  }
+}
+
 const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
   trainee: { "1_month": 250, "1_year": 2500 },
   practitioner: { "1_month": 500, "1_year": 5000 },
@@ -12491,7 +12679,7 @@ export default function App() {
                             <div className="text-xs uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
                             <div className="mt-1 flex items-start justify-center gap-1.5 sm:mt-1.5 sm:block">
                               <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
-                              <div className="translate-y-[2px] text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl sm:tracking-normal">RUB</div>
+                              <div className="translate-y-[4px] text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl sm:tracking-normal">RUB</div>
                             </div>
                           </div>
                         </div>
@@ -12530,30 +12718,7 @@ export default function App() {
                                           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_90%_at_0%_0%,rgba(220,38,38,0.12),transparent_70%)]" />
                                           <div className="relative flex h-full min-h-[96px] flex-col items-center justify-center rounded-xl bg-zinc-950/50 p-2.5 sm:min-h-[124px] sm:p-3">
                                             <div className="flex flex-1 items-center justify-center">
-                                              <img
-                                                src={method.logoUrl}
-                                                alt={method.title}
-                                                onError={(event) => {
-                                                  const image = event.currentTarget;
-                                                  const step = image.dataset.fallbackStep ?? "0";
-                                                  if (step === "0") {
-                                                    image.dataset.fallbackStep = "1";
-                                                    image.src = method.logoFallbackUrl;
-                                                    return;
-                                                  }
-                                                  image.dataset.fallbackStep = "2";
-                                                  image.src = buildShopPaymentLogoFallbackDataUrl(method.title);
-                                                }}
-                                                className={`h-auto w-auto object-contain ${
-                                                  method.title === "СБП"
-                                                    ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
-                                                    : method.title === "Ethereum"
-                                                      ? "max-h-[70px] max-w-[92%] sm:max-h-[96px] sm:max-w-[99%]"
-                                                    : method.category === "crypto"
-                                                      ? "max-h-[62px] max-w-[90%] sm:max-h-[88px] sm:max-w-[98%]"
-                                                    : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
-                                                }`}
-                                              />
+                                              {renderShopPaymentLogo(method)}
                                             </div>
                                             <div className="mt-1 text-center text-[12px] font-medium text-zinc-200 sm:text-sm">
                                               {method.title}
