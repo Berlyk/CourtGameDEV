@@ -496,6 +496,70 @@ const LEGAL_DOCS = {
       },
     ],
   },
+  offer: {
+    title: "Публичная оферта CourtGame",
+    updatedAt: "17 апреля 2026",
+    intro:
+      "Настоящая оферта регулирует порядок приобретения подписки и платных функций CourtGame, условия оплаты, сроки доступа и иные существенные условия сделки.",
+    sections: [
+      {
+        title: "1. Общие положения",
+        paragraphs: [
+          "Оферта адресована неограниченному кругу пользователей и считается принятой с момента оплаты подписки или активации платного доступа.",
+          "Оплата означает полное и безоговорочное согласие пользователя с условиями оферты и сопутствующих документов сервиса.",
+        ],
+      },
+      {
+        title: "2. Предмет оферты",
+        paragraphs: [
+          "Сервис предоставляет пользователю ограниченное право доступа к выбранному подписочному тарифу на оплаченный срок.",
+          "Состав функций зависит от активного тарифа и может быть изменен в рамках развития продукта при сохранении общей логики подписки.",
+        ],
+      },
+      {
+        title: "3. Стоимость и порядок оплаты",
+        paragraphs: [
+          "Стоимость подписки, срок действия и доступные способы оплаты указываются в интерфейсе магазина на момент оформления платежа.",
+          "Оплата выполняется через подключенные платежные системы; сервис не хранит реквизиты банковских карт пользователя.",
+        ],
+      },
+      {
+        title: "4. Момент предоставления доступа",
+        paragraphs: [
+          "Доступ к подписке предоставляется после подтверждения успешной оплаты платежным провайдером.",
+          "В случае временной задержки со стороны платежной системы доступ может быть активирован с небольшой технической паузой.",
+        ],
+      },
+      {
+        title: "5. Срок действия и продление",
+        paragraphs: [
+          "Подписка действует в течение оплаченного периода (например, 1 месяц или 1 год) с момента активации.",
+          "Автопродление не применяется, если иное прямо не указано в интерфейсе оплаты.",
+        ],
+      },
+      {
+        title: "6. Возвраты и спорные платежи",
+        paragraphs: [
+          "Вопросы возврата рассматриваются индивидуально с учетом факта предоставления доступа и требований применимого законодательства.",
+          "При оспаривании платежа сервис вправе временно ограничить платные функции до завершения проверки обстоятельств.",
+        ],
+      },
+      {
+        title: "7. Ответственность сторон",
+        paragraphs: [
+          "Сервис обязуется предоставить оплаченный доступ в рамках технических возможностей платформы.",
+          "Пользователь обязуется указывать корректные данные и использовать только законные способы оплаты.",
+        ],
+      },
+      {
+        title: "8. Изменение оферты",
+        paragraphs: [
+          "Сервис вправе обновлять условия оферты при изменении функционала, бизнес-процессов или юридических требований.",
+          "Новая редакция вступает в силу с момента публикации в интерфейсе сайта, если в тексте не указано иное.",
+        ],
+      },
+    ],
+  },
 } as const;
 
 function getSubscriptionTierLabel(tier: SubscriptionTier): string {
@@ -12351,11 +12415,13 @@ export default function App() {
                           </div>
                         </div>
 
-                          <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-3 py-2.5 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-5 sm:py-4.5">
+                          <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-3 py-2 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-5 sm:py-4.5">
                           <div>
                             <div className="text-xs uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
-                            <div className="mt-1 text-4xl font-semibold leading-none sm:mt-1.5 sm:text-7xl">{shopPaymentAmountRub}</div>
-                            <div className="mt-1 text-xl font-semibold text-red-100/95 sm:mt-1.5 sm:text-3xl">RUB</div>
+                            <div className="mt-1 flex items-end justify-center gap-2 sm:mt-1.5 sm:block">
+                              <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
+                              <div className="text-lg font-semibold leading-none text-red-100/95 sm:mt-1.5 sm:text-3xl">RUB</div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -12399,6 +12465,8 @@ export default function App() {
                                                 className={`h-auto w-auto object-contain ${
                                                   method.title === "СБП"
                                                     ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
+                                                    : method.title === "Ethereum"
+                                                      ? "max-h-[70px] max-w-[92%] sm:max-h-[96px] sm:max-w-[99%]"
                                                     : method.category === "crypto"
                                                       ? "max-h-[62px] max-w-[90%] sm:max-h-[88px] sm:max-w-[98%]"
                                                     : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
@@ -12704,6 +12772,13 @@ export default function App() {
                 className="transition-colors hover:text-zinc-400"
               >
                 Пользовательское соглашение
+              </button>
+              <button
+                type="button"
+                onClick={() => setLegalDialogType("offer")}
+                className="transition-colors hover:text-zinc-400"
+              >
+                Публичная оферта
               </button>
             </div>
             <div className="mt-1 flex flex-col items-center justify-center gap-y-1 text-zinc-700 sm:flex-row sm:flex-wrap sm:gap-x-4">
