@@ -15,11 +15,14 @@ const paymentsRouter = Router();
 type PaymentRegion = "cis" | "crypto";
 type PaidTier = Exclude<SubscriptionTier, "free">;
 type PaidDuration = Extract<SubscriptionDuration, "1_month" | "1_year">;
+type TomeSettlementMethod = "card" | "sbp";
 
 const PAID_TIERS = new Set<PaidTier>(["trainee", "practitioner", "arbiter"]);
 const PAID_DURATIONS = new Set<PaidDuration>(["1_month", "1_year"]);
 const CIS_METHOD_IDS = new Set<number>([4, 8, 12, 42]);
 const CRYPTO_METHOD_IDS = new Set<number>([15, 26, 41]);
+const TOME_CARD_METHOD_IDS = new Set<number>([4, 8, 12]);
+const TOME_SBP_METHOD_IDS = new Set<number>([42]);
 
 const PRICE_MATRIX_RUB: Record<PaidTier, Record<PaidDuration, number>> = {
   trainee: { "1_month": 250, "1_year": 2500 },
@@ -115,6 +118,86 @@ function readFreeKassaConfig() {
   return { shopId, secret1, apiKey, secret2, publicAppUrl };
 }
 
+function normalizePublicUrl(value: string | undefined | null): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, "");
+}
+
+function resolvePublicAppUrl(req: Request): string {
+  const fromEnv =
+    normalizePublicUrl(process.env.PUBLIC_APP_URL) ??
+    normalizePublicUrl(process.env.APP_PUBLIC_URL) ??
+    normalizePublicUrl(process.env.FRONTEND_PUBLIC_URL);
+  if (fromEnv) return fromEnv;
+
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const proto =
+    typeof forwardedProto === "string" && forwardedProto.trim()
+      ? forwardedProto.split(",")[0]!.trim()
+      : "https";
+  const forwardedHost = req.headers["x-forwarded-host"];
+  const hostRaw =
+    typeof forwardedHost === "string" && forwardedHost.trim()
+      ? forwardedHost
+      : Array.isArray(forwardedHost) && forwardedHost.length > 0
+        ? String(forwardedHost[0] ?? "")
+        : String(req.headers.host ?? "");
+  const host = hostRaw.trim();
+  if (!host) return "https://courtgame.site";
+  return `${proto}://${host}`;
+}
+
+function readTomeConfig() {
+  const combinedCredentials = String(
+    process.env.TOMEGE_API_CREDENTIALS ??
+      process.env.TOMEGE_API_AUTH ??
+      process.env.TOMEGE_API_KEY ??
+      process.env.TOME_API_CREDENTIALS ??
+      process.env.TOME_API_AUTH ??
+      process.env.TOME_API_KEY ??
+      "",
+  ).trim();
+
+  let shopId = String(
+    process.env.TOMEGE_SHOP_ID ??
+      process.env.TOMEGE_ACCOUNT_ID ??
+      process.env.TOMEGE_MERCHANT_ID ??
+      process.env.TOME_SHOP_ID ??
+      process.env.TOME_ACCOUNT_ID ??
+      process.env.TOME_MERCHANT_ID ??
+      "",
+  ).trim();
+  let secretKey = String(
+    process.env.TOMEGE_SECRET_KEY ??
+      process.env.TOMEGE_SECRET ??
+      process.env.TOME_SECRET_KEY ??
+      process.env.TOME_SECRET ??
+      "",
+  ).trim();
+
+  if (combinedCredentials) {
+    const separatorIndex = combinedCredentials.indexOf(":");
+    if (separatorIndex > 0) {
+      if (!shopId) {
+        shopId = combinedCredentials.slice(0, separatorIndex).trim();
+      }
+      if (!secretKey) {
+        secretKey = combinedCredentials.slice(separatorIndex + 1).trim();
+      }
+    } else if (!secretKey) {
+      secretKey = combinedCredentials;
+    }
+  }
+
+  const notificationUrl =
+    normalizePublicUrl(process.env.TOMEGE_NOTIFICATION_URL) ??
+    normalizePublicUrl(process.env.TOME_NOTIFICATION_URL) ??
+    "https://courtgame.site/api/payments/tomege";
+
+  return { shopId, secretKey, notificationUrl };
+}
+
 function buildApiSignature(payload: Record<string, string | number>, apiKey: string): string {
   const serialized = Object.keys(payload)
     .sort((a, b) => a.localeCompare(b))
@@ -199,6 +282,20 @@ function secureCompare(a: string, b: string): boolean {
   const right = Buffer.from(String(b), "utf8");
   if (left.length !== right.length) return false;
   return crypto.timingSafeEqual(left, right);
+}
+
+function resolveTomeSettlementMethod(methodId: number): TomeSettlementMethod | null {
+  if (TOME_SBP_METHOD_IDS.has(methodId)) return "sbp";
+  if (TOME_CARD_METHOD_IDS.has(methodId)) return "card";
+  return null;
+}
+
+function buildTomeAuthorizationHeader(shopId: string, secretKey: string): string {
+  return `Basic ${Buffer.from(`${shopId}:${secretKey}`, "utf8").toString("base64")}`;
+}
+
+function buildTomeNotificationSignature(paymentId: string, secretKey: string): string {
+  return crypto.createHash("sha256").update(`${paymentId}${secretKey}`, "utf8").digest("hex");
 }
 
 paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
@@ -385,6 +482,170 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
   });
 });
 
+paymentsRouter.post("/payments/tomege/create", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized." });
+  }
+
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Session is invalid." });
+  }
+
+  const { shopId, secretKey, notificationUrl } = readTomeConfig();
+  if (!shopId || !secretKey) {
+    return res.status(503).json({
+      message:
+        "Tome.ge is not configured on the server. Set TOMEGE_SHOP_ID and TOMEGE_SECRET_KEY.",
+    });
+  }
+
+  const tier = normalizeSubscriptionTier(String(req.body?.tier ?? "").trim());
+  if (!PAID_TIERS.has(tier as PaidTier)) {
+    return res.status(400).json({ message: "Invalid subscription plan." });
+  }
+  const duration = normalizeSubscriptionDuration(String(req.body?.duration ?? "").trim());
+  if (!PAID_DURATIONS.has(duration as PaidDuration)) {
+    return res
+      .status(400)
+      .json({ message: "Only 1 month and 1 year durations are available for payment." });
+  }
+
+  const regionRaw = String(req.body?.category ?? "").trim().toLowerCase();
+  if (regionRaw !== "cis") {
+    return res.status(400).json({ message: "Tome.ge is available only for CIS payments." });
+  }
+
+  const methodId = Number(req.body?.paymentSystemId);
+  if (!Number.isFinite(methodId) || methodId <= 0) {
+    return res.status(400).json({ message: "Invalid payment method." });
+  }
+  if (!CIS_METHOD_IDS.has(methodId)) {
+    return res.status(400).json({ message: "Method is not available for CIS payments." });
+  }
+
+  const settlementMethod = resolveTomeSettlementMethod(methodId);
+  if (!settlementMethod) {
+    return res.status(400).json({ message: "Method is not available for Tome.ge." });
+  }
+
+  const paidTier = tier as PaidTier;
+  const paidDuration = duration as PaidDuration;
+  const amountRub = PRICE_MATRIX_RUB[paidTier][paidDuration];
+  const publicAppUrl = resolvePublicAppUrl(req);
+  const clientIp = resolveClientIp(req) || "127.0.0.1";
+  const idempotencyKey = crypto.randomUUID();
+  const description = `Подписка CourtGame: ${paidTier}, ${paidDuration}`;
+
+  const tomeRequestPayload = {
+    amount: {
+      value: amountRub.toFixed(2),
+      currency: "RUB",
+    },
+    customer: {
+      settlement_method: settlementMethod,
+      ip: clientIp,
+    },
+    confirmation: {
+      type: "redirect",
+      return_url: publicAppUrl,
+    },
+    description,
+    metadata: {
+      project: "CourtGame",
+      user_id: user.id,
+      user_email: user.email,
+      tier: paidTier,
+      duration: paidDuration,
+      method_id: String(methodId),
+      notification_url: notificationUrl,
+    },
+  };
+
+  const tomeResponse = await fetch("https://tome.ge/api/v1/payments", {
+    method: "POST",
+    headers: {
+      Authorization: buildTomeAuthorizationHeader(shopId, secretKey),
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+    },
+    body: JSON.stringify(tomeRequestPayload),
+  }).catch(() => null);
+
+  if (!tomeResponse) {
+    return res.status(502).json({ message: "Failed to connect to Tome.ge." });
+  }
+
+  const tomePayload: any = await tomeResponse.json().catch(() => null);
+  const checkoutUrl = String(tomePayload?.confirmation?.confirmation_url ?? "").trim();
+  const providerPaymentId = String(tomePayload?.id ?? "").trim();
+
+  if (!tomeResponse.ok || !providerPaymentId || !checkoutUrl) {
+    const message =
+      String(
+        tomePayload?.description ??
+          tomePayload?.message ??
+          tomePayload?.error_description ??
+          tomePayload?.error ??
+          "",
+      ).trim() || "Tome.ge returned an error while creating payment.";
+    return res.status(502).json({ message });
+  }
+
+  await ensurePaymentTables();
+  await pool.query(
+    `
+      INSERT INTO auth_payment_orders (
+        id,
+        provider,
+        payment_id,
+        user_id,
+        tier,
+        duration,
+        amount_rub,
+        currency,
+        region,
+        method_id,
+        status,
+        fk_location,
+        fk_payload,
+        updated_at
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW()
+      )
+    `,
+    [
+      crypto.randomUUID(),
+      "tomege",
+      providerPaymentId,
+      user.id,
+      paidTier,
+      paidDuration,
+      amountRub,
+      "RUB",
+      "cis",
+      methodId,
+      String(tomePayload?.status ?? "pending").trim() || "pending",
+      checkoutUrl,
+      JSON.stringify(
+        safeJsonPayload({
+          idempotencyKey,
+          request: tomeRequestPayload,
+          response: tomePayload,
+        }),
+      ),
+    ],
+  );
+
+  return res.status(200).json({
+    ok: true,
+    paymentId: providerPaymentId,
+    checkoutUrl,
+  });
+});
+
 const freeKassaCallbackHandler = async (req: Request, res: Response) => {
   const { shopId, secret2 } = readFreeKassaConfig();
   if (!shopId || !secret2) {
@@ -477,8 +738,95 @@ const freeKassaCallbackHandler = async (req: Request, res: Response) => {
   return res.status(200).type("text/plain").send("YES");
 };
 
+const tomeGeCallbackHandler = async (req: Request, res: Response) => {
+  const { secretKey } = readTomeConfig();
+  if (!secretKey) {
+    return res.status(503).json({ message: "Tome.ge callback is not configured." });
+  }
+
+  await ensurePaymentTables();
+
+  const source =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const signatureRaw = String(source.signature ?? "").trim();
+  const event = String(source.event ?? "").trim();
+  const object =
+    source.object && typeof source.object === "object" && !Array.isArray(source.object)
+      ? (source.object as Record<string, unknown>)
+      : null;
+
+  const paymentId = String(object?.id ?? "").trim();
+  if (!paymentId || !object) {
+    return res.status(400).json({ message: "Invalid Tome.ge notification payload." });
+  }
+
+  const expectedSignature = buildTomeNotificationSignature(paymentId, secretKey);
+  if (!signatureRaw || !secureCompare(signatureRaw.toLowerCase(), expectedSignature.toLowerCase())) {
+    return res.status(403).json({ message: "Invalid Tome.ge signature." });
+  }
+
+  const paymentResult = await pool.query<{
+    user_id: string;
+    tier: string;
+    duration: string;
+    status: string;
+  }>(
+    `
+      SELECT user_id, tier, duration, status
+      FROM auth_payment_orders
+      WHERE payment_id = $1 AND provider = 'tomege'
+      LIMIT 1
+    `,
+    [paymentId],
+  );
+  if (!paymentResult.rowCount) {
+    return res.status(404).json({ message: "Payment not found." });
+  }
+
+  const payment = paymentResult.rows[0];
+  const paymentStatus = String(object.status ?? "").trim().toLowerCase();
+  const isPaidEvent =
+    event === "payment.succeeded" ||
+    paymentStatus === "succeeded" ||
+    object.paid === true;
+  const isCanceledEvent = event === "payment.canceled" || paymentStatus === "canceled";
+
+  if (isPaidEvent && payment.status !== "paid") {
+    const subscription = await assignSubscriptionByUserId({
+      userId: payment.user_id,
+      tier: payment.tier,
+      duration: payment.duration,
+      source: "system",
+    });
+    if (!subscription) {
+      return res.status(404).json({ message: "User not found." });
+    }
+  }
+
+  const nextStatus = isPaidEvent ? "paid" : isCanceledEvent ? "canceled" : paymentStatus || "pending";
+  await pool.query(
+    `
+      UPDATE auth_payment_orders
+      SET
+        status = $2,
+        paid_at = CASE WHEN $2 = 'paid' THEN COALESCE(paid_at, NOW()) ELSE paid_at END,
+        fk_payload = $3,
+        updated_at = NOW()
+      WHERE payment_id = $1
+    `,
+    [paymentId, nextStatus, JSON.stringify(safeJsonPayload(source))],
+  );
+
+  return res.status(200).json({ ok: true });
+};
+
 paymentsRouter.all("/payments/freekassa", freeKassaCallbackHandler);
 paymentsRouter.all("/payments/freekassa/", freeKassaCallbackHandler);
 paymentsRouter.all("/payments/freekassa/notify", freeKassaCallbackHandler);
+paymentsRouter.all("/payments/tomege", tomeGeCallbackHandler);
+paymentsRouter.all("/payments/tomege/", tomeGeCallbackHandler);
+paymentsRouter.all("/payments/tomege/notify", tomeGeCallbackHandler);
 
 export default paymentsRouter;
