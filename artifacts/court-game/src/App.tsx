@@ -241,6 +241,15 @@ const SHOP_PAYMENT_BASE_URL = import.meta.env.BASE_URL.endsWith("/")
   : `${import.meta.env.BASE_URL}/`;
 const SHOP_PAYMENT_LOGO_BASE = `${SHOP_PAYMENT_BASE_URL}payment-logos/`;
 
+function buildShopPaymentLogoFallbackDataUrl(title: string): string {
+  const safeTitle = String(title || "Payment")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 96"><rect width="220" height="96" rx="22" fill="#111217"/><rect x="2" y="2" width="216" height="92" rx="20" fill="none" stroke="rgba(248,113,113,0.45)" stroke-width="2"/><text x="110" y="56" text-anchor="middle" fill="#f4f4f5" font-size="22" font-weight="700" font-family="Arial, sans-serif">${safeTitle}</text></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
 const SHOP_PAYMENT_SECTIONS: Array<{
   key: ShopPaymentCategory;
   title: string;
@@ -2603,7 +2612,15 @@ const BANNER_CROP_VIEW_HEIGHT = 270;
 function normalizeBadgeVisualKey(badgeKey?: string): string | undefined {
   if (!badgeKey) return undefined;
   const trimmed = badgeKey.trim();
-  const roleKey = trimmed.startsWith("role_") ? trimmed.slice("role_".length) : trimmed;
+  if (!trimmed) return undefined;
+  if (BADGE_ICONS[trimmed]) return trimmed;
+  const normalizedLookupKey = trimmed
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+  const roleKey = normalizedLookupKey.startsWith("role_")
+    ? normalizedLookupKey.slice("role_".length)
+    : normalizedLookupKey;
   const roleAliases: Record<string, string> = {
     plaintiff_lawyer: "plaintiffLawyer",
     defense_lawyer: "defenseLawyer",
@@ -2619,6 +2636,15 @@ function normalizeBadgeVisualKey(badgeKey?: string): string | undefined {
     sub_trainee: "subTrainee",
     sub_practitioner: "subPractitioner",
     sub_arbiter: "subArbiter",
+    ranknovice: "rankNovice",
+    rankdebater: "rankDebater",
+    rankorator: "rankOrator",
+    rankstrategist: "rankStrategist",
+    rankmaster: "rankMaster",
+    rankverdict: "rankVerdict",
+    subtrainee: "subTrainee",
+    subpractitioner: "subPractitioner",
+    subarbiter: "subArbiter",
     novice: "rankNovice",
     debater: "rankDebater",
     orator: "rankOrator",
@@ -2626,7 +2652,28 @@ function normalizeBadgeVisualKey(badgeKey?: string): string | undefined {
     master: "rankMaster",
     verdict: "rankVerdict",
   };
-  return roleAliases[roleKey] ?? roleKey;
+  return roleAliases[roleKey] ?? roleAliases[normalizedLookupKey] ?? trimmed;
+}
+
+function findBadgeByKey<T extends { key: string }>(
+  badgeKey: string | undefined,
+  badges?: T[],
+): T | undefined {
+  if (!badgeKey) return undefined;
+  const normalizedBadgeKey = badgeKey
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+  if (!normalizedBadgeKey) return undefined;
+  return badges?.find((item) => {
+    const normalizedItemKey = item.key
+      .trim()
+      .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+      .replace(/[\s-]+/g, "_")
+      .toLowerCase();
+    return normalizedItemKey === normalizedBadgeKey;
+  });
 }
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -3156,7 +3203,7 @@ function getBadgeTitleByKey(
   badges?: Array<{ key: string; title: string }>,
 ): string {
   if (!badgeKey) return "";
-  return badges?.find((item) => item.key === badgeKey)?.title ?? badgeKey;
+  return findBadgeByKey(badgeKey, badges)?.title ?? badgeKey;
 }
 
 function getBadgeCategory(badge: {
@@ -3346,7 +3393,7 @@ function InfoBlock({
   action?: React.ReactNode;
 }) {
   return (
-    <Card className="rounded-2xl shadow-sm h-full bg-zinc-900/90 border-zinc-800 text-zinc-100">
+    <Card className="flex h-full flex-col rounded-2xl border-zinc-800 bg-zinc-900/90 text-zinc-100 shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center justify-between gap-2 text-lg text-zinc-100">
           <span className="flex items-center gap-2">
@@ -3356,7 +3403,7 @@ function InfoBlock({
           {action}
         </CardTitle>
       </CardHeader>
-      <CardContent className="text-zinc-100">{children}</CardContent>
+      <CardContent className="flex flex-1 flex-col text-zinc-100">{children}</CardContent>
     </Card>
   );
 }
@@ -5621,8 +5668,9 @@ export default function App() {
                           </button>
                           {viewProfileBadgeHintOpen ? (
                             <div className="absolute left-1/2 top-full z-30 mt-2 w-64 max-w-[calc(100vw-4rem)] -translate-x-1/2 rounded-xl border border-zinc-700 bg-zinc-900/95 px-3 py-2 text-sm leading-relaxed text-zinc-200 shadow-[0_10px_24px_rgba(0,0,0,0.45)] whitespace-pre-wrap break-words sm:left-0 sm:translate-x-0">
-                              {viewPlayerProfile.badges?.find(
-                                (badge) => badge.key === viewPlayerProfile.selectedBadgeKey,
+                              {findBadgeByKey(
+                                viewPlayerProfile.selectedBadgeKey,
+                                viewPlayerProfile.badges,
                               )?.description ?? "Информация о бейдже отсутствует."}
                             </div>
                           ) : null}
@@ -5818,8 +5866,7 @@ export default function App() {
     const badges = myProfile?.badges ?? [];
     const selectedFromProfile = myProfile?.selectedBadgeKey;
     const selectedStillActive =
-      !!selectedFromProfile &&
-      badges.some((badge) => badge.key === selectedFromProfile && badge.active);
+      !!findBadgeByKey(selectedFromProfile, badges)?.active;
     if (selectedStillActive && selectedFromProfile) {
       setSelectedBadgeKey(selectedFromProfile);
       return;
@@ -9766,7 +9813,9 @@ export default function App() {
                                     setBadgePickerOpen(false);
                                   }}
                                   className={`w-full rounded-md border px-2.5 py-2 text-left transition-colors ${
-                                    selectedBadgeKey === badge.key
+                                    !!selectedBadgeKey &&
+                                    normalizeBadgeVisualKey(selectedBadgeKey) ===
+                                      normalizeBadgeVisualKey(badge.key)
                                       ? "border-red-500 bg-red-600/20 text-red-200"
                                       : "border-zinc-800 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
                                   }`}
@@ -12431,9 +12480,9 @@ export default function App() {
                           <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-3 py-2 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-5 sm:py-4.5">
                           <div>
                             <div className="text-xs uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
-                            <div className="mt-1 flex items-center justify-center gap-2 sm:mt-1.5 sm:block">
+                            <div className="mt-1 flex items-start justify-center gap-1.5 sm:mt-1.5 sm:block">
                               <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
-                              <div className="-translate-y-0.5 text-lg font-semibold leading-none text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl">RUB</div>
+                              <div className="pt-1 text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:pt-0 sm:text-3xl sm:tracking-normal">RUB</div>
                             </div>
                           </div>
                         </div>
@@ -12483,15 +12532,8 @@ export default function App() {
                                                     image.src = method.logoFallbackUrl;
                                                     return;
                                                   }
-                                                  if (step === "1") {
-                                                    image.dataset.fallbackStep = "2";
-                                                    image.src = method.logoUrl;
-                                                    return;
-                                                  }
-                                                  if (step === "2") {
-                                                    image.dataset.fallbackStep = "3";
-                                                    image.style.visibility = "hidden";
-                                                  }
+                                                  image.dataset.fallbackStep = "2";
+                                                  image.src = buildShopPaymentLogoFallbackDataUrl(method.title);
                                                 }}
                                                 className={`h-auto w-auto object-contain ${
                                                   method.title === "СБП"
@@ -13909,10 +13951,10 @@ export default function App() {
     );
     const influenceScrollableHeightClass =
       game.players.length >= 8
-        ? "min-h-[360px] max-h-[560px] md:min-h-[430px] md:max-h-[680px]"
+        ? "min-h-[360px] md:min-h-[430px]"
         : game.players.length >= 6
-          ? "min-h-[320px] max-h-[520px] md:min-h-[380px] md:max-h-[640px]"
-          : "min-h-[280px] max-h-[480px] md:min-h-[320px] md:max-h-[580px]";
+          ? "min-h-[320px] md:min-h-[380px]"
+          : "min-h-[280px] md:min-h-[320px]";
     const warningScrollableHeightClass =
       game.players.length >= 8
         ? "max-h-[500px]"
@@ -14552,7 +14594,7 @@ export default function App() {
                         })}
                       </div>
                     </div>
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                       <Input
                         value={lawyerChatInput}
                         onChange={(e) => setLawyerChatInput(e.target.value)}
@@ -14560,10 +14602,10 @@ export default function App() {
                         placeholder={
                           isLawyerRole ? "Сообщение клиенту..." : "Сообщение адвокату..."
                         }
-                        className="h-10 rounded-xl bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
+                        className="h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
                       />
                       <Button
-                        className="h-10 rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
+                        className="h-10 rounded-xl border-0 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 sm:px-5"
                         onClick={sendLawyerChatMessage}
                         disabled={!lawyerChatInput.trim()}
                       >
