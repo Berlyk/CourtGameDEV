@@ -12351,11 +12351,11 @@ export default function App() {
                           </div>
                         </div>
 
-                          <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-5 py-4.5 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                          <div className="flex items-center justify-center rounded-2xl border border-red-500/45 bg-[radial-gradient(130%_130%_at_0%_0%,rgba(248,113,113,0.35),rgba(239,68,68,0.12)_45%,rgba(127,29,29,0.9)_100%)] px-4 py-3.5 text-center text-red-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-5 sm:py-4.5">
                           <div>
-                            <div className="text-base uppercase tracking-[0.16em] text-red-100/95">К оплате</div>
-                            <div className="mt-1.5 text-6xl font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
-                            <div className="mt-1.5 text-3xl font-semibold text-red-100/95">RUB</div>
+                            <div className="text-sm uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
+                            <div className="mt-1 text-5xl font-semibold leading-none sm:mt-1.5 sm:text-7xl">{shopPaymentAmountRub}</div>
+                            <div className="mt-1 text-2xl font-semibold text-red-100/95 sm:mt-1.5 sm:text-3xl">RUB</div>
                           </div>
                         </div>
                       </div>
@@ -12363,8 +12363,8 @@ export default function App() {
 
                       <section className="rounded-[24px] border border-zinc-800/80 bg-[linear-gradient(180deg,rgba(14,14,20,0.95),rgba(8,8,11,0.98))] p-3 sm:p-4">
                           <div className="space-y-4 pb-1">
-                            <header className="rounded-2xl bg-zinc-950/55 px-4 py-3">
-                              <h2 className="text-center text-3xl font-black uppercase tracking-[0.02em] text-zinc-100">
+                            <header className="rounded-2xl bg-zinc-950/55 px-4 py-2.5 sm:py-3">
+                              <h2 className="text-center text-2xl font-black uppercase tracking-[0.02em] text-zinc-100 sm:text-3xl">
                                 Выберите способ оплаты
                               </h2>
                             </header>
@@ -12376,7 +12376,7 @@ export default function App() {
                                   className="overflow-hidden rounded-2xl bg-zinc-950/45"
                                 >
                                   <div className="px-4 py-3 sm:px-5">
-                                    <h3 className="text-4xl font-black leading-none text-zinc-100">{section.title}</h3>
+                                    <h3 className="text-3xl font-black leading-none text-zinc-100 sm:text-4xl">{section.title}</h3>
                                     <div className="mt-2 text-sm leading-6 text-zinc-400">{section.description}</div>
                                   </div>
 
@@ -12391,17 +12391,17 @@ export default function App() {
                                           className="group relative overflow-hidden rounded-2xl bg-zinc-900/85 p-3 transition duration-200 hover:-translate-y-[1px] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_90%_at_0%_0%,rgba(220,38,38,0.12),transparent_70%)]" />
-                                          <div className="relative flex h-full min-h-[124px] items-center justify-center rounded-xl bg-zinc-950/50 p-3">
+                                          <div className="relative flex h-full min-h-[96px] items-center justify-center rounded-xl bg-zinc-950/50 p-2.5 sm:min-h-[124px] sm:p-3">
                                             <div className="flex flex-1 items-center justify-center">
                                               <img
                                                 src={method.logoUrl}
                                                 alt={method.title}
                                                 className={`h-auto w-auto object-contain ${
                                                   method.title === "СБП"
-                                                    ? "max-h-[88px] max-w-[98%]"
+                                                    ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
                                                     : method.category === "crypto"
-                                                      ? "max-h-[82px] max-w-[96%]"
-                                                    : "max-h-[66px] max-w-[90%]"
+                                                      ? "max-h-[58px] max-w-[88%] sm:max-h-[82px] sm:max-w-[96%]"
+                                                    : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
                                                 }`}
                                                 loading="lazy"
                                               />
