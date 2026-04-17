@@ -231,6 +231,7 @@ type ShopPaymentMethod = {
   category: ShopPaymentCategory;
   providerCategory: "cis" | "crypto";
   title: string;
+  subtitle?: string;
   previewGradient: string;
   logoUrl: string;
   logoFallbackUrl?: string;
@@ -291,6 +292,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     category: "russia",
     providerCategory: "cis",
     title: "Visa",
+    subtitle: "Банковские карты Visa",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(69,119,255,0.30), rgba(69,119,255,0.02) 62%)",
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Visa_Inc._logo_%282021%E2%80%93present%29.svg/960px-Visa_Inc._logo_%282021%E2%80%93present%29.svg.png",
   },
@@ -299,6 +301,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     category: "russia",
     providerCategory: "cis",
     title: "Mastercard",
+    subtitle: "Банковские карты Mastercard",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(244,119,41,0.30), rgba(244,119,41,0.02) 62%)",
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard_2019_logo.svg",
   },
@@ -332,7 +335,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "TON",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(59,130,246,0.34), rgba(59,130,246,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/TON_ICON.png/960px-TON_ICON.png",
+    logoUrl: "/payment-logos/ton.svg",
   },
 ];
 
@@ -12710,25 +12713,32 @@ export default function App() {
                                           className="group relative overflow-hidden rounded-2xl bg-zinc-900/85 p-3 transition duration-200 hover:-translate-y-[1px] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_90%_at_0%_0%,rgba(220,38,38,0.12),transparent_70%)]" />
-                                          <div className="relative flex h-full min-h-[96px] flex-col items-center justify-center rounded-xl bg-zinc-950/50 p-2.5 sm:min-h-[124px] sm:p-3">
-                                            <div className="flex flex-1 items-center justify-center">
+                                          <div className="relative flex h-[118px] sm:h-[142px] flex-col items-center justify-center rounded-xl bg-zinc-950/50 p-2.5 sm:p-3">
+                                            <div className="flex min-h-0 flex-1 items-center justify-center">
                                               <img
                                                 src={method.logoUrl}
                                                 alt={method.title}
                                                 className={`h-auto w-auto object-contain ${
                                                   method.title === "СБП"
                                                     ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
+                                                    : method.title === "TON"
+                                                      ? "max-h-[54px] max-w-[72%] sm:max-h-[72px] sm:max-w-[82%]"
                                                     : method.title === "Ethereum"
                                                       ? "max-h-[70px] max-w-[92%] sm:max-h-[96px] sm:max-w-[99%]"
                                                       : method.category === "crypto"
-                                                        ? "max-h-[62px] max-w-[90%] sm:max-h-[88px] sm:max-w-[98%]"
+                                                        ? "max-h-[56px] max-w-[82%] sm:max-h-[74px] sm:max-w-[86%]"
                                                         : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
                                                 }`}
                                                 loading="lazy"
                                               />
                                             </div>
-                                            <div className="mt-1 text-center text-[12px] font-medium text-zinc-200 sm:text-sm">
+                                            <div className="mt-1 text-center text-[12px] font-medium leading-tight text-zinc-200 sm:text-sm">
                                               {method.title}
+                                              {method.subtitle ? (
+                                                <div className="mt-1 text-[10px] font-medium leading-tight text-zinc-400 sm:text-[11px]">
+                                                  {method.subtitle}
+                                                </div>
+                                              ) : null}
                                             </div>
                                           </div>
                                           <span className="sr-only">{method.title}</span>
