@@ -335,7 +335,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "TON",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(59,130,246,0.34), rgba(59,130,246,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/0b/Gram_cryptocurrency_logo.svg",
+    logoUrl: "https://genuine-amusement-abf8b52228.media.strapiapp.com/icon_TON_color_3b00ec6622.svg",
   },
 ];
 
@@ -12735,7 +12735,7 @@ export default function App() {
                                             <div className="mt-1 text-center text-[12px] font-medium leading-tight text-zinc-200 sm:text-sm">
                                               {!method.subtitle ? method.title : null}
                                               {method.subtitle ? (
-                                                <div className="mt-1 text-[10px] font-medium leading-tight text-zinc-400 sm:text-[11px]">
+                                                <div className="mt-1 text-[12px] font-medium leading-tight text-zinc-200 sm:text-sm">
                                                   {method.subtitle}
                                                 </div>
                                               ) : null}
