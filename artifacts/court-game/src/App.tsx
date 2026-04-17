@@ -259,8 +259,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "СБП",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(75,140,255,0.34), rgba(75,140,255,0.02) 62%)",
-    logoUrl:
-      "https://gist.githubusercontent.com/PonomareVlad/e901e3e50e7b1c1b80c2f05f7b968758/raw/1abed6186b7c7a69ea5f4d284d2e767a9245650b/SBP.svg",
+    logoUrl: "/payment-logos/sbp.svg",
   },
   {
     id: 4,
@@ -268,7 +267,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "Visa",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(69,119,255,0.30), rgba(69,119,255,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5c/Visa_Inc._logo_%282021%E2%80%93present%29.svg",
+    logoUrl: "/payment-logos/visa.svg",
   },
   {
     id: 8,
@@ -276,7 +275,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "Mastercard",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(244,119,41,0.30), rgba(244,119,41,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard_2019_logo.svg",
+    logoUrl: "/payment-logos/mastercard.svg",
   },
   {
     id: 12,
@@ -284,7 +283,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "cis",
     title: "МИР",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(41,197,143,0.30), rgba(41,197,143,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/b9/Mir-logo.SVG.svg",
+    logoUrl: "/payment-logos/mir.svg",
   },
   {
     id: 15,
@@ -292,7 +291,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "USDT TRC20",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(29,184,146,0.34), rgba(29,184,146,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/01/USDT_Logo.png",
+    logoUrl: "/payment-logos/usdt-trc20.svg",
   },
   {
     id: 26,
@@ -300,7 +299,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "Ethereum",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(130,102,255,0.34), rgba(130,102,255,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Ethereum-icon-purple.svg",
+    logoUrl: "/payment-logos/ethereum.svg",
   },
   {
     id: 41,
@@ -308,7 +307,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "TON",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(59,130,246,0.34), rgba(59,130,246,0.02) 62%)",
-    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/0b/Gram_cryptocurrency_logo.svg",
+    logoUrl: "/payment-logos/ton.svg",
   },
 ];
 const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
@@ -326,7 +325,6 @@ const ADMIN_BADGE_PROMO_OPTIONS: Array<{ key: string; label: string }> = [
   { key: "sub_practitioner", label: "Бейдж «Практик»" },
   { key: "sub_arbiter", label: "Бейдж «Арбитр»" },
   { key: "legend", label: "Бейдж «Легенда»" },
-  { key: "winner", label: "Бейдж «Победитель»" },
   { key: "media", label: "Бейдж «Медиа»" },
   { key: "host", label: "Бейдж «Ведущий»" },
   { key: "innovator", label: "Бейдж «Новатор»" },
@@ -774,7 +772,6 @@ const BADGE_ICONS: Record<string, LucideIcon> = {
   defenseLawyer: Lock,
   prosecutor: ScrollText,
   judge: Gavel,
-  winner: Sparkles,
   legend: Crown,
   media: Camera,
   creator: Laptop,
@@ -830,11 +827,6 @@ const BADGE_THEME: Record<
     chip: "border-violet-500/55 bg-violet-500/20 text-violet-200",
     icon: "bg-violet-500/35 text-violet-100",
     iconOnly: "text-violet-300",
-  },
-  winner: {
-    chip: "border-yellow-500/55 bg-yellow-500/20 text-yellow-200",
-    icon: "bg-yellow-500/35 text-yellow-100",
-    iconOnly: "text-yellow-300",
   },
   legend: {
     chip: "border-violet-500/65 bg-violet-500/25 text-violet-100",
@@ -12428,7 +12420,7 @@ export default function App() {
                             <div className="text-xs uppercase tracking-[0.14em] text-red-100/95 sm:text-base sm:tracking-[0.16em]">К оплате</div>
                             <div className="mt-1 flex items-center justify-center gap-2 sm:mt-1.5 sm:block">
                               <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
-                              <div className="-translate-y-1 text-lg font-semibold leading-none text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl">RUB</div>
+                              <div className="translate-y-1 text-lg font-semibold leading-none text-red-100/95 sm:mt-1.5 sm:translate-y-0 sm:text-3xl">RUB</div>
                             </div>
                           </div>
                         </div>
@@ -13885,6 +13877,18 @@ export default function App() {
         player.roleKey !== "judge" &&
         player.roleKey !== "observer",
     );
+    const influenceScrollableHeightClass =
+      game.players.length >= 8
+        ? "h-[360px] md:h-[430px]"
+        : game.players.length >= 6
+          ? "h-[320px] md:h-[380px]"
+          : "h-[280px] md:h-[320px]";
+    const warningScrollableHeightClass =
+      game.players.length >= 8
+        ? "max-h-[500px]"
+        : game.players.length >= 6
+          ? "max-h-[450px]"
+          : "max-h-[420px]";
     return (
       <motion.div
         key="game"
@@ -14482,7 +14486,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 h-[280px] md:h-[320px] overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${influenceScrollableHeightClass} ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
@@ -14620,7 +14624,7 @@ export default function App() {
                         Назад
                       </Button>
                     </div>
-                    <div className="space-y-2.5 max-h-[420px] overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
+                    <div className={`space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500 ${warningScrollableHeightClass}`}>
                       {warningTargets.length === 0 ? (
                         <div className="text-sm text-zinc-500">
                           Нет игроков для предупреждения.

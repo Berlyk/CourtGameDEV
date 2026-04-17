@@ -1,0 +1,18 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="СБП">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2ec8ff"/>
+      <stop offset="100%" stop-color="#2f6bff"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="220" rx="28" fill="transparent"/>
+  <g transform="translate(30 30)">
+    <polygon points="70,0 105,60 35,60" fill="#f6a623"/>
+    <polygon points="140,60 210,60 175,0" fill="#ef3d7f"/>
+    <polygon points="105,70 175,70 140,130" fill="#7047d5"/>
+    <polygon points="70,140 105,80 35,80" fill="#2f98ff"/>
+    <polygon points="140,140 210,140 175,200" fill="#1dcf72"/>
+    <polygon points="105,150 175,150 140,210" fill="#00c7c7"/>
+  </g>
+  <text x="270" y="120" fill="#f4f6ff" font-size="78" font-weight="700" font-family="Inter,Segoe UI,Arial,sans-serif">СБП</text>
+</svg>

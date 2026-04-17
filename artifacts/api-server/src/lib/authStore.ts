@@ -273,7 +273,6 @@ const SUBSCRIPTION_BADGE_META: Record<
   },
 };
 const BADGE_PROMO_ALLOWED_KEYS = new Set<string>([
-  "winner",
   "legend",
   ...Object.keys(MANUAL_BADGE_META),
   ...Object.keys(ROLE_BADGE_META).map((key) => `role_${key}`),
@@ -288,7 +287,6 @@ function isProtectedOwnerLogin(loginRaw: string | null | undefined): boolean {
 function getBadgeTitleForPromoReward(badgeKeyRaw: string): string {
   const badgeKey = String(badgeKeyRaw ?? "").trim();
   if (!badgeKey) return "Бейдж";
-  if (badgeKey === "winner") return "Победитель";
   if (badgeKey === "legend") return "Легенда";
   if (MANUAL_BADGE_META[badgeKey]) return MANUAL_BADGE_META[badgeKey].title;
   if (badgeKey.startsWith("role_")) {
@@ -645,8 +643,9 @@ function toPublicUser(row: {
       : undefined;
   const selectedBadgeIsRank =
     typeof selectedBadgeRaw === "string" && selectedBadgeRaw.trim().toLowerCase().startsWith("rank_");
+  const selectedBadgeIsDeprecatedWinner = selectedBadgeRaw === "winner";
   const selectedBadgeKey =
-    selectedBadgeIsRank && !hasRatingHistoryFromSubscription(subscription)
+    selectedBadgeIsDeprecatedWinner || (selectedBadgeIsRank && !hasRatingHistoryFromSubscription(subscription))
       ? undefined
       : selectedBadgeRaw;
   return {
@@ -1087,6 +1086,16 @@ async function ensureTables(): Promise<void> {
           granted_by UUID,
           PRIMARY KEY (user_id, badge_key)
         );
+      `);
+      // Cleanup deprecated badge "winner": remove issued records and detach from selected badge.
+      await pool.query(`
+        DELETE FROM auth_user_badges
+        WHERE badge_key = 'winner';
+      `);
+      await pool.query(`
+        UPDATE auth_users
+        SET selected_badge_key = NULL
+        WHERE selected_badge_key = 'winner';
       `);
 
       await pool.query(`
@@ -2614,19 +2623,6 @@ function buildBadgeList(input: {
     });
   }
 
-  const winnerCurrent = Math.max(0, Math.round(stats.totalWinRate));
-  const winnerActive = isBerly || winnerCurrent >= 90;
-  badges.push({
-    key: "winner",
-    title: "Победитель",
-    description: "Доступен при общем проценте побед 90% и выше.",
-    category: "earned",
-    active: winnerActive,
-    progressCurrent: winnerActive ? 90 : winnerCurrent,
-    progressTarget: 90,
-    progressLabel: winnerActive ? "Получен" : `${winnerCurrent}% / 90%`,
-  });
-
   // "Легенда" теперь только вручную (в будущем: промокод/админ-выдача), без авто-выдачи.
   const legendActive = manualBadgeMap.get("legend") ?? false;
   badges.push({
@@ -4014,9 +4010,9 @@ export async function recordMatchOutcome(input: {
     if (roleTitle.includes("адвокат ответчика")) return "defenseLawyer";
     if (roleTitle.includes("прокурор")) return "prosecutor";
     if (roleTitle.includes("судья")) return "judge";
+    if (roleTitle.includes("свидетел")) return "witness";
     if (roleTitle.includes("истец")) return "plaintiff";
     if (roleTitle.includes("ответчик")) return "defendant";
-    if (roleTitle.includes("свидетел")) return "witness";
 
     return roleKey;
   };

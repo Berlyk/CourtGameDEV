@@ -1,0 +1,8 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="TON">
+  <rect width="640" height="220" rx="28" fill="transparent"/>
+  <g transform="translate(90 36)">
+    <circle cx="75" cy="75" r="66" fill="#40b7ff"/>
+    <path d="M75 30l33 24-33 50-33-50z" fill="none" stroke="#072032" stroke-width="9" stroke-linejoin="round"/>
+  </g>
+  <text x="250" y="125" fill="#8ad2ff" font-size="84" font-weight="800" font-family="Arial Black,Segoe UI,Arial,sans-serif">TON</text>
+</svg>

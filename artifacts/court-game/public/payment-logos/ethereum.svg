@@ -1,0 +1,9 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Ethereum">
+  <rect width="640" height="220" rx="28" fill="transparent"/>
+  <g transform="translate(290 18)">
+    <polygon points="30,0 72,68 30,88 -12,68" fill="#8f8bf7"/>
+    <polygon points="30,96 72,76 30,184 -12,76" fill="#6d65dd"/>
+    <polygon points="30,86 72,70 30,92 -12,70" fill="#b3adff"/>
+  </g>
+  <text x="320" y="207" text-anchor="middle" fill="#d8d5ff" font-size="36" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">Ethereum</text>
+</svg>
