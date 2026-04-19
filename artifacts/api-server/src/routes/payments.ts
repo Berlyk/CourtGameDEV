@@ -12,10 +12,11 @@ import {
 
 const paymentsRouter = Router();
 
-type PaymentRegion = "cis" | "crypto";
+type PaymentRegion = "cis" | "crypto" | "europe";
 type PaidTier = Exclude<SubscriptionTier, "free">;
 type PaidDuration = Extract<SubscriptionDuration, "1_month" | "1_year">;
 type TomeSettlementMethod = "card" | "sbp";
+type PayPalCheckoutMode = "paypal" | "paypal_cards";
 
 const PAID_TIERS = new Set<PaidTier>(["trainee", "practitioner", "arbiter"]);
 const PAID_DURATIONS = new Set<PaidDuration>(["1_month", "1_year"]);
@@ -23,11 +24,20 @@ const CIS_METHOD_IDS = new Set<number>([4, 8, 12, 42]);
 const CRYPTO_METHOD_IDS = new Set<number>([15, 26, 41]);
 const TOME_CARD_METHOD_IDS = new Set<number>([4, 8, 12]);
 const TOME_SBP_METHOD_IDS = new Set<number>([42]);
+const PAYPAL_METHOD_IDS = new Set<number>([201, 202]);
+const PAYPAL_ONLY_METHOD_IDS = new Set<number>([201]);
+const PAYPAL_CARDS_METHOD_IDS = new Set<number>([202]);
 
 const PRICE_MATRIX_RUB: Record<PaidTier, Record<PaidDuration, number>> = {
   trainee: { "1_month": 250, "1_year": 2500 },
   practitioner: { "1_month": 500, "1_year": 5000 },
   arbiter: { "1_month": 800, "1_year": 8000 },
+};
+
+const PRICE_MATRIX_EUR: Record<PaidTier, Record<PaidDuration, number>> = {
+  trainee: { "1_month": 2.5, "1_year": 25 },
+  practitioner: { "1_month": 5, "1_year": 50 },
+  arbiter: { "1_month": 8, "1_year": 80 },
 };
 
 let initPromise: Promise<void> | null = null;
@@ -198,6 +208,24 @@ function readTomeConfig() {
   return { shopId, secretKey, notificationUrl };
 }
 
+function readPayPalConfig() {
+  const clientId = String(
+    process.env.PAYPAL_CLIENT_ID ??
+      process.env.PAYPAL_API_KEY ??
+      process.env.PAYPAL_KEY ??
+      "",
+  ).trim();
+  const clientSecret = String(
+    process.env.PAYPAL_CLIENT_SECRET ??
+      process.env.PAYPAL_SECRET_KEY ??
+      process.env.PAYPAL_SECRET ??
+      "",
+  ).trim();
+  const webhookId = String(process.env.PAYPAL_WEBHOOK_ID ?? "").trim();
+  const apiBase = String(process.env.PAYPAL_API_BASE ?? "https://api-m.paypal.com").trim();
+  return { clientId, clientSecret, webhookId, apiBase };
+}
+
 function buildApiSignature(payload: Record<string, string | number>, apiKey: string): string {
   const serialized = Object.keys(payload)
     .sort((a, b) => a.localeCompare(b))
@@ -296,6 +324,99 @@ function buildTomeAuthorizationHeader(shopId: string, secretKey: string): string
 
 function buildTomeNotificationSignature(paymentId: string, secretKey: string): string {
   return crypto.createHash("sha256").update(`${paymentId}${secretKey}`, "utf8").digest("hex");
+}
+
+function resolvePayPalOrderIdFromWebhook(
+  eventType: string,
+  resource: Record<string, unknown>,
+): string {
+  if (eventType === "CHECKOUT.ORDER.APPROVED") {
+    return String(resource.id ?? "").trim();
+  }
+
+  const supplementaryData =
+    resource.supplementary_data &&
+    typeof resource.supplementary_data === "object" &&
+    !Array.isArray(resource.supplementary_data)
+      ? (resource.supplementary_data as Record<string, unknown>)
+      : null;
+  const relatedIds =
+    supplementaryData?.related_ids &&
+    typeof supplementaryData.related_ids === "object" &&
+    !Array.isArray(supplementaryData.related_ids)
+      ? (supplementaryData.related_ids as Record<string, unknown>)
+      : null;
+
+  return String(relatedIds?.order_id ?? "").trim();
+}
+
+function resolvePayPalCheckoutMode(methodId: number): PayPalCheckoutMode | null {
+  if (PAYPAL_ONLY_METHOD_IDS.has(methodId)) return "paypal";
+  if (PAYPAL_CARDS_METHOD_IDS.has(methodId)) return "paypal_cards";
+  return null;
+}
+
+async function fetchPayPalAccessToken(): Promise<{ accessToken: string; apiBase: string } | null> {
+  const { clientId, clientSecret, apiBase } = readPayPalConfig();
+  if (!clientId || !clientSecret) return null;
+
+  const response = await fetch(`${apiBase}/v1/oauth2/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`, "utf8").toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+  }).catch(() => null);
+
+  if (!response?.ok) return null;
+  const payload: any = await response.json().catch(() => null);
+  const accessToken = String(payload?.access_token ?? "").trim();
+  if (!accessToken) return null;
+  return { accessToken, apiBase };
+}
+
+async function verifyPayPalWebhook(req: Request): Promise<boolean> {
+  const { webhookId } = readPayPalConfig();
+  if (!webhookId) return false;
+
+  const auth = await fetchPayPalAccessToken();
+  if (!auth) return false;
+
+  const authAlgo = String(req.headers["paypal-auth-algo"] ?? "").trim();
+  const certUrl = String(req.headers["paypal-cert-url"] ?? "").trim();
+  const transmissionId = String(req.headers["paypal-transmission-id"] ?? "").trim();
+  const transmissionSig = String(req.headers["paypal-transmission-sig"] ?? "").trim();
+  const transmissionTime = String(req.headers["paypal-transmission-time"] ?? "").trim();
+  const webhookEvent =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? req.body
+      : {};
+
+  if (!authAlgo || !certUrl || !transmissionId || !transmissionSig || !transmissionTime) {
+    return false;
+  }
+
+  const verifyResponse = await fetch(`${auth.apiBase}/v1/notifications/verify-webhook-signature`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      auth_algo: authAlgo,
+      cert_url: certUrl,
+      transmission_id: transmissionId,
+      transmission_sig: transmissionSig,
+      transmission_time: transmissionTime,
+      webhook_id: webhookId,
+      webhook_event: webhookEvent,
+    }),
+  }).catch(() => null);
+
+  if (!verifyResponse?.ok) return false;
+  const payload: any = await verifyResponse.json().catch(() => null);
+  return String(payload?.verification_status ?? "").trim().toUpperCase() === "SUCCESS";
 }
 
 paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
@@ -646,6 +767,180 @@ paymentsRouter.post("/payments/tomege/create", async (req, res) => {
   });
 });
 
+paymentsRouter.post("/payments/paypal/create", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized." });
+  }
+
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Session is invalid." });
+  }
+
+  const auth = await fetchPayPalAccessToken();
+  if (!auth) {
+    return res.status(503).json({
+      message:
+        "PayPal is not configured on the server. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.",
+    });
+  }
+
+  const tier = normalizeSubscriptionTier(String(req.body?.tier ?? "").trim());
+  if (!PAID_TIERS.has(tier as PaidTier)) {
+    return res.status(400).json({ message: "Invalid subscription plan." });
+  }
+  const duration = normalizeSubscriptionDuration(String(req.body?.duration ?? "").trim());
+  if (!PAID_DURATIONS.has(duration as PaidDuration)) {
+    return res
+      .status(400)
+      .json({ message: "Only 1 month and 1 year durations are available for payment." });
+  }
+
+  const regionRaw = String(req.body?.category ?? "").trim().toLowerCase();
+  if (regionRaw !== "europe") {
+    return res.status(400).json({ message: "PayPal is available only for Europe payments." });
+  }
+
+  const methodId = Number(req.body?.paymentSystemId);
+  if (!Number.isFinite(methodId) || methodId <= 0) {
+    return res.status(400).json({ message: "Invalid payment method." });
+  }
+  if (!PAYPAL_METHOD_IDS.has(methodId)) {
+    return res.status(400).json({ message: "Method is not available for PayPal payments." });
+  }
+
+  const checkoutMode = resolvePayPalCheckoutMode(methodId);
+  if (!checkoutMode) {
+    return res.status(400).json({ message: "Method is not available for PayPal payments." });
+  }
+
+  const paidTier = tier as PaidTier;
+  const paidDuration = duration as PaidDuration;
+  const amountEur = PRICE_MATRIX_EUR[paidTier][paidDuration];
+  const publicAppUrl = resolvePublicAppUrl(req);
+  const description = `CourtGame subscription: ${paidTier}, ${paidDuration}`;
+  const orderRequestId = crypto.randomUUID();
+
+  const createOrderPayload = {
+    intent: "CAPTURE",
+    purchase_units: [
+      {
+        reference_id: `cg-${Date.now()}`,
+        custom_id: `${user.id}:${paidTier}:${paidDuration}:${methodId}`,
+        description,
+        amount: {
+          currency_code: "EUR",
+          value: amountEur.toFixed(2),
+        },
+      },
+    ],
+    payment_source: {
+      paypal: {
+        experience_context: {
+          brand_name: "CourtGame",
+          locale: "en-GB",
+          landing_page: checkoutMode === "paypal" ? "LOGIN" : "GUEST_CHECKOUT",
+          shipping_preference: "NO_SHIPPING",
+          user_action: "PAY_NOW",
+          payment_method_preference: "IMMEDIATE_PAYMENT_REQUIRED",
+          return_url: `${publicAppUrl}/?payment=paypal_return`,
+          cancel_url: `${publicAppUrl}/?payment=paypal_cancel`,
+        },
+      },
+    },
+  };
+
+  const orderResponse = await fetch(`${auth.apiBase}/v2/checkout/orders`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`,
+      "Content-Type": "application/json",
+      "PayPal-Request-Id": orderRequestId,
+    },
+    body: JSON.stringify(createOrderPayload),
+  }).catch(() => null);
+
+  if (!orderResponse) {
+    return res.status(502).json({ message: "Failed to connect to PayPal." });
+  }
+
+  const orderPayload: any = await orderResponse.json().catch(() => null);
+  const providerPaymentId = String(orderPayload?.id ?? "").trim();
+  const checkoutUrl = String(
+    Array.isArray(orderPayload?.links)
+      ? (orderPayload.links.find((link: any) => {
+          const rel = String(link?.rel ?? "").trim().toLowerCase();
+          return rel === "payer-action" || rel === "approve";
+        })?.href ?? "")
+      : "",
+  ).trim();
+
+  if (!orderResponse.ok || !providerPaymentId || !checkoutUrl) {
+    const message =
+      String(
+        orderPayload?.message ??
+          orderPayload?.details?.[0]?.description ??
+          orderPayload?.error_description ??
+          orderPayload?.error ??
+          "",
+      ).trim() || "PayPal returned an error while creating payment.";
+    return res.status(502).json({ message });
+  }
+
+  await ensurePaymentTables();
+  await pool.query(
+    `
+      INSERT INTO auth_payment_orders (
+        id,
+        provider,
+        payment_id,
+        user_id,
+        tier,
+        duration,
+        amount_rub,
+        currency,
+        region,
+        method_id,
+        status,
+        fk_location,
+        fk_payload,
+        updated_at
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW()
+      )
+    `,
+    [
+      crypto.randomUUID(),
+      "paypal",
+      providerPaymentId,
+      user.id,
+      paidTier,
+      paidDuration,
+      Math.round(amountEur * 100),
+      "EUR",
+      "europe",
+      methodId,
+      String(orderPayload?.status ?? "CREATED").trim().toLowerCase() || "created",
+      checkoutUrl,
+      JSON.stringify(
+        safeJsonPayload({
+          requestId: orderRequestId,
+          request: createOrderPayload,
+          response: orderPayload,
+        }),
+      ),
+    ],
+  );
+
+  return res.status(200).json({
+    ok: true,
+    paymentId: providerPaymentId,
+    checkoutUrl,
+  });
+});
+
 const freeKassaCallbackHandler = async (req: Request, res: Response) => {
   const { shopId, secret2 } = readFreeKassaConfig();
   if (!shopId || !secret2) {
@@ -822,11 +1117,184 @@ const tomeGeCallbackHandler = async (req: Request, res: Response) => {
   return res.status(200).json({ ok: true });
 };
 
+const payPalCallbackHandler = async (req: Request, res: Response) => {
+  const isVerified = await verifyPayPalWebhook(req);
+  if (!isVerified) {
+    return res.status(403).json({ message: "Invalid PayPal signature." });
+  }
+
+  await ensurePaymentTables();
+
+  const source =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const eventType = String(source.event_type ?? "").trim().toUpperCase();
+  const resource =
+    source.resource && typeof source.resource === "object" && !Array.isArray(source.resource)
+      ? (source.resource as Record<string, unknown>)
+      : {};
+  const orderId = resolvePayPalOrderIdFromWebhook(eventType, resource);
+
+  if (!orderId) {
+    return res.status(400).json({ message: "Order id is missing in PayPal webhook." });
+  }
+
+  const paymentResult = await pool.query<{
+    user_id: string;
+    tier: string;
+    duration: string;
+    status: string;
+  }>(
+    `
+      SELECT user_id, tier, duration, status
+      FROM auth_payment_orders
+      WHERE payment_id = $1 AND provider = 'paypal'
+      LIMIT 1
+    `,
+    [orderId],
+  );
+  if (!paymentResult.rowCount) {
+    return res.status(404).json({ message: "Payment not found." });
+  }
+
+  const payment = paymentResult.rows[0];
+
+  if (eventType === "CHECKOUT.ORDER.APPROVED") {
+    if (payment.status === "paid" || payment.status === "capturing" || payment.status === "pending" || payment.status === "canceled") {
+      return res.status(200).json({ ok: true });
+    }
+
+    await pool.query(
+      `
+        UPDATE auth_payment_orders
+        SET status = 'capturing', fk_payload = $2, updated_at = NOW()
+        WHERE payment_id = $1
+      `,
+      [orderId, JSON.stringify(safeJsonPayload(source))],
+    );
+
+    const auth = await fetchPayPalAccessToken();
+    if (!auth) {
+      return res.status(503).json({ message: "PayPal is not configured on the server." });
+    }
+
+    const captureResponse = await fetch(`${auth.apiBase}/v2/checkout/orders/${orderId}/capture`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "Content-Type": "application/json",
+        "PayPal-Request-Id": crypto.randomUUID(),
+      },
+      body: "{}",
+    }).catch(() => null);
+
+    if (!captureResponse) {
+      return res.status(502).json({ message: "Failed to capture PayPal order." });
+    }
+
+    const capturePayload: any = await captureResponse.json().catch(() => null);
+    if (!captureResponse.ok) {
+      const message =
+        String(
+          capturePayload?.message ??
+            capturePayload?.details?.[0]?.description ??
+            capturePayload?.error_description ??
+            capturePayload?.error ??
+            "",
+        ).trim() || "PayPal capture failed.";
+      return res.status(502).json({ message });
+    }
+
+    await pool.query(
+      `
+        UPDATE auth_payment_orders
+        SET fk_payload = $2, updated_at = NOW()
+        WHERE payment_id = $1
+      `,
+      [
+        orderId,
+        JSON.stringify(
+          safeJsonPayload({
+            webhook: source,
+            capture: capturePayload,
+          }),
+        ),
+      ],
+    );
+
+    return res.status(200).json({ ok: true });
+  }
+
+  if (eventType === "PAYMENT.CAPTURE.COMPLETED") {
+    if (payment.status !== "paid") {
+      const subscription = await assignSubscriptionByUserId({
+        userId: payment.user_id,
+        tier: payment.tier,
+        duration: payment.duration,
+        source: "system",
+      });
+      if (!subscription) {
+        return res.status(404).json({ message: "User not found." });
+      }
+    }
+
+    await pool.query(
+      `
+        UPDATE auth_payment_orders
+        SET status = 'paid', paid_at = COALESCE(paid_at, NOW()), fk_payload = $2, updated_at = NOW()
+        WHERE payment_id = $1
+      `,
+      [orderId, JSON.stringify(safeJsonPayload(source))],
+    );
+
+    return res.status(200).json({ ok: true });
+  }
+
+  if (eventType === "PAYMENT.CAPTURE.PENDING") {
+    await pool.query(
+      `
+        UPDATE auth_payment_orders
+        SET status = 'pending', fk_payload = $2, updated_at = NOW()
+        WHERE payment_id = $1
+      `,
+      [orderId, JSON.stringify(safeJsonPayload(source))],
+    );
+    return res.status(200).json({ ok: true });
+  }
+
+  if (eventType === "PAYMENT.CAPTURE.DENIED" || eventType === "CHECKOUT.PAYMENT-APPROVAL.REVERSED") {
+    await pool.query(
+      `
+        UPDATE auth_payment_orders
+        SET status = 'canceled', fk_payload = $2, updated_at = NOW()
+        WHERE payment_id = $1
+      `,
+      [orderId, JSON.stringify(safeJsonPayload(source))],
+    );
+    return res.status(200).json({ ok: true });
+  }
+
+  await pool.query(
+    `
+      UPDATE auth_payment_orders
+      SET fk_payload = $2, updated_at = NOW()
+      WHERE payment_id = $1
+    `,
+    [orderId, JSON.stringify(safeJsonPayload(source))],
+  );
+
+  return res.status(200).json({ ok: true });
+};
+
 paymentsRouter.all("/payments/freekassa", freeKassaCallbackHandler);
 paymentsRouter.all("/payments/freekassa/", freeKassaCallbackHandler);
 paymentsRouter.all("/payments/freekassa/notify", freeKassaCallbackHandler);
 paymentsRouter.all("/payments/tomege", tomeGeCallbackHandler);
 paymentsRouter.all("/payments/tomege/", tomeGeCallbackHandler);
 paymentsRouter.all("/payments/tomege/notify", tomeGeCallbackHandler);
+paymentsRouter.all("/payments/paypal", payPalCallbackHandler);
+paymentsRouter.all("/payments/paypal/", payPalCallbackHandler);
+paymentsRouter.all("/payments/paypal/notify", payPalCallbackHandler);
 
 export default paymentsRouter;

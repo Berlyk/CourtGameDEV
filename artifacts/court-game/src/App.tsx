@@ -223,13 +223,13 @@ const SUBSCRIPTION_DURATION_UI_OPTIONS: Array<{
   { key: "1_month", label: "1 месяц" },
   { key: "1_year", label: "1 год" },
 ];
-type ShopPaymentCategory = "russia" | "crypto";
+type ShopPaymentCategory = "russia" | "europe" | "crypto";
 type ShopPaidTier = Exclude<SubscriptionTier, "free">;
 type ShopPaidDuration = Extract<SubscriptionDuration, "1_month" | "1_year">;
 type ShopPaymentMethod = {
   id: number;
   category: ShopPaymentCategory;
-  providerCategory: "cis" | "crypto";
+  providerCategory: "cis" | "europe" | "crypto";
   title: string;
   subtitle?: string;
   previewGradient: string;
@@ -269,6 +269,11 @@ const SHOP_PAYMENT_SECTIONS: Array<{
     key: "russia",
     title: "Россия",
     description: "Оплата через карты, СБП и локальные методы.",
+  },
+  {
+    key: "europe",
+    title: "Европа",
+    description: "Оплата через PayPal и банковские карты PayPal Checkout.",
   },
   {
     key: "crypto",
@@ -312,6 +317,23 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "МИР",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(41,197,143,0.30), rgba(41,197,143,0.02) 62%)",
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Mir-logo.SVG.svg/960px-Mir-logo.SVG.svg.png",
+  },
+  {
+    id: 201,
+    category: "europe",
+    providerCategory: "europe",
+    title: "PayPal",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(0,112,186,0.34), rgba(0,112,186,0.02) 62%)",
+    logoUrl: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="PayPal"><rect width="640" height="220" rx="28" fill="transparent"/><path d="M201 45h91c39 0 62 20 55 53c-8 39-39 55-79 55h-24l-9 47h-54l31-155Zm44 36l-9 41h24c17 0 28-8 31-22c3-13-5-19-20-19h-26Z" fill="#169BD7"/><path d="M286 45h79c35 0 54 17 48 46c-6 29-29 43-58 47c18 8 25 25 20 50l-2 12h-51l2-12c4-17-2-26-21-26h-20l-8 38h-50l31-155Zm42 35l-8 40h21c17 0 28-8 31-21c3-13-4-19-20-19h-24Z" fill="#003087"/><text x="458" y="135" text-anchor="middle" fill="#f4f6ff" font-size="52" font-weight="700" font-family="Arial,Segoe UI,sans-serif">PayPal</text></svg>`),
+  },
+  {
+    id: 202,
+    category: "europe",
+    providerCategory: "europe",
+    title: "PayPal + карты",
+    subtitle: "PayPal и банковские карты",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(24,119,242,0.34), rgba(24,119,242,0.02) 62%)",
+    logoUrl: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="PayPal и карты"><rect width="640" height="220" rx="28" fill="transparent"/><path d="M120 52h72c30 0 48 15 43 41c-6 31-31 44-64 44h-19l-8 39H99l21-124Zm35 28l-7 31h20c14 0 23-6 25-17c2-10-4-14-17-14h-21Z" fill="#169BD7"/><path d="M187 52h61c26 0 40 13 35 37c-5 24-22 35-44 38c14 6 19 20 15 40l-1 9h-39l1-9c3-14-1-21-16-21h-15l-7 30h-38l22-124Z" fill="#003087"/><g transform="translate(362 55)"><rect x="0" y="0" width="176" height="104" rx="18" fill="#10131a" stroke="rgba(255,255,255,0.12)"/><circle cx="70" cy="52" r="24" fill="#eb001b"/><circle cx="104" cy="52" r="24" fill="#f79e1b" fill-opacity="0.96"/><path d="M87 31a24 24 0 0 1 0 42a24 24 0 0 1 0-42z" fill="#ff5f00"/><text x="88" y="88" text-anchor="middle" fill="#f4f6ff" font-size="18" font-weight="600" font-family="Arial,Segoe UI,sans-serif">cards</text></g></svg>`),
   },
   {
     id: 15,
@@ -531,6 +553,11 @@ const SHOP_PRICE_MATRIX_RUB: Record<ShopPaidTier, Record<ShopPaidDuration, numbe
   trainee: { "1_month": 250, "1_year": 2500 },
   practitioner: { "1_month": 500, "1_year": 5000 },
   arbiter: { "1_month": 800, "1_year": 8000 },
+};
+const SHOP_PRICE_MATRIX_EUR: Record<ShopPaidTier, Record<ShopPaidDuration, number>> = {
+  trainee: { "1_month": 2.5, "1_year": 25 },
+  practitioner: { "1_month": 5, "1_year": 50 },
+  arbiter: { "1_month": 8, "1_year": 80 },
 };
 type AdminPromoKind = "subscription" | "badge";
 const ADMIN_PROMO_KIND_OPTIONS: Array<{ key: AdminPromoKind; label: string }> = [
@@ -3099,6 +3126,15 @@ function localizeAuthError(message: string): string {
   if (normalized.includes("europe payment provider is not available")) {
     return "Оплата для Европы будет добавлена позже.";
   }
+  if (normalized.includes("paypal is available only for europe payments")) {
+    return "PayPal доступен только для оплаты в Европе.";
+  }
+  if (normalized.includes("paypal is not configured")) {
+    return "PayPal еще не настроен на сервере.";
+  }
+  if (normalized.includes("failed to connect to paypal")) {
+    return "Не удалось связаться с PayPal. Попробуйте позже.";
+  }
   if (normalized.includes("freekassa is not configured")) {
     return "Платежный шлюз еще не настроен на сервере.";
   }
@@ -4215,9 +4251,14 @@ export default function App() {
     if (!shopPaymentTier) return 0;
     return SHOP_PRICE_MATRIX_RUB[shopPaymentTier][shopDuration];
   }, [shopPaymentTier, shopDuration]);
+  const shopPaymentAmountEur = useMemo(() => {
+    if (!shopPaymentTier) return 0;
+    return SHOP_PRICE_MATRIX_EUR[shopPaymentTier][shopDuration];
+  }, [shopPaymentTier, shopDuration]);
   const shopPaymentMethodsByCategory = useMemo(() => {
     return {
       russia: SHOP_PAYMENT_METHODS.filter((method) => method.category === "russia"),
+      europe: SHOP_PAYMENT_METHODS.filter((method) => method.category === "europe"),
       crypto: SHOP_PAYMENT_METHODS.filter((method) => method.category === "crypto"),
     } satisfies Record<ShopPaymentCategory, ShopPaymentMethod[]>;
   }, []);
@@ -4414,7 +4455,9 @@ export default function App() {
         const checkoutEndpoint =
           method.providerCategory === "crypto"
             ? "/payments/freekassa/create"
-            : "/payments/tomege/create";
+            : method.providerCategory === "europe"
+              ? "/payments/paypal/create"
+              : "/payments/tomege/create";
         const payload = await authRequest<{ ok: true; checkoutUrl: string }>(
           checkoutEndpoint,
           {
@@ -12682,6 +12725,9 @@ export default function App() {
                             <div className="mt-1 flex items-start justify-center gap-1.5 sm:mt-1.5 sm:block">
                               <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
                               <div className="mt-2.5 text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:text-3xl sm:tracking-normal">RUB</div>
+                            </div>
+                            <div className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em] text-red-100/80 sm:mt-3 sm:text-sm sm:tracking-[0.16em]">
+                              Европа: {shopPaymentAmountEur.toFixed(shopPaymentAmountEur % 1 === 0 ? 0 : 1)} EUR
                             </div>
                           </div>
                         </div>
