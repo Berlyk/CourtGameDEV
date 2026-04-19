@@ -12825,7 +12825,7 @@ export default function App() {
                                             <div className="relative flex h-[118px] flex-col items-center justify-center rounded-xl bg-zinc-950/50 p-2.5 sm:h-[142px] sm:p-3">
                                               <div className="flex min-h-0 flex-1 items-center justify-center">
                                                 {isPayPalCardsMethod ? (
-                                                  <div className="relative flex h-[72px] w-[138px] items-center justify-center sm:h-[88px] sm:w-[168px]">
+                                                  <div className="relative flex h-[80px] w-[148px] items-center justify-center sm:h-[98px] sm:w-[182px]">
                                                     <svg
                                                       viewBox="0 0 512 320"
                                                       aria-hidden="true"
@@ -12833,19 +12833,29 @@ export default function App() {
                                                     >
                                                       <defs>
                                                         <linearGradient id="paypal-cards-card-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-                                                          <stop offset="0%" stopColor="#351518" />
-                                                          <stop offset="58%" stopColor="#1E1F28" />
-                                                          <stop offset="100%" stopColor="#101016" />
+                                                          <stop offset="0%" stopColor="#341416" />
+                                                          <stop offset="34%" stopColor="#232533" />
+                                                          <stop offset="72%" stopColor="#171A25" />
+                                                          <stop offset="100%" stopColor="#101015" />
+                                                        </linearGradient>
+                                                        <linearGradient id="paypal-cards-card-shine" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                          <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.22" />
+                                                          <stop offset="50%" stopColor="#ffffff" stopOpacity="0.08" />
+                                                          <stop offset="100%" stopColor="#fb7185" stopOpacity="0.16" />
                                                         </linearGradient>
                                                       </defs>
-                                                      <rect x="18" y="22" width="476" height="276" rx="34" fill="url(#paypal-cards-card-bg)" stroke="#ef4444" strokeOpacity="0.28" strokeWidth="10" />
-                                                      <rect x="48" y="64" width="416" height="22" rx="11" fill="#ffffff" fillOpacity="0.06" />
-                                                      <rect x="48" y="112" width="118" height="72" rx="16" fill="#ffffff" fillOpacity="0.08" />
-                                                      <rect x="48" y="208" width="186" height="18" rx="9" fill="#ffffff" fillOpacity="0.07" />
-                                                      <rect x="48" y="238" width="146" height="18" rx="9" fill="#ffffff" fillOpacity="0.05" />
-                                                      <circle cx="386" cy="220" r="42" fill="#ef4444" fillOpacity="0.92" />
-                                                      <circle cx="424" cy="220" r="42" fill="#fb7185" fillOpacity="0.72" />
+                                                      <rect x="18" y="22" width="476" height="276" rx="34" fill="url(#paypal-cards-card-bg)" stroke="#ef4444" strokeOpacity="0.26" strokeWidth="10" />
+                                                      <rect x="32" y="36" width="448" height="248" rx="26" fill="none" stroke="url(#paypal-cards-card-shine)" strokeOpacity="0.48" strokeWidth="5" />
+                                                      <rect x="54" y="72" width="404" height="28" rx="14" fill="#ffffff" fillOpacity="0.06" />
+                                                      <rect x="54" y="126" width="108" height="68" rx="16" fill="#ffffff" fillOpacity="0.08" />
+                                                      <rect x="54" y="214" width="172" height="18" rx="9" fill="#ffffff" fillOpacity="0.08" />
+                                                      <rect x="54" y="244" width="132" height="16" rx="8" fill="#ffffff" fillOpacity="0.05" />
+                                                      <rect x="282" y="186" width="120" height="18" rx="9" fill="#67e8f9" fillOpacity="0.08" />
+                                                      <rect x="282" y="216" width="96" height="16" rx="8" fill="#67e8f9" fillOpacity="0.06" />
+                                                      <circle cx="388" cy="226" r="40" fill="#ef4444" fillOpacity="0.9" />
+                                                      <circle cx="424" cy="226" r="40" fill="#fb7185" fillOpacity="0.7" />
                                                     </svg>
+                                                    <div className="pointer-events-none absolute left-1/2 top-1/2 h-[34px] w-[104px] -translate-x-1/2 -translate-y-[68%] rounded-[14px] border border-white/8 bg-slate-950/38 shadow-[0_10px_28px_rgba(0,0,0,0.24)] backdrop-blur-[1px] sm:h-[40px] sm:w-[124px]" />
                                                     <img
                                                       src={method.logoUrl}
                                                       alt={method.title}
@@ -12856,7 +12866,7 @@ export default function App() {
                                                         image.dataset.fallbackApplied = "1";
                                                         image.src = method.logoFallbackUrl;
                                                       }}
-                                                      className="relative z-10 h-auto w-auto max-h-[31px] max-w-[68%] object-contain sm:max-h-[38px] sm:max-w-[70%]"
+                                                      className="relative z-10 h-auto w-auto max-h-[30px] max-w-[70%] -translate-y-[8px] object-contain drop-shadow-[0_6px_18px_rgba(15,23,42,0.45)] sm:max-h-[36px] sm:max-w-[72%] sm:-translate-y-[10px]"
                                                       loading="lazy"
                                                     />
                                                   </div>
@@ -12873,7 +12883,7 @@ export default function App() {
                                                     }}
                                                     className={`h-auto w-auto object-contain ${
                                                       isPayPalMethod
-                                                        ? "max-h-[44px] max-w-[74%] sm:max-h-[58px] sm:max-w-[80%]"
+                                                        ? "max-h-[48px] max-w-[78%] translate-y-[4px] sm:max-h-[64px] sm:max-w-[82%] sm:translate-y-[6px]"
                                                         : method.title === "СБП"
                                                           ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
                                                           : method.title === "USDT TRC20"
