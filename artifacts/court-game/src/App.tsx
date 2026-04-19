@@ -3135,6 +3135,21 @@ function localizeAuthError(message: string): string {
   if (normalized.includes("failed to connect to paypal")) {
     return "Не удалось связаться с PayPal. Попробуйте позже.";
   }
+  if (normalized.includes("paypal order token is missing")) {
+    return "PayPal не передал идентификатор заказа.";
+  }
+  if (normalized.includes("failed to load paypal order status")) {
+    return "Не удалось получить статус оплаты PayPal.";
+  }
+  if (normalized.includes("paypal order status request failed")) {
+    return "Не удалось проверить статус заказа PayPal.";
+  }
+  if (normalized.includes("failed to capture paypal order")) {
+    return "Не удалось подтвердить оплату PayPal.";
+  }
+  if (normalized.includes("paypal capture failed")) {
+    return "PayPal не завершил списание средств.";
+  }
   if (normalized.includes("freekassa is not configured")) {
     return "Платежный шлюз еще не настроен на сервере.";
   }
@@ -4262,6 +4277,53 @@ export default function App() {
       crypto: SHOP_PAYMENT_METHODS.filter((method) => method.category === "crypto"),
     } satisfies Record<ShopPaymentCategory, ShopPaymentMethod[]>;
   }, []);
+  useEffect(() => {
+    if (!authToken) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") !== "paypal_return") return;
+    const orderToken = params.get("token")?.trim();
+    if (!orderToken) return;
+
+    let cancelled = false;
+    void authRequest<{ ok: true; status: string }>(`/payments/paypal/return?token=${encodeURIComponent(orderToken)}`, {
+      token: authToken,
+    })
+      .then(async () => {
+        if (cancelled) return;
+        try {
+          const profilePayload = await authRequest<{ profile: PublicUserProfile }>("/auth/profile", {
+            token: authToken,
+          });
+          if (cancelled) return;
+          setMyProfile(profilePayload.profile);
+          if (authUser) {
+            const nextAuthUser = {
+              ...authUser,
+              subscription: profilePayload.profile.subscription,
+              badges: profilePayload.profile.badges,
+              rank: profilePayload.profile.rank,
+            };
+            setAuthUser(nextAuthUser);
+            persistAuthUserToLocalCache(nextAuthUser);
+          }
+          setScreen("profile");
+        } catch {
+          // статус платежа уже обновлен; если профиль не подтянулся, просто оставляем экран как есть
+        } finally {
+          const nextUrl = `${window.location.pathname}${window.location.hash}`;
+          window.history.replaceState(window.history.state, "", nextUrl);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const nextUrl = `${window.location.pathname}${window.location.hash}`;
+        window.history.replaceState(window.history.state, "", nextUrl);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken, authUser]);
   const roomHostTier = normalizeSubscriptionTier(room?.hostSubscriptionTier ?? "free");
   const isMyHostRoom = !!room && room.hostId === (myId ?? "");
   const effectiveLobbyTier = isMyHostRoom

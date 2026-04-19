@@ -419,6 +419,26 @@ async function verifyPayPalWebhook(req: Request): Promise<boolean> {
   return String(payload?.verification_status ?? "").trim().toUpperCase() === "SUCCESS";
 }
 
+function extractPayPalOrderCompletionState(payload: Record<string, unknown> | null): {
+  orderStatus: string;
+  captureStatus: string;
+} {
+  const orderStatus = String(payload?.status ?? "").trim().toUpperCase();
+  const purchaseUnits = Array.isArray(payload?.purchase_units)
+    ? (payload?.purchase_units as Array<Record<string, unknown>>)
+    : [];
+  const firstUnit = purchaseUnits[0] ?? null;
+  const payments =
+    firstUnit?.payments && typeof firstUnit.payments === "object" && !Array.isArray(firstUnit.payments)
+      ? (firstUnit.payments as Record<string, unknown>)
+      : null;
+  const captures = Array.isArray(payments?.captures)
+    ? (payments?.captures as Array<Record<string, unknown>>)
+    : [];
+  const captureStatus = String(captures[0]?.status ?? "").trim().toUpperCase();
+  return { orderStatus, captureStatus };
+}
+
 paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
   const token = getRequestToken(req.headers as Record<string, unknown>);
   if (!token) {
@@ -939,6 +959,165 @@ paymentsRouter.post("/payments/paypal/create", async (req, res) => {
     paymentId: providerPaymentId,
     checkoutUrl,
   });
+});
+
+paymentsRouter.get("/payments/paypal/return", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized." });
+  }
+
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Session is invalid." });
+  }
+
+  const orderId = String(req.query?.token ?? "").trim();
+  if (!orderId) {
+    return res.status(400).json({ message: "PayPal order token is missing." });
+  }
+
+  await ensurePaymentTables();
+  const paymentResult = await pool.query<{
+    user_id: string;
+    tier: string;
+    duration: string;
+    status: string;
+  }>(
+    `
+      SELECT user_id, tier, duration, status
+      FROM auth_payment_orders
+      WHERE payment_id = $1 AND provider = 'paypal'
+      LIMIT 1
+    `,
+    [orderId],
+  );
+  if (!paymentResult.rowCount) {
+    return res.status(404).json({ message: "Payment not found." });
+  }
+
+  const payment = paymentResult.rows[0];
+  if (payment.user_id !== user.id) {
+    return res.status(403).json({ message: "This PayPal payment belongs to another user." });
+  }
+
+  if (payment.status === "paid") {
+    return res.status(200).json({ ok: true, status: "paid" });
+  }
+
+  const auth = await fetchPayPalAccessToken();
+  if (!auth) {
+    return res.status(503).json({ message: "PayPal is not configured on the server." });
+  }
+
+  const orderResponse = await fetch(`${auth.apiBase}/v2/checkout/orders/${orderId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`,
+      "Content-Type": "application/json",
+    },
+  }).catch(() => null);
+
+  if (!orderResponse) {
+    return res.status(502).json({ message: "Failed to load PayPal order status." });
+  }
+
+  const orderPayload: any = await orderResponse.json().catch(() => null);
+  if (!orderResponse.ok) {
+    const message =
+      String(
+        orderPayload?.message ??
+          orderPayload?.details?.[0]?.description ??
+          orderPayload?.error_description ??
+          orderPayload?.error ??
+          "",
+      ).trim() || "PayPal order status request failed.";
+    return res.status(502).json({ message });
+  }
+
+  const initialState = extractPayPalOrderCompletionState(orderPayload);
+  let finalPayload: Record<string, unknown> | null = orderPayload;
+  let finalOrderStatus = initialState.orderStatus;
+  let finalCaptureStatus = initialState.captureStatus;
+
+  if (finalOrderStatus === "APPROVED") {
+    const captureResponse = await fetch(`${auth.apiBase}/v2/checkout/orders/${orderId}/capture`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        "Content-Type": "application/json",
+        "PayPal-Request-Id": crypto.randomUUID(),
+      },
+      body: "{}",
+    }).catch(() => null);
+
+    if (!captureResponse) {
+      return res.status(502).json({ message: "Failed to capture PayPal order." });
+    }
+
+    const capturePayload: any = await captureResponse.json().catch(() => null);
+    if (!captureResponse.ok) {
+      const message =
+        String(
+          capturePayload?.message ??
+            capturePayload?.details?.[0]?.description ??
+            capturePayload?.error_description ??
+            capturePayload?.error ??
+            "",
+        ).trim() || "PayPal capture failed.";
+      return res.status(502).json({ message });
+    }
+
+    finalPayload = capturePayload;
+    const capturedState = extractPayPalOrderCompletionState(capturePayload);
+    finalOrderStatus = capturedState.orderStatus;
+    finalCaptureStatus = capturedState.captureStatus;
+  }
+
+  if (finalOrderStatus === "COMPLETED" || finalCaptureStatus === "COMPLETED") {
+    const subscription = await assignSubscriptionByUserId({
+      userId: payment.user_id,
+      tier: payment.tier,
+      duration: payment.duration,
+      source: "system",
+    });
+    if (!subscription) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    await pool.query(
+      `
+        UPDATE auth_payment_orders
+        SET
+          status = 'paid',
+          paid_at = COALESCE(paid_at, NOW()),
+          fk_payload = $2,
+          updated_at = NOW()
+        WHERE payment_id = $1
+      `,
+      [orderId, JSON.stringify(safeJsonPayload(finalPayload))],
+    );
+
+    return res.status(200).json({ ok: true, status: "paid" });
+  }
+
+  const nextStatus =
+    finalCaptureStatus === "PENDING" || finalOrderStatus === "PAYER_ACTION_REQUIRED"
+      ? "pending"
+      : payment.status;
+  await pool.query(
+    `
+      UPDATE auth_payment_orders
+      SET
+        status = $2,
+        fk_payload = $3,
+        updated_at = NOW()
+      WHERE payment_id = $1
+    `,
+    [orderId, nextStatus, JSON.stringify(safeJsonPayload(finalPayload))],
+  );
+
+  return res.status(200).json({ ok: true, status: nextStatus });
 });
 
 const freeKassaCallbackHandler = async (req: Request, res: Response) => {
