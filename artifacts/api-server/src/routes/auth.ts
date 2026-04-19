@@ -79,6 +79,12 @@ function resolveClientIp(req: Parameters<typeof authRouter.get>[1]): string {
 
 const DISCORD_STATE_TTL_MS = 10 * 60 * 1000;
 const FALLBACK_OAUTH_STATE_SECRET = crypto.randomBytes(32).toString("hex");
+const MAINTENANCE_MODE_ENABLED = true;
+const MAINTENANCE_ACCESS_HEADER = "x-maintenance-access";
+const MAINTENANCE_PASSWORD =
+  "~lQR[g(K&7),<.4Z+?L)*N3E!FpbVqU<uUU]cuHn+3?]wU6pCWsHIxAy)41{u,D#";
+const MAINTENANCE_ACCESS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const FALLBACK_MAINTENANCE_SECRET = crypto.randomBytes(32).toString("hex");
 
 function toBase64Url(value: string): string {
   return Buffer.from(value, "utf8").toString("base64url");
@@ -138,6 +144,67 @@ function getDiscordStateSecret(): string {
   ).trim();
   if (configured) return configured;
   return FALLBACK_OAUTH_STATE_SECRET;
+}
+
+function getMaintenanceSecret(): string {
+  const configured = String(
+    process.env.MAINTENANCE_ACCESS_SECRET ?? process.env.OAUTH_STATE_SECRET ?? "",
+  ).trim();
+  return configured || FALLBACK_MAINTENANCE_SECRET;
+}
+
+function signMaintenanceAccessToken(payloadPart: string): string {
+  return crypto
+    .createHmac("sha256", getMaintenanceSecret())
+    .update(payloadPart, "utf8")
+    .digest("base64url");
+}
+
+function createMaintenanceAccessToken(): string {
+  const now = Date.now();
+  const payloadPart = toBase64Url(
+    JSON.stringify({
+      ts: now,
+      exp: now + MAINTENANCE_ACCESS_TTL_MS,
+      nonce: crypto.randomUUID(),
+    }),
+  );
+  return `${payloadPart}.${signMaintenanceAccessToken(payloadPart)}`;
+}
+
+function verifyMaintenanceAccessToken(rawToken: string | undefined | null): boolean {
+  const token = String(rawToken ?? "").trim();
+  if (!token) return false;
+  const [payloadPart, signature] = token.split(".");
+  if (!payloadPart || !signature) return false;
+  const expected = signMaintenanceAccessToken(payloadPart);
+  const left = Buffer.from(signature, "utf8");
+  const right = Buffer.from(expected, "utf8");
+  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) {
+    return false;
+  }
+  try {
+    const payload = JSON.parse(fromBase64Url(payloadPart));
+    const expiresAt = Number(payload?.exp ?? 0);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getMaintenanceAccessToken(headers: Record<string, unknown>): string | null {
+  const direct = headers[MAINTENANCE_ACCESS_HEADER];
+  if (typeof direct === "string" && direct.trim()) {
+    return direct.trim();
+  }
+  const fallback = headers["x-maintenance-token"];
+  if (typeof fallback === "string" && fallback.trim()) {
+    return fallback.trim();
+  }
+  return null;
 }
 
 function signDiscordState(payloadPart: string): string {
@@ -713,6 +780,33 @@ authRouter.post("/auth/login", async (req, res) => {
     const message = error instanceof Error ? error.message : "Не удалось выполнить вход.";
     return res.status(401).json({ message });
   }
+});
+
+authRouter.get("/auth/maintenance/status", async (req, res) => {
+  if (!MAINTENANCE_MODE_ENABLED) {
+    return res.json({ enabled: false, unlocked: true });
+  }
+  const token = getMaintenanceAccessToken(req.headers as Record<string, unknown>);
+  return res.json({
+    enabled: true,
+    unlocked: verifyMaintenanceAccessToken(token),
+  });
+});
+
+authRouter.post("/auth/maintenance/unlock", async (req, res) => {
+  if (!MAINTENANCE_MODE_ENABLED) {
+    return res.json({ ok: true, enabled: false, unlocked: true, token: null });
+  }
+  const password = String(req.body?.password ?? "");
+  if (!password || !secureCompare(password, MAINTENANCE_PASSWORD)) {
+    return res.status(401).json({ message: "Invalid maintenance password." });
+  }
+  return res.json({
+    ok: true,
+    enabled: true,
+    unlocked: true,
+    token: createMaintenanceAccessToken(),
+  });
 });
 
 authRouter.get("/auth/me", async (req, res) => {

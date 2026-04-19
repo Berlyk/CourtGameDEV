@@ -209,6 +209,8 @@ const AUTH_TOKEN_STORAGE_KEY = "court_auth_token";
 const AUTH_USER_STORAGE_KEY = "court_auth_user";
 const GUEST_NAME_STORAGE_KEY = "court_guest_name";
 const BANNER_STORAGE_KEY = "court_banner";
+const MAINTENANCE_ACCESS_STORAGE_KEY = "court_maintenance_access_token";
+const MAINTENANCE_ACCESS_HEADER = "x-maintenance-access";
 const RECONNECT_PERSISTENT_STORAGE_KEY = "court_reconnect_persistent";
 const RANK_TOAST_PENDING_STORAGE_KEY = "court_rank_toast_pending";
 const GUEST_NAME_PREFIX = "Гость-";
@@ -3041,6 +3043,9 @@ function localizeAuthError(message: string): string {
   }
   const normalized = message.trim().toLowerCase();
   if (!normalized) return "Произошла ошибка. Попробуйте снова.";
+  if (normalized.includes("invalid maintenance password")) {
+    return "Неверный пароль доступа.";
+  }
   if (
     normalized.includes("invalid login/email or password") ||
     normalized.includes("login failed")
@@ -3906,6 +3911,20 @@ export default function App() {
   const [mainHelpQuery, setMainHelpQuery] = useState("");
   const [contextHelpOpen, setContextHelpOpen] = useState(false);
   const [contextHelpQuery, setContextHelpQuery] = useState("");
+  const [maintenanceAccessToken, setMaintenanceAccessToken] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(MAINTENANCE_ACCESS_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const [maintenanceModeEnabled, setMaintenanceModeEnabled] = useState(true);
+  const [maintenanceModeUnlocked, setMaintenanceModeUnlocked] = useState(false);
+  const [maintenanceModeChecking, setMaintenanceModeChecking] = useState(true);
+  const [maintenanceUnlockDialogOpen, setMaintenanceUnlockDialogOpen] = useState(false);
+  const [maintenancePasswordInput, setMaintenancePasswordInput] = useState("");
+  const [maintenancePasswordLoading, setMaintenancePasswordLoading] = useState(false);
+  const [maintenancePasswordError, setMaintenancePasswordError] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [profileNicknameDraft, setProfileNicknameDraft] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -4171,6 +4190,79 @@ export default function App() {
     },
     [],
   );
+
+  const verifyMaintenanceAccess = useCallback(
+    async (tokenOverride?: string | null) => {
+      const effectiveToken =
+        typeof tokenOverride === "string" ? tokenOverride.trim() : maintenanceAccessToken?.trim() ?? "";
+      setMaintenanceModeChecking(true);
+      try {
+        const payload = await authRequest<{ enabled: boolean; unlocked: boolean }>(
+          "/auth/maintenance/status",
+          {
+            headers: effectiveToken ? { [MAINTENANCE_ACCESS_HEADER]: effectiveToken } : undefined,
+          },
+        );
+        const enabled = payload?.enabled !== false;
+        const unlocked = !enabled || !!payload?.unlocked;
+        setMaintenanceModeEnabled(enabled);
+        setMaintenanceModeUnlocked(unlocked);
+        if (!unlocked && effectiveToken) {
+          try {
+            localStorage.removeItem(MAINTENANCE_ACCESS_STORAGE_KEY);
+          } catch {}
+          setMaintenanceAccessToken(null);
+        }
+      } catch {
+        setMaintenanceModeEnabled(true);
+        setMaintenanceModeUnlocked(false);
+      } finally {
+        setMaintenanceModeChecking(false);
+      }
+    },
+    [maintenanceAccessToken],
+  );
+
+  useEffect(() => {
+    void verifyMaintenanceAccess();
+  }, [verifyMaintenanceAccess]);
+
+  const submitMaintenancePassword = useCallback(async () => {
+    const password = maintenancePasswordInput;
+    if (!password.trim()) {
+      setMaintenancePasswordError("Введите пароль доступа.");
+      return;
+    }
+    setMaintenancePasswordLoading(true);
+    setMaintenancePasswordError("");
+    try {
+      const payload = await authRequest<{
+        ok: true;
+        enabled: boolean;
+        unlocked: boolean;
+        token: string | null;
+      }>("/auth/maintenance/unlock", {
+        method: "POST",
+        body: { password },
+      });
+      const nextToken = String(payload?.token ?? "").trim() || null;
+      if (nextToken) {
+        try {
+          localStorage.setItem(MAINTENANCE_ACCESS_STORAGE_KEY, nextToken);
+        } catch {}
+      }
+      setMaintenanceAccessToken(nextToken);
+      setMaintenanceModeEnabled(payload?.enabled !== false);
+      setMaintenanceModeUnlocked(!!payload?.unlocked || payload?.enabled === false);
+      setMaintenanceUnlockDialogOpen(false);
+      setMaintenancePasswordInput("");
+      setMaintenancePasswordError("");
+    } catch (error: any) {
+      setMaintenancePasswordError(localizeAuthError(error?.message ?? "Неверный пароль доступа."));
+    } finally {
+      setMaintenancePasswordLoading(false);
+    }
+  }, [maintenancePasswordInput]);
 
   const imageCropViewport = useMemo(() => {
     if (imageCropTarget === "avatar") {
@@ -8741,6 +8833,94 @@ export default function App() {
       </div>
     );
   };
+  const renderMaintenanceOverlay = () => {
+    const shouldLockSite = maintenanceModeChecking || (maintenanceModeEnabled && !maintenanceModeUnlocked);
+    if (!shouldLockSite) return null;
+    return (
+      <>
+        <button
+          type="button"
+          aria-label="Открыть доступ к сайту"
+          onClick={() => {
+            setMaintenanceUnlockDialogOpen(true);
+            setMaintenancePasswordError("");
+          }}
+          className="fixed left-0 top-0 z-[531] h-16 w-16 cursor-default opacity-0"
+        />
+        <div className="fixed inset-0 z-[520] flex items-center justify-center bg-black/88 px-3 sm:px-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-red-500/40 bg-[radial-gradient(120%_130%_at_50%_0%,rgba(239,68,68,0.24),transparent_58%),linear-gradient(165deg,rgba(15,10,12,0.98),rgba(10,10,12,0.98))] p-5 sm:p-6 text-zinc-100 shadow-[0_34px_100px_rgba(0,0,0,0.82)]">
+            <div className="text-center text-[clamp(1.5rem,6.5vw,2.4rem)] font-black tracking-[0.04em] text-red-100">
+              ТЕХНИЧЕСКИЕ РАБОТЫ
+            </div>
+            <div className="mt-4 text-center text-base sm:text-xl text-zinc-200">
+              На сайте временно проводятся технические работы.
+            </div>
+            <div className="mt-3 text-center text-sm sm:text-base text-zinc-400">
+              Доступ к страницам и действиям временно ограничен до завершения настройки.
+            </div>
+            <div className="mt-6 rounded-2xl border border-zinc-800/85 bg-zinc-950/45 px-4 py-3 text-center text-xs sm:text-sm text-zinc-500">
+              Окно нельзя закрыть. Навигация и взаимодействие с сайтом временно недоступны.
+            </div>
+          </div>
+        </div>
+        {maintenanceUnlockDialogOpen && (
+          <div className="fixed inset-0 z-[540] flex items-center justify-center bg-black/70 px-4">
+            <div className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-950 p-5 text-zinc-100 shadow-[0_24px_70px_rgba(0,0,0,0.78)]">
+              <div className="text-lg font-bold text-zinc-100">Доступ к сайту</div>
+              <div className="mt-2 text-sm text-zinc-400">
+                Введите пароль, чтобы временно снять режим технических работ.
+              </div>
+              <div className="mt-4 space-y-3">
+                <Input
+                  autoFocus
+                  type="password"
+                  value={maintenancePasswordInput}
+                  onChange={(event) => {
+                    setMaintenancePasswordInput(event.target.value);
+                    if (maintenancePasswordError) setMaintenancePasswordError("");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !maintenancePasswordLoading) {
+                      event.preventDefault();
+                      void submitMaintenancePassword();
+                    }
+                  }}
+                  placeholder="Введите пароль"
+                  className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100"
+                />
+                {maintenancePasswordError && (
+                  <div className="rounded-xl border border-red-500/35 bg-red-950/20 px-3 py-2 text-sm text-red-200">
+                    {maintenancePasswordError}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                    onClick={() => {
+                      setMaintenanceUnlockDialogOpen(false);
+                      setMaintenancePasswordError("");
+                    }}
+                  >
+                    Отмена
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-11 flex-1 rounded-xl bg-red-600 text-white hover:bg-red-500"
+                    onClick={() => void submitMaintenancePassword()}
+                    disabled={maintenancePasswordLoading}
+                  >
+                    {maintenancePasswordLoading ? "Проверка..." : "Разблокировать"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
   const renderAdminTools = () => {
     if (!canSeeAdminButton) return null;
     const currentHostId = room?.hostId ?? game?.hostId ?? null;
@@ -10861,6 +11041,7 @@ export default function App() {
         {renderAdminTools()}
         {renderUpsellModal()}
         {renderBanOverlay()}
+        {renderMaintenanceOverlay()}
         <ScreenTransitionLoader open={safeGlobalBlockingLoading} />
       </motion.div>
     );
@@ -13262,6 +13443,7 @@ export default function App() {
         {renderAdminTools()}
         {renderUpsellModal()}
         {renderBanOverlay()}
+        {renderMaintenanceOverlay()}
         <ScreenTransitionLoader open={safeGlobalBlockingLoading} />
       </motion.div>
     );
@@ -14228,6 +14410,7 @@ export default function App() {
         {renderAdminTools()}
         {renderUpsellModal()}
         {renderBanOverlay()}
+        {renderMaintenanceOverlay()}
         <ScreenTransitionLoader open={safeGlobalBlockingLoading} />
       </motion.div>
     );
@@ -15621,6 +15804,7 @@ export default function App() {
         {renderAdminTools()}
         {renderUpsellModal()}
         {renderBanOverlay()}
+        {renderMaintenanceOverlay()}
         <ScreenTransitionLoader open={safeGlobalBlockingLoading} />
       </motion.div>
     );
@@ -15635,6 +15819,7 @@ export default function App() {
       >
         Загрузка...
       </motion.div>
+      {renderMaintenanceOverlay()}
     </div>
   );
 }
