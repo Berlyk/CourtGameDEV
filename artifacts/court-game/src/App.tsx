@@ -8858,9 +8858,6 @@ export default function App() {
             <div className="mt-3 text-center text-sm sm:text-base text-zinc-400">
               Доступ к страницам и действиям временно ограничен до завершения настройки.
             </div>
-            <div className="mt-6 rounded-2xl border border-zinc-800/85 bg-zinc-950/45 px-4 py-3 text-center text-xs sm:text-sm text-zinc-500">
-              Окно нельзя закрыть. Навигация и взаимодействие с сайтом временно недоступны.
-            </div>
           </div>
         </div>
         {maintenanceUnlockDialogOpen && (
