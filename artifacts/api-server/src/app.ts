@@ -35,9 +35,42 @@ const frontendPath =
 
 console.log(`[frontend] serving static files from: ${frontendPath}`);
 
-app.use(express.static(frontendPath));
+app.use(
+  express.static(frontendPath, {
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      const normalizedPath = filePath.replace(/\\/g, "/");
+      const relativePath = path.relative(frontendPath, filePath).replace(/\\/g, "/");
+      const ext = path.extname(normalizedPath).toLowerCase();
+      const isIndexHtml = relativePath === "index.html";
+      const isHashedAsset =
+        normalizedPath.includes("/assets/") &&
+        [".js", ".css", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".woff", ".woff2"].includes(ext);
+
+      if (isIndexHtml) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+        return;
+      }
+
+      if (isHashedAsset) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        return;
+      }
+
+      if ([".js", ".css", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".woff", ".woff2"].includes(ext)) {
+        res.setHeader("Cache-Control", "public, max-age=86400");
+      }
+    },
+  }),
+);
 
 app.get(/^(?!\/api).*/, (_, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.sendFile(path.join(frontendPath, "index.html"));
 });
 
