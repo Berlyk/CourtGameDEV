@@ -79,7 +79,7 @@ function resolveClientIp(req: Parameters<typeof authRouter.get>[1]): string {
 
 const DISCORD_STATE_TTL_MS = 10 * 60 * 1000;
 const FALLBACK_OAUTH_STATE_SECRET = crypto.randomBytes(32).toString("hex");
-const MAINTENANCE_MODE_ENABLED = true;
+const MAINTENANCE_MODE_ENABLED = false;
 const MAINTENANCE_ACCESS_HEADER = "x-maintenance-access";
 const MAINTENANCE_PASSWORD =
   "~lQR[g(K&7),<.4Z+?L)*N3E!FpbVqU<uUU]cuHn+3?]wU6pCWsHIxAy)41{u,D#";
