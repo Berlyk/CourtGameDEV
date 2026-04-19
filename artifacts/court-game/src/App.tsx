@@ -324,7 +324,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "europe",
     title: "PayPal",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(0,112,186,0.34), rgba(0,112,186,0.02) 62%)",
-    logoUrl: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="PayPal"><rect width="640" height="220" rx="28" fill="transparent"/><path d="M201 45h91c39 0 62 20 55 53c-8 39-39 55-79 55h-24l-9 47h-54l31-155Zm44 36l-9 41h24c17 0 28-8 31-22c3-13-5-19-20-19h-26Z" fill="#169BD7"/><path d="M286 45h79c35 0 54 17 48 46c-6 29-29 43-58 47c18 8 25 25 20 50l-2 12h-51l2-12c4-17-2-26-21-26h-20l-8 38h-50l31-155Zm42 35l-8 40h21c17 0 28-8 31-21c3-13-4-19-20-19h-24Z" fill="#003087"/><text x="458" y="135" text-anchor="middle" fill="#f4f6ff" font-size="52" font-weight="700" font-family="Arial,Segoe UI,sans-serif">PayPal</text></svg>`),
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/3/39/PayPal_logo.svg",
   },
   {
     id: 202,
@@ -333,7 +333,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "PayPal + карты",
     subtitle: "PayPal и банковские карты",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(24,119,242,0.34), rgba(24,119,242,0.02) 62%)",
-    logoUrl: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="PayPal и карты"><rect width="640" height="220" rx="28" fill="transparent"/><path d="M120 52h72c30 0 48 15 43 41c-6 31-31 44-64 44h-19l-8 39H99l21-124Zm35 28l-7 31h20c14 0 23-6 25-17c2-10-4-14-17-14h-21Z" fill="#169BD7"/><path d="M187 52h61c26 0 40 13 35 37c-5 24-22 35-44 38c14 6 19 20 15 40l-1 9h-39l1-9c3-14-1-21-16-21h-15l-7 30h-38l22-124Z" fill="#003087"/><g transform="translate(362 55)"><rect x="0" y="0" width="176" height="104" rx="18" fill="#10131a" stroke="rgba(255,255,255,0.12)"/><circle cx="70" cy="52" r="24" fill="#eb001b"/><circle cx="104" cy="52" r="24" fill="#f79e1b" fill-opacity="0.96"/><path d="M87 31a24 24 0 0 1 0 42a24 24 0 0 1 0-42z" fill="#ff5f00"/><text x="88" y="88" text-anchor="middle" fill="#f4f6ff" font-size="18" font-weight="600" font-family="Arial,Segoe UI,sans-serif">cards</text></g></svg>`),
+    logoUrl: "https://upload.wikimedia.org/wikipedia/commons/3/39/PayPal_logo.svg",
   },
   {
     id: 15,
@@ -3292,16 +3292,17 @@ function formatSubscriptionTimeLeftLabel(
     const totalHours = Math.max(1, Math.ceil(msLeft / (60 * 60 * 1000)));
     const days = Math.floor(totalHours / 24);
     const hours = totalHours % 24;
-    if (totalHours <= 24 || days <= 1) {
+    if (days === 0) {
       return `Осталось: ${totalHours} ч`;
+    }
+    if (hours === 0) {
+      return `Осталось: ${days} д`;
     }
     return `Осталось: ${days} д ${hours} ч`;
   }
   if (typeof subscription.daysLeft === "number" && Number.isFinite(subscription.daysLeft)) {
-    if (subscription.daysLeft <= 1) {
-      return "Осталось: до 24 ч";
-    }
-    return `Осталось: ${subscription.daysLeft} д`;
+    const roundedDays = Math.max(1, Math.ceil(subscription.daysLeft));
+    return `Осталось: ${roundedDays} д`;
   }
   return "Срок уточняется";
 }
@@ -4281,6 +4282,7 @@ export default function App() {
     if (!authToken) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("payment") !== "paypal_return") return;
+    setScreen("profile");
     const orderToken = params.get("token")?.trim();
     if (!orderToken) return;
 
@@ -12838,21 +12840,38 @@ export default function App() {
                                                   image.dataset.fallbackApplied = "1";
                                                   image.src = method.logoFallbackUrl;
                                                 }}
-                                                className={`h-auto w-auto object-contain ${
-                                                  method.title === "СБП"
-                                                    ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
-                                                    : method.title === "USDT TRC20"
-                                                      ? "max-h-[66px] max-w-[86%] sm:max-h-[84px] sm:max-w-[90%]"
-                                                    : method.title === "TON"
-                                                      ? "max-h-[62px] max-w-[80%] sm:max-h-[80px] sm:max-w-[88%]"
-                                                    : method.title === "Ethereum"
-                                                      ? "max-h-[70px] max-w-[92%] sm:max-h-[96px] sm:max-w-[99%]"
-                                                      : method.category === "crypto"
-                                                        ? "max-h-[56px] max-w-[82%] sm:max-h-[74px] sm:max-w-[86%]"
-                                                        : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
+                                                className={`relative z-10 h-auto w-auto object-contain ${
+                                                  method.title === "PayPal"
+                                                    ? "max-h-[40px] max-w-[72%] sm:max-h-[54px] sm:max-w-[78%]"
+                                                    : method.title === "PayPal + карты"
+                                                      ? "max-h-[34px] max-w-[68%] sm:max-h-[46px] sm:max-w-[72%]"
+                                                    : method.title === "СБП"
+                                                      ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
+                                                      : method.title === "USDT TRC20"
+                                                        ? "max-h-[66px] max-w-[86%] sm:max-h-[84px] sm:max-w-[90%]"
+                                                        : method.title === "TON"
+                                                          ? "max-h-[62px] max-w-[80%] sm:max-h-[80px] sm:max-w-[88%]"
+                                                          : method.title === "Ethereum"
+                                                            ? "max-h-[70px] max-w-[92%] sm:max-h-[96px] sm:max-w-[99%]"
+                                                            : method.category === "crypto"
+                                                              ? "max-h-[56px] max-w-[82%] sm:max-h-[74px] sm:max-w-[86%]"
+                                                              : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
                                                 }`}
                                                 loading="lazy"
                                               />
+                                              {method.title === "PayPal + карты" ? (
+                                                <svg
+                                                  viewBox="0 0 512 512"
+                                                  aria-hidden="true"
+                                                  className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-11 w-16 -translate-x-1/2 translate-y-2 opacity-90 sm:h-14 sm:w-20 sm:translate-y-3"
+                                                >
+                                                  <path fill="#EDEDED" d="M473.6 422.4H38.4C17.28 422.4 0 405.12 0 384V128c0-21.12 17.28-38.4 38.4-38.4h435.2c21.12 0 38.4 17.28 38.4 38.4v256c0 21.12-17.28 38.4-38.4 38.4Z"/>
+                                                  <path fill="#D8D8DA" d="M473.6 89.6h-64c21.12 0 38.4 17.28 38.4 38.4v256c0 21.12-17.28 38.4-38.4 38.4h64c21.12 0 38.4-17.28 38.4-38.4V128c0-21.12-17.28-38.4-38.4-38.4Z"/>
+                                                  <path fill="#88888F" d="M0 166.4h512v76.8H0z"/>
+                                                  <circle cx="89.6" cy="332.8" r="38.4" fill="#E07188"/>
+                                                  <circle cx="140.8" cy="332.8" r="38.4" fill="#F8E99B"/>
+                                                </svg>
+                                              ) : null}
                                             </div>
                                             <div className="mt-1 text-center text-[12px] font-medium leading-tight text-zinc-200 sm:text-sm">
                                               {method.subtitle ?? method.title}
