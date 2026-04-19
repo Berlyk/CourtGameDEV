@@ -3032,7 +3032,9 @@ async function authRequest<T>(
       typeof payload?.message === "string" && payload.message.trim()
         ? payload.message
         : "Ошибка запроса.";
-    throw new Error(message);
+    const error = new Error(message) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
   }
   return payload as T;
 }
@@ -6192,8 +6194,15 @@ export default function App() {
           persistMediaToLocalCache(BANNER_STORAGE_KEY, user.banner);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (cancelled) return;
+        const status =
+          typeof error === "object" && error !== null && "status" in error
+            ? Number((error as { status?: unknown }).status)
+            : NaN;
+        if (status !== 401 && status !== 403) {
+          return;
+        }
         setAuthToken(null);
         setAuthUser(null);
         localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
