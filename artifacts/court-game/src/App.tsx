@@ -273,12 +273,12 @@ const SHOP_PAYMENT_SECTIONS: Array<{
   {
     key: "europe",
     title: "Европа",
-    description: "Оплата через PayPal и банковские карты PayPal Checkout.",
+    description: "Оплата через карты, PayPal и локальные методы.",
   },
   {
     key: "crypto",
     title: "Криптовалюта",
-    description: "USDT TRC20, ETH и TON через FreeKassa.",
+    description: "Оплата через USDT TRC20, ETH и TON.",
   },
 ];
 
@@ -4267,10 +4267,6 @@ export default function App() {
     if (!shopPaymentTier) return 0;
     return SHOP_PRICE_MATRIX_RUB[shopPaymentTier][shopDuration];
   }, [shopPaymentTier, shopDuration]);
-  const shopPaymentAmountEur = useMemo(() => {
-    if (!shopPaymentTier) return 0;
-    return SHOP_PRICE_MATRIX_EUR[shopPaymentTier][shopDuration];
-  }, [shopPaymentTier, shopDuration]);
   const shopPaymentMethodsByCategory = useMemo(() => {
     return {
       russia: SHOP_PAYMENT_METHODS.filter((method) => method.category === "russia"),
@@ -4517,11 +4513,9 @@ export default function App() {
       setShopPaymentLoading(true);
       try {
         const checkoutEndpoint =
-          method.providerCategory === "crypto"
-            ? "/payments/freekassa/create"
-            : method.providerCategory === "europe"
-              ? "/payments/paypal/create"
-              : "/payments/tomege/create";
+          method.providerCategory === "europe"
+            ? "/payments/paypal/create"
+            : "/payments/freekassa/create";
         const payload = await authRequest<{ ok: true; checkoutUrl: string }>(
           checkoutEndpoint,
           {
@@ -12790,9 +12784,6 @@ export default function App() {
                               <div className="text-[2.4rem] font-semibold leading-none sm:text-7xl">{shopPaymentAmountRub}</div>
                               <div className="mt-2.5 text-sm font-semibold leading-none tracking-[0.12em] text-red-100/95 sm:mt-1.5 sm:text-3xl sm:tracking-normal">RUB</div>
                             </div>
-                            <div className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em] text-red-100/80 sm:mt-3 sm:text-sm sm:tracking-[0.16em]">
-                              Европа: {shopPaymentAmountEur.toFixed(shopPaymentAmountEur % 1 === 0 ? 0 : 1)} EUR
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -12819,67 +12810,94 @@ export default function App() {
 
                                   <div className="p-3 sm:p-4">
                                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                      {methods.map((method) => (
-                                        <button
-                                          key={`shop-payment-method-${method.category}-${method.id}-${method.title}`}
-                                          type="button"
-                                          disabled={shopPaymentLoading}
-                                          onClick={() => void createShopPayment(method)}
-                                          className="group relative overflow-hidden rounded-2xl bg-zinc-900/85 p-3 transition duration-200 hover:-translate-y-[1px] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_90%_at_0%_0%,rgba(220,38,38,0.12),transparent_70%)]" />
-                                          <div className="relative flex h-[118px] sm:h-[142px] flex-col items-center justify-center rounded-xl bg-zinc-950/50 p-2.5 sm:p-3">
-                                            <div className="flex min-h-0 flex-1 items-center justify-center">
-                                              <img
-                                                src={method.logoUrl}
-                                                alt={method.title}
-                                                onError={(event) => {
-                                                  const image = event.currentTarget;
-                                                  if (image.dataset.fallbackApplied === "1") return;
-                                                  if (!method.logoFallbackUrl) return;
-                                                  image.dataset.fallbackApplied = "1";
-                                                  image.src = method.logoFallbackUrl;
-                                                }}
-                                                className={`relative z-10 h-auto w-auto object-contain ${
-                                                  method.title === "PayPal"
-                                                    ? "max-h-[40px] max-w-[72%] sm:max-h-[54px] sm:max-w-[78%]"
-                                                    : method.title === "PayPal + карты"
-                                                      ? "max-h-[34px] max-w-[68%] sm:max-h-[46px] sm:max-w-[72%]"
-                                                    : method.title === "СБП"
-                                                      ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
-                                                      : method.title === "USDT TRC20"
-                                                        ? "max-h-[66px] max-w-[86%] sm:max-h-[84px] sm:max-w-[90%]"
-                                                        : method.title === "TON"
-                                                          ? "max-h-[62px] max-w-[80%] sm:max-h-[80px] sm:max-w-[88%]"
-                                                          : method.title === "Ethereum"
-                                                            ? "max-h-[70px] max-w-[92%] sm:max-h-[96px] sm:max-w-[99%]"
-                                                            : method.category === "crypto"
-                                                              ? "max-h-[56px] max-w-[82%] sm:max-h-[74px] sm:max-w-[86%]"
-                                                              : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
-                                                }`}
-                                                loading="lazy"
-                                              />
-                                              {method.title === "PayPal + карты" ? (
-                                                <svg
-                                                  viewBox="0 0 512 512"
-                                                  aria-hidden="true"
-                                                  className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-11 w-16 -translate-x-1/2 translate-y-2 opacity-90 sm:h-14 sm:w-20 sm:translate-y-3"
-                                                >
-                                                  <path fill="#EDEDED" d="M473.6 422.4H38.4C17.28 422.4 0 405.12 0 384V128c0-21.12 17.28-38.4 38.4-38.4h435.2c21.12 0 38.4 17.28 38.4 38.4v256c0 21.12-17.28 38.4-38.4 38.4Z"/>
-                                                  <path fill="#D8D8DA" d="M473.6 89.6h-64c21.12 0 38.4 17.28 38.4 38.4v256c0 21.12-17.28 38.4-38.4 38.4h64c21.12 0 38.4-17.28 38.4-38.4V128c0-21.12-17.28-38.4-38.4-38.4Z"/>
-                                                  <path fill="#88888F" d="M0 166.4h512v76.8H0z"/>
-                                                  <circle cx="89.6" cy="332.8" r="38.4" fill="#E07188"/>
-                                                  <circle cx="140.8" cy="332.8" r="38.4" fill="#F8E99B"/>
-                                                </svg>
-                                              ) : null}
+                                      {methods.map((method) => {
+                                        const isPayPalMethod = method.title === "PayPal";
+                                        const isPayPalCardsMethod = method.title === "PayPal + карты";
+                                        return (
+                                          <button
+                                            key={`shop-payment-method-${method.category}-${method.id}-${method.title}`}
+                                            type="button"
+                                            disabled={shopPaymentLoading}
+                                            onClick={() => void createShopPayment(method)}
+                                            className="group relative overflow-hidden rounded-2xl bg-zinc-900/85 p-3 transition duration-200 hover:-translate-y-[1px] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                                          >
+                                            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_90%_at_0%_0%,rgba(220,38,38,0.12),transparent_70%)]" />
+                                            <div className="relative flex h-[118px] flex-col items-center justify-center rounded-xl bg-zinc-950/50 p-2.5 sm:h-[142px] sm:p-3">
+                                              <div className="flex min-h-0 flex-1 items-center justify-center">
+                                                {isPayPalCardsMethod ? (
+                                                  <div className="relative flex h-[72px] w-[138px] items-center justify-center sm:h-[88px] sm:w-[168px]">
+                                                    <svg
+                                                      viewBox="0 0 512 320"
+                                                      aria-hidden="true"
+                                                      className="pointer-events-none absolute inset-0 h-full w-full"
+                                                    >
+                                                      <defs>
+                                                        <linearGradient id="paypal-cards-card-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                          <stop offset="0%" stopColor="#351518" />
+                                                          <stop offset="58%" stopColor="#1E1F28" />
+                                                          <stop offset="100%" stopColor="#101016" />
+                                                        </linearGradient>
+                                                      </defs>
+                                                      <rect x="18" y="22" width="476" height="276" rx="34" fill="url(#paypal-cards-card-bg)" stroke="#ef4444" strokeOpacity="0.28" strokeWidth="10" />
+                                                      <rect x="48" y="64" width="416" height="22" rx="11" fill="#ffffff" fillOpacity="0.06" />
+                                                      <rect x="48" y="112" width="118" height="72" rx="16" fill="#ffffff" fillOpacity="0.08" />
+                                                      <rect x="48" y="208" width="186" height="18" rx="9" fill="#ffffff" fillOpacity="0.07" />
+                                                      <rect x="48" y="238" width="146" height="18" rx="9" fill="#ffffff" fillOpacity="0.05" />
+                                                      <circle cx="386" cy="220" r="42" fill="#ef4444" fillOpacity="0.92" />
+                                                      <circle cx="424" cy="220" r="42" fill="#fb7185" fillOpacity="0.72" />
+                                                    </svg>
+                                                    <img
+                                                      src={method.logoUrl}
+                                                      alt={method.title}
+                                                      onError={(event) => {
+                                                        const image = event.currentTarget;
+                                                        if (image.dataset.fallbackApplied === "1") return;
+                                                        if (!method.logoFallbackUrl) return;
+                                                        image.dataset.fallbackApplied = "1";
+                                                        image.src = method.logoFallbackUrl;
+                                                      }}
+                                                      className="relative z-10 h-auto w-auto max-h-[31px] max-w-[68%] object-contain sm:max-h-[38px] sm:max-w-[70%]"
+                                                      loading="lazy"
+                                                    />
+                                                  </div>
+                                                ) : (
+                                                  <img
+                                                    src={method.logoUrl}
+                                                    alt={method.title}
+                                                    onError={(event) => {
+                                                      const image = event.currentTarget;
+                                                      if (image.dataset.fallbackApplied === "1") return;
+                                                      if (!method.logoFallbackUrl) return;
+                                                      image.dataset.fallbackApplied = "1";
+                                                      image.src = method.logoFallbackUrl;
+                                                    }}
+                                                    className={`h-auto w-auto object-contain ${
+                                                      isPayPalMethod
+                                                        ? "max-h-[44px] max-w-[74%] sm:max-h-[58px] sm:max-w-[80%]"
+                                                        : method.title === "СБП"
+                                                          ? "max-h-[64px] max-w-[92%] sm:max-h-[88px] sm:max-w-[98%]"
+                                                          : method.title === "USDT TRC20"
+                                                            ? "max-h-[66px] max-w-[86%] sm:max-h-[84px] sm:max-w-[90%]"
+                                                            : method.title === "TON"
+                                                              ? "max-h-[62px] max-w-[80%] sm:max-h-[80px] sm:max-w-[88%]"
+                                                              : method.title === "Ethereum"
+                                                                ? "max-h-[70px] max-w-[92%] sm:max-h-[96px] sm:max-w-[99%]"
+                                                                : method.category === "crypto"
+                                                                  ? "max-h-[56px] max-w-[82%] sm:max-h-[74px] sm:max-w-[86%]"
+                                                                  : "max-h-[52px] max-w-[84%] sm:max-h-[66px] sm:max-w-[90%]"
+                                                    }`}
+                                                    loading="lazy"
+                                                  />
+                                                )}
+                                              </div>
+                                              <div className="mt-1 text-center text-[12px] font-medium leading-tight text-zinc-200 sm:text-sm">
+                                                {method.subtitle ?? method.title}
+                                              </div>
                                             </div>
-                                            <div className="mt-1 text-center text-[12px] font-medium leading-tight text-zinc-200 sm:text-sm">
-                                              {method.subtitle ?? method.title}
-                                            </div>
-                                          </div>
-                                          <span className="sr-only">{method.title}</span>
-                                        </button>
-                                      ))}
+                                            <span className="sr-only">{method.title}</span>
+                                          </button>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 </div>
