@@ -12855,7 +12855,7 @@ export default function App() {
                                                       <circle cx="388" cy="226" r="40" fill="#ef4444" fillOpacity="0.9" />
                                                       <circle cx="424" cy="226" r="40" fill="#fb7185" fillOpacity="0.7" />
                                                     </svg>
-                                                    <div className="pointer-events-none absolute left-1/2 top-1/2 h-[34px] w-[104px] -translate-x-1/2 -translate-y-[68%] rounded-[14px] border border-white/8 bg-slate-950/38 shadow-[0_10px_28px_rgba(0,0,0,0.24)] backdrop-blur-[1px] sm:h-[40px] sm:w-[124px]" />
+                                                    <div className="pointer-events-none absolute left-1/2 top-1/2 h-[34px] w-[110px] -translate-x-1/2 -translate-y-[68%] rounded-[14px] border border-white/8 bg-slate-950/38 shadow-[0_10px_28px_rgba(0,0,0,0.24)] backdrop-blur-[1px] sm:h-[40px] sm:w-[132px]" />
                                                     <img
                                                       src={method.logoUrl}
                                                       alt={method.title}
