@@ -70,6 +70,7 @@ import {
   hasCapability,
   getRequiredTierForCasePack,
   normalizeSubscriptionTier,
+  SUBSCRIPTION_TIER_ORDER,
   type SubscriptionTier,
 } from "../lib/subscriptions.js";
 
@@ -78,6 +79,15 @@ function randomCode(): string {
 }
 
 const usedGuestNumbers = new Set<number>();
+
+function getHigherSubscriptionTier(
+  left: SubscriptionTier,
+  right: SubscriptionTier,
+): SubscriptionTier {
+  return SUBSCRIPTION_TIER_ORDER.indexOf(left) >= SUBSCRIPTION_TIER_ORDER.indexOf(right)
+    ? left
+    : right;
+}
 const MECHANIC_CARDS_FALLBACK: Array<{ name: string; description: string }> = [
   { name: "Протест", description: "Остановите ход выступления и зафиксируйте спорный момент." },
   { name: "Тишина", description: "На короткое время запретите перебивать и спорить." },
@@ -1661,9 +1671,13 @@ export function setupSocket(httpServer: HttpServer) {
       const actorTier = actor?.userId
         ? (await getSubscriptionByUserId(actor.userId)).tier
         : "free";
+      const effectiveRoomTier = getHigherSubscriptionTier(
+        actorTier,
+        normalizeSubscriptionTier(room.hostSubscriptionTier ?? "free"),
+      );
       const packAccessMessage = getPackAccessFailureMessage(
         { key: room.casePackKey },
-        actorTier,
+        effectiveRoomTier,
       );
       if (packAccessMessage) {
         socket.emit("error", { message: packAccessMessage });
@@ -1772,9 +1786,7 @@ export function setupSocket(httpServer: HttpServer) {
         const actorTier = actor?.userId
           ? (await getSubscriptionByUserId(actor.userId)).tier
           : "free";
-        room.hostSubscriptionTier = actorTier;
-        room.isPromoted = hasCapability(actorTier, "canHighlightHostedMatch");
-        if (!hasCapability(actorTier, "canLetPlayersChooseRoles")) {
+        if (usePreferredRoles && !hasCapability(actorTier, "canLetPlayersChooseRoles")) {
           socket.emit("error", {
             message: "Разрешать игрокам выбирать роли можно с подпиской «Практик».",
           });
@@ -1782,6 +1794,11 @@ export function setupSocket(httpServer: HttpServer) {
         }
         const updated = setUsePreferredRoles(roomCode, !!usePreferredRoles);
         if (!updated) return;
+        updated.hostSubscriptionTier = getHigherSubscriptionTier(
+          normalizeSubscriptionTier(updated.hostSubscriptionTier ?? "free"),
+          actorTier,
+        );
+        updated.isPromoted = !!updated.isPromoted || hasCapability(actorTier, "canHighlightHostedMatch");
         io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updated));
         persistRoom(roomCode);
       },
@@ -1826,8 +1843,6 @@ export function setupSocket(httpServer: HttpServer) {
         const actorTier = actor?.userId
           ? (await getSubscriptionByUserId(actor.userId)).tier
           : "free";
-        room.hostSubscriptionTier = actorTier;
-        room.isPromoted = hasCapability(actorTier, "canHighlightHostedMatch");
         if (patch?.visibility === "private" && !hasCapability(actorTier, "canCreatePrivateRooms")) {
           socket.emit("error", {
             message: "Приватные комнаты доступны только в подписке «Арбитр».",
@@ -1850,6 +1865,12 @@ export function setupSocket(httpServer: HttpServer) {
           socket.emit("error", { message: result.reason });
           return;
         }
+        result.room.hostSubscriptionTier = getHigherSubscriptionTier(
+          normalizeSubscriptionTier(result.room.hostSubscriptionTier ?? "free"),
+          actorTier,
+        );
+        result.room.isPromoted =
+          !!result.room.isPromoted || hasCapability(actorTier, "canHighlightHostedMatch");
         io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(result.room));
         emitPublicMatches(io);
         persistRoom(roomCode);
@@ -1886,14 +1907,6 @@ export function setupSocket(httpServer: HttpServer) {
           socket.emit("error", { message: result.reason });
           return;
         }
-        const nextHost =
-          result.room.players.find((player: any) => player.id === result.room.hostId) ??
-          result.room.game?.players.find((player: any) => player.id === result.room.hostId);
-        const nextHostTier = nextHost?.userId
-          ? (await getSubscriptionByUserId(nextHost.userId)).tier
-          : "free";
-        result.room.hostSubscriptionTier = nextHostTier;
-        result.room.isPromoted = hasCapability(nextHostTier, "canHighlightHostedMatch");
         io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(result.room));
         emitPublicMatches(io);
         persistRoom(roomCode);

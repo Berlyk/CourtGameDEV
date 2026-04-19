@@ -204,6 +204,7 @@ const QUICK_ROOM_MODE = {
 };
 const DISCORD_INVITE_URL = "https://discord.gg/6UZ7xDxnhR";
 const RECONNECT_GRACE_MS = 30_000;
+const RECONNECT_INDICATOR_DELAY_MS = 1_500;
 const VERDICT_CLOSE_COUNTDOWN_MS = 30_000;
 const AUTH_TOKEN_STORAGE_KEY = "court_auth_token";
 const AUTH_USER_STORAGE_KEY = "court_auth_user";
@@ -819,17 +820,6 @@ function getSubscriptionTierLabel(tier: SubscriptionTier): string {
   if (tier === "practitioner") return "Практик";
   if (tier === "arbiter") return "Арбитр";
   return "Бесплатно";
-}
-
-const SUBSCRIPTION_TIER_PRIORITY: Record<SubscriptionTier, number> = {
-  free: 0,
-  trainee: 1,
-  practitioner: 2,
-  arbiter: 3,
-};
-
-function getHigherSubscriptionTier(a: SubscriptionTier, b: SubscriptionTier): SubscriptionTier {
-  return SUBSCRIPTION_TIER_PRIORITY[a] >= SUBSCRIPTION_TIER_PRIORITY[b] ? a : b;
 }
 
 function isPackLockedForTier(
@@ -3328,6 +3318,10 @@ function formatSubscriptionTimeLeftLabel(
   return "Срок уточняется";
 }
 
+function isRankEligibleRole(roleKey?: string | null): boolean {
+  return roleKey !== "witness" && roleKey !== "observer";
+}
+
 function isNicknameTakenError(message: string): boolean {
   const normalized = message.toLowerCase();
   return (
@@ -3661,7 +3655,7 @@ function InfoBlock({
   action?: React.ReactNode;
 }) {
   return (
-    <Card className="flex h-full flex-col rounded-2xl border-zinc-800 bg-zinc-900/90 text-zinc-100 shadow-sm">
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border-zinc-800 bg-zinc-900/90 text-zinc-100 shadow-sm">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center justify-between gap-2 text-lg text-zinc-100">
           <span className="flex items-center gap-2">
@@ -3671,7 +3665,9 @@ function InfoBlock({
           {action}
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col text-zinc-100">{children}</CardContent>
+      <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden text-zinc-100">
+        {children}
+      </CardContent>
     </Card>
   );
 }
@@ -4430,17 +4426,12 @@ export default function App() {
       cancelled = true;
     };
   }, [authToken, authUser]);
-  const roomHostTier = normalizeSubscriptionTier(room?.hostSubscriptionTier ?? "free");
-  const isMyHostRoom = !!room && room.hostId === (myId ?? "");
-  const effectiveLobbyTier = isMyHostRoom
-    ? getHigherSubscriptionTier(myTier, roomHostTier)
-    : myTier;
   const canUseRating = hasCapability(myTier, "canUseRating");
   const canUseProfileBanner = hasCapability(myTier, "canUseProfileBanner");
   const canUseAnimatedProfileMedia = hasCapability(myTier, "canUseAnimatedProfileMedia");
   const canCreatePrivateRooms = hasCapability(myTier, "canCreatePrivateRooms");
-  const canLetPlayersChooseRoles = hasCapability(effectiveLobbyTier, "canLetPlayersChooseRoles");
-  const canChooseRoleInOwnLobby = hasCapability(effectiveLobbyTier, "canChooseRoleInOwnLobby");
+  const canLetPlayersChooseRoles = hasCapability(myTier, "canLetPlayersChooseRoles");
+  const canChooseRoleInOwnLobby = hasCapability(myTier, "canChooseRoleInOwnLobby");
   const canCreatePacks = hasCapability(myTier, "canCreatePacks");
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
@@ -6256,7 +6247,7 @@ export default function App() {
       setMyProfileLoading(false);
       return;
     }
-    if (screen !== "profile") return;
+    if (screen !== "profile" && screen !== "home") return;
     let cancelled = false;
     setMyProfileLoading(true);
     authRequest<{ profile: PublicUserProfile }>("/auth/profile", { token: authToken })
@@ -6356,6 +6347,9 @@ export default function App() {
     }
     setInfluenceView("main");
     setLawyerChatUnreadCount(0);
+    setLawyerChatMessages([]);
+    setLawyerChatInput("");
+    setLawyerChatPartner(null);
   }, [screen, game?.code]);
 
   useEffect(() => {
@@ -6939,10 +6933,19 @@ export default function App() {
       setTimeout(() => setKickedAlert(""), 3000);
     });
 
-    socket.on("room_closed", () => {
+    socket.on("room_closed", ({ code }: { code?: string } = {}) => {
+      const activeCode = game?.code ?? room?.code ?? null;
+      if (!activeCode || (code && code !== activeCode)) {
+        return;
+      }
       clearRoomActionPending();
       const previousRank = myProfileRef.current?.rank;
-      if (authToken && myProfileRef.current?.subscription?.capabilities?.canUseRating) {
+      const shouldSyncRank =
+        !!authToken &&
+        !!game?.verdict &&
+        isRankEligibleRole(game?.me?.roleKey) &&
+        !!myProfileRef.current?.subscription?.capabilities?.canUseRating;
+      if (shouldSyncRank) {
         localStorage.setItem(RANK_TOAST_PENDING_STORAGE_KEY, "1");
       }
       clearReconnectWindow();
@@ -6967,7 +6970,9 @@ export default function App() {
       setProfileMenuOpen(false);
       setCreateMatchDialogOpen(false);
       setScreen("home");
-      void syncRankResultAfterMatch(previousRank);
+      if (shouldSyncRank) {
+        void syncRankResultAfterMatch(previousRank);
+      }
     });
 
     socket.on("game_started", ({ state }: { state: any }) => {
@@ -7123,7 +7128,7 @@ export default function App() {
       socket.off("verdict_set");
       socket.off("error");
     };
-  }, [socket, avatar, authToken, clearReconnectWindow, sharedAvatar, startReconnectWindow, syncRankResultAfterMatch, rememberKnownUserIds, clearRoomActionPending, myTier]);
+  }, [socket, avatar, authToken, clearReconnectWindow, sharedAvatar, startReconnectWindow, syncRankResultAfterMatch, rememberKnownUserIds, clearRoomActionPending, myTier, room?.code, game?.code, game?.verdict, game?.me?.roleKey]);
 
   const createQuickRoom = useCallback(() => {
     if (isUserBanned) return;
@@ -8120,7 +8125,7 @@ export default function App() {
     const targetId = targetPlayerId ?? selfPlayerId;
     const isSelf = !targetId || targetId === selfPlayerId;
     if (isHost) {
-      if (isSelf && !canChooseRoleInOwnLobby) {
+      if (isSelf && !room.usePreferredRoles && !canChooseRoleInOwnLobby) {
         openSubscriptionUpsell(
           "canChooseRoleInOwnLobby",
           "Выбор своей роли доступен с подписки «Стажер».",
@@ -8362,6 +8367,11 @@ export default function App() {
   const returnHomeWithSession = useCallback(() => {
     const previousRank = myProfileRef.current?.rank;
     const finishedWithVerdict = !!game?.verdict;
+    const shouldSyncRank =
+      finishedWithVerdict &&
+      !!authToken &&
+      isRankEligibleRole(game?.me?.roleKey) &&
+      !!myProfileRef.current?.subscription?.capabilities?.canUseRating;
     const shouldPreserveReconnect = false;
     clearReconnectWindow();
     localStorage.removeItem("court_session");
@@ -8394,7 +8404,7 @@ export default function App() {
     setLobbyChatMessages([]);
     setProfileMenuOpen(false);
     setCreateMatchDialogOpen(false);
-    if (finishedWithVerdict) {
+    if (shouldSyncRank) {
       if (authToken && myProfileRef.current?.subscription?.capabilities?.canUseRating) {
         localStorage.setItem(RANK_TOAST_PENDING_STORAGE_KEY, "1");
       }
@@ -8405,6 +8415,11 @@ export default function App() {
   const finalExit = useCallback(() => {
     const previousRank = myProfileRef.current?.rank;
     const finishedWithVerdict = !!game?.verdict;
+    const shouldSyncRank =
+      finishedWithVerdict &&
+      !!authToken &&
+      isRankEligibleRole(game?.me?.roleKey) &&
+      !!myProfileRef.current?.subscription?.capabilities?.canUseRating;
     const shouldPreserveReconnect = false;
     clearReconnectWindow();
     localStorage.removeItem("court_session");
@@ -8436,7 +8451,7 @@ export default function App() {
     setLobbyChatMessages([]);
     setProfileMenuOpen(false);
     setCreateMatchDialogOpen(false);
-    if (finishedWithVerdict) {
+    if (shouldSyncRank) {
       if (authToken && myProfileRef.current?.subscription?.capabilities?.canUseRating) {
         localStorage.setItem(RANK_TOAST_PENDING_STORAGE_KEY, "1");
       }
@@ -13302,25 +13317,25 @@ export default function App() {
         <div className="flex-1" />
         {showLegalFooter && (
           <div className="mx-auto mt-auto w-full max-w-6xl px-3 pb-2 pt-10 text-center text-[11px] text-zinc-600 sm:text-xs">
-            <div className="mx-auto flex w-full flex-col items-center justify-center gap-y-1 sm:flex-row sm:flex-wrap sm:gap-x-4">
+            <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-2 sm:flex sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-4 sm:gap-y-1">
               <button
                 type="button"
                 onClick={() => setLegalDialogType("privacy")}
-                className="transition-colors hover:text-zinc-400"
+                className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
               >
                 Политика конфиденциальности
               </button>
               <button
                 type="button"
                 onClick={() => setLegalDialogType("terms")}
-                className="transition-colors hover:text-zinc-400"
+                className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
               >
                 Пользовательское соглашение
               </button>
               <button
                 type="button"
                 onClick={() => setLegalDialogType("offer")}
-                className="transition-colors hover:text-zinc-400"
+                className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
               >
                 Публичная оферта
               </button>
@@ -13403,10 +13418,7 @@ export default function App() {
     );
     const hostTransferCandidates = room.players.filter((player) => player.id !== room.hostId);
     const hasRoomHostControl = roomControlPlayerId === room.hostId;
-    const hostRoomCapabilityTier = normalizeSubscriptionTier(room.hostSubscriptionTier ?? "free");
-    const roomManagementTier = hasRoomHostControl
-      ? getHigherSubscriptionTier(hostRoomCapabilityTier, myTier)
-      : myTier;
+    const roomManagementTier = myTier;
     const canCreatePrivateRoomsInRoom = hasCapability(roomManagementTier, "canCreatePrivateRooms");
     const roleDialogTargetPlayer =
       room.players.find((player) => player.id === lobbyRoleTargetPlayerId) ?? myLobbyPlayer;
@@ -13415,7 +13427,7 @@ export default function App() {
       const selfPlayerId = myLobbyPlayer?.id ?? roomControlPlayerId ?? myId;
       const isSelf = player.id === selfPlayerId;
       if (hasRoomHostControl) {
-        if (isSelf && !canChooseRoleInOwnLobby) return null;
+        if (isSelf && !usePreferredRoles && !canChooseRoleInOwnLobby) return null;
         if (!isSelf && usePreferredRoles) return null;
         if (!isSelf && !canLetPlayersChooseRoles) return null;
         return {
@@ -13445,7 +13457,7 @@ export default function App() {
       roleDialogTargetPlayer.roleKey !== "observer" &&
       (hasRoomHostControl
         ? roleDialogTargetPlayer.id === myLobbyPlayer?.id
-          ? canChooseRoleInOwnLobby
+          ? usePreferredRoles || canChooseRoleInOwnLobby
           : !usePreferredRoles && canLetPlayersChooseRoles
         : roleDialogTargetPlayer.id === (myLobbyPlayer?.id ?? roomControlPlayerId ?? myId) &&
           (usePreferredRoles || canChooseRoleInOtherLobbiesInRoom) &&
@@ -14422,10 +14434,10 @@ export default function App() {
     );
     const influenceScrollableHeightClass =
       game.players.length >= 8
-        ? "min-h-[360px] md:min-h-[430px]"
+        ? "h-[360px] md:h-[430px]"
         : game.players.length >= 6
-          ? "min-h-[320px] md:min-h-[380px]"
-          : "min-h-[280px] md:min-h-[320px]";
+          ? "h-[320px] md:h-[380px]"
+          : "h-[280px] md:h-[320px]";
     const warningScrollableHeightClass =
       game.players.length >= 8
         ? "max-h-[500px]"
@@ -14945,7 +14957,9 @@ export default function App() {
                             ) : null}
                           </div>
                           {typeof p.disconnectedUntil === "number" &&
-                            p.disconnectedUntil > nowMs && (
+                            p.disconnectedUntil > nowMs &&
+                            p.disconnectedUntil - nowMs <=
+                              RECONNECT_GRACE_MS - RECONNECT_INDICATOR_DELAY_MS && (
                               <motion.span
                                 animate={{ opacity: [0.85, 1, 0.85] }}
                                 transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
@@ -15010,9 +15024,9 @@ export default function App() {
             </InfoBlock>
 
             <InfoBlock title="Влияние" icon={<Gavel className="w-5 h-5" />}>
-              <div className="flex h-full min-h-[320px] flex-col gap-3">
+              <div className="flex h-full min-h-[320px] min-w-0 flex-col gap-3 overflow-hidden">
                 {influenceView === "chat" && lawyerChatPartner ? (
-                  <div className="flex h-full min-h-0 flex-col gap-3">
+                  <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-zinc-300">
                         Чат с {lawyerChatPartner.name}
@@ -15029,7 +15043,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden flex-1 min-h-[220px] ${influenceScrollableHeightClass} ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden flex-1 min-h-0 ${influenceScrollableHeightClass} ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (

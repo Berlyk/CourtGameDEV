@@ -4006,6 +4006,7 @@ export async function recordMatchOutcome(input: {
       prosecutor: "prosecutor",
       judge: "judge",
       witness: "witness",
+      observer: "observer",
     };
     if (byKey[compactKey]) {
       return byKey[compactKey];
@@ -4016,6 +4017,7 @@ export async function recordMatchOutcome(input: {
     if (roleTitle.includes("прокурор")) return "prosecutor";
     if (roleTitle.includes("судья")) return "judge";
     if (roleTitle.includes("свидетел")) return "witness";
+    if (roleTitle.includes("наблюдател")) return "observer";
     if (roleTitle.includes("истец")) return "plaintiff";
     if (roleTitle.includes("ответчик")) return "defendant";
 
@@ -4049,17 +4051,24 @@ export async function recordMatchOutcome(input: {
 
   const verdictLower = (input.verdict || "").toLowerCase().replace(/ё/g, "е");
   const expectedLower = (input.expectedVerdict || "").toLowerCase().replace(/ё/g, "е");
-  const isNotGuilty = verdictLower.includes("не винов");
+  const verdictCategory = verdictLower.includes("не винов")
+    ? "not_guilty"
+    : verdictLower.includes("частично винов")
+      ? "partial_guilty"
+      : verdictLower.includes("винов")
+        ? "guilty"
+        : "unknown";
   const isJudgeCorrect = verdictLower === expectedLower;
 
   const roleWinMap: Record<string, boolean> = {
     judge: isJudgeCorrect,
-    prosecutor: !isNotGuilty,
-    plaintiff: !isNotGuilty,
-    plaintiffLawyer: !isNotGuilty,
-    defendant: isNotGuilty,
-    defenseLawyer: isNotGuilty,
+    prosecutor: verdictCategory === "guilty",
+    plaintiff: verdictCategory === "guilty" || verdictCategory === "partial_guilty",
+    plaintiffLawyer: verdictCategory === "guilty" || verdictCategory === "partial_guilty",
+    defendant: verdictCategory === "not_guilty",
+    defenseLawyer: verdictCategory === "not_guilty",
     witness: false,
+    observer: false,
   };
 
   const MIN_MATCH_DURATION_MS = 10 * 60 * 1000;
@@ -4154,7 +4163,7 @@ export async function recordMatchOutcome(input: {
   for (const player of normalizedPlayers) {
     const userId = player.userId;
     const roleKey = player.roleKey;
-    if (!userId || !roleKey || roleKey === "witness") continue;
+    if (!userId || !roleKey || roleKey === "witness" || roleKey === "observer") continue;
     const baseWin = roleWinMap[roleKey] ?? false;
     const repeatedWinBlocked = baseWin ? await shouldBlockWinBySameOpponents(userId) : false;
     const ignoreProgress = isShortMatch || repeatedWinBlocked;
