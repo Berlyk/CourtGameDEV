@@ -13085,7 +13085,7 @@ export default function App() {
           </motion.div>
         )}
         {homeTab === "development" && (
-          <div className="max-w-[120rem] mx-auto">
+          <div className="w-full mx-auto">
             <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100">
               <CardContent className="relative p-8 md:p-10 space-y-6">
                 <div className="flex flex-col items-center gap-4 md:gap-5">
@@ -13874,7 +13874,7 @@ export default function App() {
             </DialogContent>
           </Dialog>
         )}
-        <div className={`${homeTab === "development" ? "max-w-7xl" : "max-w-6xl"} mx-auto space-y-6`}>
+        <div className={`${homeTab === "development" ? "w-full max-w-[104rem]" : "max-w-6xl"} mx-auto space-y-6`}>
           <AnimatePresence>
             {error && (
               <motion.div
