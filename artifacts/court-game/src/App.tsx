@@ -12866,7 +12866,7 @@ export default function App() {
                                                         image.dataset.fallbackApplied = "1";
                                                         image.src = method.logoFallbackUrl;
                                                       }}
-                                                      className="relative z-10 h-auto w-auto max-h-[27px] max-w-[64%] -translate-y-[5px] object-contain drop-shadow-[0_6px_18px_rgba(15,23,42,0.45)] sm:max-h-[33px] sm:max-w-[66%] sm:-translate-y-[7px]"
+                                                      className="relative z-10 h-auto w-auto max-h-[27px] max-w-[64%] -translate-y-[4px] object-contain drop-shadow-[0_6px_18px_rgba(15,23,42,0.45)] sm:max-h-[33px] sm:max-w-[66%] sm:-translate-y-[6px]"
                                                       loading="lazy"
                                                     />
                                                   </div>
