@@ -352,7 +352,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Ethereum-icon-purple.svg/960px-Ethereum-icon-purple.svg.png",
   },
   {
-    id: 39,
+    id: 45,
     category: "crypto",
     providerCategory: "crypto",
     title: "TON",
