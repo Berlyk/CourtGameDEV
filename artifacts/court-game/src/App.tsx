@@ -13874,7 +13874,7 @@ export default function App() {
             </DialogContent>
           </Dialog>
         )}
-        <div className={`${homeTab === "development" ? "w-full max-w-[104rem]" : "max-w-6xl"} mx-auto space-y-6`}>
+        <div className={`${homeTab === "development" ? "w-full max-w-[94rem]" : "max-w-6xl"} mx-auto space-y-6`}>
           <AnimatePresence>
             {error && (
               <motion.div
