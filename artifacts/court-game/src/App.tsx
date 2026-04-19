@@ -352,7 +352,7 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Ethereum-icon-purple.svg/960px-Ethereum-icon-purple.svg.png",
   },
   {
-    id: 41,
+    id: 39,
     category: "crypto",
     providerCategory: "crypto",
     title: "TON",
@@ -12918,9 +12918,6 @@ export default function App() {
                               <div className="rounded-xl border border-red-500/45 bg-red-900/25 px-3 py-2 text-sm text-red-200">
                                 {shopPaymentError}
                               </div>
-                            )}
-                            {shopPaymentLoading && (
-                              <div className="text-xs text-zinc-400">Создаем платеж, подождите…</div>
                             )}
                           </div>
                       </section>
