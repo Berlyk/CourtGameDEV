@@ -4215,7 +4215,7 @@ export async function recordMatchOutcome(input: {
           VALUES ($1, GREATEST(0, $2), NOW())
           ON CONFLICT (user_id)
           DO UPDATE SET
-            points = GREATEST(0, auth_user_ranks.points + EXCLUDED.points),
+            points = GREATEST(0, auth_user_ranks.points + $2),
             updated_at = NOW()
         `,
         [userId, ratingDelta],

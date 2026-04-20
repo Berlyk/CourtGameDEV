@@ -1309,6 +1309,23 @@ export function setupSocket(httpServer: HttpServer) {
     socket.on("join_room", async ({ code, playerName, avatar, banner, password, authToken }: { code: string; playerName: string; avatar?: string | null; banner?: string | null; password?: string; authToken?: string }) => {
       try {
         const roomCode = normalizeRoomCode(code);
+        const existingMapping = socketToRoom.get(socket.id);
+        if (existingMapping) {
+          if (existingMapping.roomCode === roomCode) {
+            const existingRoom = getRoom(existingMapping.roomCode);
+            if (existingRoom) {
+              socket.emit("room_joined", {
+                playerId: existingMapping.playerId,
+                sessionToken: existingMapping.sessionToken,
+                state: getRoomState(existingRoom, existingMapping.playerId),
+              });
+              return;
+            }
+          } else {
+            socket.leave(existingMapping.roomCode);
+          }
+          socketToRoom.delete(socket.id);
+        }
         const room = getRoom(roomCode);
         const trimmedName = (playerName || "").trim();
         const authUser =
@@ -1416,7 +1433,10 @@ export function setupSocket(httpServer: HttpServer) {
             return;
           }
 
-          const binding = await findBindingByUser(roomCode, authUser.id);
+          const binding = await findBindingByUser(roomCode, authUser.id).catch((error) => {
+            console.error("findBindingByUser failed", error);
+            return null;
+          });
           if (binding?.sessionToken) {
             const restoreResult = rejoinRoom(
               roomCode,
@@ -1573,9 +1593,17 @@ export function setupSocket(httpServer: HttpServer) {
           sessionToken,
           state: getRoomState(updatedRoom, playerId)
         });
-        socket.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
-        emitPublicMatches(io);
-        persistRoom(roomCode);
+        try {
+          socket.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
+        } catch (broadcastError) {
+          console.error("join_room room_updated failed", broadcastError);
+        }
+        try {
+          emitPublicMatches(io);
+          persistRoom(roomCode);
+        } catch (persistError) {
+          console.error("join_room post-join sync failed", persistError);
+        }
       } catch (error) {
         console.error("join_room failed", error);
         socket.emit("error", { message: "Не удалось войти в комнату. Попробуйте еще раз." });

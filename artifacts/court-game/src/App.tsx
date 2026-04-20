@@ -7780,13 +7780,27 @@ export default function App() {
   const sendLobbyChatMessage = useCallback(() => {
     const text = lobbyChatInput.trim();
     if (!room || !mySessionToken || !text) return;
+    const me = room.players.find((player) => player.id === myId) ?? null;
+    if (me) {
+      setLobbyChatMessages((prev) => [
+        ...prev,
+        {
+          id: `local-${Date.now()}`,
+          senderId: me.id,
+          senderName: me.name,
+          senderAvatar: me.avatar,
+          text,
+          createdAt: Date.now(),
+        },
+      ]);
+    }
     socket.emit("send_lobby_chat", {
       code: room.code,
       sessionToken: mySessionToken,
       text,
     });
     setLobbyChatInput("");
-  }, [socket, room, mySessionToken, lobbyChatInput]);
+  }, [socket, room, mySessionToken, lobbyChatInput, myId]);
 
   const joinPublicMatch = useCallback(
     (match: PublicMatchInfo) => {
@@ -13317,25 +13331,25 @@ export default function App() {
         <div className="flex-1" />
         {showLegalFooter && (
           <div className="mx-auto mt-auto w-full max-w-6xl px-3 pb-2 pt-10 text-center text-[11px] text-zinc-600 sm:text-xs">
-            <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-2 sm:flex sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-4 sm:gap-y-1">
+            <div className="mx-auto flex w-full max-w-xs flex-col items-center justify-center gap-1 sm:max-w-none sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-1">
               <button
                 type="button"
                 onClick={() => setLegalDialogType("privacy")}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
+                className="bg-transparent px-0 py-0 text-zinc-500 transition-colors hover:text-zinc-300"
               >
                 Политика конфиденциальности
               </button>
               <button
                 type="button"
                 onClick={() => setLegalDialogType("terms")}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
+                className="bg-transparent px-0 py-0 text-zinc-500 transition-colors hover:text-zinc-300"
               >
                 Пользовательское соглашение
               </button>
               <button
                 type="button"
                 onClick={() => setLegalDialogType("offer")}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
+                className="bg-transparent px-0 py-0 text-zinc-500 transition-colors hover:text-zinc-300"
               >
                 Публичная оферта
               </button>
@@ -15026,7 +15040,7 @@ export default function App() {
             <InfoBlock title="Влияние" icon={<Gavel className="w-5 h-5" />}>
               <div className="flex h-full min-h-[320px] min-w-0 flex-col gap-3 overflow-hidden">
                 {influenceView === "chat" && lawyerChatPartner ? (
-                  <div className="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
+                  <div className="min-w-0 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-zinc-300">
                         Чат с {lawyerChatPartner.name}
@@ -15043,7 +15057,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden flex-1 min-h-0 ${influenceScrollableHeightClass} ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${influenceScrollableHeightClass} ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
@@ -15079,7 +15093,7 @@ export default function App() {
                         })}
                       </div>
                     </div>
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       <Input
                         value={lawyerChatInput}
                         onChange={(e) => setLawyerChatInput(e.target.value)}
