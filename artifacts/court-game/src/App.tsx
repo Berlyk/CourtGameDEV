@@ -14067,7 +14067,7 @@ export default function App() {
             </Card>
           </motion.div>
 
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
             <motion.div
               custom={1}
               variants={cardVariants}
