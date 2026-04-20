@@ -625,9 +625,11 @@ export function syncUserProfileInActiveRooms(input: {
     }
 
     io.to(room.code).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
-    io.to(room.code).emit("lobby_chat_updated", {
-      messages: updatedRoom.lobbyChat,
-    });
+    if (updatedRoom.lobbyChat.length > 0) {
+      io.to(room.code).emit("lobby_chat_updated", {
+        messages: updatedRoom.lobbyChat,
+      });
+    }
   }
 
   if (touchedRooms > 0) {
@@ -662,7 +664,6 @@ function buildRoomUpdatePayload(room: any) {
     venueLabel: room.venueLabel,
     venueUrl: room.venueUrl,
     requiresPassword: !!room.password,
-    lobbyChat: room.lobbyChat,
   };
 }
 
@@ -2250,9 +2251,11 @@ export function setupSocket(httpServer: HttpServer) {
           io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
         }
 
-        io.to(roomCode).emit("lobby_chat_updated", {
-          messages: updatedRoom.lobbyChat,
-        });
+        if (updatedRoom.lobbyChat.length > 0) {
+          io.to(roomCode).emit("lobby_chat_updated", {
+            messages: updatedRoom.lobbyChat,
+          });
+        }
         emitPublicMatches(io);
       },
     );
@@ -2282,8 +2285,11 @@ export function setupSocket(httpServer: HttpServer) {
         const updatedRoom = addLobbyChatMessage(roomCode, actorId, text);
         if (!updatedRoom) return;
 
+        const latestMessage = updatedRoom.lobbyChat[updatedRoom.lobbyChat.length - 1];
+        if (!latestMessage) return;
+
         io.to(roomCode).emit("lobby_chat_updated", {
-          messages: updatedRoom.lobbyChat,
+          message: latestMessage,
         });
       },
     );
@@ -2364,6 +2370,8 @@ export function setupSocket(httpServer: HttpServer) {
           lawyerChats.set(pair.chatKey, messages);
         }
         const nextMessages = lawyerChats.get(pair.chatKey) ?? [];
+        const latestMessage = nextMessages[nextMessages.length - 1];
+        if (!latestMessage) return;
 
         const targets = [pair.self, pair.partner]
           .map((player: any) => player.socketId)
@@ -2371,7 +2379,7 @@ export function setupSocket(httpServer: HttpServer) {
 
         targets.forEach((targetSocketId: string) => {
           io.to(targetSocketId).emit("lawyer_chat_updated", {
-            messages: nextMessages,
+            message: latestMessage,
             partner: {
               id:
                 targetSocketId === pair.self.socketId

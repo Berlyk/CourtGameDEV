@@ -2364,6 +2364,19 @@ interface PublicMatchInfo {
   isPromoted?: boolean;
 }
 
+const MAX_LIVE_LOBBY_CHAT_MESSAGES = 120;
+const MAX_LIVE_LAWYER_CHAT_MESSAGES = 150;
+
+function appendUniqueChatMessage<T extends { id: string }>(
+  prev: T[],
+  message: T,
+  limit: number,
+): T[] {
+  const withoutDuplicate = prev.filter((item) => item.id !== message.id);
+  const next = [...withoutDuplicate, message];
+  return next.length > limit ? next.slice(-limit) : next;
+}
+
 interface AuthUser {
   id: string;
   login: string;
@@ -6522,11 +6535,12 @@ export default function App() {
           rememberKnownUserIds(roomState.players);
           setRoom({
             ...roomState,
+            lobbyChat: (roomState.lobbyChat ?? []).slice(-MAX_LIVE_LOBBY_CHAT_MESSAGES),
             players: roomState.players.map((p) =>
               p.id === playerId && avatar ? { ...p, avatar } : p,
             ),
           });
-          setLobbyChatMessages(roomState.lobbyChat ?? []);
+          setLobbyChatMessages((roomState.lobbyChat ?? []).slice(-MAX_LIVE_LOBBY_CHAT_MESSAGES));
           setIsHostJudge(state.isHostJudge ?? false);
           setGame(null);
           setScreen("room");
@@ -6612,7 +6626,6 @@ export default function App() {
         venueUrl?: string;
         requiresPassword?: boolean;
         hostSubscriptionTier?: SubscriptionTier;
-        lobbyChat?: LobbyChatMessage[];
       }) => {
         rememberKnownUserIds(players);
         setRoom((prev) => {
@@ -6751,9 +6764,29 @@ export default function App() {
 
     socket.on(
       "lobby_chat_updated",
-      ({ messages }: { messages: LobbyChatMessage[] }) => {
-        setLobbyChatMessages(messages);
-        setRoom((prev) => (prev ? { ...prev, lobbyChat: messages } : prev));
+      ({
+        messages,
+        message,
+      }: {
+        messages?: LobbyChatMessage[];
+        message?: LobbyChatMessage;
+      }) => {
+        if (Array.isArray(messages)) {
+          const nextMessages = messages.slice(-MAX_LIVE_LOBBY_CHAT_MESSAGES);
+          setLobbyChatMessages(nextMessages);
+          setRoom((prev) => (prev ? { ...prev, lobbyChat: nextMessages } : prev));
+          return;
+        }
+        if (!message) return;
+        setLobbyChatMessages((prev) => appendUniqueChatMessage(prev, message, MAX_LIVE_LOBBY_CHAT_MESSAGES));
+        setRoom((prev) =>
+          prev
+            ? {
+                ...prev,
+                lobbyChat: appendUniqueChatMessage(prev.lobbyChat ?? [], message, MAX_LIVE_LOBBY_CHAT_MESSAGES),
+              }
+            : prev,
+        );
       },
     );
 
@@ -6777,7 +6810,7 @@ export default function App() {
         }
 
         setLawyerChatPartner(partner);
-        setLawyerChatMessages(messages ?? []);
+        setLawyerChatMessages((messages ?? []).slice(-MAX_LIVE_LAWYER_CHAT_MESSAGES));
         if (influenceViewRef.current === "chat") {
           setLawyerChatUnreadCount(0);
         }
@@ -6789,28 +6822,42 @@ export default function App() {
       ({
         partner,
         messages,
+        message,
       }: {
         partner: LawyerChatPartner | null;
-        messages: LawyerChatMessage[];
+        messages?: LawyerChatMessage[];
+        message?: LawyerChatMessage;
       }) => {
         if (partner) {
           setLawyerChatPartner(partner);
         }
         setLawyerChatMessages((prev) => {
-          const nextMessages = messages ?? [];
+          const me = myIdRef.current;
+          if (Array.isArray(messages)) {
+            const nextMessages = messages.slice(-MAX_LIVE_LAWYER_CHAT_MESSAGES);
+            if (influenceViewRef.current !== "chat") {
+              const prevIds = new Set(prev.map((item) => item.id));
+              const unreadAdded = nextMessages.filter(
+                (item) => !prevIds.has(item.id) && item.senderId !== me,
+              ).length;
+              if (unreadAdded > 0) {
+                setLawyerChatUnreadCount((value) => value + unreadAdded);
+              }
+            } else {
+              setLawyerChatUnreadCount(0);
+            }
+            return nextMessages;
+          }
+          if (!message) return prev;
+          const alreadyHadMessage = prev.some((item) => item.id === message.id);
           if (influenceViewRef.current !== "chat") {
-            const prevIds = new Set(prev.map((item) => item.id));
-            const me = myIdRef.current;
-            const unreadAdded = nextMessages.filter(
-              (item) => !prevIds.has(item.id) && item.senderId !== me,
-            ).length;
-            if (unreadAdded > 0) {
-              setLawyerChatUnreadCount((value) => value + unreadAdded);
+            if (!alreadyHadMessage && message.senderId !== me) {
+              setLawyerChatUnreadCount((value) => value + 1);
             }
           } else {
             setLawyerChatUnreadCount(0);
           }
-          return nextMessages;
+          return appendUniqueChatMessage(prev, message, MAX_LIVE_LAWYER_CHAT_MESSAGES);
         });
       },
     );
