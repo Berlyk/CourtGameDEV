@@ -4160,7 +4160,6 @@ export default function App() {
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const profileBirthDateRef = useRef<HTMLInputElement>(null);
   const lobbyChatScrollRef = useRef<HTMLDivElement>(null);
-  const lobbyChatEndRef = useRef<HTMLDivElement>(null);
   const lawyerChatScrollRef = useRef<HTMLDivElement>(null);
   const imageCropDragStateRef = useRef<{
     dragging: boolean;
@@ -6367,12 +6366,7 @@ export default function App() {
     if (screen !== "room") return;
     const container = lobbyChatScrollRef.current;
     if (!container) return;
-    requestAnimationFrame(() => {
-      container.scrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
-      requestAnimationFrame(() => {
-        container.scrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
-      });
-    });
+    container.scrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
   }, [lobbyChatMessages, screen, room?.code]);
 
   useEffect(() => {
@@ -6655,12 +6649,9 @@ export default function App() {
             venueUrl: venueUrl ?? prev.venueUrl,
             requiresPassword: requiresPassword ?? prev.requiresPassword,
             hostSubscriptionTier: hostSubscriptionTier ?? prev.hostSubscriptionTier,
-            lobbyChat: lobbyChat ?? prev.lobbyChat,
+            lobbyChat: prev.lobbyChat,
           };
         });
-        if (lobbyChat) {
-          setLobbyChatMessages(lobbyChat);
-        }
         if (hj !== undefined) setIsHostJudge(hj);
       },
     );
@@ -7781,27 +7772,13 @@ export default function App() {
   const sendLobbyChatMessage = useCallback(() => {
     const text = lobbyChatInput.trim();
     if (!room || !mySessionToken || !text) return;
-    const me = room.players.find((player) => player.id === myId) ?? null;
-    if (me) {
-      setLobbyChatMessages((prev) => [
-        ...prev,
-        {
-          id: `local-${Date.now()}`,
-          senderId: me.id,
-          senderName: me.name,
-          senderAvatar: me.avatar,
-          text,
-          createdAt: Date.now(),
-        },
-      ]);
-    }
     socket.emit("send_lobby_chat", {
       code: room.code,
       sessionToken: mySessionToken,
       text,
     });
     setLobbyChatInput("");
-  }, [socket, room, mySessionToken, lobbyChatInput, myId]);
+  }, [socket, room, mySessionToken, lobbyChatInput]);
 
   const joinPublicMatch = useCallback(
     (match: PublicMatchInfo) => {
@@ -14255,7 +14232,6 @@ export default function App() {
                             </div>
                           </div>
                         ))}
-                        <div ref={lobbyChatEndRef} className="h-px w-full" />
                       </div>
                     </div>
                     <div className="flex gap-2">
