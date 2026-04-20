@@ -12044,23 +12044,29 @@ export default function App() {
                             </p>
                           </div>
                         </div>
-                        <div className="grid gap-2.5 text-sm md:grid-cols-2">
+                        <div className="grid grid-cols-2 auto-rows-fr gap-3 text-sm">
                           {[
-                            "3-6 игроков и разные режимы",
-                            "Карты механик меняют ход процесса",
-                            "Улики доступны всем сторонам",
-                            "Факты раскрываются по ходу суда",
+                            { title: "3-6 игроков", sub: "Разные роли и режимы" },
+                            { title: "Карты механик", sub: "Дают особые возможности" },
+                            { title: "Улики", sub: "Объективные и общие" },
+                            { title: "Факты", sub: "Раскрываются по ходу суда" },
                           ].map((item, i) => (
                             <motion.div
-                              key={item}
+                              key={item.title}
                               custom={i + 1}
                               variants={cardVariants}
                               initial="initial"
                               animate="animate"
-                              className="flex items-start gap-2 rounded-xl border border-zinc-800/60 bg-zinc-900/45 px-3 py-2.5 text-zinc-400"
+                              whileHover={{ y: -2 }}
+                              whileTap={{ scale: 0.995 }}
+                              className="h-full"
                             >
-                              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-red-500/80" />
-                              <span className="leading-relaxed">{item}</span>
+                              <Card className="h-full rounded-2xl bg-zinc-900/90 border-zinc-800 text-zinc-100">
+                                <CardContent className="h-full p-4 space-y-1.5">
+                                  <div className="font-semibold">{item.title}</div>
+                                  <div className="text-zinc-400">{item.sub}</div>
+                                </CardContent>
+                              </Card>
                             </motion.div>
                           ))}
                         </div>
