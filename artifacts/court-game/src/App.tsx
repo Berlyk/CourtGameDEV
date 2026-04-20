@@ -12033,42 +12033,34 @@ export default function App() {
                           <Badge className="rounded-full px-3 py-1 text-sm bg-red-600/90 hover:bg-red-600 text-white border-0">
                             Made By Berly
                           </Badge>
-                          <div className="space-y-3">
-                            <h1 className="text-4xl md:text-5xl font-bold tracking-tight">СУД</h1>
-                            <div className="space-y-2.5 max-w-[26rem]">
-                              <p className="text-lg md:text-[1.55rem] leading-snug text-zinc-200">
-                                Судебная ролевая игра для 3-6 игроков.
-                              </p>
-                              <p className="text-sm md:text-[15px] leading-relaxed text-zinc-500">
-                                Получите роль, изучите материалы дела и убедите судью в своей
-                                версии событий.
-                              </p>
-                            </div>
+                          <div className="space-y-4 max-w-[25rem]">
+                            <h1 className="text-4xl md:text-[4rem] font-bold tracking-tight">СУД</h1>
+                            <p className="text-base md:text-lg leading-relaxed text-zinc-300">
+                              Судебная ролевая игра для 3-6 игроков.
+                            </p>
+                            <p className="text-sm md:text-[15px] leading-relaxed text-zinc-500">
+                              Получите роль, изучите материалы дела и убедите судью в своей
+                              версии событий.
+                            </p>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 auto-rows-fr gap-3 text-sm">
+                        <div className="grid gap-2.5 text-sm md:grid-cols-2">
                           {[
-                            { title: "3-6 игроков", sub: "Разные роли и режимы" },
-                            { title: "Карты механик", sub: "Дают особые возможности" },
-                            { title: "Улики", sub: "Объективные и общие" },
-                            { title: "Факты", sub: "Раскрываются по ходу суда" },
+                            "3-6 игроков и разные режимы",
+                            "Карты механик меняют ход процесса",
+                            "Улики доступны всем сторонам",
+                            "Факты раскрываются по ходу суда",
                           ].map((item, i) => (
                             <motion.div
-                              key={item.title}
+                              key={item}
                               custom={i + 1}
                               variants={cardVariants}
                               initial="initial"
                               animate="animate"
-                              whileHover={{ y: -2 }}
-                              whileTap={{ scale: 0.995 }}
-                              className="h-full"
+                              className="flex items-start gap-2 rounded-xl border border-zinc-800/60 bg-zinc-900/45 px-3 py-2.5 text-zinc-400"
                             >
-                              <Card className="h-full rounded-2xl bg-zinc-900/90 border-zinc-800 text-zinc-100">
-                                <CardContent className="h-full p-4 space-y-1.5">
-                                  <div className="font-semibold">{item.title}</div>
-                                  <div className="text-zinc-400">{item.sub}</div>
-                                </CardContent>
-                              </Card>
+                              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-red-500/80" />
+                              <span className="leading-relaxed">{item}</span>
                             </motion.div>
                           ))}
                         </div>
