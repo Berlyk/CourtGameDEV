@@ -5740,6 +5740,10 @@ export default function App() {
       const safePreviousRank = previousRank ?? myProfileRef.current?.rank ?? nextRank;
       const rawDelta = nextRank.points - safePreviousRank.points;
       const rankUpBase = nextRank.level > safePreviousRank.level;
+      if (rawDelta === 0 && !rankUpBase) {
+        setRankResultToast(null);
+        return;
+      }
       const nextRankKeyBase =
         !rankUpBase && nextRank.nextTitle
           ? getNextRankKey(nextRank.key) ?? nextRank.key
@@ -5776,19 +5780,12 @@ export default function App() {
         100,
         Math.max(0, (nextRank.progressCurrent / nextTarget) * 100),
       );
-      const latestMatchDidWin = nextProfile.recentMatches?.[0]?.didWin;
       const progressedByBar = Math.max(
         0,
         (nextRank.progressCurrent ?? 0) - (safePreviousRank.progressCurrent ?? 0),
       );
       if (delta <= 0 && progressedByBar > 0) {
         delta = progressedByBar;
-      }
-      if (delta === 0 && latestMatchDidWin === false) {
-        delta = -1;
-      }
-      if (delta === 0 && latestMatchDidWin === true) {
-        delta = 1;
       }
       if (delta <= 0 && rankUp) {
         delta = 1;
@@ -6369,14 +6366,11 @@ export default function App() {
   useEffect(() => {
     if (screen !== "room") return;
     const container = lobbyChatScrollRef.current;
-    const end = lobbyChatEndRef.current;
-    if (!container || !end) return;
+    if (!container) return;
     requestAnimationFrame(() => {
-      end.scrollIntoView({ block: "end" });
-      container.scrollTop = container.scrollHeight;
+      container.scrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
       requestAnimationFrame(() => {
-        end.scrollIntoView({ block: "end" });
-        container.scrollTop = container.scrollHeight;
+        container.scrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
       });
     });
   }, [lobbyChatMessages, screen, room?.code]);

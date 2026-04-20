@@ -4166,7 +4166,7 @@ export async function recordMatchOutcome(input: {
     if (!userId || !roleKey || roleKey === "witness" || roleKey === "observer") continue;
     const baseWin = roleWinMap[roleKey] ?? false;
     const repeatedWinBlocked = baseWin ? await shouldBlockWinBySameOpponents(userId) : false;
-    const ignoreProgress = false && (isShortMatch || repeatedWinBlocked);
+    const ignoreProgress = isShortMatch || repeatedWinBlocked;
     const didWin = baseWin && !ignoreProgress;
     await pool.query(
       `
