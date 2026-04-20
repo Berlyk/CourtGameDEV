@@ -4627,6 +4627,8 @@ export default function App() {
         const checkoutEndpoint =
           method.providerCategory === "europe"
             ? "/payments/paypal/create"
+            : method.providerCategory === "cis" && method.id === 42
+              ? "/payments/tomege/create"
             : "/payments/freekassa/create";
         const payload = await authRequest<{ ok: true; checkoutUrl: string }>(
           checkoutEndpoint,
