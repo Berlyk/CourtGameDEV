@@ -1418,13 +1418,11 @@ export function listPublicMatches(): PublicMatchInfo[] {
         room.players.find((p) => p.id === room.hostId) ??
         room.game?.players.find((p: any) => p.id === room.hostId);
       const playerSource = room.game ? room.game.players : room.players;
-      const connectedPlayersCount = playerSource.filter(
+      const visiblePlayersCount = playerSource.filter(
         (p: any) =>
-          typeof p?.socketId === "string" &&
-          p.socketId.trim().length > 0 &&
           !p.isBot &&
           !/^бот-\d+$/i.test((p?.name ?? "").trim()) &&
-          !p.socketId.trim().startsWith("bot:"),
+          !(typeof p?.socketId === "string" && p.socketId.trim().startsWith("bot:")),
       ).length;
 
       return {
@@ -1434,7 +1432,7 @@ export function listPublicMatches(): PublicMatchInfo[] {
         casePackKey: room.casePackKey,
         visibility: room.visibility,
         hostName: hostPlayer?.name ?? "Host",
-        playerCount: connectedPlayersCount,
+        playerCount: visiblePlayersCount,
         maxPlayers: room.maxPlayers,
         started: room.started,
         currentStage: room.game
@@ -1446,11 +1444,11 @@ export function listPublicMatches(): PublicMatchInfo[] {
         requiresPassword: !!room.password,
         hostSubscriptionTier: room.hostSubscriptionTier ?? "free",
         isPromoted: !!room.isPromoted,
-        __connectedPlayersCount: connectedPlayersCount,
+        __visiblePlayersCount: visiblePlayersCount,
       };
     })
-    .filter((match: any) => match.__connectedPlayersCount > 0)
-    .map(({ __connectedPlayersCount, ...match }: any) => match)
+    .filter((match: any) => match.__visiblePlayersCount > 0)
+    .map(({ __visiblePlayersCount, ...match }: any) => match)
     .sort((a, b) => {
       if (a.isPromoted !== b.isPromoted) {
         return a.isPromoted ? -1 : 1;
