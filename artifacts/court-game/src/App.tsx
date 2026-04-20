@@ -4160,6 +4160,7 @@ export default function App() {
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const profileBirthDateRef = useRef<HTMLInputElement>(null);
   const lobbyChatScrollRef = useRef<HTMLDivElement>(null);
+  const lobbyChatEndRef = useRef<HTMLDivElement>(null);
   const lawyerChatScrollRef = useRef<HTMLDivElement>(null);
   const imageCropDragStateRef = useRef<{
     dragging: boolean;
@@ -6368,9 +6369,15 @@ export default function App() {
   useEffect(() => {
     if (screen !== "room") return;
     const container = lobbyChatScrollRef.current;
-    if (!container) return;
+    const end = lobbyChatEndRef.current;
+    if (!container || !end) return;
     requestAnimationFrame(() => {
+      end.scrollIntoView({ block: "end" });
       container.scrollTop = container.scrollHeight;
+      requestAnimationFrame(() => {
+        end.scrollIntoView({ block: "end" });
+        container.scrollTop = container.scrollHeight;
+      });
     });
   }, [lobbyChatMessages, screen, room?.code]);
 
@@ -14254,6 +14261,7 @@ export default function App() {
                             </div>
                           </div>
                         ))}
+                        <div ref={lobbyChatEndRef} className="h-px w-full" />
                       </div>
                     </div>
                     <div className="flex gap-2">
