@@ -6711,8 +6711,8 @@ export default function App() {
         usedCards,
       }: {
         players: PlayerInfo[];
-        revealedFacts: RevealedFact[];
-        usedCards: UsedCard[];
+        revealedFacts?: RevealedFact[];
+        usedCards?: UsedCard[];
       }) => {
         rememberKnownUserIds(players);
         setGame((prev) => {
@@ -6722,8 +6722,8 @@ export default function App() {
           return {
             ...prev,
             players,
-            revealedFacts,
-            usedCards,
+            revealedFacts: revealedFacts ?? prev.revealedFacts,
+            usedCards: usedCards ?? prev.usedCards,
             me:
               prev.me && updatedMe
                 ? {

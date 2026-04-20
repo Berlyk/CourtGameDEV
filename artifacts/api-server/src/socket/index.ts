@@ -568,13 +568,31 @@ function getRoomState(room: any, playerId: string) {
   };
 }
 
-function emitPublicMatches(io: SocketIOServer) {
+function flushPublicMatches(io: SocketIOServer) {
+  const matches = listPublicMatches();
+  const serialized = JSON.stringify(matches);
+  if (serialized === lastPublicMatchesPayload) return;
+  lastPublicMatchesPayload = serialized;
   io.emit("public_matches_updated", {
-    matches: listPublicMatches(),
+    matches,
   });
 }
 
+function emitPublicMatches(io: SocketIOServer) {
+  pendingPublicMatchesIo = io;
+  if (publicMatchesEmitTimer) return;
+  publicMatchesEmitTimer = setTimeout(() => {
+    const nextIo = pendingPublicMatchesIo ?? io;
+    publicMatchesEmitTimer = null;
+    pendingPublicMatchesIo = null;
+    flushPublicMatches(nextIo);
+  }, 150);
+}
+
 let liveIoServer: SocketIOServer | null = null;
+let lastPublicMatchesPayload = "";
+let publicMatchesEmitTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingPublicMatchesIo: SocketIOServer | null = null;
 
 export function syncUserProfileInActiveRooms(input: {
   userId: string;
@@ -618,14 +636,15 @@ export function syncUserProfileInActiveRooms(input: {
         if (!player.socketId) return;
         io.to(player.socketId).emit("game_profile_updated", {
           players: mapGamePlayers(updatedRoom.game.players),
-          revealedFacts: updatedRoom.game.revealedFacts,
-          usedCards: updatedRoom.game.usedCards,
         });
       });
     }
 
     io.to(room.code).emit("room_updated", buildRoomUpdatePayload(updatedRoom));
-    if (updatedRoom.lobbyChat.length > 0) {
+    if (
+      updatedRoom.lobbyChat.length > 0 &&
+      updatedRoom.lobbyChat.some((message: any) => playerIds.has(message.senderId))
+    ) {
       io.to(room.code).emit("lobby_chat_updated", {
         messages: updatedRoom.lobbyChat,
       });
@@ -672,8 +691,23 @@ export function setupSocket(httpServer: HttpServer) {
     cors: { origin: "*" },
     path: "/api/socket.io",
     maxHttpBufferSize: 20 * 1024 * 1024,
+    serveClient: false,
+    httpCompression: {
+      threshold: 1024,
+    },
+    perMessageDeflate: {
+      threshold: 1024,
+      clientNoContextTakeover: true,
+      serverNoContextTakeover: true,
+    },
   });
   liveIoServer = io;
+  lastPublicMatchesPayload = "";
+  if (publicMatchesEmitTimer) {
+    clearTimeout(publicMatchesEmitTimer);
+  }
+  publicMatchesEmitTimer = null;
+  pendingPublicMatchesIo = null;
 
   const socketToRoom = new Map<
     string,
@@ -2243,8 +2277,6 @@ export function setupSocket(httpServer: HttpServer) {
             if (!p.socketId) return;
             io.to(p.socketId).emit("game_profile_updated", {
               players: mapGamePlayers(updatedRoom.game!.players),
-              revealedFacts: updatedRoom.game!.revealedFacts,
-              usedCards: updatedRoom.game!.usedCards,
             });
           });
         } else {
