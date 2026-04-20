@@ -1414,15 +1414,23 @@ export function markPlayerDisconnected(
 export function listPublicMatches(): PublicMatchInfo[] {
   return [...rooms.values()]
     .map((room) => {
+      const now = Date.now();
       const hostPlayer =
         room.players.find((p) => p.id === room.hostId) ??
         room.game?.players.find((p: any) => p.id === room.hostId);
       const playerSource = room.game ? room.game.players : room.players;
-      const visiblePlayersCount = playerSource.filter(
-        (p: any) =>
+      const visiblePlayersCount = playerSource.filter((p: any) => {
+        const socketId = typeof p?.socketId === "string" ? p.socketId.trim() : "";
+        const isConnected = socketId.length > 0;
+        const isReconnectable =
+          typeof p?.disconnectedUntil === "number" && p.disconnectedUntil > now;
+        return (
+          (isConnected || isReconnectable) &&
           !p.isBot &&
           !/^бот-\d+$/i.test((p?.name ?? "").trim()) &&
-          !(typeof p?.socketId === "string" && p.socketId.trim().startsWith("bot:")),
+          !socketId.startsWith("bot:")
+        );
+      }
       ).length;
 
       return {

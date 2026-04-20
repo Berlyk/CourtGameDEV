@@ -371,7 +371,16 @@ function mapGamePlayers(players: any[]) {
 }
 
 function mapLobbyPlayers(players: any[]) {
+  const now = Date.now();
   return players
+    .filter((p: any) => {
+      const connected =
+        typeof p?.socketId === "string" && p.socketId.trim().length > 0;
+      if (connected) return true;
+      return (
+        typeof p?.disconnectedUntil === "number" && p.disconnectedUntil > now
+      );
+    })
     .map((p: any) => ({
     id: p.id,
     userId: p.userId ?? undefined,
