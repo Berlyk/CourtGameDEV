@@ -14067,12 +14067,13 @@ export default function App() {
             </Card>
           </motion.div>
 
-          <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-6">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
             <motion.div
               custom={1}
               variants={cardVariants}
               initial="initial"
               animate="animate"
+              className="min-w-0"
             >
               <InfoBlock
                 title="Игроки в комнате"
@@ -14130,6 +14131,7 @@ export default function App() {
               variants={cardVariants}
               initial="initial"
               animate="animate"
+              className="min-w-0"
             >
               <div className="space-y-6">
                 <InfoBlock
@@ -14160,9 +14162,11 @@ export default function App() {
                       {(() => {
                         const displayPackTitle = getCasePackTitleDisplay(roomPackTitle);
                         return (
-                          <div className="mt-1.5 rounded-lg border border-zinc-700/55 bg-zinc-900/35 px-3 py-2">
-                            <div className="truncate text-sm font-medium text-zinc-100">{displayPackTitle}</div>
-                            <div className="mt-0.5 truncate text-xs text-zinc-400">
+                          <div className="mt-1.5 min-w-0 rounded-lg border border-zinc-700/55 bg-zinc-900/35 px-3 py-2">
+                            <div className="text-sm font-medium text-zinc-100 whitespace-normal break-words [overflow-wrap:anywhere]">
+                              {displayPackTitle}
+                            </div>
+                            <div className="mt-0.5 text-xs text-zinc-400 whitespace-normal break-words [overflow-wrap:anywhere]">
                               {roomPackMeta?.description ?? "Пак выбран для текущего матча."}
                             </div>
                           </div>
