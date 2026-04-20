@@ -12035,16 +12035,13 @@ export default function App() {
                           </Badge>
                           <div className="space-y-3">
                             <h1 className="text-4xl md:text-5xl font-bold tracking-tight">СУД</h1>
-                            <div className="space-y-2 max-w-[30rem]">
-                              <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-zinc-500">
-                                Кратко о формате
-                              </div>
-                              <p className="text-base md:text-lg leading-relaxed text-zinc-300">
-                                Настольная ролевая игра о судебных разбирательствах.
+                            <div className="space-y-2.5 max-w-[26rem]">
+                              <p className="text-lg md:text-[1.55rem] leading-snug text-zinc-200">
+                                Судебная ролевая игра для 3-6 игроков.
                               </p>
-                              <p className="text-sm md:text-base leading-relaxed text-zinc-400">
-                                Получите роль, изучите материалы дела и докажите судье свою версию
-                                событий.
+                              <p className="text-sm md:text-[15px] leading-relaxed text-zinc-500">
+                                Получите роль, изучите материалы дела и убедите судью в своей
+                                версии событий.
                               </p>
                             </div>
                           </div>
