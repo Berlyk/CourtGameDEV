@@ -963,7 +963,32 @@ export function addAdminBotsToRoom(
     };
 
     if (!room.started || !room.game) {
-      room.players.push(baseBot);
+      const activePlayers = getActiveLobbyPlayers(room);
+      if (activePlayers.length >= room.maxPlayers) {
+        let supportRole: "witness" | "observer" = getSupportRoleForJoin(room);
+        if (!canAddSupportRole(room, supportRole)) {
+          const fallbackRole: "witness" | "observer" =
+            supportRole === "witness" ? "observer" : "witness";
+          if (!canAddSupportRole(room, fallbackRole)) {
+            continue;
+          }
+          supportRole = fallbackRole;
+        }
+
+        room.players.push({
+          ...baseBot,
+          roleKey: supportRole,
+          roleTitle: supportRole === "witness" ? getWitnessRoleTitle(room) : "Наблюдатель",
+          goal:
+            supportRole === "witness"
+              ? "Наблюдать за процессом суда и, по требованию судьи, давать показания."
+              : "Наблюдать за процессом суда без участия в механиках и действиях сторон.",
+          facts: [],
+          cards: [],
+        });
+      } else {
+        room.players.push(baseBot);
+      }
       continue;
     }
 
