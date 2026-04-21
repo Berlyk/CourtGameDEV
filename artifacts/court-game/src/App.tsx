@@ -14482,9 +14482,11 @@ export default function App() {
         player.roleKey !== "observer",
     );
     const warningPanelListHeightClass =
-      warningTargets.length >= 6
-        ? "max-h-[58vh] xl:max-h-[560px]"
-        : "max-h-[34vh] xl:max-h-[300px]";
+      warningTargets.length >= 7
+        ? "max-h-[48vh] xl:max-h-[500px]"
+        : warningTargets.length >= 6
+          ? "max-h-[50vh] xl:max-h-[520px]"
+          : "max-h-[46vh] xl:max-h-[460px]";
     return (
       <motion.div
         key="game"
@@ -15222,7 +15224,7 @@ export default function App() {
                         Назад
                       </Button>
                     </div>
-                    <div className={`${warningPanelListHeightClass} min-h-[170px] flex-1 space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500`}>
+                    <div className={`${warningPanelListHeightClass} min-h-0 flex-1 space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500`}>
                       {warningTargets.length === 0 ? (
                         <div className="text-sm text-zinc-500">
                           Нет игроков для предупреждения.
