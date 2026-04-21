@@ -282,7 +282,9 @@ function canAddSupportRole(room: Room, supportRole: "witness" | "observer"): boo
     const observers = room.players.filter((player) => player.roleKey === "observer").length;
     return observers < room.maxObservers;
   }
-  return true;
+  if (!room.allowWitnesses) return false;
+  const witnesses = room.players.filter((player) => player.roleKey === "witness").length;
+  return witnesses < MAX_WITNESS_PLAYERS;
 }
 
 function getAssignableRolesForCount(playerCount: number): AssignableRole[] {
@@ -787,10 +789,26 @@ export function updateRoomManagement(
       room.allowWitnesses = true;
 
       for (const player of overflowPlayers) {
-        player.roleKey = "witness";
-        player.roleTitle = getWitnessRoleTitle(room);
+        let supportRole: "witness" | "observer" = getSupportRoleForJoin(room);
+        if (!canAddSupportRole(room, supportRole)) {
+          const fallbackRole: "witness" | "observer" =
+            supportRole === "witness" ? "observer" : "witness";
+          if (!canAddSupportRole(room, fallbackRole)) {
+            return {
+              room,
+              ok: false,
+              reason:
+                "Нельзя сменить режим: превышен лимит свидетелей/наблюдателей для лишних игроков.",
+            };
+          }
+          supportRole = fallbackRole;
+        }
+        player.roleKey = supportRole;
+        player.roleTitle = supportRole === "witness" ? getWitnessRoleTitle(room) : "Наблюдатель";
         player.goal =
-          "Наблюдать за процессом суда и, по требованию судьи, давать показания.";
+          supportRole === "witness"
+            ? "Наблюдать за процессом суда и, по требованию судьи, давать показания."
+            : "Наблюдать за процессом суда без участия в механиках и действиях сторон.";
         player.facts = [];
         player.cards = [];
         clearLobbyRoleState(player);

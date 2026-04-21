@@ -13505,7 +13505,7 @@ export default function App() {
           (usePreferredRoles || canChooseRoleInOtherLobbiesInRoom) &&
           (usePreferredRoles || roleDialogTargetPlayer.roleAssignmentSource !== "manual"));
     const canStartRoomNow = isQuickRoomMode
-      ? activeLobbyPlayersCount >= 3 && activeLobbyPlayersCount <= roomMaxPlayers
+      ? activeLobbyPlayersCount >= 3
       : activeLobbyPlayersCount === roomMaxPlayers;
     const neededPlayersForStart = isQuickRoomMode
       ? Math.max(0, 3 - activeLobbyPlayersCount)
@@ -14478,18 +14478,6 @@ export default function App() {
         player.roleKey !== "judge" &&
         player.roleKey !== "observer",
     );
-    const influenceScrollableHeightClass =
-      game.players.length >= 8
-        ? "h-[360px] md:h-[430px]"
-        : game.players.length >= 6
-          ? "h-[320px] md:h-[380px]"
-          : "h-[280px] md:h-[320px]";
-    const warningScrollableHeightClass =
-      game.players.length >= 8
-        ? "max-h-[500px]"
-        : game.players.length >= 6
-          ? "max-h-[450px]"
-          : "max-h-[420px]";
     return (
       <motion.div
         key="game"
@@ -15070,9 +15058,9 @@ export default function App() {
             </InfoBlock>
 
             <InfoBlock title="Влияние" icon={<Gavel className="w-5 h-5" />}>
-              <div className="flex h-full min-h-[320px] min-w-0 flex-col gap-3 overflow-hidden">
+              <div className="flex h-full min-h-[320px] min-w-0 flex-col gap-3 overflow-hidden md:min-h-[360px]">
                 {influenceView === "chat" && lawyerChatPartner ? (
-                  <div className="min-w-0 space-y-3">
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-zinc-300">
                         Чат с {lawyerChatPartner.name}
@@ -15089,7 +15077,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${influenceScrollableHeightClass} ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`min-h-[170px] flex-1 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden max-h-[50vh] xl:max-h-none ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
@@ -15125,7 +15113,7 @@ export default function App() {
                         })}
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
                       <Input
                         value={lawyerChatInput}
                         onChange={(e) => setLawyerChatInput(e.target.value)}
@@ -15214,7 +15202,7 @@ export default function App() {
                     ))}
                   </div>
                 ) : influenceView === "warnings" && isJudge ? (
-                  <div className="space-y-3 min-w-0 overflow-hidden">
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-zinc-300">Предупреждения</div>
                       <Button
@@ -15227,7 +15215,7 @@ export default function App() {
                         Назад
                       </Button>
                     </div>
-                    <div className={`space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500 ${warningScrollableHeightClass}`}>
+                    <div className="min-h-[170px] flex-1 space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
                       {warningTargets.length === 0 ? (
                         <div className="text-sm text-zinc-500">
                           Нет игроков для предупреждения.
@@ -15311,32 +15299,6 @@ export default function App() {
                   <div className="space-y-3">
                     {isJudge ? (
                       <>
-                        {hasActiveProtest && (
-                          <div className="rounded-xl border border-zinc-800 bg-zinc-950/75 p-3 space-y-2.5">
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-400">
-                              Активный протест
-                            </div>
-                            <div className="text-sm font-semibold text-zinc-100">
-                              {game.activeProtest?.actorRoleTitle}
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <Button
-                                variant="outline"
-                                className="h-10 rounded-xl border-emerald-500/50 bg-emerald-500/12 text-emerald-300 hover:bg-emerald-500/20 hover:text-emerald-200"
-                                onClick={() => resolveProtest("accepted")}
-                              >
-                                Принять
-                              </Button>
-                              <Button
-                                variant="outline"
-                                className="h-10 rounded-xl border-red-500/50 bg-red-500/10 text-red-300 hover:bg-red-500/18 hover:text-red-200"
-                                onClick={() => resolveProtest("rejected")}
-                              >
-                                Отклонить
-                              </Button>
-                            </div>
-                          </div>
-                        )}
                         <Button
                           className={`w-full h-12 rounded-xl border-0 text-base font-bold ${
                             isVerdictStage
@@ -15376,6 +15338,32 @@ export default function App() {
                         >
                           Заметки
                         </Button>
+                        {hasActiveProtest && (
+                          <div className="rounded-xl border border-red-500/35 bg-[linear-gradient(150deg,rgba(127,29,29,0.38),rgba(24,24,27,0.92))] p-3.5 space-y-2.5 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-red-200/90">
+                              Активный протест
+                            </div>
+                            <div className="text-sm font-semibold text-zinc-100">
+                              {game.activeProtest?.actorRoleTitle}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Button
+                                variant="outline"
+                                className="h-10 rounded-xl border-emerald-500/50 bg-emerald-500/14 text-emerald-200 hover:bg-emerald-500/24 hover:text-emerald-100"
+                                onClick={() => resolveProtest("accepted")}
+                              >
+                                Принять
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="h-10 rounded-xl border-red-500/50 bg-red-500/14 text-red-200 hover:bg-red-500/24 hover:text-red-100"
+                                onClick={() => resolveProtest("rejected")}
+                              >
+                                Отклонить
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <>

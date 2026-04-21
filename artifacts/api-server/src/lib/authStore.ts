@@ -644,8 +644,17 @@ function toPublicUser(row: {
   const selectedBadgeIsRank =
     typeof selectedBadgeRaw === "string" && selectedBadgeRaw.trim().toLowerCase().startsWith("rank_");
   const selectedBadgeIsDeprecatedWinner = selectedBadgeRaw === "winner";
+  const selectedBadgeIsSubscription =
+    typeof selectedBadgeRaw === "string" && selectedBadgeRaw.startsWith("sub_");
+  const selectedBadgeSubscriptionAllowed =
+    !selectedBadgeIsSubscription ||
+    (selectedBadgeRaw === "sub_trainee" && subscription?.tier === "trainee") ||
+    (selectedBadgeRaw === "sub_practitioner" && subscription?.tier === "practitioner") ||
+    (selectedBadgeRaw === "sub_arbiter" && subscription?.tier === "arbiter");
   const selectedBadgeKey =
-    selectedBadgeIsDeprecatedWinner || (selectedBadgeIsRank && !hasRatingHistoryFromSubscription(subscription))
+    selectedBadgeIsDeprecatedWinner ||
+    (selectedBadgeIsRank && !hasRatingHistoryFromSubscription(subscription)) ||
+    !selectedBadgeSubscriptionAllowed
       ? undefined
       : selectedBadgeRaw;
   return {

@@ -1747,11 +1747,29 @@ export function setupSocket(httpServer: HttpServer) {
         return;
       }
       markMissingSocketPlayersDisconnected((socketId) => io.sockets.sockets.has(socketId));
-      const preparedRoom = removeDisconnectedLobbyPlayersBeforeStart(roomCode) ?? room;
+      let preparedRoom = removeDisconnectedLobbyPlayersBeforeStart(roomCode) ?? room;
       io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(preparedRoom));
-      const activePlayers = preparedRoom.players.filter(
+      let activePlayers = preparedRoom.players.filter(
         (player: any) => player.roleKey !== "witness" && player.roleKey !== "observer",
       );
+      if (activePlayers.length > preparedRoom.maxPlayers) {
+        const overflowNormalized = updateRoomManagement(roomCode, {
+          modeKey: preparedRoom.modeKey,
+        });
+        if (!overflowNormalized) {
+          socket.emit("error", { message: "Не удалось подготовить комнату к старту." });
+          return;
+        }
+        if (!overflowNormalized.ok) {
+          socket.emit("error", { message: overflowNormalized.reason });
+          return;
+        }
+        preparedRoom = overflowNormalized.room;
+        io.to(roomCode).emit("room_updated", buildRoomUpdatePayload(preparedRoom));
+        activePlayers = preparedRoom.players.filter(
+          (player: any) => player.roleKey !== "witness" && player.roleKey !== "observer",
+        );
+      }
       if (preparedRoom.modeKey === "quick_flex") {
         if (activePlayers.length < 3 || activePlayers.length > preparedRoom.maxPlayers) {
           socket.emit("error", {
