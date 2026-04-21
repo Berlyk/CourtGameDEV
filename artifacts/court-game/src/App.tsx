@@ -14188,9 +14188,9 @@ export default function App() {
               variants={cardVariants}
               initial="initial"
               animate="animate"
-              className={`min-w-0 ${hasLobbyOverflowPlayers ? "lg:flex lg:min-h-[660px] lg:flex-col" : ""}`}
+              className="min-w-0"
             >
-              <div className={hasLobbyOverflowPlayers ? "flex min-h-0 flex-1 flex-col gap-6" : "space-y-6"}>
+              <div className="space-y-6">
                 <InfoBlock
                   title="Доступные режимы"
                   icon={<Gavel className="w-5 h-5" />}
@@ -14247,17 +14247,14 @@ export default function App() {
                   </div>
                 </InfoBlock>
 
-                <div className={hasLobbyOverflowPlayers ? "flex min-h-0 flex-1" : ""}>
-                  <InfoBlock
-                    title="Чат лобби"
-                    icon={<MessageSquare className="w-5 h-5" />}
-                  >
-                    <div className={`space-y-3 ${hasLobbyOverflowPlayers ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+                <InfoBlock
+                  title="Чат лобби"
+                  icon={<MessageSquare className="w-5 h-5" />}
+                >
+                  <div className="space-y-3">
                     <div
                       ref={lobbyChatScrollRef}
-                      className={`rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${
-                        hasLobbyOverflowPlayers ? "min-h-[360px] flex-1" : "h-[360px]"
-                      } ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 h-[360px] overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2">
                         {lobbyChatMessages.length === 0 && (
@@ -14314,9 +14311,8 @@ export default function App() {
                         Отправить
                       </Button>
                     </div>
-                    </div>
-                  </InfoBlock>
-                </div>
+                  </div>
+                </InfoBlock>
               </div>
             </motion.div>
           </div>
@@ -15132,10 +15128,10 @@ export default function App() {
                         placeholder={
                           isLawyerRole ? "Сообщение клиенту..." : "Сообщение адвокату..."
                         }
-                        className="h-11 sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
+                        className="h-12 sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
                       />
                       <Button
-                        className="h-11 sm:h-10 rounded-xl border-0 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 sm:px-5"
+                        className="h-12 sm:h-10 rounded-xl border-0 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 sm:px-5"
                         onClick={sendLawyerChatMessage}
                         disabled={!lawyerChatInput.trim()}
                       >
@@ -15226,7 +15222,7 @@ export default function App() {
                         Назад
                       </Button>
                     </div>
-                    <div className="min-h-[170px] max-h-[46vh] xl:max-h-[520px] flex-1 space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
+                    <div className="min-h-[170px] max-h-[62vh] xl:max-h-[66vh] flex-1 space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
                       {warningTargets.length === 0 ? (
                         <div className="text-sm text-zinc-500">
                           Нет игроков для предупреждения.
@@ -15352,16 +15348,8 @@ export default function App() {
                         {hasActiveProtest && <Separator className="bg-zinc-800/90" />}
                         {hasActiveProtest && (
                           <div className="rounded-xl border border-red-500/35 bg-zinc-900/90 p-3.5 space-y-2.5 shadow-[inset_0_1px_0_rgba(248,113,113,0.18),0_0_18px_rgba(127,29,29,0.22)]">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-red-200/90">
-                                Активный протест
-                              </div>
-                              <span className="rounded-md border border-red-500/35 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-red-200/90">
-                                Решение судьи
-                              </span>
-                            </div>
-                            <div className="rounded-lg border border-red-500/20 bg-red-950/20 px-2.5 py-2 text-sm font-semibold text-zinc-100">
-                              {game.activeProtest?.actorRoleTitle}
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-red-200/90">
+                              Активный протест
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <Button
