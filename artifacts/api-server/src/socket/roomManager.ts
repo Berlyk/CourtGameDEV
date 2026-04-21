@@ -327,6 +327,41 @@ function assignLobbyRole(
 }
 
 function rebalanceLobbyRoleAssignments(room: Room) {
+  if (!room.started && room.modeKey === "quick_flex") {
+    const activePlayers = getActiveLobbyPlayers(room);
+    if (activePlayers.length > room.maxPlayers) {
+      const overflowCount = activePlayers.length - room.maxPlayers;
+      const nonHostOverflow = [...activePlayers]
+        .reverse()
+        .filter((player) => player.id !== room.hostId);
+      const hostOverflow = [...activePlayers]
+        .reverse()
+        .filter((player) => player.id === room.hostId);
+      const overflowPlayers = [...nonHostOverflow, ...hostOverflow].slice(0, overflowCount);
+
+      for (const player of overflowPlayers) {
+        let supportRole: "witness" | "observer" = getSupportRoleForJoin(room);
+        if (!canAddSupportRole(room, supportRole)) {
+          const fallbackRole: "witness" | "observer" =
+            supportRole === "witness" ? "observer" : "witness";
+          if (!canAddSupportRole(room, fallbackRole)) {
+            break;
+          }
+          supportRole = fallbackRole;
+        }
+        player.roleKey = supportRole;
+        player.roleTitle = supportRole === "witness" ? getWitnessRoleTitle(room) : "Наблюдатель";
+        player.goal =
+          supportRole === "witness"
+            ? "Наблюдать за процессом суда и, по требованию судьи, давать показания."
+            : "Наблюдать за процессом суда без участия в механиках и действиях сторон.";
+        player.facts = [];
+        player.cards = [];
+        clearLobbyRoleState(player);
+      }
+    }
+  }
+
   const requiredRoles = new Set<AssignableRole>(getRequiredRolesForRoom(room));
   const activePlayers = getActiveLobbyPlayers(room);
   const occupiedRoles = new Set<AssignableRole>();

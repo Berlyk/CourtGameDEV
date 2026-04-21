@@ -14483,8 +14483,8 @@ export default function App() {
     );
     const warningPanelListHeightClass =
       warningTargets.length >= 6
-        ? "h-[56vh] xl:h-[500px]"
-        : "h-[40vh] xl:h-[340px]";
+        ? "max-h-[58vh] xl:max-h-[560px]"
+        : "max-h-[34vh] xl:max-h-[300px]";
     return (
       <motion.div
         key="game"
