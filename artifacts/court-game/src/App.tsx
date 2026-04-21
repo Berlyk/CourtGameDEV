@@ -14118,13 +14118,7 @@ export default function App() {
             </Card>
           </motion.div>
 
-          <div
-            className={`grid gap-6 ${
-              hasLobbyOverflowPlayers
-                ? "lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]"
-                : "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]"
-            }`}
-          >
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
             <motion.div
               custom={1}
               variants={cardVariants}
@@ -14254,7 +14248,9 @@ export default function App() {
                   <div className="space-y-3">
                     <div
                       ref={lobbyChatScrollRef}
-                      className={`rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 h-[360px] overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 ${
+                        hasLobbyOverflowPlayers ? "h-[500px]" : "h-[360px]"
+                      } overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2">
                         {lobbyChatMessages.length === 0 && (
@@ -14924,7 +14920,7 @@ export default function App() {
             </CardContent>
           </Card>
 
-          <div className="grid xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.9fr)] gap-6">
+          <div className="grid items-start xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.9fr)] gap-6">
             <InfoBlock title="Ваша роль" icon={<Shield className="w-5 h-5" />}>
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -15222,7 +15218,7 @@ export default function App() {
                         Назад
                       </Button>
                     </div>
-                    <div className="min-h-[170px] max-h-[62vh] xl:max-h-[66vh] flex-1 space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
+                    <div className="min-h-[170px] max-h-[52vh] xl:max-h-[460px] flex-1 space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
                       {warningTargets.length === 0 ? (
                         <div className="text-sm text-zinc-500">
                           Нет игроков для предупреждения.
