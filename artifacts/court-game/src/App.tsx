@@ -13510,7 +13510,7 @@ export default function App() {
     const neededPlayersForStart = isQuickRoomMode
       ? Math.max(0, 3 - activeLobbyPlayersCount)
       : Math.max(0, roomMaxPlayers - activeLobbyPlayersCount);
-    const hasLobbyOverflowPlayers = room.players.length > roomMaxPlayers;
+    const hasLobbyOverflowPlayers = room.players.length > roomMaxPlayers + 1;
     return (
       <motion.div
         key="room"
@@ -14481,6 +14481,10 @@ export default function App() {
         player.roleKey !== "judge" &&
         player.roleKey !== "observer",
     );
+    const warningPanelListHeightClass =
+      warningTargets.length >= 6
+        ? "h-[56vh] xl:h-[500px]"
+        : "h-[40vh] xl:h-[340px]";
     return (
       <motion.div
         key="game"
@@ -15218,7 +15222,7 @@ export default function App() {
                         Назад
                       </Button>
                     </div>
-                    <div className="min-h-[170px] max-h-[52vh] xl:max-h-[460px] flex-1 space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500">
+                    <div className={`${warningPanelListHeightClass} min-h-[170px] flex-1 space-y-2.5 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(113,113,122,0.9)_rgba(24,24,27,0.45)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-900/55 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-700/85 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500`}>
                       {warningTargets.length === 0 ? (
                         <div className="text-sm text-zinc-500">
                           Нет игроков для предупреждения.

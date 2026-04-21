@@ -272,6 +272,10 @@ function getWitnessRoleTitle(room: Room): string {
 }
 
 function getSupportRoleForJoin(room: Room): "witness" | "observer" {
+  if (room.modeKey === "quick_flex") {
+    const witnesses = room.players.filter((player) => player.roleKey === "witness").length;
+    if (witnesses < MAX_WITNESS_PLAYERS) return "witness";
+  }
   if (!room.allowWitnesses) return "observer";
   const witnesses = room.players.filter((player) => player.roleKey === "witness").length;
   return witnesses < MAX_WITNESS_PLAYERS ? "witness" : "observer";
@@ -282,7 +286,7 @@ function canAddSupportRole(room: Room, supportRole: "witness" | "observer"): boo
     const observers = room.players.filter((player) => player.roleKey === "observer").length;
     return observers < room.maxObservers;
   }
-  if (!room.allowWitnesses) return false;
+  if (!room.allowWitnesses && room.modeKey !== "quick_flex") return false;
   const witnesses = room.players.filter((player) => player.roleKey === "witness").length;
   return witnesses < MAX_WITNESS_PLAYERS;
 }
