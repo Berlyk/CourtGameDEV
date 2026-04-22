@@ -24,6 +24,7 @@ const CIS_METHOD_IDS = new Set<number>([4, 8, 12, 42]);
 const CRYPTO_METHOD_IDS = new Set<number>([15, 26, 39, 41, 45]);
 const TOME_CARD_METHOD_IDS = new Set<number>([4, 8, 12]);
 const TOME_SBP_METHOD_IDS = new Set<number>([42]);
+const PLATEGA_SBP_METHOD_IDS = new Set<number>([42]);
 const PAYPAL_METHOD_IDS = new Set<number>([201, 202]);
 const PAYPAL_ONLY_METHOD_IDS = new Set<number>([201]);
 const PAYPAL_CARDS_METHOD_IDS = new Set<number>([202]);
@@ -208,6 +209,27 @@ function readTomeConfig() {
   return { shopId, secretKey, notificationUrl };
 }
 
+function readPlategaConfig() {
+  const merchantId = String(
+    process.env.PLATEGA_MERCHANT_ID ??
+      process.env.PLATEGA_SHOP_ID ??
+      process.env.PLATEGA_ACCOUNT_ID ??
+      "",
+  ).trim();
+  const apiKey = String(
+    process.env.PLATEGA_API_KEY ??
+      process.env.PLATEGA_SECRET_KEY ??
+      process.env.PLATEGA_SECRET ??
+      process.env.PLATEGA_X_SECRET ??
+      "",
+  ).trim();
+  const apiBase = String(process.env.PLATEGA_API_BASE ?? "https://api.platega.io").trim();
+  const callbackUrl =
+    normalizePublicUrl(process.env.PLATEGA_CALLBACK_URL) ??
+    "https://courtgame.site/api/payments/platega";
+  return { merchantId, apiKey, apiBase, callbackUrl };
+}
+
 function readPayPalConfig() {
   const clientId = String(
     process.env.PAYPAL_CLIENT_ID ??
@@ -354,6 +376,21 @@ function resolvePayPalCheckoutMode(methodId: number): PayPalCheckoutMode | null 
   if (PAYPAL_ONLY_METHOD_IDS.has(methodId)) return "paypal";
   if (PAYPAL_CARDS_METHOD_IDS.has(methodId)) return "paypal_cards";
   return null;
+}
+
+function normalizePlategaStatus(statusRaw: string): "paid" | "canceled" | "pending" {
+  const status = statusRaw.trim().toUpperCase();
+  if (status === "CONFIRMED") return "paid";
+  if (
+    status === "CANCELED" ||
+    status === "CHARGEBACK" ||
+    status === "CHARGEBACKED" ||
+    status === "FAILED" ||
+    status === "EXPIRED"
+  ) {
+    return "canceled";
+  }
+  return "pending";
 }
 
 async function fetchPayPalAccessToken(): Promise<{ accessToken: string; apiBase: string } | null> {
@@ -775,6 +812,156 @@ paymentsRouter.post("/payments/tomege/create", async (req, res) => {
           idempotencyKey,
           request: tomeRequestPayload,
           response: tomePayload,
+        }),
+      ),
+    ],
+  );
+
+  return res.status(200).json({
+    ok: true,
+    paymentId: providerPaymentId,
+    checkoutUrl,
+  });
+});
+
+paymentsRouter.post("/payments/platega/create", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized." });
+  }
+
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Session is invalid." });
+  }
+
+  const { merchantId, apiKey, apiBase } = readPlategaConfig();
+  if (!merchantId || !apiKey) {
+    return res.status(503).json({
+      message:
+        "Platega is not configured on the server. Set PLATEGA_MERCHANT_ID and PLATEGA_API_KEY.",
+    });
+  }
+
+  const tier = normalizeSubscriptionTier(String(req.body?.tier ?? "").trim());
+  if (!PAID_TIERS.has(tier as PaidTier)) {
+    return res.status(400).json({ message: "Invalid subscription plan." });
+  }
+  const duration = normalizeSubscriptionDuration(String(req.body?.duration ?? "").trim());
+  if (!PAID_DURATIONS.has(duration as PaidDuration)) {
+    return res
+      .status(400)
+      .json({ message: "Only 1 month and 1 year durations are available for payment." });
+  }
+
+  const regionRaw = String(req.body?.category ?? "").trim().toLowerCase();
+  if (regionRaw !== "cis") {
+    return res.status(400).json({ message: "Platega is available only for CIS payments." });
+  }
+
+  const methodId = Number(req.body?.paymentSystemId);
+  if (!Number.isFinite(methodId) || methodId <= 0) {
+    return res.status(400).json({ message: "Invalid payment method." });
+  }
+  if (!CIS_METHOD_IDS.has(methodId) || !PLATEGA_SBP_METHOD_IDS.has(methodId)) {
+    return res.status(400).json({ message: "Method is not available for Platega payments." });
+  }
+
+  const paidTier = tier as PaidTier;
+  const paidDuration = duration as PaidDuration;
+  const amountRub = PRICE_MATRIX_RUB[paidTier][paidDuration];
+  const publicAppUrl = resolvePublicAppUrl(req);
+  const description = `Подписка CourtGame: ${paidTier}, ${paidDuration}`;
+
+  const plategaRequestPayload = {
+    paymentDetails: {
+      amount: amountRub,
+      currency: "RUB",
+    },
+    description,
+    return: `${publicAppUrl}/profile?payment=platega_return`,
+    failedUrl: `${publicAppUrl}/shop?payment=platega_cancel`,
+    payload: JSON.stringify({
+      project: "CourtGame",
+      user_id: user.id,
+      user_email: user.email,
+      tier: paidTier,
+      duration: paidDuration,
+      method_id: String(methodId),
+    }),
+  };
+
+  const plategaUrl = `${apiBase.replace(/\/+$/, "")}/v2/transaction/process`;
+  const plategaResponse = await fetch(plategaUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-MerchantId": merchantId,
+      "X-Secret": apiKey,
+    },
+    body: JSON.stringify(plategaRequestPayload),
+  }).catch(() => null);
+
+  if (!plategaResponse) {
+    return res.status(502).json({ message: "Failed to connect to Platega." });
+  }
+
+  const plategaPayload: any = await plategaResponse.json().catch(() => null);
+  const checkoutUrl = String(plategaPayload?.redirect ?? plategaPayload?.url ?? "").trim();
+  const providerPaymentId = String(plategaPayload?.transactionId ?? plategaPayload?.id ?? "").trim();
+
+  if (!plategaResponse.ok || !providerPaymentId || !checkoutUrl) {
+    const message =
+      String(
+        plategaPayload?.description ??
+          plategaPayload?.message ??
+          plategaPayload?.error_description ??
+          plategaPayload?.error ??
+          "",
+      ).trim() || "Platega returned an error while creating payment.";
+    return res.status(502).json({ message });
+  }
+
+  await ensurePaymentTables();
+  await pool.query(
+    `
+      INSERT INTO auth_payment_orders (
+        id,
+        provider,
+        payment_id,
+        user_id,
+        tier,
+        duration,
+        amount_rub,
+        currency,
+        region,
+        method_id,
+        status,
+        fk_location,
+        fk_payload,
+        updated_at
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW()
+      )
+    `,
+    [
+      crypto.randomUUID(),
+      "platega",
+      providerPaymentId,
+      user.id,
+      paidTier,
+      paidDuration,
+      amountRub,
+      "RUB",
+      "cis",
+      methodId,
+      normalizePlategaStatus(String(plategaPayload?.status ?? "pending")),
+      checkoutUrl,
+      JSON.stringify(
+        safeJsonPayload({
+          request: plategaRequestPayload,
+          response: plategaPayload,
         }),
       ),
     ],
@@ -1296,6 +1483,96 @@ const tomeGeCallbackHandler = async (req: Request, res: Response) => {
   return res.status(200).json({ ok: true });
 };
 
+const plategaCallbackHandler = async (req: Request, res: Response) => {
+  const { merchantId, apiKey } = readPlategaConfig();
+  if (!merchantId || !apiKey) {
+    return res.status(503).json({ message: "Platega callback is not configured." });
+  }
+
+  const callbackMerchantId = String(req.headers["x-merchantid"] ?? req.headers["x-merchant-id"] ?? "").trim();
+  const callbackSecret = String(req.headers["x-secret"] ?? "").trim();
+  if (
+    !callbackMerchantId ||
+    !callbackSecret ||
+    callbackMerchantId !== merchantId ||
+    !secureCompare(callbackSecret, apiKey)
+  ) {
+    return res.status(403).json({ message: "Invalid Platega headers." });
+  }
+
+  await ensurePaymentTables();
+
+  const source =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const paymentId = pickPayloadValue(source, ["transactionId", "id", "paymentId"]);
+  if (!paymentId) {
+    return res.status(400).json({ message: "Invalid Platega callback payload." });
+  }
+
+  const paymentResult = await pool.query<{
+    user_id: string;
+    tier: string;
+    duration: string;
+    amount_rub: number;
+    status: string;
+  }>(
+    `
+      SELECT user_id, tier, duration, amount_rub, status
+      FROM auth_payment_orders
+      WHERE payment_id = $1 AND provider = 'platega'
+      LIMIT 1
+    `,
+    [paymentId],
+  );
+  if (!paymentResult.rowCount) {
+    return res.status(404).json({ message: "Payment not found." });
+  }
+
+  const payment = paymentResult.rows[0];
+  const callbackAmountRaw = pickPayloadValue(source, ["amount"]);
+  const callbackCurrency = String(source.currency ?? "").trim().toUpperCase();
+  const callbackAmount = callbackAmountRaw ? parseNumericAmount(callbackAmountRaw) : null;
+  if (callbackAmount !== null) {
+    const expectedAmount = Number(payment.amount_rub);
+    if (!Number.isFinite(expectedAmount) || Math.abs(callbackAmount - expectedAmount) > 0.001) {
+      return res.status(400).json({ message: "Amount mismatch." });
+    }
+  }
+  if (callbackCurrency && callbackCurrency !== "RUB") {
+    return res.status(400).json({ message: "Currency mismatch." });
+  }
+
+  const nextStatus = normalizePlategaStatus(String(source.status ?? ""));
+  if (nextStatus === "paid" && payment.status !== "paid") {
+    const subscription = await assignSubscriptionByUserId({
+      userId: payment.user_id,
+      tier: payment.tier,
+      duration: payment.duration,
+      source: "system",
+    });
+    if (!subscription) {
+      return res.status(404).json({ message: "User not found." });
+    }
+  }
+
+  await pool.query(
+    `
+      UPDATE auth_payment_orders
+      SET
+        status = $2,
+        paid_at = CASE WHEN $2 = 'paid' THEN COALESCE(paid_at, NOW()) ELSE paid_at END,
+        fk_payload = $3,
+        updated_at = NOW()
+      WHERE payment_id = $1
+    `,
+    [paymentId, nextStatus, JSON.stringify(safeJsonPayload(source))],
+  );
+
+  return res.status(200).json({ ok: true });
+};
+
 const payPalCallbackHandler = async (req: Request, res: Response) => {
   const isVerified = await verifyPayPalWebhook(req);
   if (!isVerified) {
@@ -1472,6 +1749,9 @@ paymentsRouter.all("/payments/freekassa/notify", freeKassaCallbackHandler);
 paymentsRouter.all("/payments/tomege", tomeGeCallbackHandler);
 paymentsRouter.all("/payments/tomege/", tomeGeCallbackHandler);
 paymentsRouter.all("/payments/tomege/notify", tomeGeCallbackHandler);
+paymentsRouter.all("/payments/platega", plategaCallbackHandler);
+paymentsRouter.all("/payments/platega/", plategaCallbackHandler);
+paymentsRouter.all("/payments/platega/notify", plategaCallbackHandler);
 paymentsRouter.all("/payments/paypal", payPalCallbackHandler);
 paymentsRouter.all("/payments/paypal/", payPalCallbackHandler);
 paymentsRouter.all("/payments/paypal/notify", payPalCallbackHandler);

@@ -3177,6 +3177,15 @@ function localizeAuthError(message: string): string {
   if (normalized.includes("freekassa is not configured")) {
     return "Платежный шлюз еще не настроен на сервере.";
   }
+  if (normalized.includes("platega is not configured")) {
+    return "Platega еще не настроена на сервере.";
+  }
+  if (normalized.includes("platega is available only for cis payments")) {
+    return "Platega доступна только для оплаты в России и СНГ.";
+  }
+  if (normalized.includes("failed to connect to platega")) {
+    return "Не удалось связаться с Platega. Попробуйте позже.";
+  }
   if (normalized.includes("failed to connect to freekassa")) {
     return "Не удалось связаться с платежным шлюзом. Попробуйте позже.";
   }
@@ -4627,6 +4636,8 @@ export default function App() {
         const checkoutEndpoint =
           method.providerCategory === "europe"
             ? "/payments/paypal/create"
+            : method.id === 42
+              ? "/payments/platega/create"
             : "/payments/freekassa/create";
         const payload = await authRequest<{ ok: true; checkoutUrl: string }>(
           checkoutEndpoint,
