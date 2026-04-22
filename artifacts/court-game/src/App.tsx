@@ -1023,7 +1023,10 @@ function getCasePackSortOrder(
   return typeof pack?.sortOrder === "number" ? pack.sortOrder + 100 : 999;
 }
 
-function createEmptyUserPackCaseDraft(modePlayerCount: UserPackCaseMode = 3): UserPackCaseDraft {
+function createEmptyUserPackCaseDraft(
+  modePlayerCount: UserPackCaseMode = 3,
+  options?: { isAutoDraft?: boolean },
+): UserPackCaseDraft {
   const requiredRoles = (ROLE_KEYS_BY_PLAYERS[modePlayerCount] ?? []).filter(
     (role) => role !== "judge",
   ) as UserPackRoleKey[];
@@ -1033,6 +1036,8 @@ function createEmptyUserPackCaseDraft(modePlayerCount: UserPackCaseMode = 3): Us
     id: `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     modePlayerCount,
     lastEditedAt: Date.now(),
+    isAutoDraft: !!options?.isAutoDraft,
+    hasUserChanges: false,
     title: "",
     description: "",
     truth: "",
@@ -2558,6 +2563,8 @@ type UserPackCaseDraft = {
   id: string;
   modePlayerCount: UserPackCaseMode;
   lastEditedAt: number;
+  isAutoDraft: boolean;
+  hasUserChanges: boolean;
   title: string;
   description: string;
   truth: string;
@@ -4373,9 +4380,12 @@ export default function App() {
     const activeExists =
       createPackActiveCaseId && createPackCases.some((item) => item.id === createPackActiveCaseId);
     if (!activeExists) {
-      setCreatePackActiveCaseId(createPackCases[0].id);
+      const preferred = createPackCases
+        .filter((item) => item.modePlayerCount === createPackModeTab)
+        .sort((a, b) => (b.lastEditedAt ?? 0) - (a.lastEditedAt ?? 0))[0] ?? createPackCases[0];
+      setCreatePackActiveCaseId(preferred.id);
     }
-  }, [createPackCases, createPackActiveCaseId]);
+  }, [createPackCases, createPackActiveCaseId, createPackModeTab]);
   useEffect(() => {
     const modeCasesCount = createPackCases.filter(
       (item) => item.modePlayerCount === createPackModeTab,
@@ -4411,6 +4421,11 @@ export default function App() {
     startOffsetX: number;
     startOffsetY: number;
   } | null>(null);
+  const createPackEditStampRef = useRef(0);
+  const nextCreatePackEditStamp = useCallback(() => {
+    createPackEditStampRef.current = (createPackEditStampRef.current + 1) % 1000;
+    return Date.now() * 1000 + createPackEditStampRef.current;
+  }, []);
   const showPasswordUpdatedToast = useCallback(() => {
     if (passwordUpdatedToastTimerRef.current !== null) {
       window.clearTimeout(passwordUpdatedToastTimerRef.current);
@@ -4983,6 +4998,8 @@ export default function App() {
                   ? `case_${caseItem.caseKey}_${index}`
                   : `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                 lastEditedAt: Date.now() - index,
+                isAutoDraft: false,
+                hasUserChanges: false,
                 title: String(caseItem?.title ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.caseTitle),
                 description: String(caseItem?.description ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.caseDescription),
                 truth: String(caseItem?.truth ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.truth),
@@ -5058,12 +5075,48 @@ export default function App() {
     }
   }, [authToken, importPackShareCode, loadMyCasePacks, requestCasePacks]);
 
+  const dropUntouchedAutoDraftsForMode = useCallback(
+    (cases: UserPackCaseDraft[], mode: UserPackCaseMode) =>
+      cases.filter(
+        (item) => !(item.modePlayerCount === mode && item.isAutoDraft && !item.hasUserChanges),
+      ),
+    [],
+  );
+
+  const switchCreatePackModeTab = useCallback(
+    (nextMode: UserPackCaseMode) => {
+      let nextCases = dropUntouchedAutoDraftsForMode(createPackCases, createPackModeTab);
+      const modeCases = nextCases
+        .filter((item) => item.modePlayerCount === nextMode)
+        .sort((a, b) => (b.lastEditedAt ?? 0) - (a.lastEditedAt ?? 0));
+
+      let nextActiveId: string | null = null;
+      if (modeCases.length === 0) {
+        const autoDraft = createEmptyUserPackCaseDraft(nextMode, { isAutoDraft: true });
+        autoDraft.lastEditedAt = nextCreatePackEditStamp();
+        nextCases = [autoDraft, ...nextCases];
+        nextActiveId = autoDraft.id;
+      } else {
+        nextActiveId = modeCases[0].id;
+      }
+
+      setCreatePackCases(nextCases);
+      setCreatePackModeTab(nextMode);
+      setCreatePackActiveCaseId(nextActiveId);
+      setCreatePackCasesPage(1);
+    },
+    [createPackCases, createPackModeTab, dropUntouchedAutoDraftsForMode, nextCreatePackEditStamp],
+  );
+
   const addCreatePackCase = useCallback(() => {
+    const baseCases = dropUntouchedAutoDraftsForMode(createPackCases, createPackModeTab);
     const nextCase = createEmptyUserPackCaseDraft(createPackModeTab);
-    setCreatePackCases((prev) => [...prev, nextCase]);
+    nextCase.lastEditedAt = nextCreatePackEditStamp();
+    setCreatePackCases([nextCase, ...baseCases]);
     setCreatePackActiveCaseId(nextCase.id);
     setCreatePackModeTab(nextCase.modePlayerCount);
-  }, [createPackModeTab]);
+    setCreatePackCasesPage(1);
+  }, [createPackCases, createPackModeTab, dropUntouchedAutoDraftsForMode, nextCreatePackEditStamp]);
 
   const removeCreatePackCase = useCallback((caseId: string) => {
     setCreatePackCases((prev) => {
@@ -5108,7 +5161,9 @@ export default function App() {
             return {
               ...item,
               modePlayerCount: nextMode,
-              lastEditedAt: Date.now(),
+              lastEditedAt: nextCreatePackEditStamp(),
+              isAutoDraft: false,
+              hasUserChanges: true,
               factsByRole: nextFactsByRole,
             };
           }
@@ -5120,18 +5175,22 @@ export default function App() {
             return {
               ...item,
               expectedVerdict: safeVerdict,
-              lastEditedAt: Date.now(),
+              lastEditedAt: nextCreatePackEditStamp(),
+              isAutoDraft: false,
+              hasUserChanges: true,
             };
           }
           return {
             ...item,
             [field]: String(value),
-            lastEditedAt: Date.now(),
+            lastEditedAt: nextCreatePackEditStamp(),
+            isAutoDraft: false,
+            hasUserChanges: true,
           };
         }),
       );
     },
-    [],
+    [nextCreatePackEditStamp],
   );
 
   const updateCreatePackCaseEvidenceRow = useCallback(
@@ -5141,7 +5200,9 @@ export default function App() {
           item.id === caseId
               ? {
                   ...item,
-                  lastEditedAt: Date.now(),
+                  lastEditedAt: nextCreatePackEditStamp(),
+                  isAutoDraft: false,
+                  hasUserChanges: true,
                   evidenceRows: [0, 1, 2].map((index) => {
                     const source = item.evidenceRows[index] ?? "";
                     return index === rowIndex ? value : source;
@@ -5151,7 +5212,7 @@ export default function App() {
         ),
       );
     },
-    [],
+    [nextCreatePackEditStamp],
   );
 
   const updateCreatePackCaseFactRow = useCallback(
@@ -5161,7 +5222,9 @@ export default function App() {
           item.id === caseId
               ? {
                   ...item,
-                  lastEditedAt: Date.now(),
+                  lastEditedAt: nextCreatePackEditStamp(),
+                  isAutoDraft: false,
+                  hasUserChanges: true,
                   factsByRole: {
                     ...item.factsByRole,
                   [roleKey]: (item.factsByRole[roleKey] ?? []).map((row, index) =>
@@ -5173,7 +5236,7 @@ export default function App() {
         ),
       );
     },
-    [],
+    [nextCreatePackEditStamp],
   );
 
   const submitCreatePack = useCallback(async () => {
@@ -5188,7 +5251,11 @@ export default function App() {
     }
 
     try {
-      const casesPayload = createPackCases.map((draft, index) => {
+      const sourceCases = createPackCases.filter(
+        (draft) => !(draft.isAutoDraft && !draft.hasUserChanges),
+      );
+      const preparedCases = sourceCases.length > 0 ? sourceCases : createPackCases;
+      const casesPayload = preparedCases.map((draft, index) => {
         const mode = Number(draft.modePlayerCount) as UserPackCaseMode;
         const allowedRoles = (ROLE_KEYS_BY_PLAYERS[mode] ?? []).filter(
           (role) => role !== "judge",
@@ -13373,7 +13440,10 @@ export default function App() {
                         </Dialog>
                       </div>
                     ) : (
-                      <div className="space-y-3 min-w-0 overflow-x-hidden max-w-[980px] mx-auto">
+                      <div className="relative space-y-3 min-w-0 overflow-x-hidden max-w-[980px] mx-auto">
+                        {createPackCasesDialogOpen && (
+                          <div className="pointer-events-none absolute inset-0 z-[204] rounded-2xl bg-black/55" />
+                        )}
                         <div className="rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_56%),linear-gradient(140deg,rgba(24,24,27,0.94),rgba(39,39,42,0.82))] p-4">
                           <div className="space-y-1">
                             <div className="text-base font-semibold text-zinc-100">
@@ -13493,7 +13563,7 @@ export default function App() {
                                   <button
                                     key={`pack-mode-tab-${mode.value}`}
                                     type="button"
-                                    onClick={() => setCreatePackModeTab(mode.value)}
+                                    onClick={() => switchCreatePackModeTab(mode.value)}
                                     className={`min-w-0 rounded-xl border px-3 py-2 text-left transition-all ${
                                       isTabActive
                                         ? "border-red-500/70 bg-red-500/12 shadow-[0_0_0_1px_rgba(239,68,68,0.12)]"
@@ -13544,7 +13614,7 @@ export default function App() {
 
                           <Dialog open={createPackCasesDialogOpen} onOpenChange={setCreatePackCasesDialogOpen}>
                             <DialogContent
-                              overlayClassName="z-[205] bg-black/72"
+                              overlayClassName="z-[205] !bg-transparent backdrop-blur-0"
                               className="z-[210] max-w-2xl border-zinc-800 bg-zinc-950 text-zinc-100"
                             >
                               <DialogHeader>
@@ -13554,6 +13624,32 @@ export default function App() {
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                  {createPackAllCasesByMode.map(({ mode, cases }) => {
+                                    const isActive = mode.value === createPackModeTab;
+                                    return (
+                                      <button
+                                        key={`cases-dialog-mode-${mode.value}`}
+                                        type="button"
+                                        onClick={() => {
+                                          switchCreatePackModeTab(mode.value);
+                                        }}
+                                        className={`rounded-lg border px-2 py-1.5 text-left transition-colors ${
+                                          isActive
+                                            ? "border-red-500/70 bg-red-500/12"
+                                            : "border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800"
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between gap-1">
+                                          <span className="text-xs font-semibold text-zinc-100">{mode.label}</span>
+                                          <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                                            {cases.length}
+                                          </span>
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                                 <div className="text-xs uppercase tracking-[0.11em] text-zinc-500 break-words">
                                   {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackModeTab)?.label} —{" "}
                                   {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackModeTab)?.subtitle}
@@ -13765,7 +13861,7 @@ export default function App() {
                                 <div className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
                                   Факты по ролям
                                 </div>
-                                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                                   {activeCreatePackRequiredRoles.map((roleKey) => {
                                     const roleRows = activeCreatePackCase.factsByRole[roleKey] ?? ["", "", "", ""];
                                     return (
@@ -13776,7 +13872,7 @@ export default function App() {
                                         <div className="text-xs font-medium text-zinc-300">
                                           {USER_PACK_ROLE_TITLES[roleKey]}
                                         </div>
-                                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                        <div className="space-y-1.5">
                                           {roleRows.map((row, rowIndex) => (
                                             <Input
                                               key={`${activeCreatePackCase.id}-${roleKey}-${rowIndex}`}
