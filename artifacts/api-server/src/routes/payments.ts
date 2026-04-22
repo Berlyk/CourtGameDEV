@@ -20,11 +20,11 @@ type PayPalCheckoutMode = "paypal" | "paypal_cards";
 
 const PAID_TIERS = new Set<PaidTier>(["trainee", "practitioner", "arbiter"]);
 const PAID_DURATIONS = new Set<PaidDuration>(["1_month", "1_year"]);
-const CIS_METHOD_IDS = new Set<number>([4, 8, 12, 42]);
+const CIS_METHOD_IDS = new Set<number>([2, 4, 8, 12, 42]);
 const CRYPTO_METHOD_IDS = new Set<number>([15, 26, 39, 41, 45]);
 const TOME_CARD_METHOD_IDS = new Set<number>([4, 8, 12]);
-const TOME_SBP_METHOD_IDS = new Set<number>([42]);
-const PLATEGA_SBP_METHOD_IDS = new Set<number>([42]);
+const TOME_SBP_METHOD_IDS = new Set<number>([2, 42]);
+const PLATEGA_SBP_METHOD_IDS = new Set<number>([2, 42]);
 const PAYPAL_METHOD_IDS = new Set<number>([201, 202]);
 const PAYPAL_ONLY_METHOD_IDS = new Set<number>([201]);
 const PAYPAL_CARDS_METHOD_IDS = new Set<number>([202]);
@@ -215,15 +215,23 @@ function readPlategaConfig() {
       process.env.PLATEGA_SHOP_ID ??
       process.env.PLATEGA_ACCOUNT_ID ??
       "",
-  ).trim();
+  )
+    .replace(/\s+/g, "")
+    .trim();
   const apiKey = String(
     process.env.PLATEGA_API_KEY ??
       process.env.PLATEGA_SECRET_KEY ??
       process.env.PLATEGA_SECRET ??
       process.env.PLATEGA_X_SECRET ??
       "",
-  ).trim();
-  const apiBase = String(process.env.PLATEGA_API_BASE ?? "https://api.platega.io").trim();
+  )
+    .replace(/\s+/g, "")
+    .trim();
+  const rawApiBase = String(process.env.PLATEGA_API_BASE ?? "").trim();
+  const resolvedApiBase = rawApiBase
+    ? (/^https?:\/\//i.test(rawApiBase) ? rawApiBase : `https://${rawApiBase}`)
+    : "https://app.platega.io";
+  const apiBase = resolvedApiBase.replace(/\/+$/, "");
   const callbackUrl =
     normalizePublicUrl(process.env.PLATEGA_CALLBACK_URL) ??
     "https://courtgame.site/api/payments/platega";
@@ -891,7 +899,7 @@ paymentsRouter.post("/payments/platega/create", async (req, res) => {
     }),
   };
 
-  const plategaUrl = `${apiBase.replace(/\/+$/, "")}/v2/transaction/process`;
+  const plategaUrl = `${apiBase}/transaction/process`;
   const plategaResponse = await fetch(plategaUrl, {
     method: "POST",
     headers: {

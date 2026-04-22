@@ -287,7 +287,7 @@ const SHOP_PAYMENT_SECTIONS: Array<{
 
 const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
   {
-    id: 42,
+    id: 2,
     category: "russia",
     providerCategory: "cis",
     title: "СБП",
@@ -4636,7 +4636,7 @@ export default function App() {
         const checkoutEndpoint =
           method.providerCategory === "europe"
             ? "/payments/paypal/create"
-            : method.id === 42
+            : method.id === 2
               ? "/payments/platega/create"
             : "/payments/freekassa/create";
         const payload = await authRequest<{ ok: true; checkoutUrl: string }>(
