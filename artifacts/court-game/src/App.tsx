@@ -220,6 +220,20 @@ const USER_PACK_MODE_OPTIONS: Array<{ value: UserPackCaseMode; label: string }> 
   { value: 5, label: "5 игроков — Уголовное дело (с прокурором)" },
   { value: 6, label: "6 игроков — Суд на компанию" },
 ];
+const USER_PACK_COLOR_PRESETS = [
+  "#ef4444",
+  "#dc2626",
+  "#f97316",
+  "#f59e0b",
+  "#eab308",
+  "#22c55e",
+  "#14b8a6",
+  "#06b6d4",
+  "#3b82f6",
+  "#6366f1",
+  "#8b5cf6",
+  "#ec4899",
+];
 
 const QUICK_ROOM_MODE = {
   key: "quick_flex" as RoomModeKey,
@@ -12706,7 +12720,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="bg-black/88"
-                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[980px]" : "max-w-[770px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
+                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1120px]" : "max-w-[770px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -12931,159 +12945,229 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          <div className="space-y-1.5">
-                            <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Название пака</label>
-                            <Input
-                              value={createPackTitle}
-                              onChange={(event) => setCreatePackTitle(event.target.value)}
-                              placeholder="Например: Мои дела"
-                              className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Цвет пака</label>
-                            <Input
-                              value={createPackColor}
-                              onChange={(event) => setCreatePackColor(event.target.value)}
-                              placeholder="#ef4444"
-                              className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
-                            />
+                        <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900/95 via-zinc-900 to-zinc-950 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="text-sm font-semibold text-zinc-100">Новый пользовательский пак</div>
+                              <div className="text-xs text-zinc-400">
+                                Создайте дела, настройте роли и поделитесь паком по ключу.
+                              </div>
+                            </div>
+                            <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1">
+                              <span className="text-[11px] text-zinc-500">Превью</span>
+                              <span
+                                className="h-5 w-5 rounded-full border border-zinc-700 shadow-[0_0_12px_rgba(239,68,68,0.25)]"
+                                style={{
+                                  backgroundColor: /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(
+                                    createPackColor.trim(),
+                                  )
+                                    ? createPackColor
+                                    : "#ef4444",
+                                }}
+                              />
+                            </div>
                           </div>
                         </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Описание</label>
-                          <textarea
-                            value={createPackDescription}
-                            onChange={(event) => setCreatePackDescription(event.target.value)}
-                            placeholder="Короткое описание пака."
-                            className="min-h-[74px] w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500"
-                          />
+
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 space-y-3">
+                          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
+                            <div className="space-y-1.5">
+                              <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Название пака</label>
+                              <Input
+                                value={createPackTitle}
+                                onChange={(event) => setCreatePackTitle(event.target.value)}
+                                placeholder="Например: Ночной суд"
+                                className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Цвет</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={
+                                    /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(createPackColor.trim())
+                                      ? createPackColor
+                                      : "#ef4444"
+                                  }
+                                  onChange={(event) => setCreatePackColor(event.target.value)}
+                                  className="h-11 w-14 cursor-pointer rounded-xl border border-zinc-700 bg-zinc-950 p-1"
+                                />
+                                <Input
+                                  value={createPackColor}
+                                  onChange={(event) => setCreatePackColor(event.target.value)}
+                                  placeholder="#ef4444"
+                                  className="h-11 w-[130px] rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5">
+                            {USER_PACK_COLOR_PRESETS.map((color) => {
+                              const isActive = createPackColor.trim().toLowerCase() === color;
+                              return (
+                                <button
+                                  key={color}
+                                  type="button"
+                                  aria-label={`Выбрать цвет ${color}`}
+                                  onClick={() => setCreatePackColor(color)}
+                                  className={`h-7 w-7 rounded-full border transition-transform hover:scale-105 ${isActive ? "border-white/80 ring-2 ring-white/20" : "border-zinc-700"}`}
+                                  style={{ backgroundColor: color }}
+                                />
+                              );
+                            })}
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Описание</label>
+                            <textarea
+                              value={createPackDescription}
+                              onChange={(event) => setCreatePackDescription(event.target.value)}
+                              placeholder="Короткое описание пака."
+                              className="min-h-[86px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500"
+                            />
+                          </div>
                         </div>
 
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">
-                            Дела в паке ({createPackCases.length})
+                          <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/70 px-3 py-1 text-xs text-zinc-300">
+                            Дела в паке
+                            <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-red-100">
+                              {createPackCases.length}
+                            </span>
                           </div>
                           <Button
                             type="button"
                             variant="outline"
                             onClick={addCreatePackCase}
-                            className="h-8 rounded-lg border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                            className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
                           >
                             Добавить дело
                           </Button>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
                           {createPackCases.map((draft, index) => {
                             const requiredRoles = (ROLE_KEYS_BY_PLAYERS[draft.modePlayerCount] ?? []).filter(
                               (role) => role !== "judge",
                             ) as UserPackRoleKey[];
+                            const modeLabel =
+                              USER_PACK_MODE_OPTIONS.find((mode) => mode.value === draft.modePlayerCount)
+                                ?.label ?? `${draft.modePlayerCount} игроков`;
                             return (
                               <div
                                 key={draft.id}
-                                className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3 space-y-2"
+                                className="rounded-2xl border border-zinc-800 bg-zinc-900/75 p-3 space-y-3"
                               >
                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <div className="text-sm font-semibold text-zinc-100">Дело #{index + 1}</div>
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <div className="inline-flex h-7 items-center rounded-full border border-zinc-700 bg-zinc-950 px-2.5 text-xs font-semibold text-zinc-200">
+                                      Дело #{index + 1}
+                                    </div>
+                                    <div className="min-w-0 text-xs text-zinc-500 break-words">{modeLabel}</div>
+                                  </div>
                                   <Button
                                     type="button"
                                     variant="outline"
                                     onClick={() => removeCreatePackCase(draft.id)}
-                                    className="h-7 rounded-lg border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-300 hover:bg-zinc-800"
+                                    className="h-8 rounded-lg border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-300 hover:bg-zinc-800"
                                   >
                                     Удалить
                                   </Button>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                  <div className="space-y-1">
-                                    <label className="text-[11px] text-zinc-500">Режим</label>
-                                    <select
-                                      value={draft.modePlayerCount}
-                                      onChange={(event) =>
-                                        updateCreatePackCaseField(
-                                          draft.id,
-                                          "modePlayerCount",
-                                          Number(event.target.value),
-                                        )
-                                      }
-                                      className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
-                                    >
-                                      {USER_PACK_MODE_OPTIONS.map((mode) => (
-                                        <option key={mode.value} value={mode.value}>
-                                          {mode.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <label className="text-[11px] text-zinc-500">Название дела</label>
-                                    <Input
-                                      value={draft.title}
-                                      onChange={(event) =>
-                                        updateCreatePackCaseField(draft.id, "title", event.target.value)
-                                      }
-                                      placeholder={`Дело ${index + 1}`}
-                                      className="h-9 rounded-lg border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <label className="text-[11px] text-zinc-500">Описание дела</label>
-                                  <textarea
-                                    value={draft.description}
-                                    onChange={(event) =>
-                                      updateCreatePackCaseField(draft.id, "description", event.target.value)
-                                    }
-                                    className="min-h-[68px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
-                                  />
-                                </div>
-
-                                <div className="space-y-1">
-                                  <label className="text-[11px] text-zinc-500">Истина</label>
-                                  <textarea
-                                    value={draft.truth}
-                                    onChange={(event) =>
-                                      updateCreatePackCaseField(draft.id, "truth", event.target.value)
-                                    }
-                                    className="min-h-[68px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
-                                  />
-                                </div>
-
-                                <div className="space-y-1">
-                                  <label className="text-[11px] text-zinc-500">Улики (каждая с новой строки)</label>
-                                  <textarea
-                                    value={draft.evidenceText}
-                                    onChange={(event) =>
-                                      updateCreatePackCaseField(draft.id, "evidenceText", event.target.value)
-                                    }
-                                    className="min-h-[68px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <div className="text-[11px] text-zinc-500">
-                                    Факты по ролям (минимум 4 строки для каждой активной роли)
-                                  </div>
-                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    {requiredRoles.map((roleKey) => (
-                                      <div key={`${draft.id}-${roleKey}`} className="space-y-1">
-                                        <label className="text-[11px] text-zinc-400">
-                                          {USER_PACK_ROLE_TITLES[roleKey]}
-                                        </label>
-                                        <textarea
-                                          value={draft.factsByRole[roleKey]}
+                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.1fr_0.9fr]">
+                                  <div className="space-y-2.5">
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                      <div className="space-y-1">
+                                        <label className="text-[11px] text-zinc-500">Режим</label>
+                                        <select
+                                          value={draft.modePlayerCount}
                                           onChange={(event) =>
-                                            updateCreatePackCaseFacts(draft.id, roleKey, event.target.value)
+                                            updateCreatePackCaseField(
+                                              draft.id,
+                                              "modePlayerCount",
+                                              Number(event.target.value),
+                                            )
                                           }
-                                          placeholder={"Факт 1\nФакт 2\nФакт 3\nФакт 4"}
-                                          className="min-h-[92px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                          className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
+                                        >
+                                          {USER_PACK_MODE_OPTIONS.map((mode) => (
+                                            <option key={mode.value} value={mode.value}>
+                                              {mode.label}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <label className="text-[11px] text-zinc-500">Название дела</label>
+                                        <Input
+                                          value={draft.title}
+                                          onChange={(event) =>
+                                            updateCreatePackCaseField(draft.id, "title", event.target.value)
+                                          }
+                                          placeholder={`Дело ${index + 1}`}
+                                          className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
                                         />
                                       </div>
-                                    ))}
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <label className="text-[11px] text-zinc-500">Описание дела</label>
+                                      <textarea
+                                        value={draft.description}
+                                        onChange={(event) =>
+                                          updateCreatePackCaseField(draft.id, "description", event.target.value)
+                                        }
+                                        className="min-h-[86px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                      />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <label className="text-[11px] text-zinc-500">Истина</label>
+                                      <textarea
+                                        value={draft.truth}
+                                        onChange={(event) =>
+                                          updateCreatePackCaseField(draft.id, "truth", event.target.value)
+                                        }
+                                        className="min-h-[86px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                      />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <label className="text-[11px] text-zinc-500">Улики (каждая с новой строки)</label>
+                                      <textarea
+                                        value={draft.evidenceText}
+                                        onChange={(event) =>
+                                          updateCreatePackCaseField(draft.id, "evidenceText", event.target.value)
+                                        }
+                                        className="min-h-[100px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="rounded-xl border border-zinc-800 bg-zinc-950/45 p-2.5 space-y-2">
+                                    <div className="text-[11px] text-zinc-500">
+                                      Факты по ролям (минимум 4 строки для активных ролей)
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      {requiredRoles.map((roleKey) => (
+                                        <div key={`${draft.id}-${roleKey}`} className="space-y-1">
+                                          <label className="text-[11px] font-medium text-zinc-400">
+                                            {USER_PACK_ROLE_TITLES[roleKey]}
+                                          </label>
+                                          <textarea
+                                            value={draft.factsByRole[roleKey]}
+                                            onChange={(event) =>
+                                              updateCreatePackCaseFacts(draft.id, roleKey, event.target.value)
+                                            }
+                                            placeholder={"Факт 1\nФакт 2\nФакт 3\nФакт 4"}
+                                            className="min-h-[108px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
