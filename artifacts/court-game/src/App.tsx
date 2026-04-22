@@ -52,6 +52,11 @@ import {
   BookOpenText,
   Menu,
   X,
+  Palette,
+  List,
+  Check,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getSocket } from "@/lib/socket";
@@ -214,11 +219,15 @@ const USER_PACK_ROLE_TITLES: Record<UserPackRoleKey, string> = {
   plaintiffLawyer: "Адвокат истца",
 };
 
-const USER_PACK_MODE_OPTIONS: Array<{ value: UserPackCaseMode; label: string }> = [
-  { value: 3, label: "3 игрока — Гражданский / Трудовой спор" },
-  { value: 4, label: "4 игрока — Уголовное дело" },
-  { value: 5, label: "5 игроков — Уголовное дело (с прокурором)" },
-  { value: 6, label: "6 игроков — Суд на компанию" },
+const USER_PACK_MODE_OPTIONS: Array<{
+  value: UserPackCaseMode;
+  label: string;
+  subtitle: string;
+}> = [
+  { value: 3, label: "3 игрока", subtitle: "Гражданский / Трудовой спор" },
+  { value: 4, label: "4 игрока", subtitle: "Уголовное дело" },
+  { value: 5, label: "5 игроков", subtitle: "Уголовное дело (с прокурором)" },
+  { value: 6, label: "6 игроков", subtitle: "Суд на компанию" },
 ];
 const USER_PACK_COLOR_PRESETS = [
   "#ef4444",
@@ -234,6 +243,30 @@ const USER_PACK_COLOR_PRESETS = [
   "#8b5cf6",
   "#ec4899",
 ];
+const USER_PACK_COLOR_DEFAULT = "#ef4444";
+const USER_PACK_TEXT_LIMITS = {
+  packTitle: 90,
+  packDescription: 420,
+  caseTitle: 90,
+  caseDescription: 420,
+  truth: 420,
+};
+const USER_PACK_CASES_PER_PAGE = 10;
+const USER_PACK_VERDICT_OPTIONS: Array<{
+  key: "guilty" | "not_guilty" | "partial_guilty";
+  label: string;
+}> = [
+  { key: "guilty", label: "Виновен" },
+  { key: "partial_guilty", label: "Частично виновен" },
+  { key: "not_guilty", label: "Не виновен" },
+];
+
+function inferVerdictKeyFromTruth(value: string | undefined): "guilty" | "not_guilty" | "partial_guilty" {
+  const normalized = (value ?? "").toLowerCase().replace(/ё/g, "е");
+  if (normalized.includes("не винов")) return "not_guilty";
+  if (normalized.includes("частично винов")) return "partial_guilty";
+  return "guilty";
+}
 
 const QUICK_ROOM_MODE = {
   key: "quick_flex" as RoomModeKey,
@@ -987,6 +1020,7 @@ function createEmptyUserPackCaseDraft(modePlayerCount: UserPackCaseMode = 3): Us
     title: "",
     description: "",
     truth: "",
+    expectedVerdict: "guilty",
     evidenceRows: ["", "", ""],
     factsByRole: {
       judge: [""],
@@ -2510,6 +2544,7 @@ type UserPackCaseDraft = {
   title: string;
   description: string;
   truth: string;
+  expectedVerdict: "guilty" | "not_guilty" | "partial_guilty";
   evidenceRows: string[];
   factsByRole: Record<UserPackRoleKey, string[]>;
 };
@@ -2520,6 +2555,7 @@ type UserPackApiCase = {
   title: string;
   description: string;
   truth: string;
+  expectedVerdict?: "guilty" | "not_guilty" | "partial_guilty";
   evidence: string[];
   factsByRole?: Partial<Record<UserPackRoleKey, string[]>>;
 };
@@ -4262,9 +4298,11 @@ export default function App() {
   const [createPackEditLoading, setCreatePackEditLoading] = useState(false);
   const [createPackError, setCreatePackError] = useState("");
   const [createPackEditKey, setCreatePackEditKey] = useState<string | null>(null);
+  const [createPackCasesDialogOpen, setCreatePackCasesDialogOpen] = useState(false);
+  const [createPackCasesPage, setCreatePackCasesPage] = useState(1);
   const [createPackTitle, setCreatePackTitle] = useState("");
   const [createPackDescription, setCreatePackDescription] = useState("");
-  const [createPackColor, setCreatePackColor] = useState("#ef4444");
+  const [createPackColor, setCreatePackColor] = useState(USER_PACK_COLOR_DEFAULT);
   const [createPackCases, setCreatePackCases] = useState<UserPackCaseDraft[]>([
     createEmptyUserPackCaseDraft(3),
   ]);
@@ -4319,6 +4357,10 @@ export default function App() {
       setCreatePackActiveCaseId(createPackCases[0].id);
     }
   }, [createPackCases, createPackActiveCaseId]);
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(createPackCases.length / USER_PACK_CASES_PER_PAGE));
+    setCreatePackCasesPage((prev) => Math.max(1, Math.min(prev, totalPages)));
+  }, [createPackCases.length]);
 
   const [myId, setMyId] = useState<string | null>(null);
   const [mySessionToken, setMySessionToken] = useState<string | null>(
@@ -4632,6 +4674,23 @@ export default function App() {
         : [],
     [activeCreatePackCase],
   );
+  const createPackCasesTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(createPackCases.length / USER_PACK_CASES_PER_PAGE)),
+    [createPackCases.length],
+  );
+  const createPackCasesPaged = useMemo(() => {
+    const safePage = Math.max(1, Math.min(createPackCasesPage, createPackCasesTotalPages));
+    const start = (safePage - 1) * USER_PACK_CASES_PER_PAGE;
+    return createPackCases.slice(start, start + USER_PACK_CASES_PER_PAGE);
+  }, [createPackCases, createPackCasesPage, createPackCasesTotalPages]);
+  const createPackCasesPagedByMode = useMemo(() => {
+    return USER_PACK_MODE_OPTIONS.map((mode) => ({
+      mode,
+      cases: createPackCasesPaged.filter((item) => item.modePlayerCount === mode.value),
+    })).filter((group) => group.cases.length > 0);
+  }, [createPackCasesPaged]);
+  const createPackQuickCases = useMemo(() => createPackCases.slice(0, 5), [createPackCases]);
+  const createPackHasOverflowCases = createPackCases.length > 5;
   const createPackCatalogActionLabel = createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
@@ -4781,9 +4840,11 @@ export default function App() {
     const firstCase = createEmptyUserPackCaseDraft(3);
     setCreatePackError("");
     setCreatePackEditKey(null);
+    setCreatePackCasesDialogOpen(false);
+    setCreatePackCasesPage(1);
     setCreatePackTitle("");
     setCreatePackDescription("");
-    setCreatePackColor("#ef4444");
+    setCreatePackColor(USER_PACK_COLOR_DEFAULT);
     setCreatePackCases([firstCase]);
     setCreatePackActiveCaseId(firstCase.id);
   }, []);
@@ -4876,7 +4937,13 @@ export default function App() {
                 title: String(caseItem?.title ?? "").trim(),
                 description: String(caseItem?.description ?? "").trim(),
                 truth: String(caseItem?.truth ?? "").trim(),
-                evidenceRows: normalizeDraftRows(caseItem?.evidence, 3),
+                expectedVerdict:
+                  caseItem?.expectedVerdict === "guilty" ||
+                  caseItem?.expectedVerdict === "not_guilty" ||
+                  caseItem?.expectedVerdict === "partial_guilty"
+                    ? caseItem.expectedVerdict
+                    : inferVerdictKeyFromTruth(String(caseItem?.truth ?? "")),
+                evidenceRows: normalizeDraftRows(caseItem?.evidence, 3).slice(0, 3),
                 factsByRole,
               };
             })
@@ -4885,7 +4952,7 @@ export default function App() {
         setCreatePackEditKey(pack?.key ?? packKey);
         setCreatePackTitle(String(pack?.title ?? ""));
         setCreatePackDescription(String(pack?.description ?? ""));
-        setCreatePackColor(String(pack?.color ?? "#ef4444"));
+        setCreatePackColor(String(pack?.color ?? USER_PACK_COLOR_DEFAULT));
         setCreatePackCases(drafts);
         setCreatePackActiveCaseId(drafts[0]?.id ?? null);
       } catch (error) {
@@ -4957,7 +5024,12 @@ export default function App() {
   const updateCreatePackCaseField = useCallback(
     (
       caseId: string,
-      field: "modePlayerCount" | "title" | "description" | "truth",
+      field:
+        | "modePlayerCount"
+        | "title"
+        | "description"
+        | "truth"
+        | "expectedVerdict",
       value: string | number,
     ) => {
       setCreatePackCases((prev) =>
@@ -4988,6 +5060,16 @@ export default function App() {
               factsByRole: nextFactsByRole,
             };
           }
+          if (field === "expectedVerdict") {
+            const safeVerdict =
+              value === "guilty" || value === "not_guilty" || value === "partial_guilty"
+                ? value
+                : "guilty";
+            return {
+              ...item,
+              expectedVerdict: safeVerdict,
+            };
+          }
           return {
             ...item,
             [field]: String(value),
@@ -5005,9 +5087,10 @@ export default function App() {
           item.id === caseId
             ? {
                 ...item,
-                evidenceRows: item.evidenceRows.map((row, index) =>
-                  index === rowIndex ? value : row,
-                ),
+                evidenceRows: [0, 1, 2].map((index) => {
+                  const source = item.evidenceRows[index] ?? "";
+                  return index === rowIndex ? value : source;
+                }),
               }
             : item,
         ),
@@ -5015,32 +5098,6 @@ export default function App() {
     },
     [],
   );
-
-  const addCreatePackCaseEvidenceRow = useCallback((caseId: string) => {
-    setCreatePackCases((prev) =>
-      prev.map((item) =>
-        item.id === caseId
-          ? {
-              ...item,
-              evidenceRows: [...item.evidenceRows, ""].slice(0, 12),
-            }
-          : item,
-      ),
-    );
-  }, []);
-
-  const removeCreatePackCaseEvidenceRow = useCallback((caseId: string, rowIndex: number) => {
-    setCreatePackCases((prev) =>
-      prev.map((item) => {
-        if (item.id !== caseId) return item;
-        if (item.evidenceRows.length <= 1) return item;
-        return {
-          ...item,
-          evidenceRows: item.evidenceRows.filter((_, index) => index !== rowIndex),
-        };
-      }),
-    );
-  }, []);
 
   const updateCreatePackCaseFactRow = useCallback(
     (caseId: string, roleKey: UserPackRoleKey, rowIndex: number, value: string) => {
@@ -5058,46 +5115,6 @@ export default function App() {
               }
             : item,
         ),
-      );
-    },
-    [],
-  );
-
-  const addCreatePackCaseFactRow = useCallback((caseId: string, roleKey: UserPackRoleKey) => {
-    setCreatePackCases((prev) =>
-      prev.map((item) => {
-        if (item.id !== caseId) return item;
-        const rows = [...(item.factsByRole[roleKey] ?? []), ""].slice(0, 12);
-        return {
-          ...item,
-          factsByRole: {
-            ...item.factsByRole,
-            [roleKey]: rows,
-          },
-        };
-      }),
-    );
-  }, []);
-
-  const removeCreatePackCaseFactRow = useCallback(
-    (caseId: string, roleKey: UserPackRoleKey, rowIndex: number) => {
-      setCreatePackCases((prev) =>
-        prev.map((item) => {
-          if (item.id !== caseId) return item;
-          const requiredRoles = (ROLE_KEYS_BY_PLAYERS[item.modePlayerCount] ?? []).filter(
-            (role) => role !== "judge",
-          ) as UserPackRoleKey[];
-          const minRows = requiredRoles.includes(roleKey) ? 4 : 1;
-          const currentRows = item.factsByRole[roleKey] ?? [];
-          if (currentRows.length <= minRows) return item;
-          return {
-            ...item,
-            factsByRole: {
-              ...item.factsByRole,
-              [roleKey]: currentRows.filter((_, index) => index !== rowIndex),
-            },
-          };
-        }),
       );
     },
     [],
@@ -5135,9 +5152,10 @@ export default function App() {
 
         return {
           modePlayerCount: mode,
-          title: draft.title.trim() || `Дело ${index + 1}`,
-          description: draft.description.trim(),
-          truth: draft.truth.trim(),
+          title: (draft.title.trim() || `Дело ${index + 1}`).slice(0, USER_PACK_TEXT_LIMITS.caseTitle),
+          description: draft.description.trim().slice(0, USER_PACK_TEXT_LIMITS.caseDescription),
+          truth: draft.truth.trim().slice(0, USER_PACK_TEXT_LIMITS.truth),
+          expectedVerdict: draft.expectedVerdict,
           evidence: (draft.evidenceRows ?? []).map((item) => item.trim()).filter(Boolean),
           factsByRole,
         };
@@ -5153,8 +5171,8 @@ export default function App() {
         method: isEditing ? "PATCH" : "POST",
         token: authToken,
         body: {
-          title,
-          description: createPackDescription,
+          title: title.slice(0, USER_PACK_TEXT_LIMITS.packTitle),
+          description: createPackDescription.slice(0, USER_PACK_TEXT_LIMITS.packDescription),
           color: createPackColor,
           cases: casesPayload,
         },
@@ -12991,7 +13009,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="bg-black/88"
-                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1320px]" : "max-w-[820px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
+                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1140px]" : "max-w-[820px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -13260,7 +13278,7 @@ export default function App() {
                         </Dialog>
                       </div>
                     ) : (
-                      <div className="space-y-3">
+                      <div className="space-y-3 min-w-0 overflow-x-hidden">
                         <div className="rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_56%),linear-gradient(140deg,rgba(24,24,27,0.94),rgba(39,39,42,0.82))] p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="space-y-1">
@@ -13268,85 +13286,127 @@ export default function App() {
                                 {createPackEditKey ? "Редактирование пользовательского пака" : "Новый пользовательский пак"}
                               </div>
                               <div className="text-xs text-zinc-400">
-                                Удобный конструктор: настройка пака, переключение дел и быстрый импорт/шаринг.
+                                Настройте пак, распределите дела по режимам и сохраните готовый набор.
                               </div>
                             </div>
                             <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1">
-                              <span className="text-[11px] text-zinc-500">Цвет</span>
+                              <Palette className="h-3.5 w-3.5 text-zinc-400" />
+                              <span className="text-[11px] text-zinc-400">Тема</span>
                               <span
-                                className="h-5 w-5 rounded-full border border-zinc-700 shadow-[0_0_12px_rgba(239,68,68,0.28)]"
-                                style={{
-                                  backgroundColor: /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(
-                                    createPackColor.trim(),
-                                  )
-                                    ? createPackColor
-                                    : "#ef4444",
-                                }}
+                                className="h-4 w-4 rounded-full border border-zinc-700"
+                                style={{ backgroundColor: createPackColor }}
                               />
                             </div>
                           </div>
                         </div>
 
                         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/65 p-4 space-y-3">
-                          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_240px]">
-                            <div className="space-y-1.5">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
                               <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Название пака</label>
-                              <Input
-                                value={createPackTitle}
-                                onChange={(event) => setCreatePackTitle(event.target.value)}
-                                placeholder="Например: Ночной суд"
-                                className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
-                              />
+                              <span className="text-[11px] text-zinc-500">
+                                {createPackTitle.length}/{USER_PACK_TEXT_LIMITS.packTitle}
+                              </span>
                             </div>
-                            <div className="space-y-1.5">
-                              <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Цвет темы</label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="color"
-                                  value={
-                                    /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(createPackColor.trim())
-                                      ? createPackColor
-                                      : "#ef4444"
-                                  }
-                                  onChange={(event) => setCreatePackColor(event.target.value)}
-                                  className="h-11 w-14 cursor-pointer rounded-xl border border-zinc-700 bg-zinc-950 p-1"
+                            <Input
+                              value={createPackTitle}
+                              onChange={(event) =>
+                                setCreatePackTitle(event.target.value.slice(0, USER_PACK_TEXT_LIMITS.packTitle))
+                              }
+                              maxLength={USER_PACK_TEXT_LIMITS.packTitle}
+                              placeholder="Например: Ночной суд"
+                              className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                            />
+                          </div>
+
+                          <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="space-y-0.5">
+                                <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Цвет темы</div>
+                                <div className="text-[11px] text-zinc-400">
+                                  Выберите акцент и при необходимости скорректируйте HEX.
+                                </div>
+                              </div>
+                              <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-2.5 py-1">
+                                <span
+                                  className="h-4 w-4 rounded-full border border-zinc-600"
+                                  style={{ backgroundColor: createPackColor }}
                                 />
+                                <span className="font-mono text-[11px] text-zinc-300">{createPackColor}</span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 lg:grid-cols-12">
+                              {USER_PACK_COLOR_PRESETS.map((color) => {
+                                const isActive = createPackColor.trim().toLowerCase() === color;
+                                return (
+                                  <button
+                                    key={color}
+                                    type="button"
+                                    aria-label={`Выбрать цвет ${color}`}
+                                    onClick={() => setCreatePackColor(color)}
+                                    className={`h-8 rounded-full border transition-all hover:brightness-110 ${
+                                      isActive
+                                        ? "border-white ring-2 ring-white/25"
+                                        : "border-zinc-700"
+                                    }`}
+                                    style={{ backgroundColor: color }}
+                                  />
+                                );
+                              })}
+                            </div>
+                            <div className="grid grid-cols-[auto_1fr] items-center gap-2">
+                              <div
+                                className="h-10 w-10 rounded-xl border border-zinc-700"
+                                style={{ backgroundColor: createPackColor }}
+                              />
+                              <div className="flex items-center rounded-xl border border-zinc-700 bg-zinc-950 px-2">
+                                <span className="mr-2 text-sm text-zinc-500">#</span>
                                 <Input
-                                  value={createPackColor}
-                                  onChange={(event) => setCreatePackColor(event.target.value)}
-                                  placeholder="#ef4444"
-                                  className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                  value={createPackColor.replace(/^#/, "")}
+                                  onChange={(event) =>
+                                    setCreatePackColor(
+                                      `#${event.target.value
+                                        .replace(/[^0-9a-fA-F]/g, "")
+                                        .slice(0, 6)}`,
+                                    )
+                                  }
+                                  onBlur={() =>
+                                    setCreatePackColor((prev) => {
+                                      const raw = prev.trim().toLowerCase();
+                                      if (/^#[0-9a-f]{6}$/.test(raw)) return raw;
+                                      return USER_PACK_COLOR_DEFAULT;
+                                    })
+                                  }
+                                  placeholder="ef4444"
+                                  className="h-10 border-0 bg-transparent px-0 font-mono text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-0"
                                 />
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            {USER_PACK_COLOR_PRESETS.map((color) => {
-                              const isActive = createPackColor.trim().toLowerCase() === color;
-                              return (
-                                <button
-                                  key={color}
-                                  type="button"
-                                  aria-label={`Выбрать цвет ${color}`}
-                                  onClick={() => setCreatePackColor(color)}
-                                  className={`h-8 w-8 rounded-full border transition-all hover:scale-105 ${isActive ? "border-white ring-2 ring-white/20" : "border-zinc-700"}`}
-                                  style={{ backgroundColor: color }}
-                                />
-                              );
-                            })}
-                          </div>
+
                           <div className="space-y-1.5">
-                            <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Описание пака</label>
+                            <div className="flex items-center justify-between gap-2">
+                              <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Описание пака</label>
+                              <span className="text-[11px] text-zinc-500">
+                                {createPackDescription.length}/{USER_PACK_TEXT_LIMITS.packDescription}
+                              </span>
+                            </div>
                             <textarea
                               value={createPackDescription}
-                              onChange={(event) => setCreatePackDescription(event.target.value)}
+                              onChange={(event) =>
+                                setCreatePackDescription(
+                                  event.target.value.slice(0, USER_PACK_TEXT_LIMITS.packDescription),
+                                )
+                              }
+                              maxLength={USER_PACK_TEXT_LIMITS.packDescription}
                               placeholder="Коротко опишите стиль и тематику пака."
-                              className="min-h-[90px] w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500"
+                              style={{ resize: "none" }}
+                              className="min-h-[90px] max-h-[160px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500 overflow-y-auto"
                             />
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/65 p-4 space-y-3">
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/65 p-4 space-y-3 min-w-0 overflow-x-hidden">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-xs text-zinc-300">
                               Дела в паке
@@ -13354,48 +13414,158 @@ export default function App() {
                                 {createPackCases.length}
                               </span>
                             </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={addCreatePackCase}
-                              className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                            >
-                              Добавить дело
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              {createPackHasOverflowCases && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => setCreatePackCasesDialogOpen(true)}
+                                  className="h-9 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800"
+                                >
+                                  <List className="h-4 w-4" />
+                                  <span className="ml-2">Список дел</span>
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={addCreatePackCase}
+                                className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                              >
+                                Добавить дело
+                              </Button>
+                            </div>
                           </div>
 
-                          <div className="flex gap-2 overflow-x-auto pb-1">
-                            {createPackCases.map((draft, index) => {
-                              const modeLabel =
-                                USER_PACK_MODE_OPTIONS.find((mode) => mode.value === draft.modePlayerCount)
-                                  ?.label ?? `${draft.modePlayerCount} игроков`;
-                              const isActive = activeCreatePackCase?.id === draft.id;
+                          <div className="space-y-2 min-w-0">
+                            {USER_PACK_MODE_OPTIONS.map((mode) => {
+                              const modeCases = createPackQuickCases.filter(
+                                (item) => item.modePlayerCount === mode.value,
+                              );
+                              if (!modeCases.length) return null;
                               return (
-                                <button
-                                  key={draft.id}
-                                  type="button"
-                                  onClick={() => setCreatePackActiveCaseId(draft.id)}
-                                  className={`min-w-[220px] rounded-xl border px-3 py-2 text-left transition-colors ${
-                                    isActive
-                                      ? "border-red-500/70 bg-red-500/12"
-                                      : "border-zinc-700 bg-zinc-950 hover:border-zinc-600"
-                                  }`}
-                                >
-                                  <div className="text-sm font-semibold text-zinc-100">
-                                    {draft.title.trim() || `Дело #${index + 1}`}
+                                <div key={`quick-mode-${mode.value}`} className="space-y-1.5 min-w-0">
+                                  <div className="text-[11px] uppercase tracking-[0.11em] text-zinc-500 break-words">
+                                    {mode.label} — {mode.subtitle}
                                   </div>
-                                  <div className="mt-0.5 text-[11px] text-zinc-500">{modeLabel}</div>
-                                </button>
+                                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                    {modeCases.map((draft, idx) => {
+                                      const index = createPackCases.findIndex((item) => item.id === draft.id);
+                                      const isActive = activeCreatePackCase?.id === draft.id;
+                                      return (
+                                        <button
+                                          key={draft.id}
+                                          type="button"
+                                          onClick={() => setCreatePackActiveCaseId(draft.id)}
+                                          className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
+                                            isActive
+                                              ? "border-red-500/70 bg-red-500/12"
+                                              : "border-zinc-700 bg-zinc-950 hover:border-zinc-600"
+                                          }`}
+                                        >
+                                          <div className="truncate text-sm font-semibold text-zinc-100">
+                                            {draft.title.trim() || `Дело #${Math.max(1, index + 1 || idx + 1)}`}
+                                          </div>
+                                          <div className="mt-0.5 truncate text-[11px] text-zinc-500">
+                                            #{Math.max(1, index + 1)}
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               );
                             })}
                           </div>
+                          {createPackHasOverflowCases && (
+                            <div className="text-[11px] text-zinc-500">
+                              Показаны первые 5 дел. Остальные доступны в списке дел.
+                            </div>
+                          )}
+
+                          <Dialog open={createPackCasesDialogOpen} onOpenChange={setCreatePackCasesDialogOpen}>
+                            <DialogContent className="max-w-2xl border-zinc-800 bg-zinc-950 text-zinc-100">
+                              <DialogHeader>
+                                <DialogTitle>Список дел в паке</DialogTitle>
+                                <DialogDescription>
+                                  По 10 дел на страницу, с группировкой по режимам.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-3">
+                                {createPackCasesPagedByMode.map(({ mode, cases }) => (
+                                  <div key={`list-mode-${mode.value}`} className="space-y-2">
+                                    <div className="text-xs uppercase tracking-[0.11em] text-zinc-500 break-words">
+                                      {mode.label} — {mode.subtitle}
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      {cases.map((item) => {
+                                        const absoluteIndex = createPackCases.findIndex((draft) => draft.id === item.id);
+                                        const isActive = activeCreatePackCase?.id === item.id;
+                                        return (
+                                          <button
+                                            key={`list-item-${item.id}`}
+                                            type="button"
+                                            onClick={() => {
+                                              setCreatePackActiveCaseId(item.id);
+                                              setCreatePackCasesDialogOpen(false);
+                                            }}
+                                            className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
+                                              isActive
+                                                ? "border-red-500/70 bg-red-500/12"
+                                                : "border-zinc-700 bg-zinc-900/80 hover:border-zinc-600"
+                                            }`}
+                                          >
+                                            <div className="truncate text-sm font-semibold text-zinc-100">
+                                              {item.title.trim() || `Дело #${absoluteIndex + 1}`}
+                                            </div>
+                                            <div className="mt-0.5 text-[11px] text-zinc-500">
+                                              #{absoluteIndex + 1}
+                                            </div>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                                <div className="flex items-center justify-between gap-2 pt-1">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setCreatePackCasesPage((prev) => Math.max(1, prev - 1))}
+                                    disabled={createPackCasesPage <= 1}
+                                    className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                                  >
+                                    <ChevronLeft className="mr-1 h-4 w-4" />
+                                    Назад
+                                  </Button>
+                                  <div className="text-xs text-zinc-400">
+                                    Страница {createPackCasesPage} из {createPackCasesTotalPages}
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() =>
+                                      setCreatePackCasesPage((prev) =>
+                                        Math.min(createPackCasesTotalPages, prev + 1),
+                                      )
+                                    }
+                                    disabled={createPackCasesPage >= createPackCasesTotalPages}
+                                    className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                                  >
+                                    Вперед
+                                    <ChevronRight className="ml-1 h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
 
                           {createPackEditLoading ? (
                             <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-5 text-sm text-zinc-400">
                               Загружаем данные пака...
                             </div>
                           ) : activeCreatePackCase ? (
-                            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/55 p-3 space-y-3">
+                            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/55 p-3 space-y-3 min-w-0 overflow-x-hidden">
                               <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div className="text-sm font-semibold text-zinc-100">
                                   Редактор дела #{Math.max(1, activeCreatePackCaseIndex + 1)}
@@ -13412,76 +13582,132 @@ export default function App() {
                                 )}
                               </div>
 
-                              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[260px_1fr]">
-                                <div className="space-y-1">
-                                  <label className="text-[11px] text-zinc-500">Режим</label>
-                                  <Select
-                                    value={String(activeCreatePackCase.modePlayerCount)}
-                                    onValueChange={(value) =>
-                                      updateCreatePackCaseField(
-                                        activeCreatePackCase.id,
-                                        "modePlayerCount",
-                                        Number(value),
-                                      )
-                                    }
-                                  >
-                                    <SelectTrigger className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 focus:ring-red-500/30">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
-                                      {USER_PACK_MODE_OPTIONS.map((mode) => (
-                                        <SelectItem key={mode.value} value={String(mode.value)}>
-                                          {mode.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                              <div className="space-y-1.5">
+                                <label className="text-[11px] text-zinc-500">Режим дела</label>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                  {USER_PACK_MODE_OPTIONS.map((mode) => {
+                                    const isActive = activeCreatePackCase.modePlayerCount === mode.value;
+                                    return (
+                                      <button
+                                        key={`mode-pill-${mode.value}`}
+                                        type="button"
+                                        onClick={() =>
+                                          updateCreatePackCaseField(
+                                            activeCreatePackCase.id,
+                                            "modePlayerCount",
+                                            mode.value,
+                                          )
+                                        }
+                                        className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                                          isActive
+                                            ? "border-red-500/70 bg-red-600/15 shadow-[0_0_0_1px_rgba(239,68,68,0.12)]"
+                                            : "border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800"
+                                        }`}
+                                      >
+                                        <div className="text-sm font-semibold text-zinc-100">{mode.label}</div>
+                                        <div className="mt-0.5 text-xs text-zinc-400 break-words">
+                                          {mode.subtitle}
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
                                 </div>
-                                <div className="space-y-1">
+                              </div>
+
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between gap-2">
                                   <label className="text-[11px] text-zinc-500">Название дела</label>
-                                  <Input
-                                    value={activeCreatePackCase.title}
-                                    onChange={(event) =>
-                                      updateCreatePackCaseField(
-                                        activeCreatePackCase.id,
-                                        "title",
-                                        event.target.value,
-                                      )
-                                    }
-                                    placeholder={`Дело ${Math.max(1, activeCreatePackCaseIndex + 1)}`}
-                                    className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
-                                  />
+                                  <span className="text-[11px] text-zinc-500">
+                                    {activeCreatePackCase.title.length}/{USER_PACK_TEXT_LIMITS.caseTitle}
+                                  </span>
                                 </div>
+                                <Input
+                                  value={activeCreatePackCase.title}
+                                  onChange={(event) =>
+                                    updateCreatePackCaseField(
+                                      activeCreatePackCase.id,
+                                      "title",
+                                      event.target.value.slice(0, USER_PACK_TEXT_LIMITS.caseTitle),
+                                    )
+                                  }
+                                  maxLength={USER_PACK_TEXT_LIMITS.caseTitle}
+                                  placeholder={`Дело ${Math.max(1, activeCreatePackCaseIndex + 1)}`}
+                                  className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                />
                               </div>
 
                               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                                 <div className="space-y-1">
-                                  <label className="text-[11px] text-zinc-500">Описание дела</label>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <label className="text-[11px] text-zinc-500">Описание дела</label>
+                                    <span className="text-[11px] text-zinc-500">
+                                      {activeCreatePackCase.description.length}/{USER_PACK_TEXT_LIMITS.caseDescription}
+                                    </span>
+                                  </div>
                                   <textarea
                                     value={activeCreatePackCase.description}
                                     onChange={(event) =>
                                       updateCreatePackCaseField(
                                         activeCreatePackCase.id,
                                         "description",
-                                        event.target.value,
+                                        event.target.value.slice(0, USER_PACK_TEXT_LIMITS.caseDescription),
                                       )
                                     }
-                                    className="min-h-[120px] w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                    maxLength={USER_PACK_TEXT_LIMITS.caseDescription}
+                                    style={{ resize: "none" }}
+                                    className="min-h-[120px] max-h-[190px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none overflow-y-auto"
                                   />
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="text-[11px] text-zinc-500">Истина</label>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <label className="text-[11px] text-zinc-500">Истина (обоснование)</label>
+                                    <span className="text-[11px] text-zinc-500">
+                                      {activeCreatePackCase.truth.length}/{USER_PACK_TEXT_LIMITS.truth}
+                                    </span>
+                                  </div>
                                   <textarea
                                     value={activeCreatePackCase.truth}
                                     onChange={(event) =>
                                       updateCreatePackCaseField(
                                         activeCreatePackCase.id,
                                         "truth",
-                                        event.target.value,
+                                        event.target.value.slice(0, USER_PACK_TEXT_LIMITS.truth),
                                       )
                                     }
-                                    className="min-h-[120px] w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                    maxLength={USER_PACK_TEXT_LIMITS.truth}
+                                    style={{ resize: "none" }}
+                                    className="min-h-[120px] max-h-[190px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none overflow-y-auto"
                                   />
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-3 space-y-2">
+                                <div className="text-[11px] text-zinc-500">Правильный вердикт по истине</div>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                  {USER_PACK_VERDICT_OPTIONS.map((option) => {
+                                    const selected = activeCreatePackCase.expectedVerdict === option.key;
+                                    return (
+                                      <button
+                                        key={`expected-${option.key}`}
+                                        type="button"
+                                        onClick={() =>
+                                          updateCreatePackCaseField(
+                                            activeCreatePackCase.id,
+                                            "expectedVerdict",
+                                            option.key,
+                                          )
+                                        }
+                                        className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                                          selected
+                                            ? "border-red-500/70 bg-red-600/20 text-red-100"
+                                            : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
+                                        }`}
+                                      >
+                                        {selected && <Check className="mr-1 inline-block h-3.5 w-3.5" />}
+                                        {option.label}
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               </div>
 
@@ -13490,20 +13716,13 @@ export default function App() {
                                   <div className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
                                     Улики
                                   </div>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => addCreatePackCaseEvidenceRow(activeCreatePackCase.id)}
-                                    className="h-7 rounded-lg border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-200 hover:bg-zinc-800"
-                                  >
-                                    Добавить строку
-                                  </Button>
+                                  <div className="text-[11px] text-zinc-500">Фиксировано: 3 строки</div>
                                 </div>
                                 <div className="space-y-2">
-                                  {activeCreatePackCase.evidenceRows.map((row, rowIndex) => (
+                                  {[0, 1, 2].map((rowIndex) => (
                                     <div key={`${activeCreatePackCase.id}-evidence-${rowIndex}`} className="flex items-center gap-2">
                                       <Input
-                                        value={row}
+                                        value={activeCreatePackCase.evidenceRows[rowIndex] ?? ""}
                                         onChange={(event) =>
                                           updateCreatePackCaseEvidenceRow(
                                             activeCreatePackCase.id,
@@ -13514,17 +13733,6 @@ export default function App() {
                                         placeholder={`Улика ${rowIndex + 1}`}
                                         className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
                                       />
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() =>
-                                          removeCreatePackCaseEvidenceRow(activeCreatePackCase.id, rowIndex)
-                                        }
-                                        className="h-10 min-w-[84px] rounded-xl border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
-                                        disabled={activeCreatePackCase.evidenceRows.length <= 1}
-                                      >
-                                        Удалить
-                                      </Button>
                                     </div>
                                   ))}
                                 </div>
@@ -13532,66 +13740,35 @@ export default function App() {
 
                               <div className="space-y-2">
                                 <div className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
-                                  Факты по ролям (минимум 4 для активной роли)
+                                  Факты по ролям (фиксированный набор)
                                 </div>
                                 <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
                                   {activeCreatePackRequiredRoles.map((roleKey) => {
-                                    const roleRows = activeCreatePackCase.factsByRole[roleKey] ?? [""];
+                                    const roleRows = activeCreatePackCase.factsByRole[roleKey] ?? ["", "", "", ""];
                                     return (
                                       <div
                                         key={`${activeCreatePackCase.id}-${roleKey}`}
                                         className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-2.5 space-y-2"
                                       >
-                                        <div className="flex items-center justify-between gap-2">
-                                          <div className="text-xs font-medium text-zinc-300">
-                                            {USER_PACK_ROLE_TITLES[roleKey]}
-                                          </div>
-                                          <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() =>
-                                              addCreatePackCaseFactRow(activeCreatePackCase.id, roleKey)
-                                            }
-                                            className="h-7 rounded-lg border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-200 hover:bg-zinc-800"
-                                          >
-                                            Добавить
-                                          </Button>
+                                        <div className="text-xs font-medium text-zinc-300">
+                                          {USER_PACK_ROLE_TITLES[roleKey]}
                                         </div>
                                         <div className="space-y-1.5">
                                           {roleRows.map((row, rowIndex) => (
-                                            <div
+                                            <Input
                                               key={`${activeCreatePackCase.id}-${roleKey}-${rowIndex}`}
-                                              className="flex items-center gap-2"
-                                            >
-                                              <Input
-                                                value={row}
-                                                onChange={(event) =>
-                                                  updateCreatePackCaseFactRow(
-                                                    activeCreatePackCase.id,
-                                                    roleKey,
-                                                    rowIndex,
-                                                    event.target.value,
-                                                  )
-                                                }
-                                                placeholder={`Факт ${rowIndex + 1}`}
-                                                className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
-                                              />
-                                              <Button
-                                                type="button"
-                                                variant="outline"
-                                                onClick={() =>
-                                                  removeCreatePackCaseFactRow(
-                                                    activeCreatePackCase.id,
-                                                    roleKey,
-                                                    rowIndex,
-                                                  )
-                                                }
-                                                className="h-9 min-w-[72px] rounded-xl border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
-                                                disabled={roleRows.length <= 4}
-                                              >
-                                                -
-                                              </Button>
-                                            </div>
+                                              value={row}
+                                              onChange={(event) =>
+                                                updateCreatePackCaseFactRow(
+                                                  activeCreatePackCase.id,
+                                                  roleKey,
+                                                  rowIndex,
+                                                  event.target.value,
+                                                )
+                                              }
+                                              placeholder={`Факт ${rowIndex + 1}`}
+                                              className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                            />
                                           ))}
                                         </div>
                                       </div>
