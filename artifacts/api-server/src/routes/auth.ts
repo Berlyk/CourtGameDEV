@@ -33,6 +33,11 @@ import {
   updateProfileByToken,
 } from "../lib/authStore.js";
 import { syncUserProfileInActiveRooms } from "../socket/index.js";
+import {
+  createUserCasePack,
+  importUserCasePackByShareCode,
+  listUserCasePacks,
+} from "../lib/userCasePacksStore.js";
 
 const authRouter = Router();
 
@@ -831,6 +836,66 @@ authRouter.get("/auth/profile", async (req, res) => {
     return res.status(401).json({ message: "Сессия недействительна." });
   }
   return res.status(200).json({ profile });
+});
+
+authRouter.get("/auth/case-packs", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Сессия недействительна." });
+  }
+  try {
+    const packs = await listUserCasePacks(user.id);
+    return res.status(200).json({ packs });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось загрузить паки.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.post("/auth/case-packs", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Сессия недействительна." });
+  }
+  try {
+    const pack = await createUserCasePack(user.id, {
+      title: req.body?.title,
+      description: req.body?.description,
+      color: req.body?.color,
+      cases: Array.isArray(req.body?.cases) ? req.body.cases : [],
+    });
+    return res.status(200).json({ ok: true, pack });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось создать пак.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.post("/auth/case-packs/import", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Сессия недействительна." });
+  }
+  try {
+    const shareCode = String(req.body?.shareCode ?? "").trim();
+    const pack = await importUserCasePackByShareCode(user.id, shareCode);
+    return res.status(200).json({ ok: true, pack });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось импортировать пак.";
+    return res.status(400).json({ message });
+  }
 });
 
 authRouter.post("/auth/logout", async (req, res) => {

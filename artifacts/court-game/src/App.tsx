@@ -196,6 +196,31 @@ const ROLE_KEYS_BY_PLAYERS: Record<number, AssignableRole[]> = {
   6: ["judge", "plaintiff", "defendant", "defenseLawyer", "prosecutor", "plaintiffLawyer"],
 };
 
+const USER_PACK_ROLE_KEYS: UserPackRoleKey[] = [
+  "judge",
+  "plaintiff",
+  "defendant",
+  "prosecutor",
+  "defenseLawyer",
+  "plaintiffLawyer",
+];
+
+const USER_PACK_ROLE_TITLES: Record<UserPackRoleKey, string> = {
+  judge: "Судья",
+  plaintiff: "Истец",
+  defendant: "Ответчик",
+  prosecutor: "Прокурор",
+  defenseLawyer: "Адвокат ответчика",
+  plaintiffLawyer: "Адвокат истца",
+};
+
+const USER_PACK_MODE_OPTIONS: Array<{ value: UserPackCaseMode; label: string }> = [
+  { value: 3, label: "3 игрока — Гражданский / Трудовой спор" },
+  { value: 4, label: "4 игрока — Уголовное дело" },
+  { value: 5, label: "5 игроков — Уголовное дело (с прокурором)" },
+  { value: 6, label: "6 игроков — Суд на компанию" },
+];
+
 const QUICK_ROOM_MODE = {
   key: "quick_flex" as RoomModeKey,
   title: "Быстрая комната",
@@ -932,7 +957,27 @@ function getCasePackSortOrder(
   if (full.includes("cyberpunk")) return 5;
   if (full.includes("boys")) return 6;
   if (full.includes("рим") || full.includes("roman")) return 7;
+  if (full.includes("custom")) return 900;
   return typeof pack?.sortOrder === "number" ? pack.sortOrder + 100 : 999;
+}
+
+function createEmptyUserPackCaseDraft(modePlayerCount: UserPackCaseMode = 3): UserPackCaseDraft {
+  return {
+    id: `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    modePlayerCount,
+    title: "",
+    description: "",
+    truth: "",
+    evidenceText: "",
+    factsByRole: {
+      judge: "",
+      plaintiff: "",
+      defendant: "",
+      prosecutor: "",
+      defenseLawyer: "",
+      plaintiffLawyer: "",
+    },
+  };
 }
 
 function getSubscriptionPlanBadgeKey(tier: SubscriptionTier): string | undefined {
@@ -2407,7 +2452,29 @@ interface CasePackInfo {
   isAdult?: boolean;
   sortOrder?: number;
   caseCount?: number;
+  isCustom?: boolean;
+  shareCode?: string;
+  color?: string;
 }
+
+type UserPackCaseMode = 3 | 4 | 5 | 6;
+type UserPackRoleKey =
+  | "judge"
+  | "plaintiff"
+  | "defendant"
+  | "prosecutor"
+  | "defenseLawyer"
+  | "plaintiffLawyer";
+
+type UserPackCaseDraft = {
+  id: string;
+  modePlayerCount: UserPackCaseMode;
+  title: string;
+  description: string;
+  truth: string;
+  evidenceText: string;
+  factsByRole: Record<UserPackRoleKey, string>;
+};
 
 interface PublicUserProfile {
   id: string;
@@ -4132,7 +4199,24 @@ export default function App() {
   const [createRoomMode, setCreateRoomMode] = useState<RoomModeKey>("civil_3");
   const [createRoomPackKey, setCreateRoomPackKey] = useState("classic");
   const [createPackCatalogOpen, setCreatePackCatalogOpen] = useState(false);
+  const [createPackCatalogView, setCreatePackCatalogView] = useState<
+    "catalog" | "my_packs" | "create_pack"
+  >("catalog");
   const [casePacks, setCasePacks] = useState<CasePackInfo[]>([]);
+  const [myCasePacks, setMyCasePacks] = useState<CasePackInfo[]>([]);
+  const [myCasePacksLoading, setMyCasePacksLoading] = useState(false);
+  const [myCasePacksError, setMyCasePacksError] = useState("");
+  const [importPackShareCode, setImportPackShareCode] = useState("");
+  const [importPackLoading, setImportPackLoading] = useState(false);
+  const [importPackError, setImportPackError] = useState("");
+  const [createPackSaving, setCreatePackSaving] = useState(false);
+  const [createPackError, setCreatePackError] = useState("");
+  const [createPackTitle, setCreatePackTitle] = useState("");
+  const [createPackDescription, setCreatePackDescription] = useState("");
+  const [createPackColor, setCreatePackColor] = useState("#ef4444");
+  const [createPackCases, setCreatePackCases] = useState<UserPackCaseDraft[]>([
+    createEmptyUserPackCaseDraft(3),
+  ]);
   const [createRoomPrivate, setCreateRoomPrivate] = useState(false);
   const [createVoiceUrl, setCreateVoiceUrl] = useState("");
   const [createRoomPassword, setCreateRoomPassword] = useState("");
@@ -4463,7 +4547,11 @@ export default function App() {
   const canCreatePrivateRooms = hasCapability(myTier, "canCreatePrivateRooms");
   const canLetPlayersChooseRoles = hasCapability(myTier, "canLetPlayersChooseRoles");
   const canChooseRoleInOwnLobby = hasCapability(myTier, "canChooseRoleInOwnLobby");
-  const canCreatePacks = hasCapability(myTier, "canCreatePacks");
+  const createPackOwnedCount = useMemo(
+    () => casePacks.filter((pack) => pack.isCustom).length,
+    [casePacks],
+  );
+  const createPackCatalogActionLabel = createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
   const selectedCreatePack =
@@ -4602,6 +4690,233 @@ export default function App() {
     },
     [],
   );
+  const requestCasePacks = useCallback(() => {
+    socket.emit("list_case_packs", {
+      authToken: authToken ?? undefined,
+    });
+  }, [authToken, socket]);
+
+  const resetCreatePackEditor = useCallback(() => {
+    setCreatePackError("");
+    setCreatePackTitle("");
+    setCreatePackDescription("");
+    setCreatePackColor("#ef4444");
+    setCreatePackCases([createEmptyUserPackCaseDraft(3)]);
+  }, []);
+
+  const loadMyCasePacks = useCallback(async () => {
+    if (!authToken) {
+      setMyCasePacks([]);
+      setMyCasePacksError("Войдите в аккаунт, чтобы управлять своими паками.");
+      return;
+    }
+    setMyCasePacksLoading(true);
+    setMyCasePacksError("");
+    try {
+      const payload = await authRequest<{ packs: CasePackInfo[] }>("/auth/case-packs", {
+        token: authToken,
+      });
+      const packs = Array.isArray(payload?.packs) ? payload.packs : [];
+      setMyCasePacks(packs);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Не удалось загрузить ваши паки.";
+      setMyCasePacksError(message);
+      setMyCasePacks([]);
+    } finally {
+      setMyCasePacksLoading(false);
+    }
+  }, [authToken]);
+
+  const openMyCasePacksPanel = useCallback(() => {
+    setCreatePackCatalogView("my_packs");
+    setImportPackError("");
+    void loadMyCasePacks();
+  }, [loadMyCasePacks]);
+
+  const submitImportPackByShareCode = useCallback(async () => {
+    if (!authToken) {
+      setImportPackError("Сессия истекла. Войдите снова.");
+      return;
+    }
+    const shareCode = importPackShareCode.trim().toUpperCase();
+    if (!shareCode) {
+      setImportPackError("Введите ключ пака.");
+      return;
+    }
+    setImportPackLoading(true);
+    setImportPackError("");
+    try {
+      const payload = await authRequest<{ ok: true; pack: CasePackInfo }>(
+        "/auth/case-packs/import",
+        {
+          method: "POST",
+          token: authToken,
+          body: { shareCode },
+        },
+      );
+      setImportPackShareCode("");
+      await loadMyCasePacks();
+      requestCasePacks();
+      if (payload?.pack?.key) {
+        setCreateRoomPackKey(payload.pack.key);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Не удалось импортировать пак.";
+      setImportPackError(message);
+    } finally {
+      setImportPackLoading(false);
+    }
+  }, [authToken, importPackShareCode, loadMyCasePacks, requestCasePacks]);
+
+  const addCreatePackCase = useCallback(() => {
+    setCreatePackCases((prev) => [...prev, createEmptyUserPackCaseDraft(3)]);
+  }, []);
+
+  const removeCreatePackCase = useCallback((caseId: string) => {
+    setCreatePackCases((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((item) => item.id !== caseId);
+    });
+  }, []);
+
+  const updateCreatePackCaseField = useCallback(
+    (
+      caseId: string,
+      field: "modePlayerCount" | "title" | "description" | "truth" | "evidenceText",
+      value: string | number,
+    ) => {
+      setCreatePackCases((prev) =>
+        prev.map((item) =>
+          item.id === caseId
+            ? {
+                ...item,
+                [field]: field === "modePlayerCount" ? Number(value) : value,
+              }
+            : item,
+        ),
+      );
+    },
+    [],
+  );
+
+  const updateCreatePackCaseFacts = useCallback(
+    (caseId: string, roleKey: UserPackRoleKey, value: string) => {
+      setCreatePackCases((prev) =>
+        prev.map((item) =>
+          item.id === caseId
+            ? {
+                ...item,
+                factsByRole: {
+                  ...item.factsByRole,
+                  [roleKey]: value,
+                },
+              }
+            : item,
+        ),
+      );
+    },
+    [],
+  );
+
+  const submitCreatePack = useCallback(async () => {
+    if (!authToken) {
+      setCreatePackError("Сессия истекла. Войдите снова.");
+      return;
+    }
+    const title = createPackTitle.trim();
+    if (!title) {
+      setCreatePackError("Введите название пака.");
+      return;
+    }
+
+    try {
+      const casesPayload = createPackCases.map((draft, index) => {
+        const mode = Number(draft.modePlayerCount) as UserPackCaseMode;
+        const allowedRoles = (ROLE_KEYS_BY_PLAYERS[mode] ?? []).filter(
+          (role) => role !== "judge",
+        ) as UserPackRoleKey[];
+        const factsByRole: Partial<Record<UserPackRoleKey, string[]>> = {};
+        for (const role of USER_PACK_ROLE_KEYS) {
+          const lines = draft.factsByRole[role]
+            .split(/\r?\n/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+          if (allowedRoles.includes(role) && lines.length < 4) {
+            throw new Error(
+              `Дело ${index + 1}: для роли «${USER_PACK_ROLE_TITLES[role]}» нужно минимум 4 факта.`,
+            );
+          }
+          factsByRole[role] = lines;
+        }
+
+        return {
+          modePlayerCount: mode,
+          title: draft.title.trim() || `Дело ${index + 1}`,
+          description: draft.description.trim(),
+          truth: draft.truth.trim(),
+          evidence: draft.evidenceText
+            .split(/\r?\n/)
+            .map((item) => item.trim())
+            .filter(Boolean),
+          factsByRole,
+        };
+      });
+
+      setCreatePackSaving(true);
+      setCreatePackError("");
+      const payload = await authRequest<{ ok: true; pack: CasePackInfo }>("/auth/case-packs", {
+        method: "POST",
+        token: authToken,
+        body: {
+          title,
+          description: createPackDescription,
+          color: createPackColor,
+          cases: casesPayload,
+        },
+      });
+      resetCreatePackEditor();
+      setCreatePackCatalogView("my_packs");
+      await loadMyCasePacks();
+      requestCasePacks();
+      if (payload?.pack?.key) {
+        setCreateRoomPackKey(payload.pack.key);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Не удалось создать пак.";
+      setCreatePackError(message);
+    } finally {
+      setCreatePackSaving(false);
+    }
+  }, [
+    authToken,
+    createPackTitle,
+    createPackDescription,
+    createPackColor,
+    createPackCases,
+    resetCreatePackEditor,
+    loadMyCasePacks,
+    requestCasePacks,
+  ]);
+
+  const copyPackShareCode = useCallback(async (shareCode: string) => {
+    const safeCode = String(shareCode ?? "").trim();
+    if (!safeCode) return;
+    try {
+      await navigator.clipboard.writeText(safeCode);
+    } catch {
+      setError(`Ключ пака: ${safeCode}`);
+    }
+  }, []);
+
   const handleShopPaymentDialogChange = useCallback((open: boolean) => {
     setShopPaymentDialogOpen(open);
     if (!open) {
@@ -6312,10 +6627,14 @@ export default function App() {
   }, [myProfile]);
 
   useEffect(() => {
+    requestCasePacks();
+  }, [requestCasePacks]);
+
+  useEffect(() => {
     if (screen !== "home") return;
     socket.emit("list_public_matches");
-    socket.emit("list_case_packs");
-  }, [socket, screen]);
+    requestCasePacks();
+  }, [requestCasePacks, socket, screen]);
 
   useEffect(() => {
     const onConnect = () => {
@@ -6334,8 +6653,8 @@ export default function App() {
 
   useEffect(() => {
     if (!createMatchDialogOpen) return;
-    socket.emit("list_case_packs");
-  }, [createMatchDialogOpen, socket]);
+    requestCasePacks();
+  }, [createMatchDialogOpen, requestCasePacks]);
 
   useEffect(() => {
     if (screen !== "home") {
@@ -6766,6 +7085,7 @@ export default function App() {
     socket.on("case_packs_updated", ({ packs }: { packs: CasePackInfo[] }) => {
       const safePacks = Array.isArray(packs) ? packs : [];
       setCasePacks(safePacks);
+      setMyCasePacks(safePacks.filter((pack) => pack.isCustom));
       if (safePacks.length > 0) {
         const defaultPackKey = safePacks.find((pack) => pack.key === "classic")?.key ?? safePacks[0].key;
         setCreateRoomPackKey((prev) => {
@@ -12376,13 +12696,17 @@ export default function App() {
                 if (!open) {
                   setCreateRoomPasswordVisible(false);
                   setCreatePackCatalogOpen(false);
+                  setCreatePackCatalogView("catalog");
+                  setMyCasePacksError("");
+                  setImportPackError("");
+                  setCreatePackError("");
                 }
               }}
             >
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="bg-black/88"
-                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? "max-w-[770px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
+                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[980px]" : "max-w-[770px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -12391,7 +12715,11 @@ export default function App() {
                   <DialogTitle>Создать матч</DialogTitle>
                   <DialogDescription className="text-zinc-400">
                     {createPackCatalogOpen
-                      ? "Выберите пак для комнаты."
+                      ? createPackCatalogView === "catalog"
+                        ? "Выберите пак для комнаты."
+                        : createPackCatalogView === "my_packs"
+                          ? "Ваши пользовательские паки и импорт по ключу."
+                          : "Создайте пак и добавьте в него дела."
                       : "Настройте комнату для раздела «Подбор игроков»."}
                   </DialogDescription>
                 </DialogHeader>
@@ -12401,101 +12729,386 @@ export default function App() {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setCreatePackCatalogOpen(false)}
+                        onClick={() => {
+                          if (createPackCatalogView === "catalog") {
+                            setCreatePackCatalogOpen(false);
+                          } else {
+                            setCreatePackCatalogView("catalog");
+                          }
+                        }}
                         className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                       >
-                        Назад
+                        {createPackCatalogView === "catalog" ? "Назад" : "К каталогу"}
                       </Button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openSubscriptionUpsell(
-                            "canCreatePacks",
-                            "Создание паков доступно только в подписке «Арбитр».",
-                          )
-                        }
-                        className="inline-flex h-11 min-w-[150px] items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-5 text-base font-semibold text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100"
-                      >
-                        <Lock className="h-4 w-4" />
-                        Создать пак • Скоро
-                      </button>
+                      {createPackCatalogView === "catalog" ? (
+                        <button
+                          type="button"
+                          onClick={openMyCasePacksPanel}
+                          className="inline-flex h-11 min-w-[150px] items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-5 text-base font-semibold text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100"
+                        >
+                          {createPackCatalogActionLabel}
+                        </button>
+                      ) : createPackCatalogView === "my_packs" ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetCreatePackEditor();
+                            setCreatePackCatalogView("create_pack");
+                          }}
+                          className="inline-flex h-11 min-w-[150px] items-center justify-center rounded-2xl border border-zinc-600 bg-zinc-900 px-5 text-base font-semibold text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+                        >
+                          Создать пак
+                        </button>
+                      ) : (
+                        <div />
+                      )}
                     </div>
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                      {[...casePacks]
-                        .sort((a, b) => {
-                          const aLocked = isPackLockedForTier(a, myTier);
-                          const bLocked = isPackLockedForTier(b, myTier);
-                          if (aLocked !== bLocked) return aLocked ? 1 : -1;
-                          return getCasePackSortOrder(a) - getCasePackSortOrder(b);
-                        })
-                        .map((pack) => {
-                        const isLocked = isPackLockedForTier(pack, myTier);
-                        const requiredTier = getRequiredTierForPack(pack);
-                        const visual = getCasePackVisual(pack.key, pack.title);
-                        const displayTitle = getCasePackTitleDisplay(pack.title);
-                        const cardClass = `${visual.card} ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
-                        const content = (
-                          <>
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="text-base font-semibold text-zinc-100 break-words">{displayTitle}</div>
-                                <div className="mt-1 text-[12px] leading-5 text-zinc-300 break-words">
-                                  {pack.description}
-                                </div>
-                                <div className="mt-1.5 text-[11px] uppercase tracking-[0.24em] text-zinc-500 break-words">
-                                  {visual.vibe}
-                                </div>
-                              </div>
-                              <div className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visual.countChip}`}>
-                                {pack.caseCount ?? 0} дел
-                              </div>
-                            </div>
-                            {isLocked && (
+
+                    {createPackCatalogView === "catalog" ? (
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                        {[...casePacks]
+                          .sort((a, b) => {
+                            const aLocked = isPackLockedForTier(a, myTier);
+                            const bLocked = isPackLockedForTier(b, myTier);
+                            if (aLocked !== bLocked) return aLocked ? 1 : -1;
+                            return getCasePackSortOrder(a) - getCasePackSortOrder(b);
+                          })
+                          .map((pack) => {
+                            const isLocked = isPackLockedForTier(pack, myTier);
+                            const requiredTier = getRequiredTierForPack(pack);
+                            const visual = getCasePackVisual(pack.key, pack.title);
+                            const displayTitle = getCasePackTitleDisplay(pack.title);
+                            const cardClass = `${visual.card} ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
+                            const content = (
                               <>
-                                <div className="pointer-events-none absolute inset-0 rounded-2xl border border-zinc-600/65 bg-[linear-gradient(180deg,rgba(9,10,13,0.22),rgba(9,10,13,0.76))]" />
-                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-500/75 bg-zinc-950/92 text-zinc-200 shadow-[0_0_14px_rgba(0,0,0,0.45)]">
-                                    <Lock className="h-5 w-5" />
-                                  </span>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="text-base font-semibold text-zinc-100 break-words">{displayTitle}</div>
+                                    <div className="mt-1 text-[12px] leading-5 text-zinc-300 break-words">
+                                      {pack.description}
+                                    </div>
+                                    <div className="mt-1.5 text-[11px] uppercase tracking-[0.24em] text-zinc-500 break-words">
+                                      {visual.vibe}
+                                    </div>
+                                  </div>
+                                  <div className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visual.countChip}`}>
+                                    {pack.caseCount ?? 0} дел
+                                  </div>
                                 </div>
+                                {isLocked && (
+                                  <>
+                                    <div className="pointer-events-none absolute inset-0 rounded-2xl border border-zinc-600/65 bg-[linear-gradient(180deg,rgba(9,10,13,0.22),rgba(9,10,13,0.76))]" />
+                                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                      <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-500/75 bg-zinc-950/92 text-zinc-200 shadow-[0_0_14px_rgba(0,0,0,0.45)]">
+                                        <Lock className="h-5 w-5" />
+                                      </span>
+                                    </div>
+                                  </>
+                                )}
                               </>
-                            )}
-                          </>
-                        );
-                        if (isLocked) {
-                          return (
-                            <button
-                              key={pack.key}
+                            );
+                            if (isLocked) {
+                              return (
+                                <button
+                                  key={pack.key}
+                                  type="button"
+                                  onClick={() =>
+                                    openSubscriptionUpsell(
+                                      requiredTier === "trainee"
+                                        ? "canAccessPackSevere"
+                                        : "canAccessAllPacks",
+                                      `Пак «${displayTitle}» доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`,
+                                    )
+                                  }
+                                  className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition-colors hover:border-zinc-500 ${cardClass}`}
+                                >
+                                  {content}
+                                </button>
+                              );
+                            }
+                            return (
+                              <button
+                                key={pack.key}
+                                type="button"
+                                onClick={() => {
+                                  setCreateRoomPackKey(pack.key);
+                                  setCreatePackCatalogOpen(false);
+                                  setCreatePackCatalogView("catalog");
+                                }}
+                                className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition-all hover:brightness-105 ${cardClass}`}
+                              >
+                                {content}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    ) : createPackCatalogView === "my_packs" ? (
+                      <div className="space-y-3">
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+                          <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">
+                            Импорт чужого пака
+                          </div>
+                          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                            <Input
+                              value={importPackShareCode}
+                              onChange={(event) => setImportPackShareCode(event.target.value.toUpperCase())}
+                              placeholder="Введите ключ пака"
+                              className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                            />
+                            <Button
                               type="button"
-                              onClick={() =>
-                                openSubscriptionUpsell(
-                                  requiredTier === "trainee"
-                                    ? "canAccessPackSevere"
-                                    : "canAccessAllPacks",
-                                  `Пак «${displayTitle}» доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`,
-                                )
-                              }
-                              className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition-colors hover:border-zinc-500 ${cardClass}`}
+                              onClick={() => {
+                                void submitImportPackByShareCode();
+                              }}
+                              disabled={importPackLoading}
+                              className="h-10 rounded-xl bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border-0"
                             >
-                              {content}
-                            </button>
-                          );
-                        }
-                        return (
-                          <button
-                            key={pack.key}
+                              {importPackLoading ? "Импорт..." : "Импортировать"}
+                            </Button>
+                          </div>
+                          {importPackError && (
+                            <div className="mt-2 text-xs text-red-300">{importPackError}</div>
+                          )}
+                        </div>
+
+                        {myCasePacksError && (
+                          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                            {myCasePacksError}
+                          </div>
+                        )}
+
+                        {myCasePacksLoading ? (
+                          <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-4 text-sm text-zinc-400">
+                            Загружаем ваши паки...
+                          </div>
+                        ) : myCasePacks.length === 0 ? (
+                          <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-4 text-sm text-zinc-400">
+                            Пока нет пользовательских паков. Нажмите «Создать пак».
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {myCasePacks.map((pack) => (
+                              <div
+                                key={pack.key}
+                                className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3"
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-semibold text-zinc-100">{pack.title}</div>
+                                    <div className="mt-1 text-xs text-zinc-400 break-words">{pack.description}</div>
+                                    <div className="mt-1 text-[11px] text-zinc-500">
+                                      {pack.caseCount ?? 0} дел • ключ: {pack.shareCode}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => {
+                                        void copyPackShareCode(pack.shareCode ?? "");
+                                      }}
+                                      className="h-8 rounded-lg border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800"
+                                    >
+                                      Поделиться
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      onClick={() => {
+                                        setCreateRoomPackKey(pack.key);
+                                        setCreatePackCatalogOpen(false);
+                                        setCreatePackCatalogView("catalog");
+                                      }}
+                                      className="h-8 rounded-lg bg-red-600 text-white hover:bg-red-500 border-0"
+                                    >
+                                      Выбрать
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Название пака</label>
+                            <Input
+                              value={createPackTitle}
+                              onChange={(event) => setCreatePackTitle(event.target.value)}
+                              placeholder="Например: Мои дела"
+                              className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Цвет пака</label>
+                            <Input
+                              value={createPackColor}
+                              onChange={(event) => setCreatePackColor(event.target.value)}
+                              placeholder="#ef4444"
+                              className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Описание</label>
+                          <textarea
+                            value={createPackDescription}
+                            onChange={(event) => setCreatePackDescription(event.target.value)}
+                            placeholder="Короткое описание пака."
+                            className="min-h-[74px] w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500"
+                          />
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">
+                            Дела в паке ({createPackCases.length})
+                          </div>
+                          <Button
                             type="button"
-                            onClick={() => {
-                              setCreateRoomPackKey(pack.key);
-                              setCreatePackCatalogOpen(false);
-                            }}
-                            className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition-all hover:brightness-105 ${cardClass}`}
+                            variant="outline"
+                            onClick={addCreatePackCase}
+                            className="h-8 rounded-lg border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
                           >
-                            {content}
-                          </button>
-                        );
-                      })}
-                    </div>
+                            Добавить дело
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          {createPackCases.map((draft, index) => {
+                            const requiredRoles = (ROLE_KEYS_BY_PLAYERS[draft.modePlayerCount] ?? []).filter(
+                              (role) => role !== "judge",
+                            ) as UserPackRoleKey[];
+                            return (
+                              <div
+                                key={draft.id}
+                                className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3 space-y-2"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="text-sm font-semibold text-zinc-100">Дело #{index + 1}</div>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => removeCreatePackCase(draft.id)}
+                                    className="h-7 rounded-lg border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-300 hover:bg-zinc-800"
+                                  >
+                                    Удалить
+                                  </Button>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                  <div className="space-y-1">
+                                    <label className="text-[11px] text-zinc-500">Режим</label>
+                                    <select
+                                      value={draft.modePlayerCount}
+                                      onChange={(event) =>
+                                        updateCreatePackCaseField(
+                                          draft.id,
+                                          "modePlayerCount",
+                                          Number(event.target.value),
+                                        )
+                                      }
+                                      className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
+                                    >
+                                      {USER_PACK_MODE_OPTIONS.map((mode) => (
+                                        <option key={mode.value} value={mode.value}>
+                                          {mode.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[11px] text-zinc-500">Название дела</label>
+                                    <Input
+                                      value={draft.title}
+                                      onChange={(event) =>
+                                        updateCreatePackCaseField(draft.id, "title", event.target.value)
+                                      }
+                                      placeholder={`Дело ${index + 1}`}
+                                      className="h-9 rounded-lg border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-[11px] text-zinc-500">Описание дела</label>
+                                  <textarea
+                                    value={draft.description}
+                                    onChange={(event) =>
+                                      updateCreatePackCaseField(draft.id, "description", event.target.value)
+                                    }
+                                    className="min-h-[68px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-[11px] text-zinc-500">Истина</label>
+                                  <textarea
+                                    value={draft.truth}
+                                    onChange={(event) =>
+                                      updateCreatePackCaseField(draft.id, "truth", event.target.value)
+                                    }
+                                    className="min-h-[68px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-[11px] text-zinc-500">Улики (каждая с новой строки)</label>
+                                  <textarea
+                                    value={draft.evidenceText}
+                                    onChange={(event) =>
+                                      updateCreatePackCaseField(draft.id, "evidenceText", event.target.value)
+                                    }
+                                    className="min-h-[68px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <div className="text-[11px] text-zinc-500">
+                                    Факты по ролям (минимум 4 строки для каждой активной роли)
+                                  </div>
+                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {requiredRoles.map((roleKey) => (
+                                      <div key={`${draft.id}-${roleKey}`} className="space-y-1">
+                                        <label className="text-[11px] text-zinc-400">
+                                          {USER_PACK_ROLE_TITLES[roleKey]}
+                                        </label>
+                                        <textarea
+                                          value={draft.factsByRole[roleKey]}
+                                          onChange={(event) =>
+                                            updateCreatePackCaseFacts(draft.id, roleKey, event.target.value)
+                                          }
+                                          placeholder={"Факт 1\nФакт 2\nФакт 3\nФакт 4"}
+                                          className="min-h-[92px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {createPackError && (
+                          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                            {createPackError}
+                          </div>
+                        )}
+
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            void submitCreatePack();
+                          }}
+                          disabled={createPackSaving}
+                          className="h-11 w-full rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
+                        >
+                          {createPackSaving ? "Сохраняем..." : "Сохранить пак"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                 <div className="mt-1 space-y-3">
@@ -12577,7 +13190,10 @@ export default function App() {
                             <Button
                               type="button"
                               variant="outline"
-                              onClick={() => setCreatePackCatalogOpen(true)}
+                              onClick={() => {
+                                setCreatePackCatalogView("catalog");
+                                setCreatePackCatalogOpen(true);
+                              }}
                               className="h-9 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                             >
                               Открыть каталог паков

@@ -259,6 +259,7 @@ export function getRequiredTierForCasePack(pack: PackInput): SubscriptionTier {
   const key = normalizeLabel(pack.key);
   const title = normalizeLabel(pack.title);
   if (!key && !title) return "free";
+  if (key.startsWith("custom ")) return "free";
   if (key === "classic" || title.includes("класс")) return "free";
   if (
     key.includes("template pack b") ||

@@ -261,6 +261,7 @@ export function getRequiredTierForPack(pack: {
   const key = normalizePackText(pack.key);
   const title = normalizePackText(pack.title);
   if (!key && !title) return "free";
+  if (key.startsWith("custom ")) return "free";
   if (key === "classic" || title.includes("класс")) return "free";
   if (
     key.includes("template pack b") ||

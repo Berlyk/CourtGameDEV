@@ -54,6 +54,10 @@ import {
   pickCaseForRoom,
 } from "../lib/casePacksStore.js";
 import {
+  ensureUserCasePacksStorage,
+  listUserCasePacks,
+} from "../lib/userCasePacksStore.js";
+import {
   ensureMechanicCardsStorage,
   ensureDefaultMechanicCardsSeeded,
   pickMechanicCardsForRoom,
@@ -774,6 +778,7 @@ export function setupSocket(httpServer: HttpServer) {
   void (async () => {
     try {
       await ensureCasePacksStorage();
+      await ensureUserCasePacksStorage();
       await ensureMechanicCardsStorage();
       await ensureDefaultMechanicCardsSeeded();
     } catch (error) {
@@ -1176,9 +1181,35 @@ export function setupSocket(httpServer: HttpServer) {
       socket.handshake.address,
     );
     socketIpById.set(socket.id, socketIp);
-    const emitCasePacksToSocket = async () => {
+    const emitCasePacksToSocket = async (authToken?: string) => {
       try {
-        const packs = await listCasePacks();
+        const basePacks = await listCasePacks();
+        const token = typeof authToken === "string" ? authToken.trim() : "";
+        if (!token) {
+          socket.emit("case_packs_updated", { packs: basePacks });
+          return;
+        }
+
+        const authUser = await getUserByToken(token, socketIp);
+        if (!authUser) {
+          socket.emit("case_packs_updated", { packs: basePacks });
+          return;
+        }
+
+        const ownPacks = await listUserCasePacks(authUser.id);
+        if (!ownPacks.length) {
+          socket.emit("case_packs_updated", { packs: basePacks });
+          return;
+        }
+
+        const mergedByKey = new Map<string, any>();
+        for (const pack of basePacks) {
+          mergedByKey.set(pack.key, pack);
+        }
+        for (const pack of ownPacks) {
+          mergedByKey.set(pack.key, pack);
+        }
+        const packs = [...mergedByKey.values()];
         socket.emit("case_packs_updated", { packs });
       } catch {
         socket.emit("case_packs_updated", { packs: [] });
@@ -1187,8 +1218,12 @@ export function setupSocket(httpServer: HttpServer) {
 
     void emitCasePacksToSocket();
 
-    socket.on("list_case_packs", () => {
-      void emitCasePacksToSocket();
+    socket.on("list_case_packs", (payload?: { authToken?: string }) => {
+      const authToken =
+        payload && typeof payload === "object" && typeof payload.authToken === "string"
+          ? payload.authToken
+          : undefined;
+      void emitCasePacksToSocket(authToken);
     });
 
     socket.on("list_public_matches", () => {

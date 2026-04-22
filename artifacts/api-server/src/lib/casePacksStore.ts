@@ -5,6 +5,7 @@ import {
   type CompactCasePack,
   type CaseFactRoleKey,
 } from "./casePacksImportData.js";
+import { pickUserCasePackForRoom } from "./userCasePacksStore.js";
 
 export interface CasePackInfo {
   key: string;
@@ -13,6 +14,9 @@ export interface CasePackInfo {
   isAdult: boolean;
   sortOrder: number;
   caseCount: number;
+  isCustom?: boolean;
+  shareCode?: string;
+  color?: string;
 }
 
 export interface StoredCaseData {
@@ -885,9 +889,17 @@ export async function pickCaseForRoom(
   packKeyInput: string | undefined,
   modePlayerCount: number,
 ): Promise<StoredCaseData | null> {
+  const rawPackKey = String(packKeyInput ?? "").trim().toLowerCase();
+  if (rawPackKey.startsWith("custom_")) {
+    const customCase = await pickUserCasePackForRoom(rawPackKey, modePlayerCount);
+    if (customCase) {
+      return customCase;
+    }
+  }
+
   const requestedKey = normalizeCasePackKey(packKeyInput);
   const packKey = isTemplatePack(requestedKey) ? "classic" : requestedKey;
   const safeCount = modePlayerCount as 3 | 4 | 5 | 6;
-  return pickCaseFromCache(packKey, safeCount);
+  return pickCaseFromPackDb(packKey, safeCount);
 }
 
