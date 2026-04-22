@@ -3186,6 +3186,9 @@ function localizeAuthError(message: string): string {
   if (normalized.includes("failed to connect to platega")) {
     return "Не удалось связаться с Platega. Попробуйте позже.";
   }
+  if (normalized.includes("platega did not return checkout url")) {
+    return "Platega не вернула ссылку на оплату.";
+  }
   if (normalized.includes("failed to connect to freekassa")) {
     return "Не удалось связаться с платежным шлюзом. Попробуйте позже.";
   }

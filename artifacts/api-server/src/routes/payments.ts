@@ -401,6 +401,83 @@ function normalizePlategaStatus(statusRaw: string): "paid" | "canceled" | "pendi
   return "pending";
 }
 
+function readObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function extractPlategaCheckoutUrl(payload: unknown, publicAppUrl: string): string {
+  const root = readObject(payload) ?? {};
+  const data = readObject(root.data);
+  const result = readObject(root.result);
+  const redirectObject = readObject(root.redirect);
+
+  const candidates: unknown[] = [
+    root.redirect,
+    root.url,
+    root.paymentUrl,
+    root.payment_url,
+    root.checkoutUrl,
+    root.checkout_url,
+    redirectObject?.url,
+    redirectObject?.link,
+    data?.redirect,
+    data?.url,
+    data?.paymentUrl,
+    data?.payment_url,
+    data?.checkoutUrl,
+    data?.checkout_url,
+    result?.redirect,
+    result?.url,
+    result?.paymentUrl,
+    result?.payment_url,
+    result?.checkoutUrl,
+    result?.checkout_url,
+  ];
+
+  for (const candidate of candidates) {
+    const raw = typeof candidate === "string" ? candidate.trim() : "";
+    if (!raw) continue;
+    try {
+      const parsed = new URL(raw, publicAppUrl);
+      if (!/^https?:$/i.test(parsed.protocol)) continue;
+      return parsed.toString();
+    } catch {
+      continue;
+    }
+  }
+
+  return "";
+}
+
+function extractPlategaPaymentId(payload: unknown): string {
+  const root = readObject(payload) ?? {};
+  const data = readObject(root.data);
+  const result = readObject(root.result);
+  const candidates: unknown[] = [
+    root.transactionId,
+    root.transaction_id,
+    root.paymentId,
+    root.payment_id,
+    root.id,
+    data?.transactionId,
+    data?.transaction_id,
+    data?.paymentId,
+    data?.payment_id,
+    data?.id,
+    result?.transactionId,
+    result?.transaction_id,
+    result?.paymentId,
+    result?.payment_id,
+    result?.id,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+    if (typeof candidate === "number" && Number.isFinite(candidate)) return String(candidate);
+  }
+  return "";
+}
+
 async function fetchPayPalAccessToken(): Promise<{ accessToken: string; apiBase: string } | null> {
   const { clientId, clientSecret, apiBase } = readPayPalConfig();
   if (!clientId || !clientSecret) return null;
@@ -843,7 +920,7 @@ paymentsRouter.post("/payments/platega/create", async (req, res) => {
     return res.status(401).json({ message: "Session is invalid." });
   }
 
-  const { merchantId, apiKey, apiBase } = readPlategaConfig();
+  const { merchantId, apiKey, apiBase, callbackUrl } = readPlategaConfig();
   if (!merchantId || !apiKey) {
     return res.status(503).json({
       message:
@@ -883,12 +960,16 @@ paymentsRouter.post("/payments/platega/create", async (req, res) => {
 
   const plategaRequestPayload = {
     paymentDetails: {
-      amount: amountRub,
+      amount: Number(amountRub.toFixed(2)),
       currency: "RUB",
     },
     description,
     return: `${publicAppUrl}/profile?payment=platega_return`,
     failedUrl: `${publicAppUrl}/shop?payment=platega_cancel`,
+    callbackUrl,
+    callbackURL: callbackUrl,
+    webhookUrl: callbackUrl,
+    webhookURL: callbackUrl,
     payload: JSON.stringify({
       project: "CourtGame",
       user_id: user.id,
@@ -915,18 +996,23 @@ paymentsRouter.post("/payments/platega/create", async (req, res) => {
   }
 
   const plategaPayload: any = await plategaResponse.json().catch(() => null);
-  const checkoutUrl = String(plategaPayload?.redirect ?? plategaPayload?.url ?? "").trim();
-  const providerPaymentId = String(plategaPayload?.transactionId ?? plategaPayload?.id ?? "").trim();
+  const checkoutUrl = extractPlategaCheckoutUrl(plategaPayload, publicAppUrl);
+  const providerPaymentId = extractPlategaPaymentId(plategaPayload);
 
   if (!plategaResponse.ok || !providerPaymentId || !checkoutUrl) {
     const message =
       String(
         plategaPayload?.description ??
           plategaPayload?.message ??
+          plategaPayload?.detail ??
+          plategaPayload?.errorMessage ??
           plategaPayload?.error_description ??
           plategaPayload?.error ??
           "",
-      ).trim() || "Platega returned an error while creating payment.";
+      ).trim() ||
+      (!checkoutUrl
+        ? "Platega did not return checkout URL."
+        : "Platega returned an error while creating payment.");
     return res.status(502).json({ message });
   }
 
