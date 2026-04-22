@@ -920,7 +920,7 @@ paymentsRouter.post("/payments/platega/create", async (req, res) => {
     return res.status(401).json({ message: "Session is invalid." });
   }
 
-  const { merchantId, apiKey, apiBase, callbackUrl } = readPlategaConfig();
+  const { merchantId, apiKey, apiBase } = readPlategaConfig();
   if (!merchantId || !apiKey) {
     return res.status(503).json({
       message:
@@ -959,6 +959,7 @@ paymentsRouter.post("/payments/platega/create", async (req, res) => {
   const description = `Подписка CourtGame: ${paidTier}, ${paidDuration}`;
 
   const plategaRequestPayload = {
+    paymentMethod: methodId,
     paymentDetails: {
       amount: Number(amountRub.toFixed(2)),
       currency: "RUB",
@@ -966,10 +967,6 @@ paymentsRouter.post("/payments/platega/create", async (req, res) => {
     description,
     return: `${publicAppUrl}/profile?payment=platega_return`,
     failedUrl: `${publicAppUrl}/shop?payment=platega_cancel`,
-    callbackUrl,
-    callbackURL: callbackUrl,
-    webhookUrl: callbackUrl,
-    webhookURL: callbackUrl,
     payload: JSON.stringify({
       project: "CourtGame",
       user_id: user.id,
@@ -1000,6 +997,19 @@ paymentsRouter.post("/payments/platega/create", async (req, res) => {
   const providerPaymentId = extractPlategaPaymentId(plategaPayload);
 
   if (!plategaResponse.ok || !providerPaymentId || !checkoutUrl) {
+    const errors = Array.isArray(plategaPayload?.errors) ? plategaPayload.errors : [];
+    const firstError = errors[0];
+    const firstErrorText =
+      typeof firstError === "string"
+        ? firstError
+        : firstError && typeof firstError === "object"
+          ? String(
+              (firstError as any).message ??
+                (firstError as any).msg ??
+                (firstError as any).description ??
+                "",
+            )
+          : "";
     const message =
       String(
         plategaPayload?.description ??
@@ -1008,6 +1018,7 @@ paymentsRouter.post("/payments/platega/create", async (req, res) => {
           plategaPayload?.errorMessage ??
           plategaPayload?.error_description ??
           plategaPayload?.error ??
+          firstErrorText ??
           "",
       ).trim() ||
       (!checkoutUrl
