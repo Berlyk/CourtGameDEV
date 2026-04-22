@@ -35,8 +35,10 @@ import {
 import { syncUserProfileInActiveRooms } from "../socket/index.js";
 import {
   createUserCasePack,
+  getUserCasePackDetails,
   importUserCasePackByShareCode,
   listUserCasePacks,
+  updateUserCasePack,
 } from "../lib/userCasePacksStore.js";
 
 const authRouter = Router();
@@ -875,6 +877,49 @@ authRouter.post("/auth/case-packs", async (req, res) => {
     return res.status(200).json({ ok: true, pack });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось создать пак.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.get("/auth/case-packs/:packKey", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Сессия недействительна." });
+  }
+  try {
+    const packKey = String(req.params?.packKey ?? "").trim();
+    const payload = await getUserCasePackDetails(user.id, packKey);
+    return res.status(200).json(payload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось загрузить пак.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.patch("/auth/case-packs/:packKey", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Сессия недействительна." });
+  }
+  try {
+    const packKey = String(req.params?.packKey ?? "").trim();
+    const pack = await updateUserCasePack(user.id, packKey, {
+      title: req.body?.title,
+      description: req.body?.description,
+      color: req.body?.color,
+      cases: Array.isArray(req.body?.cases) ? req.body.cases : [],
+    });
+    return res.status(200).json({ ok: true, pack });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось обновить пак.";
     return res.status(400).json({ message });
   }
 });

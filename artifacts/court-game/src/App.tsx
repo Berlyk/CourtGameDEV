@@ -976,22 +976,46 @@ function getCasePackSortOrder(
 }
 
 function createEmptyUserPackCaseDraft(modePlayerCount: UserPackCaseMode = 3): UserPackCaseDraft {
+  const requiredRoles = (ROLE_KEYS_BY_PLAYERS[modePlayerCount] ?? []).filter(
+    (role) => role !== "judge",
+  ) as UserPackRoleKey[];
+  const buildFactRows = (role: UserPackRoleKey) =>
+    requiredRoles.includes(role) ? ["", "", "", ""] : [""];
   return {
     id: `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     modePlayerCount,
     title: "",
     description: "",
     truth: "",
-    evidenceText: "",
+    evidenceRows: ["", "", ""],
     factsByRole: {
-      judge: "",
-      plaintiff: "",
-      defendant: "",
-      prosecutor: "",
-      defenseLawyer: "",
-      plaintiffLawyer: "",
+      judge: [""],
+      plaintiff: buildFactRows("plaintiff"),
+      defendant: buildFactRows("defendant"),
+      prosecutor: buildFactRows("prosecutor"),
+      defenseLawyer: buildFactRows("defenseLawyer"),
+      plaintiffLawyer: buildFactRows("plaintiffLawyer"),
     },
   };
+}
+
+function normalizeDraftRows(value: unknown, minRows = 1): string[] {
+  const base = Array.isArray(value)
+    ? value.map((item) => String(item ?? "")).slice(0, 16)
+    : [];
+  while (base.length < minRows) {
+    base.push("");
+  }
+  return base;
+}
+
+function ensureDraftFactRows(
+  roleRows: string[],
+  isRequired: boolean,
+): string[] {
+  const minRows = isRequired ? 4 : 1;
+  const next = normalizeDraftRows(roleRows, minRows);
+  return next.length > 12 ? next.slice(0, 12) : next;
 }
 
 function getSubscriptionPlanBadgeKey(tier: SubscriptionTier): string | undefined {
@@ -2486,8 +2510,18 @@ type UserPackCaseDraft = {
   title: string;
   description: string;
   truth: string;
-  evidenceText: string;
-  factsByRole: Record<UserPackRoleKey, string>;
+  evidenceRows: string[];
+  factsByRole: Record<UserPackRoleKey, string[]>;
+};
+
+type UserPackApiCase = {
+  caseKey?: string;
+  modePlayerCount: UserPackCaseMode;
+  title: string;
+  description: string;
+  truth: string;
+  evidence: string[];
+  factsByRole?: Partial<Record<UserPackRoleKey, string[]>>;
 };
 
 interface PublicUserProfile {
@@ -4220,17 +4254,21 @@ export default function App() {
   const [myCasePacks, setMyCasePacks] = useState<CasePackInfo[]>([]);
   const [myCasePacksLoading, setMyCasePacksLoading] = useState(false);
   const [myCasePacksError, setMyCasePacksError] = useState("");
+  const [importPackDialogOpen, setImportPackDialogOpen] = useState(false);
   const [importPackShareCode, setImportPackShareCode] = useState("");
   const [importPackLoading, setImportPackLoading] = useState(false);
   const [importPackError, setImportPackError] = useState("");
   const [createPackSaving, setCreatePackSaving] = useState(false);
+  const [createPackEditLoading, setCreatePackEditLoading] = useState(false);
   const [createPackError, setCreatePackError] = useState("");
+  const [createPackEditKey, setCreatePackEditKey] = useState<string | null>(null);
   const [createPackTitle, setCreatePackTitle] = useState("");
   const [createPackDescription, setCreatePackDescription] = useState("");
   const [createPackColor, setCreatePackColor] = useState("#ef4444");
   const [createPackCases, setCreatePackCases] = useState<UserPackCaseDraft[]>([
     createEmptyUserPackCaseDraft(3),
   ]);
+  const [createPackActiveCaseId, setCreatePackActiveCaseId] = useState<string | null>(null);
   const [createRoomPrivate, setCreateRoomPrivate] = useState(false);
   const [createVoiceUrl, setCreateVoiceUrl] = useState("");
   const [createRoomPassword, setCreateRoomPassword] = useState("");
@@ -4269,6 +4307,18 @@ export default function App() {
   const [speechTimerLabel, setSpeechTimerLabel] = useState("");
   const [influenceAnnouncement, setInfluenceAnnouncement] =
     useState<InfluenceAnnouncement | null>(null);
+
+  useEffect(() => {
+    if (!createPackCases.length) {
+      setCreatePackActiveCaseId(null);
+      return;
+    }
+    const activeExists =
+      createPackActiveCaseId && createPackCases.some((item) => item.id === createPackActiveCaseId);
+    if (!activeExists) {
+      setCreatePackActiveCaseId(createPackCases[0].id);
+    }
+  }, [createPackCases, createPackActiveCaseId]);
 
   const [myId, setMyId] = useState<string | null>(null);
   const [mySessionToken, setMySessionToken] = useState<string | null>(
@@ -4565,6 +4615,23 @@ export default function App() {
     () => casePacks.filter((pack) => pack.isCustom).length,
     [casePacks],
   );
+  const activeCreatePackCase = useMemo(
+    () => createPackCases.find((item) => item.id === createPackActiveCaseId) ?? createPackCases[0] ?? null,
+    [createPackCases, createPackActiveCaseId],
+  );
+  const activeCreatePackCaseIndex = useMemo(() => {
+    if (!activeCreatePackCase) return -1;
+    return createPackCases.findIndex((item) => item.id === activeCreatePackCase.id);
+  }, [createPackCases, activeCreatePackCase]);
+  const activeCreatePackRequiredRoles = useMemo(
+    () =>
+      activeCreatePackCase
+        ? ((ROLE_KEYS_BY_PLAYERS[activeCreatePackCase.modePlayerCount] ?? []).filter(
+            (role) => role !== "judge",
+          ) as UserPackRoleKey[])
+        : [],
+    [activeCreatePackCase],
+  );
   const createPackCatalogActionLabel = createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
@@ -4711,11 +4778,14 @@ export default function App() {
   }, [authToken, socket]);
 
   const resetCreatePackEditor = useCallback(() => {
+    const firstCase = createEmptyUserPackCaseDraft(3);
     setCreatePackError("");
+    setCreatePackEditKey(null);
     setCreatePackTitle("");
     setCreatePackDescription("");
     setCreatePackColor("#ef4444");
-    setCreatePackCases([createEmptyUserPackCaseDraft(3)]);
+    setCreatePackCases([firstCase]);
+    setCreatePackActiveCaseId(firstCase.id);
   }, []);
 
   const loadMyCasePacks = useCallback(async () => {
@@ -4746,9 +4816,91 @@ export default function App() {
 
   const openMyCasePacksPanel = useCallback(() => {
     setCreatePackCatalogView("my_packs");
+    setImportPackDialogOpen(false);
     setImportPackError("");
     void loadMyCasePacks();
   }, [loadMyCasePacks]);
+
+  const openCreatePackEditor = useCallback(
+    async (packKey?: string) => {
+      if (!packKey) {
+        resetCreatePackEditor();
+        setCreatePackCatalogView("create_pack");
+        return;
+      }
+      if (!authToken) {
+        setCreatePackError("Сессия истекла. Войдите снова.");
+        return;
+      }
+      setCreatePackCatalogView("create_pack");
+      setCreatePackError("");
+      setCreatePackEditLoading(true);
+      try {
+        const payload = await authRequest<{ pack: CasePackInfo; cases: UserPackApiCase[] }>(
+          `/auth/case-packs/${encodeURIComponent(packKey)}`,
+          {
+            token: authToken,
+          },
+        );
+
+        const pack = payload?.pack;
+        const rawCases = Array.isArray(payload?.cases) ? payload.cases : [];
+        const drafts: UserPackCaseDraft[] = rawCases.length
+          ? rawCases.map((caseItem, index) => {
+              const mode = [3, 4, 5, 6].includes(Number(caseItem?.modePlayerCount))
+                ? (Number(caseItem.modePlayerCount) as UserPackCaseMode)
+                : 3;
+              const requiredRoles = (ROLE_KEYS_BY_PLAYERS[mode] ?? []).filter(
+                (role) => role !== "judge",
+              ) as UserPackRoleKey[];
+              const baseDraft = createEmptyUserPackCaseDraft(mode);
+              const factsByRole: Record<UserPackRoleKey, string[]> = {
+                judge: [""],
+                plaintiff: [""],
+                defendant: [""],
+                prosecutor: [""],
+                defenseLawyer: [""],
+                plaintiffLawyer: [""],
+              };
+              for (const role of USER_PACK_ROLE_KEYS) {
+                const rows = Array.isArray(caseItem?.factsByRole?.[role])
+                  ? caseItem?.factsByRole?.[role] ?? []
+                  : [];
+                factsByRole[role] = ensureDraftFactRows(rows, requiredRoles.includes(role));
+              }
+              return {
+                ...baseDraft,
+                id: caseItem?.caseKey
+                  ? `case_${caseItem.caseKey}_${index}`
+                  : `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                title: String(caseItem?.title ?? "").trim(),
+                description: String(caseItem?.description ?? "").trim(),
+                truth: String(caseItem?.truth ?? "").trim(),
+                evidenceRows: normalizeDraftRows(caseItem?.evidence, 3),
+                factsByRole,
+              };
+            })
+          : [createEmptyUserPackCaseDraft(3)];
+
+        setCreatePackEditKey(pack?.key ?? packKey);
+        setCreatePackTitle(String(pack?.title ?? ""));
+        setCreatePackDescription(String(pack?.description ?? ""));
+        setCreatePackColor(String(pack?.color ?? "#ef4444"));
+        setCreatePackCases(drafts);
+        setCreatePackActiveCaseId(drafts[0]?.id ?? null);
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Не удалось открыть пак для редактирования.";
+        setCreatePackError(message);
+        setCreatePackEditKey(null);
+      } finally {
+        setCreatePackEditLoading(false);
+      }
+    },
+    [authToken, resetCreatePackEditor],
+  );
 
   const submitImportPackByShareCode = useCallback(async () => {
     if (!authToken) {
@@ -4772,6 +4924,7 @@ export default function App() {
         },
       );
       setImportPackShareCode("");
+      setImportPackDialogOpen(false);
       await loadMyCasePacks();
       requestCasePacks();
       if (payload?.pack?.key) {
@@ -4789,7 +4942,9 @@ export default function App() {
   }, [authToken, importPackShareCode, loadMyCasePacks, requestCasePacks]);
 
   const addCreatePackCase = useCallback(() => {
-    setCreatePackCases((prev) => [...prev, createEmptyUserPackCaseDraft(3)]);
+    const nextCase = createEmptyUserPackCaseDraft(3);
+    setCreatePackCases((prev) => [...prev, nextCase]);
+    setCreatePackActiveCaseId(nextCase.id);
   }, []);
 
   const removeCreatePackCase = useCallback((caseId: string) => {
@@ -4802,15 +4957,57 @@ export default function App() {
   const updateCreatePackCaseField = useCallback(
     (
       caseId: string,
-      field: "modePlayerCount" | "title" | "description" | "truth" | "evidenceText",
+      field: "modePlayerCount" | "title" | "description" | "truth",
       value: string | number,
     ) => {
+      setCreatePackCases((prev) =>
+        prev.map((item) => {
+          if (item.id !== caseId) return item;
+          if (field === "modePlayerCount") {
+            const nextMode = Number(value) as UserPackCaseMode;
+            const requiredRoles = (ROLE_KEYS_BY_PLAYERS[nextMode] ?? []).filter(
+              (role) => role !== "judge",
+            ) as UserPackRoleKey[];
+            const nextFactsByRole: Record<UserPackRoleKey, string[]> = {
+              judge: [""],
+              plaintiff: [""],
+              defendant: [""],
+              prosecutor: [""],
+              defenseLawyer: [""],
+              plaintiffLawyer: [""],
+            };
+            for (const role of USER_PACK_ROLE_KEYS) {
+              nextFactsByRole[role] = ensureDraftFactRows(
+                item.factsByRole[role] ?? [],
+                requiredRoles.includes(role),
+              );
+            }
+            return {
+              ...item,
+              modePlayerCount: nextMode,
+              factsByRole: nextFactsByRole,
+            };
+          }
+          return {
+            ...item,
+            [field]: String(value),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const updateCreatePackCaseEvidenceRow = useCallback(
+    (caseId: string, rowIndex: number, value: string) => {
       setCreatePackCases((prev) =>
         prev.map((item) =>
           item.id === caseId
             ? {
                 ...item,
-                [field]: field === "modePlayerCount" ? Number(value) : value,
+                evidenceRows: item.evidenceRows.map((row, index) =>
+                  index === rowIndex ? value : row,
+                ),
               }
             : item,
         ),
@@ -4819,8 +5016,34 @@ export default function App() {
     [],
   );
 
-  const updateCreatePackCaseFacts = useCallback(
-    (caseId: string, roleKey: UserPackRoleKey, value: string) => {
+  const addCreatePackCaseEvidenceRow = useCallback((caseId: string) => {
+    setCreatePackCases((prev) =>
+      prev.map((item) =>
+        item.id === caseId
+          ? {
+              ...item,
+              evidenceRows: [...item.evidenceRows, ""].slice(0, 12),
+            }
+          : item,
+      ),
+    );
+  }, []);
+
+  const removeCreatePackCaseEvidenceRow = useCallback((caseId: string, rowIndex: number) => {
+    setCreatePackCases((prev) =>
+      prev.map((item) => {
+        if (item.id !== caseId) return item;
+        if (item.evidenceRows.length <= 1) return item;
+        return {
+          ...item,
+          evidenceRows: item.evidenceRows.filter((_, index) => index !== rowIndex),
+        };
+      }),
+    );
+  }, []);
+
+  const updateCreatePackCaseFactRow = useCallback(
+    (caseId: string, roleKey: UserPackRoleKey, rowIndex: number, value: string) => {
       setCreatePackCases((prev) =>
         prev.map((item) =>
           item.id === caseId
@@ -4828,11 +5051,53 @@ export default function App() {
                 ...item,
                 factsByRole: {
                   ...item.factsByRole,
-                  [roleKey]: value,
+                  [roleKey]: (item.factsByRole[roleKey] ?? []).map((row, index) =>
+                    index === rowIndex ? value : row,
+                  ),
                 },
               }
             : item,
         ),
+      );
+    },
+    [],
+  );
+
+  const addCreatePackCaseFactRow = useCallback((caseId: string, roleKey: UserPackRoleKey) => {
+    setCreatePackCases((prev) =>
+      prev.map((item) => {
+        if (item.id !== caseId) return item;
+        const rows = [...(item.factsByRole[roleKey] ?? []), ""].slice(0, 12);
+        return {
+          ...item,
+          factsByRole: {
+            ...item.factsByRole,
+            [roleKey]: rows,
+          },
+        };
+      }),
+    );
+  }, []);
+
+  const removeCreatePackCaseFactRow = useCallback(
+    (caseId: string, roleKey: UserPackRoleKey, rowIndex: number) => {
+      setCreatePackCases((prev) =>
+        prev.map((item) => {
+          if (item.id !== caseId) return item;
+          const requiredRoles = (ROLE_KEYS_BY_PLAYERS[item.modePlayerCount] ?? []).filter(
+            (role) => role !== "judge",
+          ) as UserPackRoleKey[];
+          const minRows = requiredRoles.includes(roleKey) ? 4 : 1;
+          const currentRows = item.factsByRole[roleKey] ?? [];
+          if (currentRows.length <= minRows) return item;
+          return {
+            ...item,
+            factsByRole: {
+              ...item.factsByRole,
+              [roleKey]: currentRows.filter((_, index) => index !== rowIndex),
+            },
+          };
+        }),
       );
     },
     [],
@@ -4857,8 +5122,7 @@ export default function App() {
         ) as UserPackRoleKey[];
         const factsByRole: Partial<Record<UserPackRoleKey, string[]>> = {};
         for (const role of USER_PACK_ROLE_KEYS) {
-          const lines = draft.factsByRole[role]
-            .split(/\r?\n/)
+          const lines = (draft.factsByRole[role] ?? [])
             .map((item) => item.trim())
             .filter(Boolean);
           if (allowedRoles.includes(role) && lines.length < 4) {
@@ -4874,18 +5138,19 @@ export default function App() {
           title: draft.title.trim() || `Дело ${index + 1}`,
           description: draft.description.trim(),
           truth: draft.truth.trim(),
-          evidence: draft.evidenceText
-            .split(/\r?\n/)
-            .map((item) => item.trim())
-            .filter(Boolean),
+          evidence: (draft.evidenceRows ?? []).map((item) => item.trim()).filter(Boolean),
           factsByRole,
         };
       });
 
       setCreatePackSaving(true);
       setCreatePackError("");
-      const payload = await authRequest<{ ok: true; pack: CasePackInfo }>("/auth/case-packs", {
-        method: "POST",
+      const isEditing = !!createPackEditKey;
+      const endpoint = isEditing
+        ? `/auth/case-packs/${encodeURIComponent(createPackEditKey)}`
+        : "/auth/case-packs";
+      const payload = await authRequest<{ ok: true; pack: CasePackInfo }>(endpoint, {
+        method: isEditing ? "PATCH" : "POST",
         token: authToken,
         body: {
           title,
@@ -4905,7 +5170,9 @@ export default function App() {
       const message =
         error instanceof Error && error.message.trim()
           ? error.message
-          : "Не удалось создать пак.";
+          : createPackEditKey
+            ? "Не удалось обновить пак."
+            : "Не удалось создать пак.";
       setCreatePackError(message);
     } finally {
       setCreatePackSaving(false);
@@ -4916,6 +5183,7 @@ export default function App() {
     createPackDescription,
     createPackColor,
     createPackCases,
+    createPackEditKey,
     resetCreatePackEditor,
     loadMyCasePacks,
     requestCasePacks,
@@ -12711,16 +12979,19 @@ export default function App() {
                   setCreateRoomPasswordVisible(false);
                   setCreatePackCatalogOpen(false);
                   setCreatePackCatalogView("catalog");
+                  setImportPackDialogOpen(false);
                   setMyCasePacksError("");
                   setImportPackError("");
                   setCreatePackError("");
+                  setCreatePackEditLoading(false);
+                  setCreatePackEditKey(null);
                 }
               }}
             >
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="bg-black/88"
-                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1120px]" : "max-w-[770px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
+                className={`z-[180] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1320px]" : "max-w-[820px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -12746,14 +13017,24 @@ export default function App() {
                         onClick={() => {
                           if (createPackCatalogView === "catalog") {
                             setCreatePackCatalogOpen(false);
-                          } else {
-                            setCreatePackCatalogView("catalog");
+                            return;
                           }
+                          if (createPackCatalogView === "create_pack") {
+                            setCreatePackCatalogView("my_packs");
+                            setCreatePackError("");
+                            return;
+                          }
+                          setCreatePackCatalogView("catalog");
                         }}
                         className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                       >
-                        {createPackCatalogView === "catalog" ? "Назад" : "К каталогу"}
+                        {createPackCatalogView === "catalog"
+                          ? "Назад"
+                          : createPackCatalogView === "create_pack"
+                            ? "К моим пакам"
+                            : "К каталогу"}
                       </Button>
+
                       {createPackCatalogView === "catalog" ? (
                         <button
                           type="button"
@@ -12763,18 +13044,31 @@ export default function App() {
                           {createPackCatalogActionLabel}
                         </button>
                       ) : createPackCatalogView === "my_packs" ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            resetCreatePackEditor();
-                            setCreatePackCatalogView("create_pack");
-                          }}
-                          className="inline-flex h-11 min-w-[150px] items-center justify-center rounded-2xl border border-zinc-600 bg-zinc-900 px-5 text-base font-semibold text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
-                        >
-                          Создать пак
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImportPackError("");
+                              setImportPackDialogOpen(true);
+                            }}
+                            className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-900 px-5 text-sm font-semibold text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100"
+                          >
+                            Импорт пака
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void openCreatePackEditor();
+                            }}
+                            className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-2xl border border-zinc-600 bg-zinc-900 px-5 text-sm font-semibold text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+                          >
+                            Создать пак
+                          </button>
+                        </div>
                       ) : (
-                        <div />
+                        <div className="inline-flex items-center rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-xs text-zinc-400">
+                          {createPackEditKey ? "Редактирование пака" : "Создание нового пака"}
+                        </div>
                       )}
                     </div>
 
@@ -12858,33 +13152,6 @@ export default function App() {
                       </div>
                     ) : createPackCatalogView === "my_packs" ? (
                       <div className="space-y-3">
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
-                          <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">
-                            Импорт чужого пака
-                          </div>
-                          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                            <Input
-                              value={importPackShareCode}
-                              onChange={(event) => setImportPackShareCode(event.target.value.toUpperCase())}
-                              placeholder="Введите ключ пака"
-                              className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
-                            />
-                            <Button
-                              type="button"
-                              onClick={() => {
-                                void submitImportPackByShareCode();
-                              }}
-                              disabled={importPackLoading}
-                              className="h-10 rounded-xl bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border-0"
-                            >
-                              {importPackLoading ? "Импорт..." : "Импортировать"}
-                            </Button>
-                          </div>
-                          {importPackError && (
-                            <div className="mt-2 text-xs text-red-300">{importPackError}</div>
-                          )}
-                        </div>
-
                         {myCasePacksError && (
                           <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                             {myCasePacksError}
@@ -12900,21 +13167,34 @@ export default function App() {
                             Пока нет пользовательских паков. Нажмите «Создать пак».
                           </div>
                         ) : (
-                          <div className="space-y-2">
+                          <div className="space-y-2.5">
                             {myCasePacks.map((pack) => (
                               <div
                                 key={pack.key}
-                                className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3"
+                                className="rounded-2xl border border-zinc-800 bg-[linear-gradient(140deg,rgba(24,24,27,0.92),rgba(39,39,42,0.75))] p-3"
                               >
-                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <div className="text-sm font-semibold text-zinc-100">{pack.title}</div>
                                     <div className="mt-1 text-xs text-zinc-400 break-words">{pack.description}</div>
-                                    <div className="mt-1 text-[11px] text-zinc-500">
-                                      {pack.caseCount ?? 0} дел • ключ: {pack.shareCode}
+                                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
+                                      <span>{pack.caseCount ?? 0} дел</span>
+                                      <span className="inline-flex items-center rounded-full border border-zinc-700 bg-zinc-900/80 px-2 py-0.5 text-zinc-400">
+                                        {pack.shareCode}
+                                      </span>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => {
+                                        void openCreatePackEditor(pack.key);
+                                      }}
+                                      className="h-8 rounded-lg border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800"
+                                    >
+                                      Редактировать
+                                    </Button>
                                     <Button
                                       type="button"
                                       variant="outline"
@@ -12942,21 +13222,59 @@ export default function App() {
                             ))}
                           </div>
                         )}
+
+                        <Dialog open={importPackDialogOpen} onOpenChange={setImportPackDialogOpen}>
+                          <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+                            <DialogHeader>
+                              <DialogTitle>Импорт пака</DialogTitle>
+                              <DialogDescription className="text-zinc-400">
+                                Вставьте ключ, чтобы добавить чужой пак в свой список.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-3">
+                              <Input
+                                value={importPackShareCode}
+                                onChange={(event) =>
+                                  setImportPackShareCode(event.target.value.toUpperCase())
+                                }
+                                placeholder="Например: AB12CD34EF56GH78"
+                                className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                              />
+                              {importPackError && (
+                                <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                                  {importPackError}
+                                </div>
+                              )}
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  void submitImportPackByShareCode();
+                                }}
+                                disabled={importPackLoading}
+                                className="h-11 w-full rounded-xl bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border-0"
+                              >
+                                {importPackLoading ? "Импорт..." : "Импортировать"}
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900/95 via-zinc-900 to-zinc-950 p-3">
+                        <div className="rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_56%),linear-gradient(140deg,rgba(24,24,27,0.94),rgba(39,39,42,0.82))] p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="space-y-1">
-                              <div className="text-sm font-semibold text-zinc-100">Новый пользовательский пак</div>
+                              <div className="text-base font-semibold text-zinc-100">
+                                {createPackEditKey ? "Редактирование пользовательского пака" : "Новый пользовательский пак"}
+                              </div>
                               <div className="text-xs text-zinc-400">
-                                Создайте дела, настройте роли и поделитесь паком по ключу.
+                                Удобный конструктор: настройка пака, переключение дел и быстрый импорт/шаринг.
                               </div>
                             </div>
                             <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1">
-                              <span className="text-[11px] text-zinc-500">Превью</span>
+                              <span className="text-[11px] text-zinc-500">Цвет</span>
                               <span
-                                className="h-5 w-5 rounded-full border border-zinc-700 shadow-[0_0_12px_rgba(239,68,68,0.25)]"
+                                className="h-5 w-5 rounded-full border border-zinc-700 shadow-[0_0_12px_rgba(239,68,68,0.28)]"
                                 style={{
                                   backgroundColor: /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(
                                     createPackColor.trim(),
@@ -12969,8 +13287,8 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 space-y-3">
-                          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/65 p-4 space-y-3">
+                          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_240px]">
                             <div className="space-y-1.5">
                               <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Название пака</label>
                               <Input
@@ -12981,7 +13299,7 @@ export default function App() {
                               />
                             </div>
                             <div className="space-y-1.5">
-                              <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Цвет</label>
+                              <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Цвет темы</label>
                               <div className="flex items-center gap-2">
                                 <input
                                   type="color"
@@ -12997,13 +13315,12 @@ export default function App() {
                                   value={createPackColor}
                                   onChange={(event) => setCreatePackColor(event.target.value)}
                                   placeholder="#ef4444"
-                                  className="h-11 w-[130px] rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                  className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
                                 />
                               </div>
                             </div>
                           </div>
-
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-2">
                             {USER_PACK_COLOR_PRESETS.map((color) => {
                               const isActive = createPackColor.trim().toLowerCase() === color;
                               return (
@@ -13012,167 +13329,278 @@ export default function App() {
                                   type="button"
                                   aria-label={`Выбрать цвет ${color}`}
                                   onClick={() => setCreatePackColor(color)}
-                                  className={`h-7 w-7 rounded-full border transition-transform hover:scale-105 ${isActive ? "border-white/80 ring-2 ring-white/20" : "border-zinc-700"}`}
+                                  className={`h-8 w-8 rounded-full border transition-all hover:scale-105 ${isActive ? "border-white ring-2 ring-white/20" : "border-zinc-700"}`}
                                   style={{ backgroundColor: color }}
                                 />
                               );
                             })}
                           </div>
-
                           <div className="space-y-1.5">
-                            <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Описание</label>
+                            <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Описание пака</label>
                             <textarea
                               value={createPackDescription}
                               onChange={(event) => setCreatePackDescription(event.target.value)}
-                              placeholder="Короткое описание пака."
-                              className="min-h-[86px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500"
+                              placeholder="Коротко опишите стиль и тематику пака."
+                              className="min-h-[90px] w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500"
                             />
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/70 px-3 py-1 text-xs text-zinc-300">
-                            Дела в паке
-                            <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-red-100">
-                              {createPackCases.length}
-                            </span>
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/65 p-4 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-xs text-zinc-300">
+                              Дела в паке
+                              <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-red-100">
+                                {createPackCases.length}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={addCreatePackCase}
+                              className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                            >
+                              Добавить дело
+                            </Button>
                           </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={addCreatePackCase}
-                            className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                          >
-                            Добавить дело
-                          </Button>
-                        </div>
 
-                        <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
-                          {createPackCases.map((draft, index) => {
-                            const requiredRoles = (ROLE_KEYS_BY_PLAYERS[draft.modePlayerCount] ?? []).filter(
-                              (role) => role !== "judge",
-                            ) as UserPackRoleKey[];
-                            const modeLabel =
-                              USER_PACK_MODE_OPTIONS.find((mode) => mode.value === draft.modePlayerCount)
-                                ?.label ?? `${draft.modePlayerCount} игроков`;
-                            return (
-                              <div
-                                key={draft.id}
-                                className="rounded-2xl border border-zinc-800 bg-zinc-900/75 p-3 space-y-3"
-                              >
+                          <div className="flex gap-2 overflow-x-auto pb-1">
+                            {createPackCases.map((draft, index) => {
+                              const modeLabel =
+                                USER_PACK_MODE_OPTIONS.find((mode) => mode.value === draft.modePlayerCount)
+                                  ?.label ?? `${draft.modePlayerCount} игроков`;
+                              const isActive = activeCreatePackCase?.id === draft.id;
+                              return (
+                                <button
+                                  key={draft.id}
+                                  type="button"
+                                  onClick={() => setCreatePackActiveCaseId(draft.id)}
+                                  className={`min-w-[220px] rounded-xl border px-3 py-2 text-left transition-colors ${
+                                    isActive
+                                      ? "border-red-500/70 bg-red-500/12"
+                                      : "border-zinc-700 bg-zinc-950 hover:border-zinc-600"
+                                  }`}
+                                >
+                                  <div className="text-sm font-semibold text-zinc-100">
+                                    {draft.title.trim() || `Дело #${index + 1}`}
+                                  </div>
+                                  <div className="mt-0.5 text-[11px] text-zinc-500">{modeLabel}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {createPackEditLoading ? (
+                            <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-5 text-sm text-zinc-400">
+                              Загружаем данные пака...
+                            </div>
+                          ) : activeCreatePackCase ? (
+                            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/55 p-3 space-y-3">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="text-sm font-semibold text-zinc-100">
+                                  Редактор дела #{Math.max(1, activeCreatePackCaseIndex + 1)}
+                                </div>
+                                {createPackCases.length > 1 && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => removeCreatePackCase(activeCreatePackCase.id)}
+                                    className="h-8 rounded-lg border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-300 hover:bg-zinc-800"
+                                  >
+                                    Удалить дело
+                                  </Button>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[260px_1fr]">
+                                <div className="space-y-1">
+                                  <label className="text-[11px] text-zinc-500">Режим</label>
+                                  <Select
+                                    value={String(activeCreatePackCase.modePlayerCount)}
+                                    onValueChange={(value) =>
+                                      updateCreatePackCaseField(
+                                        activeCreatePackCase.id,
+                                        "modePlayerCount",
+                                        Number(value),
+                                      )
+                                    }
+                                  >
+                                    <SelectTrigger className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 focus:ring-red-500/30">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
+                                      {USER_PACK_MODE_OPTIONS.map((mode) => (
+                                        <SelectItem key={mode.value} value={String(mode.value)}>
+                                          {mode.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[11px] text-zinc-500">Название дела</label>
+                                  <Input
+                                    value={activeCreatePackCase.title}
+                                    onChange={(event) =>
+                                      updateCreatePackCaseField(
+                                        activeCreatePackCase.id,
+                                        "title",
+                                        event.target.value,
+                                      )
+                                    }
+                                    placeholder={`Дело ${Math.max(1, activeCreatePackCaseIndex + 1)}`}
+                                    className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                <div className="space-y-1">
+                                  <label className="text-[11px] text-zinc-500">Описание дела</label>
+                                  <textarea
+                                    value={activeCreatePackCase.description}
+                                    onChange={(event) =>
+                                      updateCreatePackCaseField(
+                                        activeCreatePackCase.id,
+                                        "description",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="min-h-[120px] w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[11px] text-zinc-500">Истина</label>
+                                  <textarea
+                                    value={activeCreatePackCase.truth}
+                                    onChange={(event) =>
+                                      updateCreatePackCaseField(
+                                        activeCreatePackCase.id,
+                                        "truth",
+                                        event.target.value,
+                                      )
+                                    }
+                                    className="min-h-[120px] w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-3 space-y-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <div className="flex min-w-0 items-center gap-2">
-                                    <div className="inline-flex h-7 items-center rounded-full border border-zinc-700 bg-zinc-950 px-2.5 text-xs font-semibold text-zinc-200">
-                                      Дело #{index + 1}
-                                    </div>
-                                    <div className="min-w-0 text-xs text-zinc-500 break-words">{modeLabel}</div>
+                                  <div className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
+                                    Улики
                                   </div>
                                   <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => removeCreatePackCase(draft.id)}
-                                    className="h-8 rounded-lg border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-300 hover:bg-zinc-800"
+                                    onClick={() => addCreatePackCaseEvidenceRow(activeCreatePackCase.id)}
+                                    className="h-7 rounded-lg border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-200 hover:bg-zinc-800"
                                   >
-                                    Удалить
+                                    Добавить строку
                                   </Button>
                                 </div>
-
-                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.1fr_0.9fr]">
-                                  <div className="space-y-2.5">
-                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                      <div className="space-y-1">
-                                        <label className="text-[11px] text-zinc-500">Режим</label>
-                                        <select
-                                          value={draft.modePlayerCount}
-                                          onChange={(event) =>
-                                            updateCreatePackCaseField(
-                                              draft.id,
-                                              "modePlayerCount",
-                                              Number(event.target.value),
-                                            )
-                                          }
-                                          className="h-10 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 outline-none"
-                                        >
-                                          {USER_PACK_MODE_OPTIONS.map((mode) => (
-                                            <option key={mode.value} value={mode.value}>
-                                              {mode.label}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[11px] text-zinc-500">Название дела</label>
-                                        <Input
-                                          value={draft.title}
-                                          onChange={(event) =>
-                                            updateCreatePackCaseField(draft.id, "title", event.target.value)
-                                          }
-                                          placeholder={`Дело ${index + 1}`}
-                                          className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
-                                        />
-                                      </div>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                      <label className="text-[11px] text-zinc-500">Описание дела</label>
-                                      <textarea
-                                        value={draft.description}
+                                <div className="space-y-2">
+                                  {activeCreatePackCase.evidenceRows.map((row, rowIndex) => (
+                                    <div key={`${activeCreatePackCase.id}-evidence-${rowIndex}`} className="flex items-center gap-2">
+                                      <Input
+                                        value={row}
                                         onChange={(event) =>
-                                          updateCreatePackCaseField(draft.id, "description", event.target.value)
+                                          updateCreatePackCaseEvidenceRow(
+                                            activeCreatePackCase.id,
+                                            rowIndex,
+                                            event.target.value,
+                                          )
                                         }
-                                        className="min-h-[86px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
+                                        placeholder={`Улика ${rowIndex + 1}`}
+                                        className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
                                       />
-                                    </div>
-
-                                    <div className="space-y-1">
-                                      <label className="text-[11px] text-zinc-500">Истина</label>
-                                      <textarea
-                                        value={draft.truth}
-                                        onChange={(event) =>
-                                          updateCreatePackCaseField(draft.id, "truth", event.target.value)
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                          removeCreatePackCaseEvidenceRow(activeCreatePackCase.id, rowIndex)
                                         }
-                                        className="min-h-[86px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
-                                      />
+                                        className="h-10 min-w-[84px] rounded-xl border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
+                                        disabled={activeCreatePackCase.evidenceRows.length <= 1}
+                                      >
+                                        Удалить
+                                      </Button>
                                     </div>
-
-                                    <div className="space-y-1">
-                                      <label className="text-[11px] text-zinc-500">Улики (каждая с новой строки)</label>
-                                      <textarea
-                                        value={draft.evidenceText}
-                                        onChange={(event) =>
-                                          updateCreatePackCaseField(draft.id, "evidenceText", event.target.value)
-                                        }
-                                        className="min-h-[100px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  <div className="rounded-xl border border-zinc-800 bg-zinc-950/45 p-2.5 space-y-2">
-                                    <div className="text-[11px] text-zinc-500">
-                                      Факты по ролям (минимум 4 строки для активных ролей)
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-2">
-                                      {requiredRoles.map((roleKey) => (
-                                        <div key={`${draft.id}-${roleKey}`} className="space-y-1">
-                                          <label className="text-[11px] font-medium text-zinc-400">
-                                            {USER_PACK_ROLE_TITLES[roleKey]}
-                                          </label>
-                                          <textarea
-                                            value={draft.factsByRole[roleKey]}
-                                            onChange={(event) =>
-                                              updateCreatePackCaseFacts(draft.id, roleKey, event.target.value)
-                                            }
-                                            placeholder={"Факт 1\nФакт 2\nФакт 3\nФакт 4"}
-                                            className="min-h-[108px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none"
-                                          />
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
+                                  ))}
                                 </div>
                               </div>
-                            );
-                          })}
+
+                              <div className="space-y-2">
+                                <div className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
+                                  Факты по ролям (минимум 4 для активной роли)
+                                </div>
+                                <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                                  {activeCreatePackRequiredRoles.map((roleKey) => {
+                                    const roleRows = activeCreatePackCase.factsByRole[roleKey] ?? [""];
+                                    return (
+                                      <div
+                                        key={`${activeCreatePackCase.id}-${roleKey}`}
+                                        className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-2.5 space-y-2"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="text-xs font-medium text-zinc-300">
+                                            {USER_PACK_ROLE_TITLES[roleKey]}
+                                          </div>
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() =>
+                                              addCreatePackCaseFactRow(activeCreatePackCase.id, roleKey)
+                                            }
+                                            className="h-7 rounded-lg border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-200 hover:bg-zinc-800"
+                                          >
+                                            Добавить
+                                          </Button>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          {roleRows.map((row, rowIndex) => (
+                                            <div
+                                              key={`${activeCreatePackCase.id}-${roleKey}-${rowIndex}`}
+                                              className="flex items-center gap-2"
+                                            >
+                                              <Input
+                                                value={row}
+                                                onChange={(event) =>
+                                                  updateCreatePackCaseFactRow(
+                                                    activeCreatePackCase.id,
+                                                    roleKey,
+                                                    rowIndex,
+                                                    event.target.value,
+                                                  )
+                                                }
+                                                placeholder={`Факт ${rowIndex + 1}`}
+                                                className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                              />
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() =>
+                                                  removeCreatePackCaseFactRow(
+                                                    activeCreatePackCase.id,
+                                                    roleKey,
+                                                    rowIndex,
+                                                  )
+                                                }
+                                                className="h-9 min-w-[72px] rounded-xl border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
+                                                disabled={roleRows.length <= 4}
+                                              >
+                                                -
+                                              </Button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
 
                         {createPackError && (
@@ -13186,10 +13614,16 @@ export default function App() {
                           onClick={() => {
                             void submitCreatePack();
                           }}
-                          disabled={createPackSaving}
+                          disabled={createPackSaving || createPackEditLoading}
                           className="h-11 w-full rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
                         >
-                          {createPackSaving ? "Сохраняем..." : "Сохранить пак"}
+                          {createPackSaving
+                            ? createPackEditKey
+                              ? "Сохраняем изменения..."
+                              : "Создаём пак..."
+                            : createPackEditKey
+                              ? "Сохранить изменения"
+                              : "Сохранить пак"}
                         </Button>
                       </div>
                     )}

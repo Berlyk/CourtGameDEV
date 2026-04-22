@@ -83,6 +83,22 @@ export interface UserCasePackInfo {
   createdAt: number;
 }
 
+export interface UserCasePackCaseDetails {
+  caseKey: string;
+  modePlayerCount: CaseModePlayerCount;
+  title: string;
+  description: string;
+  truth: string;
+  evidence: string[];
+  factsByRole: Record<CaseRoleKey, string[]>;
+  sortOrder: number;
+}
+
+export interface UserCasePackDetails {
+  pack: UserCasePackInfo;
+  cases: UserCasePackCaseDetails[];
+}
+
 export interface UserCasePackStoredCase {
   id: string;
   mode: string;
@@ -299,6 +315,41 @@ function mapRowToPackInfo(row: {
     isAdult: false,
     createdAt,
   };
+}
+
+async function fetchPackInfoById(packId: string): Promise<UserCasePackInfo> {
+  const result = await pool.query<{
+    id: string;
+    key: string;
+    title: string;
+    description: string;
+    color: string;
+    share_code: string;
+    case_count: number;
+    created_at: Date;
+  }>(
+    `
+      SELECT
+        p.id,
+        p.key,
+        p.title,
+        p.description,
+        p.color,
+        p.share_code,
+        COUNT(c.id)::int AS case_count,
+        p.created_at
+      FROM user_case_packs p
+      LEFT JOIN user_case_pack_cases c ON c.pack_id = p.id
+      WHERE p.id = $1
+      GROUP BY p.id
+    `,
+    [packId],
+  );
+
+  if (!result.rowCount) {
+    throw new Error("Пак не найден.");
+  }
+  return mapRowToPackInfo(result.rows[0]);
 }
 
 export async function listUserCasePacks(userId: string): Promise<UserCasePackInfo[]> {
@@ -643,6 +694,179 @@ export async function importUserCasePackByShareCode(
       throw new Error("Пак импортирован, но не удалось получить его данные.");
     }
     return mapRowToPackInfo(created.rows[0]);
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    throw error;
+  }
+}
+
+export async function getUserCasePackDetails(
+  userId: string,
+  packKeyInput: string,
+): Promise<UserCasePackDetails> {
+  await ensureUserCasePacksStorage();
+  const safeUserId = String(userId ?? "").trim();
+  if (!safeUserId) {
+    throw new Error("Не удалось определить пользователя.");
+  }
+  const packKey = String(packKeyInput ?? "").trim().toLowerCase();
+  if (!packKey) {
+    throw new Error("Ключ пака не указан.");
+  }
+
+  const packResult = await pool.query<{ id: string }>(
+    `
+      SELECT id
+      FROM user_case_packs
+      WHERE user_id = $1
+        AND key = $2
+      LIMIT 1
+    `,
+    [safeUserId, packKey],
+  );
+  if (!packResult.rowCount) {
+    throw new Error("Пак не найден.");
+  }
+
+  const packId = packResult.rows[0].id;
+  const pack = await fetchPackInfoById(packId);
+
+  const casesResult = await pool.query<{
+    case_key: string;
+    mode_player_count: number;
+    title: string;
+    description: string;
+    truth: string;
+    evidence_json: unknown;
+    facts_json: unknown;
+    sort_order: number;
+  }>(
+    `
+      SELECT
+        case_key,
+        mode_player_count,
+        title,
+        description,
+        truth,
+        evidence_json,
+        facts_json,
+        sort_order
+      FROM user_case_pack_cases
+      WHERE pack_id = $1
+      ORDER BY sort_order ASC, created_at ASC
+    `,
+    [packId],
+  );
+
+  const cases: UserCasePackCaseDetails[] = casesResult.rows.map((row) => ({
+    caseKey: String(row.case_key ?? ""),
+    modePlayerCount: normalizeModePlayerCount(row.mode_player_count),
+    title: normalizeTitle(row.title, "Дело"),
+    description: normalizeDescription(row.description, "Описание не указано."),
+    truth: normalizeTruth(row.truth),
+    evidence: normalizeEvidence(row.evidence_json),
+    factsByRole: cloneFacts(row.facts_json),
+    sortOrder: Math.max(1, Number(row.sort_order ?? 0) || 1),
+  }));
+
+  return { pack, cases };
+}
+
+export async function updateUserCasePack(
+  userId: string,
+  packKeyInput: string,
+  input: UserCasePackCreateInput,
+): Promise<UserCasePackInfo> {
+  await ensureUserCasePacksStorage();
+  const safeUserId = String(userId ?? "").trim();
+  if (!safeUserId) {
+    throw new Error("Не удалось определить пользователя.");
+  }
+  const packKey = String(packKeyInput ?? "").trim().toLowerCase();
+  if (!packKey) {
+    throw new Error("Ключ пака не указан.");
+  }
+
+  const title = normalizeTitle(input?.title, "");
+  if (!title) {
+    throw new Error("Введите название пака.");
+  }
+  const description = normalizeDescription(input?.description, "Пользовательский пак дел.");
+  const color = normalizeColor(input?.color);
+  const rawCases = Array.isArray(input?.cases) ? input.cases : [];
+  if (rawCases.length === 0) {
+    throw new Error("Добавьте хотя бы одно дело в пак.");
+  }
+  const normalizedCases = rawCases.map((row, index) => normalizeCaseInput(row, index));
+
+  await pool.query("BEGIN");
+  try {
+    const packResult = await pool.query<{ id: string }>(
+      `
+        SELECT id
+        FROM user_case_packs
+        WHERE user_id = $1
+          AND key = $2
+        LIMIT 1
+      `,
+      [safeUserId, packKey],
+    );
+    if (!packResult.rowCount) {
+      throw new Error("Пак не найден.");
+    }
+    const packId = packResult.rows[0].id;
+
+    await pool.query(
+      `
+        UPDATE user_case_packs
+        SET
+          title = $1,
+          description = $2,
+          color = $3,
+          updated_at = NOW()
+        WHERE id = $4
+      `,
+      [title, description, color, packId],
+    );
+
+    await pool.query(`DELETE FROM user_case_pack_cases WHERE pack_id = $1`, [packId]);
+
+    for (const caseRow of normalizedCases) {
+      await pool.query(
+        `
+          INSERT INTO user_case_pack_cases (
+            id,
+            pack_id,
+            case_key,
+            mode_player_count,
+            title,
+            description,
+            truth,
+            evidence_json,
+            facts_json,
+            sort_order,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, NOW(), NOW())
+        `,
+        [
+          crypto.randomUUID(),
+          packId,
+          caseRow.caseKey,
+          caseRow.modePlayerCount,
+          caseRow.title,
+          caseRow.description,
+          caseRow.truth,
+          JSON.stringify(caseRow.evidence),
+          JSON.stringify(caseRow.factsByRole),
+          caseRow.sortOrder,
+        ],
+      );
+    }
+
+    await pool.query("COMMIT");
+    return await fetchPackInfoById(packId);
   } catch (error) {
     await pool.query("ROLLBACK");
     throw error;
