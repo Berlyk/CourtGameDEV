@@ -30,7 +30,7 @@ const PAYPAL_ONLY_METHOD_IDS = new Set<number>([201]);
 const PAYPAL_CARDS_METHOD_IDS = new Set<number>([202]);
 
 const PRICE_MATRIX_RUB: Record<PaidTier, Record<PaidDuration, number>> = {
-  trainee: { "1_month": 0, "1_year": 2500 },
+  trainee: { "1_month": 250, "1_year": 2500 },
   practitioner: { "1_month": 500, "1_year": 5000 },
   arbiter: { "1_month": 800, "1_year": 8000 },
 };
