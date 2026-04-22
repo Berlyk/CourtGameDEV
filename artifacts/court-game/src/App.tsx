@@ -14487,7 +14487,7 @@ export default function App() {
         : warningTargets.length >= 6
           ? "max-h-[50vh] xl:max-h-[520px]"
           : warningTargets.length === 4
-            ? "max-h-[38vh] xl:max-h-[360px]"
+            ? "max-h-[41vh] xl:max-h-[400px]"
             : "max-h-[46vh] xl:max-h-[460px]";
     return (
       <motion.div
