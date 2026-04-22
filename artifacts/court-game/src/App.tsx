@@ -248,8 +248,9 @@ const USER_PACK_TEXT_LIMITS = {
   packTitle: 90,
   packDescription: 420,
   caseTitle: 90,
-  caseDescription: 420,
-  truth: 420,
+  caseDescription: 150,
+  truth: 150,
+  fact: 40,
 };
 const USER_PACK_CASES_PER_PAGE = 10;
 const USER_PACK_VERDICT_OPTIONS: Array<{
@@ -4300,6 +4301,7 @@ export default function App() {
   const [createPackEditKey, setCreatePackEditKey] = useState<string | null>(null);
   const [createPackCasesDialogOpen, setCreatePackCasesDialogOpen] = useState(false);
   const [createPackCasesPage, setCreatePackCasesPage] = useState(1);
+  const [createPackModeTab, setCreatePackModeTab] = useState<UserPackCaseMode>(3);
   const [createPackTitle, setCreatePackTitle] = useState("");
   const [createPackDescription, setCreatePackDescription] = useState("");
   const [createPackColor, setCreatePackColor] = useState(USER_PACK_COLOR_DEFAULT);
@@ -4361,6 +4363,15 @@ export default function App() {
     const totalPages = Math.max(1, Math.ceil(createPackCases.length / USER_PACK_CASES_PER_PAGE));
     setCreatePackCasesPage((prev) => Math.max(1, Math.min(prev, totalPages)));
   }, [createPackCases.length]);
+  useEffect(() => {
+    const hasCurrentModeCases = createPackCases.some((item) => item.modePlayerCount === createPackModeTab);
+    if (hasCurrentModeCases) return;
+    const firstModeWithCases =
+      USER_PACK_MODE_OPTIONS.find((mode) =>
+        createPackCases.some((item) => item.modePlayerCount === mode.value),
+      )?.value ?? 3;
+    setCreatePackModeTab(firstModeWithCases);
+  }, [createPackCases, createPackModeTab]);
 
   const [myId, setMyId] = useState<string | null>(null);
   const [mySessionToken, setMySessionToken] = useState<string | null>(
@@ -4689,7 +4700,18 @@ export default function App() {
       cases: createPackCasesPaged.filter((item) => item.modePlayerCount === mode.value),
     })).filter((group) => group.cases.length > 0);
   }, [createPackCasesPaged]);
-  const createPackQuickCases = useMemo(() => createPackCases.slice(0, 5), [createPackCases]);
+  const createPackAllCasesByMode = useMemo(
+    () =>
+      USER_PACK_MODE_OPTIONS.map((mode) => ({
+        mode,
+        cases: createPackCases.filter((item) => item.modePlayerCount === mode.value),
+      })),
+    [createPackCases],
+  );
+  const createPackModeTabCases = useMemo(
+    () => createPackCases.filter((item) => item.modePlayerCount === createPackModeTab),
+    [createPackCases, createPackModeTab],
+  );
   const createPackHasOverflowCases = createPackCases.length > 5;
   const createPackCatalogActionLabel = createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
@@ -4847,6 +4869,7 @@ export default function App() {
     setCreatePackColor(USER_PACK_COLOR_DEFAULT);
     setCreatePackCases([firstCase]);
     setCreatePackActiveCaseId(firstCase.id);
+    setCreatePackModeTab(firstCase.modePlayerCount);
   }, []);
 
   const loadMyCasePacks = useCallback(async () => {
@@ -4925,7 +4948,9 @@ export default function App() {
               };
               for (const role of USER_PACK_ROLE_KEYS) {
                 const rows = Array.isArray(caseItem?.factsByRole?.[role])
-                  ? caseItem?.factsByRole?.[role] ?? []
+                  ? (caseItem?.factsByRole?.[role] ?? []).map((item) =>
+                      String(item ?? "").slice(0, USER_PACK_TEXT_LIMITS.fact),
+                    )
                   : [];
                 factsByRole[role] = ensureDraftFactRows(rows, requiredRoles.includes(role));
               }
@@ -4934,9 +4959,9 @@ export default function App() {
                 id: caseItem?.caseKey
                   ? `case_${caseItem.caseKey}_${index}`
                   : `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-                title: String(caseItem?.title ?? "").trim(),
-                description: String(caseItem?.description ?? "").trim(),
-                truth: String(caseItem?.truth ?? "").trim(),
+                title: String(caseItem?.title ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.caseTitle),
+                description: String(caseItem?.description ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.caseDescription),
+                truth: String(caseItem?.truth ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.truth),
                 expectedVerdict:
                   caseItem?.expectedVerdict === "guilty" ||
                   caseItem?.expectedVerdict === "not_guilty" ||
@@ -4955,6 +4980,7 @@ export default function App() {
         setCreatePackColor(String(pack?.color ?? USER_PACK_COLOR_DEFAULT));
         setCreatePackCases(drafts);
         setCreatePackActiveCaseId(drafts[0]?.id ?? null);
+        setCreatePackModeTab((drafts[0]?.modePlayerCount ?? 3) as UserPackCaseMode);
       } catch (error) {
         const message =
           error instanceof Error && error.message.trim()
@@ -5012,6 +5038,7 @@ export default function App() {
     const nextCase = createEmptyUserPackCaseDraft(3);
     setCreatePackCases((prev) => [...prev, nextCase]);
     setCreatePackActiveCaseId(nextCase.id);
+    setCreatePackModeTab(nextCase.modePlayerCount);
   }, []);
 
   const removeCreatePackCase = useCallback((caseId: string) => {
@@ -5109,7 +5136,7 @@ export default function App() {
                 factsByRole: {
                   ...item.factsByRole,
                   [roleKey]: (item.factsByRole[roleKey] ?? []).map((row, index) =>
-                    index === rowIndex ? value : row,
+                    index === rowIndex ? value.slice(0, USER_PACK_TEXT_LIMITS.fact) : row,
                   ),
                 },
               }
@@ -5140,7 +5167,7 @@ export default function App() {
         const factsByRole: Partial<Record<UserPackRoleKey, string[]>> = {};
         for (const role of USER_PACK_ROLE_KEYS) {
           const lines = (draft.factsByRole[role] ?? [])
-            .map((item) => item.trim())
+            .map((item) => item.trim().slice(0, USER_PACK_TEXT_LIMITS.fact))
             .filter(Boolean);
           if (allowedRoles.includes(role) && lines.length < 4) {
             throw new Error(
@@ -13289,13 +13316,9 @@ export default function App() {
                                 Настройте пак, распределите дела по режимам и сохраните готовый набор.
                               </div>
                             </div>
-                            <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1">
-                              <Palette className="h-3.5 w-3.5 text-zinc-400" />
-                              <span className="text-[11px] text-zinc-400">Тема</span>
-                              <span
-                                className="h-4 w-4 rounded-full border border-zinc-700"
-                                style={{ backgroundColor: createPackColor }}
-                              />
+                            <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-[11px] text-zinc-400">
+                              <Palette className="h-3.5 w-3.5" />
+                              Дизайн пака
                             </div>
                           </div>
                         </div>
@@ -13323,16 +13346,7 @@ export default function App() {
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="space-y-0.5">
                                 <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Цвет темы</div>
-                                <div className="text-[11px] text-zinc-400">
-                                  Выберите акцент и при необходимости скорректируйте HEX.
-                                </div>
-                              </div>
-                              <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-2.5 py-1">
-                                <span
-                                  className="h-4 w-4 rounded-full border border-zinc-600"
-                                  style={{ backgroundColor: createPackColor }}
-                                />
-                                <span className="font-mono text-[11px] text-zinc-300">{createPackColor}</span>
+                                <div className="text-[11px] text-zinc-400">Выберите акцент из палитры.</div>
                               </div>
                             </div>
                             <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 lg:grid-cols-12">
@@ -13346,41 +13360,13 @@ export default function App() {
                                     onClick={() => setCreatePackColor(color)}
                                     className={`h-8 rounded-full border transition-all hover:brightness-110 ${
                                       isActive
-                                        ? "border-white ring-2 ring-white/25"
+                                        ? "border-white ring-2 ring-white/30 scale-[1.02]"
                                         : "border-zinc-700"
                                     }`}
                                     style={{ backgroundColor: color }}
                                   />
                                 );
                               })}
-                            </div>
-                            <div className="grid grid-cols-[auto_1fr] items-center gap-2">
-                              <div
-                                className="h-10 w-10 rounded-xl border border-zinc-700"
-                                style={{ backgroundColor: createPackColor }}
-                              />
-                              <div className="flex items-center rounded-xl border border-zinc-700 bg-zinc-950 px-2">
-                                <span className="mr-2 text-sm text-zinc-500">#</span>
-                                <Input
-                                  value={createPackColor.replace(/^#/, "")}
-                                  onChange={(event) =>
-                                    setCreatePackColor(
-                                      `#${event.target.value
-                                        .replace(/[^0-9a-fA-F]/g, "")
-                                        .slice(0, 6)}`,
-                                    )
-                                  }
-                                  onBlur={() =>
-                                    setCreatePackColor((prev) => {
-                                      const raw = prev.trim().toLowerCase();
-                                      if (/^#[0-9a-f]{6}$/.test(raw)) return raw;
-                                      return USER_PACK_COLOR_DEFAULT;
-                                    })
-                                  }
-                                  placeholder="ef4444"
-                                  className="h-10 border-0 bg-transparent px-0 font-mono text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-0"
-                                />
-                              </div>
                             </div>
                           </div>
 
@@ -13438,53 +13424,72 @@ export default function App() {
                           </div>
 
                           <div className="space-y-2 min-w-0">
-                            {USER_PACK_MODE_OPTIONS.map((mode) => {
-                              const modeCases = createPackQuickCases.filter(
-                                (item) => item.modePlayerCount === mode.value,
-                              );
-                              if (!modeCases.length) return null;
-                              return (
-                                <div key={`quick-mode-${mode.value}`} className="space-y-1.5 min-w-0">
-                                  <div className="text-[11px] uppercase tracking-[0.11em] text-zinc-500 break-words">
-                                    {mode.label} — {mode.subtitle}
-                                  </div>
-                                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                                    {modeCases.map((draft, idx) => {
-                                      const index = createPackCases.findIndex((item) => item.id === draft.id);
-                                      const isActive = activeCreatePackCase?.id === draft.id;
-                                      return (
-                                        <button
-                                          key={draft.id}
-                                          type="button"
-                                          onClick={() => setCreatePackActiveCaseId(draft.id)}
-                                          className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
-                                            isActive
-                                              ? "border-red-500/70 bg-red-500/12"
-                                              : "border-zinc-700 bg-zinc-950 hover:border-zinc-600"
-                                          }`}
-                                        >
-                                          <div className="truncate text-sm font-semibold text-zinc-100">
-                                            {draft.title.trim() || `Дело #${Math.max(1, index + 1 || idx + 1)}`}
-                                          </div>
-                                          <div className="mt-0.5 truncate text-[11px] text-zinc-500">
-                                            #{Math.max(1, index + 1)}
-                                          </div>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {createPackHasOverflowCases && (
-                            <div className="text-[11px] text-zinc-500">
-                              Показаны первые 5 дел. Остальные доступны в списке дел.
+                            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                              {createPackAllCasesByMode.map(({ mode, cases }) => {
+                                const isTabActive = createPackModeTab === mode.value;
+                                return (
+                                  <button
+                                    key={`pack-mode-tab-${mode.value}`}
+                                    type="button"
+                                    onClick={() => setCreatePackModeTab(mode.value)}
+                                    className={`min-w-0 rounded-xl border px-3 py-2 text-left transition-all ${
+                                      isTabActive
+                                        ? "border-red-500/70 bg-red-500/12 shadow-[0_0_0_1px_rgba(239,68,68,0.12)]"
+                                        : "border-zinc-700 bg-zinc-950 hover:border-zinc-600 hover:bg-zinc-900/90"
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="truncate text-sm font-semibold text-zinc-100">{mode.label}</span>
+                                      <span
+                                        className={`inline-flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold ${
+                                          isTabActive ? "bg-red-500/25 text-red-100" : "bg-zinc-800 text-zinc-300"
+                                        }`}
+                                      >
+                                        {cases.length}
+                                      </span>
+                                    </div>
+                                    <div className="mt-0.5 truncate text-[11px] text-zinc-500">{mode.subtitle}</div>
+                                  </button>
+                                );
+                              })}
                             </div>
-                          )}
+
+                            {createPackModeTabCases.length > 0 ? (
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+                                {createPackModeTabCases.map((draft) => {
+                                  const index = createPackCases.findIndex((item) => item.id === draft.id);
+                                  const isActive = activeCreatePackCase?.id === draft.id;
+                                  return (
+                                    <button
+                                      key={draft.id}
+                                      type="button"
+                                      onClick={() => setCreatePackActiveCaseId(draft.id)}
+                                      className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
+                                        isActive
+                                          ? "border-red-500/70 bg-red-500/12"
+                                          : "border-zinc-700 bg-zinc-950 hover:border-zinc-600"
+                                      }`}
+                                    >
+                                      <div className="truncate text-sm font-semibold text-zinc-100">
+                                        {draft.title.trim() || `Дело #${Math.max(1, index + 1)}`}
+                                      </div>
+                                      <div className="mt-0.5 truncate text-[11px] text-zinc-500">#{Math.max(1, index + 1)}</div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-[12px] text-zinc-500">
+                                Для этого режима пока нет дел.
+                              </div>
+                            )}
+                          </div>
 
                           <Dialog open={createPackCasesDialogOpen} onOpenChange={setCreatePackCasesDialogOpen}>
-                            <DialogContent className="max-w-2xl border-zinc-800 bg-zinc-950 text-zinc-100">
+                            <DialogContent
+                              overlayClassName="z-[205] bg-black/72"
+                              className="z-[210] max-w-2xl border-zinc-800 bg-zinc-950 text-zinc-100"
+                            >
                               <DialogHeader>
                                 <DialogTitle>Список дел в паке</DialogTitle>
                                 <DialogDescription>
@@ -13743,12 +13748,16 @@ export default function App() {
                                   Факты по ролям (фиксированный набор)
                                 </div>
                                 <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-                                  {activeCreatePackRequiredRoles.map((roleKey) => {
+                                  {activeCreatePackRequiredRoles.map((roleKey, roleIndex) => {
                                     const roleRows = activeCreatePackCase.factsByRole[roleKey] ?? ["", "", "", ""];
+                                    const isOddCount = activeCreatePackRequiredRoles.length % 2 === 1;
+                                    const isLastOdd = isOddCount && roleIndex === activeCreatePackRequiredRoles.length - 1;
                                     return (
                                       <div
                                         key={`${activeCreatePackCase.id}-${roleKey}`}
-                                        className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-2.5 space-y-2"
+                                        className={`rounded-xl border border-zinc-800 bg-zinc-900/55 p-2.5 space-y-2 ${
+                                          isLastOdd ? "xl:col-span-2" : ""
+                                        }`}
                                       >
                                         <div className="text-xs font-medium text-zinc-300">
                                           {USER_PACK_ROLE_TITLES[roleKey]}
@@ -13763,9 +13772,10 @@ export default function App() {
                                                   activeCreatePackCase.id,
                                                   roleKey,
                                                   rowIndex,
-                                                  event.target.value,
+                                                  event.target.value.slice(0, USER_PACK_TEXT_LIMITS.fact),
                                                 )
                                               }
+                                              maxLength={USER_PACK_TEXT_LIMITS.fact}
                                               placeholder={`Факт ${rowIndex + 1}`}
                                               className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
                                             />
