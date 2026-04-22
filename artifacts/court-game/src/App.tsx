@@ -268,6 +268,21 @@ function inferVerdictKeyFromTruth(value: string | undefined): "guilty" | "not_gu
   return "guilty";
 }
 
+function normalizePackColor(value: string | undefined): string {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(raw)) return raw;
+  return USER_PACK_COLOR_DEFAULT;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const safe = normalizePackColor(hex);
+  const parsed = Number.parseInt(safe.slice(1), 16);
+  const r = (parsed >> 16) & 255;
+  const g = (parsed >> 8) & 255;
+  const b = parsed & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 const QUICK_ROOM_MODE = {
   key: "quick_flex" as RoomModeKey,
   title: "Быстрая комната",
@@ -1017,6 +1032,7 @@ function createEmptyUserPackCaseDraft(modePlayerCount: UserPackCaseMode = 3): Us
   return {
     id: `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     modePlayerCount,
+    lastEditedAt: Date.now(),
     title: "",
     description: "",
     truth: "",
@@ -2541,6 +2557,7 @@ type UserPackRoleKey =
 type UserPackCaseDraft = {
   id: string;
   modePlayerCount: UserPackCaseMode;
+  lastEditedAt: number;
   title: string;
   description: string;
   truth: string;
@@ -4288,6 +4305,7 @@ export default function App() {
   >("catalog");
   const [casePacks, setCasePacks] = useState<CasePackInfo[]>([]);
   const [myCasePacks, setMyCasePacks] = useState<CasePackInfo[]>([]);
+  const [copiedPackShareCode, setCopiedPackShareCode] = useState<string | null>(null);
   const [myCasePacksLoading, setMyCasePacksLoading] = useState(false);
   const [myCasePacksError, setMyCasePacksError] = useState("");
   const [importPackDialogOpen, setImportPackDialogOpen] = useState(false);
@@ -4359,9 +4377,12 @@ export default function App() {
     }
   }, [createPackCases, createPackActiveCaseId]);
   useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil(createPackCases.length / USER_PACK_CASES_PER_PAGE));
+    const modeCasesCount = createPackCases.filter(
+      (item) => item.modePlayerCount === createPackModeTab,
+    ).length;
+    const totalPages = Math.max(1, Math.ceil(modeCasesCount / USER_PACK_CASES_PER_PAGE));
     setCreatePackCasesPage((prev) => Math.max(1, Math.min(prev, totalPages)));
-  }, [createPackCases.length]);
+  }, [createPackCases, createPackModeTab]);
   const [myId, setMyId] = useState<string | null>(null);
   const [mySessionToken, setMySessionToken] = useState<string | null>(
     () => localStorage.getItem("court_session_token"),
@@ -4670,40 +4691,51 @@ export default function App() {
         : [],
     [activeCreatePackCase],
   );
+  const createPackModeTabCases = useMemo(
+    () =>
+      createPackCases
+        .filter((item) => item.modePlayerCount === createPackModeTab)
+        .sort((a, b) => (b.lastEditedAt ?? 0) - (a.lastEditedAt ?? 0)),
+    [createPackCases, createPackModeTab],
+  );
   const createPackCasesTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(createPackCases.length / USER_PACK_CASES_PER_PAGE)),
-    [createPackCases.length],
+    () => Math.max(1, Math.ceil(createPackModeTabCases.length / USER_PACK_CASES_PER_PAGE)),
+    [createPackModeTabCases.length],
   );
   const createPackCasesPaged = useMemo(() => {
     const safePage = Math.max(1, Math.min(createPackCasesPage, createPackCasesTotalPages));
     const start = (safePage - 1) * USER_PACK_CASES_PER_PAGE;
-    return createPackCases.slice(start, start + USER_PACK_CASES_PER_PAGE);
-  }, [createPackCases, createPackCasesPage, createPackCasesTotalPages]);
-  const createPackCasesPagedByMode = useMemo(() => {
-    return USER_PACK_MODE_OPTIONS.map((mode) => ({
-      mode,
-      cases: createPackCasesPaged.filter((item) => item.modePlayerCount === mode.value),
-    })).filter((group) => group.cases.length > 0);
-  }, [createPackCasesPaged]);
+    return createPackModeTabCases.slice(start, start + USER_PACK_CASES_PER_PAGE);
+  }, [createPackModeTabCases, createPackCasesPage, createPackCasesTotalPages]);
+  const createPackCasesPageStartIndex = useMemo(() => {
+    const safePage = Math.max(1, Math.min(createPackCasesPage, createPackCasesTotalPages));
+    return (safePage - 1) * USER_PACK_CASES_PER_PAGE;
+  }, [createPackCasesPage, createPackCasesTotalPages]);
   const createPackAllCasesByMode = useMemo(
     () =>
       USER_PACK_MODE_OPTIONS.map((mode) => ({
         mode,
-        cases: createPackCases.filter((item) => item.modePlayerCount === mode.value),
+        cases: createPackCases
+          .filter((item) => item.modePlayerCount === mode.value)
+          .sort((a, b) => (b.lastEditedAt ?? 0) - (a.lastEditedAt ?? 0)),
       })),
     [createPackCases],
   );
-  const createPackModeTabCases = useMemo(
-    () => createPackCases.filter((item) => item.modePlayerCount === createPackModeTab),
-    [createPackCases, createPackModeTab],
+  const createPackHasOverflowCases = createPackModeTabCases.length > 5;
+  const createPackModeTabPreviewCases = useMemo(
+    () => createPackModeTabCases.slice(0, 5),
+    [createPackModeTabCases],
   );
-  const createPackHasOverflowCases = createPackCases.length > 5;
-  const activeCreatePackCaseModeIndex = useMemo(() => {
-    if (!activeCreatePackCase) return -1;
+  const activeCreatePackModeCases = useMemo(() => {
+    if (!activeCreatePackCase) return [] as UserPackCaseDraft[];
     return createPackCases
       .filter((item) => item.modePlayerCount === activeCreatePackCase.modePlayerCount)
-      .findIndex((item) => item.id === activeCreatePackCase.id);
+      .sort((a, b) => (b.lastEditedAt ?? 0) - (a.lastEditedAt ?? 0));
   }, [activeCreatePackCase, createPackCases]);
+  const activeCreatePackCaseModeIndex = useMemo(() => {
+    if (!activeCreatePackCase) return -1;
+    return activeCreatePackModeCases.findIndex((item) => item.id === activeCreatePackCase.id);
+  }, [activeCreatePackCase, activeCreatePackModeCases]);
   const createPackCatalogActionLabel = createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
@@ -4950,6 +4982,7 @@ export default function App() {
                 id: caseItem?.caseKey
                   ? `case_${caseItem.caseKey}_${index}`
                   : `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                lastEditedAt: Date.now() - index,
                 title: String(caseItem?.title ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.caseTitle),
                 description: String(caseItem?.description ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.caseDescription),
                 truth: String(caseItem?.truth ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.truth),
@@ -5075,6 +5108,7 @@ export default function App() {
             return {
               ...item,
               modePlayerCount: nextMode,
+              lastEditedAt: Date.now(),
               factsByRole: nextFactsByRole,
             };
           }
@@ -5086,11 +5120,13 @@ export default function App() {
             return {
               ...item,
               expectedVerdict: safeVerdict,
+              lastEditedAt: Date.now(),
             };
           }
           return {
             ...item,
             [field]: String(value),
+            lastEditedAt: Date.now(),
           };
         }),
       );
@@ -5103,11 +5139,12 @@ export default function App() {
       setCreatePackCases((prev) =>
         prev.map((item) =>
           item.id === caseId
-            ? {
-                ...item,
-                evidenceRows: [0, 1, 2].map((index) => {
-                  const source = item.evidenceRows[index] ?? "";
-                  return index === rowIndex ? value : source;
+              ? {
+                  ...item,
+                  lastEditedAt: Date.now(),
+                  evidenceRows: [0, 1, 2].map((index) => {
+                    const source = item.evidenceRows[index] ?? "";
+                    return index === rowIndex ? value : source;
                 }),
               }
             : item,
@@ -5122,10 +5159,11 @@ export default function App() {
       setCreatePackCases((prev) =>
         prev.map((item) =>
           item.id === caseId
-            ? {
-                ...item,
-                factsByRole: {
-                  ...item.factsByRole,
+              ? {
+                  ...item,
+                  lastEditedAt: Date.now(),
+                  factsByRole: {
+                    ...item.factsByRole,
                   [roleKey]: (item.factsByRole[roleKey] ?? []).map((row, index) =>
                     index === rowIndex ? value.slice(0, USER_PACK_TEXT_LIMITS.fact) : row,
                   ),
@@ -5230,6 +5268,10 @@ export default function App() {
     if (!safeCode) return;
     try {
       await navigator.clipboard.writeText(safeCode);
+      setCopiedPackShareCode(safeCode);
+      window.setTimeout(() => {
+        setCopiedPackShareCode((prev) => (prev === safeCode ? null : prev));
+      }, 1600);
     } catch {
       setError(`Ключ пака: ${safeCode}`);
     }
@@ -13130,7 +13172,17 @@ export default function App() {
                             const requiredTier = getRequiredTierForPack(pack);
                             const visual = getCasePackVisual(pack.key, pack.title);
                             const displayTitle = getCasePackTitleDisplay(pack.title);
-                            const cardClass = `${visual.card} ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
+                            const normalizedPackColor = normalizePackColor(pack.color);
+                            const isCustomPack = !!pack.isCustom;
+                            const cardClass = `${
+                              isCustomPack ? "bg-zinc-900/90 border-zinc-700" : visual.card
+                            } ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
+                            const customCardStyle = isCustomPack
+                              ? {
+                                  borderColor: hexToRgba(normalizedPackColor, createRoomPackKey === pack.key ? 0.88 : 0.52),
+                                  backgroundImage: `radial-gradient(130% 140% at 0% 0%, ${hexToRgba(normalizedPackColor, 0.24)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.96), rgba(39,39,42,0.88))`,
+                                }
+                              : undefined;
                             const content = (
                               <>
                                 <div className="flex items-start justify-between gap-2">
@@ -13173,6 +13225,7 @@ export default function App() {
                                     )
                                   }
                                   className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition-colors hover:border-zinc-500 ${cardClass}`}
+                                  style={customCardStyle}
                                 >
                                   {content}
                                 </button>
@@ -13188,6 +13241,7 @@ export default function App() {
                                   setCreatePackCatalogView("catalog");
                                 }}
                                 className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition-all hover:brightness-105 ${cardClass}`}
+                                style={customCardStyle}
                               >
                                 {content}
                               </button>
@@ -13211,59 +13265,74 @@ export default function App() {
                             Пока нет пользовательских паков. Нажмите «Создать пак».
                           </div>
                         ) : (
-                          <div className="space-y-2.5">
-                            {myCasePacks.map((pack) => (
-                              <div
-                                key={pack.key}
-                                className="rounded-2xl border border-zinc-800 bg-zinc-900/70 px-4 py-3"
-                              >
-                                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
-                                  <div className="min-w-0">
-                                    <div className="text-base font-semibold text-zinc-100 break-words">{pack.title}</div>
-                                    <div className="mt-1 text-sm text-zinc-400 break-words">{pack.description}</div>
-                                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-                                      <span className="rounded-full border border-zinc-700 bg-zinc-950/80 px-2 py-0.5">{pack.caseCount ?? 0} дел</span>
-                                      <span className="inline-flex items-center rounded-full border border-zinc-700 bg-zinc-950/80 px-2 py-0.5 text-zinc-400">
-                                        {pack.shareCode}
-                                      </span>
+                          <div className="space-y-3">
+                            {myCasePacks.map((pack) => {
+                              const accent = normalizePackColor(pack.color);
+                              const copied = copiedPackShareCode === String(pack.shareCode ?? "").trim();
+                              return (
+                                <div
+                                  key={pack.key}
+                                  className="rounded-2xl border bg-zinc-900/75 px-4 py-3"
+                                  style={{
+                                    borderColor: hexToRgba(accent, 0.48),
+                                    backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(accent, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
+                                  }}
+                                >
+                                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <div
+                                          className="h-2.5 w-2.5 rounded-full"
+                                          style={{ backgroundColor: accent }}
+                                        />
+                                        <div className="text-base font-semibold text-zinc-100 break-words">{pack.title}</div>
+                                      </div>
+                                      <div className="mt-1 text-sm text-zinc-300/90 break-words">{pack.description}</div>
+                                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
+                                        <span className="rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5">
+                                          {pack.caseCount ?? 0} дел
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                          void openCreatePackEditor(pack.key);
+                                        }}
+                                        className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800"
+                                      >
+                                        Редактировать
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                          void copyPackShareCode(pack.shareCode ?? "");
+                                        }}
+                                        className={`h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800 ${
+                                          copied ? "border-emerald-500/70 text-emerald-200" : ""
+                                        }`}
+                                      >
+                                        {copied ? "Скопировано" : "Поделиться"}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        onClick={() => {
+                                          setCreateRoomPackKey(pack.key);
+                                          setCreatePackCatalogOpen(false);
+                                          setCreatePackCatalogView("catalog");
+                                        }}
+                                        className="h-9 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
+                                      >
+                                        Выбрать
+                                      </Button>
                                     </div>
                                   </div>
-                                  <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      onClick={() => {
-                                        void openCreatePackEditor(pack.key);
-                                      }}
-                                      className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800"
-                                    >
-                                      Редактировать
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      onClick={() => {
-                                        void copyPackShareCode(pack.shareCode ?? "");
-                                      }}
-                                      className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800"
-                                    >
-                                      Поделиться
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      onClick={() => {
-                                        setCreateRoomPackKey(pack.key);
-                                        setCreatePackCatalogOpen(false);
-                                        setCreatePackCatalogView("catalog");
-                                      }}
-                                      className="h-9 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
-                                    >
-                                      Выбрать
-                                    </Button>
-                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
 
@@ -13447,9 +13516,9 @@ export default function App() {
                               })}
                             </div>
 
-                            {createPackModeTabCases.length > 0 ? (
-                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-                                {createPackModeTabCases.map((draft, modeIndex) => {
+                            {createPackModeTabPreviewCases.length > 0 ? (
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                                {createPackModeTabPreviewCases.map((draft, modeIndex) => {
                                   const isActive = activeCreatePackCase?.id === draft.id;
                                   return (
                                     <button
@@ -13470,11 +13539,7 @@ export default function App() {
                                   );
                                 })}
                               </div>
-                            ) : (
-                              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-[12px] text-zinc-500">
-                                Для этого режима пока нет дел.
-                              </div>
-                            )}
+                            ) : null}
                           </div>
 
                           <Dialog open={createPackCasesDialogOpen} onOpenChange={setCreatePackCasesDialogOpen}>
@@ -13485,44 +13550,40 @@ export default function App() {
                               <DialogHeader>
                                 <DialogTitle>Список дел в паке</DialogTitle>
                                 <DialogDescription>
-                                  По 10 дел на страницу, с группировкой по режимам.
+                                  Показаны дела текущего режима, по 10 на страницу.
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="space-y-3">
-                                {createPackCasesPagedByMode.map(({ mode, cases }) => (
-                                  <div key={`list-mode-${mode.value}`} className="space-y-2">
-                                    <div className="text-xs uppercase tracking-[0.11em] text-zinc-500 break-words">
-                                      {mode.label} — {mode.subtitle}
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      {cases.map((item, modeIndex) => {
-                                        const isActive = activeCreatePackCase?.id === item.id;
-                                        return (
-                                          <button
-                                            key={`list-item-${item.id}`}
-                                            type="button"
-                                            onClick={() => {
-                                              setCreatePackActiveCaseId(item.id);
-                                              setCreatePackCasesDialogOpen(false);
-                                            }}
-                                            className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
-                                              isActive
-                                                ? "border-red-500/70 bg-red-500/12"
-                                                : "border-zinc-700 bg-zinc-900/80 hover:border-zinc-600"
-                                            }`}
-                                          >
-                                            <div className="truncate text-sm font-semibold text-zinc-100">
-                                              {item.title.trim() || `Дело ${Math.max(1, modeIndex + 1)}`}
-                                            </div>
-                                            <div className="mt-0.5 text-[11px] text-zinc-500">
-                                              #{Math.max(1, modeIndex + 1)}
-                                            </div>
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                ))}
+                                <div className="text-xs uppercase tracking-[0.11em] text-zinc-500 break-words">
+                                  {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackModeTab)?.label} —{" "}
+                                  {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackModeTab)?.subtitle}
+                                </div>
+                                <div className="space-y-1.5">
+                                  {createPackCasesPaged.map((item, modeIndex) => {
+                                    const isActive = activeCreatePackCase?.id === item.id;
+                                    const displayIndex = createPackCasesPageStartIndex + modeIndex + 1;
+                                    return (
+                                      <button
+                                        key={`list-item-${item.id}`}
+                                        type="button"
+                                        onClick={() => {
+                                          setCreatePackActiveCaseId(item.id);
+                                          setCreatePackCasesDialogOpen(false);
+                                        }}
+                                        className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
+                                          isActive
+                                            ? "border-red-500/70 bg-red-500/12"
+                                            : "border-zinc-700 bg-zinc-900/80 hover:border-zinc-600"
+                                        }`}
+                                      >
+                                        <div className="truncate text-sm font-semibold text-zinc-100">
+                                          {item.title.trim() || `Дело ${displayIndex}`}
+                                        </div>
+                                        <div className="mt-0.5 text-[11px] text-zinc-500">#{displayIndex}</div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                                 <div className="flex items-center justify-between gap-2 pt-1">
                                   <Button
                                     type="button"
@@ -13681,22 +13742,21 @@ export default function App() {
                                     Улики
                                   </div>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                                   {[0, 1, 2].map((rowIndex) => (
-                                    <div key={`${activeCreatePackCase.id}-evidence-${rowIndex}`} className="flex items-center gap-2">
-                                      <Input
-                                        value={activeCreatePackCase.evidenceRows[rowIndex] ?? ""}
-                                        onChange={(event) =>
-                                          updateCreatePackCaseEvidenceRow(
-                                            activeCreatePackCase.id,
-                                            rowIndex,
-                                            event.target.value,
-                                          )
-                                        }
-                                        placeholder={`Улика ${rowIndex + 1}`}
-                                        className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
-                                      />
-                                    </div>
+                                    <Input
+                                      key={`${activeCreatePackCase.id}-evidence-${rowIndex}`}
+                                      value={activeCreatePackCase.evidenceRows[rowIndex] ?? ""}
+                                      onChange={(event) =>
+                                        updateCreatePackCaseEvidenceRow(
+                                          activeCreatePackCase.id,
+                                          rowIndex,
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder={`Улика ${rowIndex + 1}`}
+                                      className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                    />
                                   ))}
                                 </div>
                               </div>
@@ -13705,22 +13765,18 @@ export default function App() {
                                 <div className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
                                   Факты по ролям
                                 </div>
-                                <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-                                  {activeCreatePackRequiredRoles.map((roleKey, roleIndex) => {
+                                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                  {activeCreatePackRequiredRoles.map((roleKey) => {
                                     const roleRows = activeCreatePackCase.factsByRole[roleKey] ?? ["", "", "", ""];
-                                    const isOddCount = activeCreatePackRequiredRoles.length % 2 === 1;
-                                    const isLastOdd = isOddCount && roleIndex === activeCreatePackRequiredRoles.length - 1;
                                     return (
                                       <div
                                         key={`${activeCreatePackCase.id}-${roleKey}`}
-                                        className={`rounded-xl border border-zinc-800 bg-zinc-900/55 p-2.5 space-y-2 ${
-                                          isLastOdd ? "xl:col-span-2" : ""
-                                        }`}
+                                        className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-2.5 space-y-2"
                                       >
                                         <div className="text-xs font-medium text-zinc-300">
                                           {USER_PACK_ROLE_TITLES[roleKey]}
                                         </div>
-                                        <div className="space-y-1.5">
+                                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                                           {roleRows.map((row, rowIndex) => (
                                             <Input
                                               key={`${activeCreatePackCase.id}-${roleKey}-${rowIndex}`}
