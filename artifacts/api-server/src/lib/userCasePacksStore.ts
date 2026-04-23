@@ -10,6 +10,7 @@ type CaseRoleKey =
   | "prosecutor"
   | "defenseLawyer"
   | "plaintiffLawyer";
+type CaseVerdictKey = "guilty" | "not_guilty" | "partial_guilty";
 
 const ROLE_KEYS: CaseRoleKey[] = [
   "judge",
@@ -52,12 +53,17 @@ const MODE_TITLE_BY_PLAYERS: Record<CaseModePlayerCount, string> = {
 };
 
 const DEFAULT_PACK_COLOR = "#ef4444";
+const MAX_CASES_PER_MODE = 20;
+const CASE_DESCRIPTION_LIMIT = 150;
+const CASE_TRUTH_LIMIT = 150;
+const CASE_FACT_LIMIT = 40;
 
 export interface UserCasePackCaseInput {
   modePlayerCount: CaseModePlayerCount;
   title: string;
   description: string;
   truth: string;
+  expectedVerdict?: CaseVerdictKey;
   evidence: string[];
   factsByRole: Partial<Record<CaseRoleKey, string[]>>;
 }
@@ -89,6 +95,7 @@ export interface UserCasePackCaseDetails {
   title: string;
   description: string;
   truth: string;
+  expectedVerdict: CaseVerdictKey;
   evidence: string[];
   factsByRole: Record<CaseRoleKey, string[]>;
   sortOrder: number;
@@ -105,6 +112,7 @@ export interface UserCasePackStoredCase {
   title: string;
   description: string;
   truth: string;
+  expectedVerdict: string;
   evidence: string[];
   roles: Record<string, { title: string; goal: string; facts: string[] }>;
 }
@@ -126,13 +134,27 @@ function normalizeTitle(value: unknown, fallback: string): string {
   return title || fallback;
 }
 
-function normalizeDescription(value: unknown, fallback: string): string {
-  const description = String(value ?? "").trim().slice(0, 700);
+function normalizeDescription(value: unknown, fallback = ""): string {
+  const description = String(value ?? "").trim().slice(0, CASE_DESCRIPTION_LIMIT);
   return description || fallback;
 }
 
+function normalizeTruthOptional(value: unknown): string {
+  return String(value ?? "").trim().slice(0, CASE_TRUTH_LIMIT);
+}
+
 function normalizeTruth(value: unknown): string {
-  return String(value ?? "").trim().slice(0, 700) || "Истина недоступна.";
+  return String(value ?? "").trim().slice(0, CASE_TRUTH_LIMIT);
+}
+
+function normalizeExpectedVerdict(value: unknown, truth: string): CaseVerdictKey {
+  if (value === "guilty" || value === "not_guilty" || value === "partial_guilty") {
+    return value;
+  }
+  const normalizedTruth = String(truth ?? "").toLowerCase().replace(/ё/g, "е");
+  if (normalizedTruth.includes("не винов")) return "not_guilty";
+  if (normalizedTruth.includes("частично винов")) return "partial_guilty";
+  return "guilty";
 }
 
 function normalizeModePlayerCount(value: unknown): CaseModePlayerCount {
@@ -190,6 +212,59 @@ function normalizeFactsByRole(
   }
 
   return next;
+}
+
+function normalizeFactsByRoleForEditor(
+  modePlayerCount: CaseModePlayerCount,
+  value: unknown,
+): Record<CaseRoleKey, string[]> {
+  const safeObject =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+
+  const next: Record<CaseRoleKey, string[]> = {
+    judge: [],
+    plaintiff: [],
+    defendant: [],
+    prosecutor: [],
+    defenseLawyer: [],
+    plaintiffLawyer: [],
+  };
+
+  for (const roleKey of ROLE_KEYS) {
+    const roleValue = safeObject[roleKey];
+    next[roleKey] = Array.isArray(roleValue)
+      ? roleValue
+          .map((item) => String(item ?? "").trim().slice(0, CASE_FACT_LIMIT))
+          .filter((item) => item.length > 0)
+          .slice(0, 4)
+      : [];
+  }
+
+  const requiredRoles = (roleOrderByCount[modePlayerCount] ?? []).filter(
+    (role) => role !== "judge",
+  ) as CaseRoleKey[];
+
+  for (const roleKey of requiredRoles) {
+    if ((next[roleKey] ?? []).length < 1) {
+      throw new Error(`Для роли «${ROLE_TITLES[roleKey]}» нужен минимум 1 факт.`);
+    }
+  }
+
+  return next;
+}
+
+function validateCasesPerModeLimit(
+  cases: Array<{ modePlayerCount: CaseModePlayerCount }>,
+): void {
+  const counts: Record<CaseModePlayerCount, number> = { 3: 0, 4: 0, 5: 0, 6: 0 };
+  for (const item of cases) counts[item.modePlayerCount] += 1;
+  for (const mode of [3, 4, 5, 6] as const) {
+    if (counts[mode] > MAX_CASES_PER_MODE) {
+      throw new Error(`Для режима ${mode} игроков можно добавить максимум ${MAX_CASES_PER_MODE} дел.`);
+    }
+  }
 }
 
 function generatePackKey(): string {
@@ -264,6 +339,7 @@ async function ensureTablesInternal(): Promise<void> {
       title TEXT NOT NULL,
       description TEXT NOT NULL,
       truth TEXT NOT NULL,
+      expected_verdict TEXT NOT NULL DEFAULT 'partial_guilty' CHECK (expected_verdict IN ('guilty','not_guilty','partial_guilty')),
       evidence_json JSONB NOT NULL DEFAULT '[]'::jsonb,
       facts_json JSONB NOT NULL DEFAULT '{}'::jsonb,
       sort_order INTEGER NOT NULL DEFAULT 100,
@@ -271,6 +347,21 @@ async function ensureTablesInternal(): Promise<void> {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (pack_id, case_key)
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE user_case_pack_cases
+    ADD COLUMN IF NOT EXISTS expected_verdict TEXT NOT NULL DEFAULT 'partial_guilty';
+  `);
+
+  await pool.query(`
+    UPDATE user_case_pack_cases
+    SET expected_verdict = CASE
+      WHEN LOWER(COALESCE(truth, '')) LIKE '%не винов%' THEN 'not_guilty'
+      WHEN LOWER(COALESCE(truth, '')) LIKE '%частично винов%' THEN 'partial_guilty'
+      ELSE 'guilty'
+    END
+    WHERE expected_verdict IS NULL OR expected_verdict NOT IN ('guilty','not_guilty','partial_guilty');
   `);
 
   await pool.query(`
@@ -398,6 +489,7 @@ function normalizeCaseInput(
   title: string;
   description: string;
   truth: string;
+  expectedVerdict: CaseVerdictKey;
   evidence: string[];
   factsByRole: Record<CaseRoleKey, string[]>;
   sortOrder: number;
@@ -408,10 +500,11 @@ function normalizeCaseInput(
       : {};
   const modePlayerCount = normalizeModePlayerCount(source.modePlayerCount);
   const title = normalizeTitle(source.title, `Дело ${index + 1}`);
-  const description = normalizeDescription(source.description, "Описание недоступно.");
-  const truth = normalizeTruth(source.truth);
+  const description = normalizeDescription(source.description);
+  const truth = normalizeTruthOptional(source.truth);
+  const expectedVerdict = normalizeExpectedVerdict(source.expectedVerdict, truth);
   const evidence = normalizeEvidence(source.evidence);
-  const factsByRole = normalizeFactsByRole(modePlayerCount, source.factsByRole);
+  const factsByRole = normalizeFactsByRoleForEditor(modePlayerCount, source.factsByRole);
   const caseKey = `case_${modePlayerCount}_${index + 1}_${crypto.randomUUID().slice(0, 8)}`;
 
   return {
@@ -420,6 +513,7 @@ function normalizeCaseInput(
     title,
     description,
     truth,
+    expectedVerdict,
     evidence,
     factsByRole,
     sortOrder: index + 1,
@@ -448,6 +542,7 @@ export async function createUserCasePack(
   }
 
   const normalizedCases = rawCases.map((row, index) => normalizeCaseInput(row, index));
+  validateCasesPerModeLimit(normalizedCases);
 
   await pool.query("BEGIN");
   try {
@@ -475,13 +570,14 @@ export async function createUserCasePack(
             title,
             description,
             truth,
+            expected_verdict,
             evidence_json,
             facts_json,
             sort_order,
             created_at,
             updated_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, NOW(), NOW())
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, NOW(), NOW())
         `,
         [
           crypto.randomUUID(),
@@ -491,6 +587,7 @@ export async function createUserCasePack(
           caseRow.title,
           caseRow.description,
           caseRow.truth,
+          caseRow.expectedVerdict,
           JSON.stringify(caseRow.evidence),
           JSON.stringify(caseRow.factsByRole),
           caseRow.sortOrder,
@@ -583,6 +680,7 @@ export async function importUserCasePackByShareCode(
       title: string;
       description: string;
       truth: string;
+      expected_verdict: string;
       evidence_json: unknown;
       facts_json: unknown;
       sort_order: number;
@@ -594,6 +692,7 @@ export async function importUserCasePackByShareCode(
           title,
           description,
           truth,
+          expected_verdict,
           evidence_json,
           facts_json,
           sort_order
@@ -637,13 +736,14 @@ export async function importUserCasePackByShareCode(
             title,
             description,
             truth,
+            expected_verdict,
             evidence_json,
             facts_json,
             sort_order,
             created_at,
             updated_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, NOW(), NOW())
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, NOW(), NOW())
         `,
         [
           crypto.randomUUID(),
@@ -651,8 +751,9 @@ export async function importUserCasePackByShareCode(
           `${sourceCase.case_key}_${crypto.randomUUID().slice(0, 6)}`.slice(0, 120),
           normalizeModePlayerCount(sourceCase.mode_player_count),
           normalizeTitle(sourceCase.title, "Дело"),
-          normalizeDescription(sourceCase.description, "Описание недоступно."),
+          normalizeDescription(sourceCase.description),
           normalizeTruth(sourceCase.truth),
+          normalizeExpectedVerdict(sourceCase.expected_verdict, sourceCase.truth),
           JSON.stringify(normalizeEvidence(sourceCase.evidence_json)),
           JSON.stringify(cloneFacts(sourceCase.facts_json)),
           Math.max(1, Number(sourceCase.sort_order ?? 0) || 1),
@@ -737,6 +838,7 @@ export async function getUserCasePackDetails(
     title: string;
     description: string;
     truth: string;
+    expected_verdict: string;
     evidence_json: unknown;
     facts_json: unknown;
     sort_order: number;
@@ -748,6 +850,7 @@ export async function getUserCasePackDetails(
         title,
         description,
         truth,
+        expected_verdict,
         evidence_json,
         facts_json,
         sort_order
@@ -762,8 +865,9 @@ export async function getUserCasePackDetails(
     caseKey: String(row.case_key ?? ""),
     modePlayerCount: normalizeModePlayerCount(row.mode_player_count),
     title: normalizeTitle(row.title, "Дело"),
-    description: normalizeDescription(row.description, "Описание не указано."),
-    truth: normalizeTruth(row.truth),
+    description: String(row.description ?? "").trim().slice(0, CASE_DESCRIPTION_LIMIT),
+    truth: normalizeTruthOptional(row.truth),
+    expectedVerdict: normalizeExpectedVerdict(row.expected_verdict, row.truth),
     evidence: normalizeEvidence(row.evidence_json),
     factsByRole: cloneFacts(row.facts_json),
     sortOrder: Math.max(1, Number(row.sort_order ?? 0) || 1),
@@ -798,6 +902,7 @@ export async function updateUserCasePack(
     throw new Error("Добавьте хотя бы одно дело в пак.");
   }
   const normalizedCases = rawCases.map((row, index) => normalizeCaseInput(row, index));
+  validateCasesPerModeLimit(normalizedCases);
 
   await pool.query("BEGIN");
   try {
@@ -842,13 +947,14 @@ export async function updateUserCasePack(
             title,
             description,
             truth,
+            expected_verdict,
             evidence_json,
             facts_json,
             sort_order,
             created_at,
             updated_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, NOW(), NOW())
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, NOW(), NOW())
         `,
         [
           crypto.randomUUID(),
@@ -858,6 +964,7 @@ export async function updateUserCasePack(
           caseRow.title,
           caseRow.description,
           caseRow.truth,
+          caseRow.expectedVerdict,
           JSON.stringify(caseRow.evidence),
           JSON.stringify(caseRow.factsByRole),
           caseRow.sortOrder,
@@ -890,6 +997,7 @@ export async function pickUserCasePackForRoom(
     title: string;
     description: string;
     truth: string;
+    expected_verdict: string;
     evidence_json: unknown;
     facts_json: unknown;
   }>(
@@ -899,6 +1007,7 @@ export async function pickUserCasePackForRoom(
         c.title,
         c.description,
         c.truth,
+        c.expected_verdict,
         c.evidence_json,
         c.facts_json
       FROM user_case_pack_cases c
@@ -914,13 +1023,21 @@ export async function pickUserCasePackForRoom(
   if (!result.rowCount) return null;
   const row = result.rows[0];
   const factsByRole = cloneFacts(row.facts_json);
+  const expectedVerdict = normalizeExpectedVerdict(row.expected_verdict, row.truth);
+  const expectedVerdictLabel =
+    expectedVerdict === "not_guilty"
+      ? "Не виновен"
+      : expectedVerdict === "partial_guilty"
+        ? "Частично виновен"
+        : "Виновен";
 
   return {
     id: row.case_key,
     mode: MODE_TITLE_BY_PLAYERS[modeCount],
     title: normalizeTitle(row.title, "Дело"),
-    description: normalizeDescription(row.description, "Описание недоступно."),
-    truth: normalizeTruth(row.truth),
+    description: String(row.description ?? "").trim().slice(0, CASE_DESCRIPTION_LIMIT),
+    truth: normalizeTruthOptional(row.truth),
+    expectedVerdict: expectedVerdictLabel,
     evidence: normalizeEvidence(row.evidence_json),
     roles: buildRolesFromFacts(factsByRole),
   };

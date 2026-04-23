@@ -54,6 +54,7 @@ import {
   X,
   List,
   Check,
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -243,6 +244,7 @@ const USER_PACK_COLOR_PRESETS = [
   "#ec4899",
 ];
 const USER_PACK_COLOR_DEFAULT = "#ef4444";
+const USER_PACK_CASES_PER_MODE_LIMIT = 20;
 const USER_PACK_TEXT_LIMITS = {
   packTitle: 90,
   packDescription: 420,
@@ -252,6 +254,7 @@ const USER_PACK_TEXT_LIMITS = {
   fact: 40,
 };
 const USER_PACK_CASES_PER_PAGE = 10;
+const USER_PACKS_PAGE_SIZE = 12;
 const USER_PACK_VERDICT_OPTIONS: Array<{
   key: "guilty" | "not_guilty" | "partial_guilty";
   label: string;
@@ -266,6 +269,33 @@ function inferVerdictKeyFromTruth(value: string | undefined): "guilty" | "not_gu
   if (normalized.includes("не винов")) return "not_guilty";
   if (normalized.includes("частично винов")) return "partial_guilty";
   return "guilty";
+}
+
+function sanitizeLegacyCaseText(value: string | undefined, field: "description" | "truth"): string {
+  const safe = String(value ?? "").trim();
+  if (!safe) return "";
+  const normalized = safe.toLowerCase().replace(/ё/g, "е");
+  if (field === "description") {
+    if (
+      normalized === "описание недоступно." ||
+      normalized === "описание недоступно" ||
+      normalized === "описнаие недоступно" ||
+      normalized === "описание не указано." ||
+      normalized === "описание не указано"
+    ) {
+      return "";
+    }
+    return safe;
+  }
+  if (
+    normalized === "истина недоступна." ||
+    normalized === "истина недоступна" ||
+    normalized === "истина не указана." ||
+    normalized === "истина не указана"
+  ) {
+    return "";
+  }
+  return safe;
 }
 
 function normalizePackColor(value: string | undefined): string {
@@ -1068,9 +1098,9 @@ function ensureDraftFactRows(
   roleRows: string[],
   isRequired: boolean,
 ): string[] {
-  const minRows = isRequired ? 4 : 1;
+  const minRows = isRequired ? 1 : 1;
   const next = normalizeDraftRows(roleRows, minRows);
-  return next.length > 12 ? next.slice(0, 12) : next;
+  return next.length > 4 ? next.slice(0, 4) : next;
 }
 
 function getSubscriptionPlanBadgeKey(tier: SubscriptionTier): string | undefined {
@@ -4312,20 +4342,32 @@ export default function App() {
   >("catalog");
   const [casePacks, setCasePacks] = useState<CasePackInfo[]>([]);
   const [myCasePacks, setMyCasePacks] = useState<CasePackInfo[]>([]);
-  const [copiedPackShareCode, setCopiedPackShareCode] = useState<string | null>(null);
+  const [sharePackDialogOpen, setSharePackDialogOpen] = useState(false);
+  const [sharePackData, setSharePackData] = useState<{
+    title: string;
+    shareCode: string;
+    importLink: string;
+  } | null>(null);
+  const [sharePackCopiedKind, setSharePackCopiedKind] = useState<"code" | "link" | null>(null);
   const [myCasePacksLoading, setMyCasePacksLoading] = useState(false);
   const [myCasePacksError, setMyCasePacksError] = useState("");
+  const [myCasePacksPage, setMyCasePacksPage] = useState(1);
   const [importPackDialogOpen, setImportPackDialogOpen] = useState(false);
   const [importPackShareCode, setImportPackShareCode] = useState("");
   const [importPackLoading, setImportPackLoading] = useState(false);
   const [importPackError, setImportPackError] = useState("");
+  const [pendingImportShareCode, setPendingImportShareCode] = useState<string | null>(null);
   const [createPackSaving, setCreatePackSaving] = useState(false);
   const [createPackEditLoading, setCreatePackEditLoading] = useState(false);
   const [createPackError, setCreatePackError] = useState("");
   const [createPackEditKey, setCreatePackEditKey] = useState<string | null>(null);
   const [createPackCasesDialogOpen, setCreatePackCasesDialogOpen] = useState(false);
+  const [createPackCasesDialogModeTab, setCreatePackCasesDialogModeTab] = useState<UserPackCaseMode>(3);
   const [createPackCasesPage, setCreatePackCasesPage] = useState(1);
   const [createPackModeTab, setCreatePackModeTab] = useState<UserPackCaseMode>(3);
+  const [createPackFactRoleExpanded, setCreatePackFactRoleExpanded] = useState<
+    Partial<Record<UserPackRoleKey, boolean>>
+  >({});
   const [createPackTitle, setCreatePackTitle] = useState("");
   const [createPackDescription, setCreatePackDescription] = useState("");
   const [createPackColor, setCreatePackColor] = useState(USER_PACK_COLOR_DEFAULT);
@@ -4388,11 +4430,11 @@ export default function App() {
   }, [createPackCases, createPackActiveCaseId, createPackModeTab]);
   useEffect(() => {
     const modeCasesCount = createPackCases.filter(
-      (item) => item.modePlayerCount === createPackModeTab,
+      (item) => item.modePlayerCount === createPackCasesDialogModeTab,
     ).length;
     const totalPages = Math.max(1, Math.ceil(modeCasesCount / USER_PACK_CASES_PER_PAGE));
     setCreatePackCasesPage((prev) => Math.max(1, Math.min(prev, totalPages)));
-  }, [createPackCases, createPackModeTab]);
+  }, [createPackCases, createPackCasesDialogModeTab]);
   const [myId, setMyId] = useState<string | null>(null);
   const [mySessionToken, setMySessionToken] = useState<string | null>(
     () => localStorage.getItem("court_session_token"),
@@ -4683,16 +4725,54 @@ export default function App() {
       cancelled = true;
     };
   }, [authToken, authUser]);
+  const clearPackImportQueryParam = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("pack_import")) return;
+    params.delete("pack_import");
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`;
+    window.history.replaceState(window.history.state, "", nextUrl);
+  }, []);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareCode = String(params.get("pack_import") ?? "")
+      .trim()
+      .toUpperCase();
+    if (!shareCode) return;
+    setPendingImportShareCode(shareCode);
+  }, []);
+  const buildPackImportLink = useCallback((rawShareCode: string) => {
+    const shareCode = String(rawShareCode ?? "").trim().toUpperCase();
+    if (!shareCode) return "";
+    const origin =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "https://courtgame.site";
+    return `${origin}/?pack_import=${encodeURIComponent(shareCode)}`;
+  }, []);
   const canUseRating = hasCapability(myTier, "canUseRating");
   const canUseProfileBanner = hasCapability(myTier, "canUseProfileBanner");
   const canUseAnimatedProfileMedia = hasCapability(myTier, "canUseAnimatedProfileMedia");
   const canCreatePrivateRooms = hasCapability(myTier, "canCreatePrivateRooms");
   const canLetPlayersChooseRoles = hasCapability(myTier, "canLetPlayersChooseRoles");
   const canChooseRoleInOwnLobby = hasCapability(myTier, "canChooseRoleInOwnLobby");
+  const canCreatePacks = hasCapability(myTier, "canCreatePacks");
   const createPackOwnedCount = useMemo(
     () => casePacks.filter((pack) => pack.isCustom).length,
     [casePacks],
   );
+  const myCasePacksTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(myCasePacks.length / USER_PACKS_PAGE_SIZE)),
+    [myCasePacks.length],
+  );
+  const myCasePacksPaged = useMemo(() => {
+    const safePage = Math.max(1, Math.min(myCasePacksPage, myCasePacksTotalPages));
+    const start = (safePage - 1) * USER_PACKS_PAGE_SIZE;
+    return myCasePacks.slice(start, start + USER_PACKS_PAGE_SIZE);
+  }, [myCasePacks, myCasePacksPage, myCasePacksTotalPages]);
+  useEffect(() => {
+    setMyCasePacksPage((prev) => Math.max(1, Math.min(prev, myCasePacksTotalPages)));
+  }, [myCasePacksTotalPages]);
   const activeCreatePackCase = useMemo(
     () => createPackCases.find((item) => item.id === createPackActiveCaseId) ?? createPackCases[0] ?? null,
     [createPackCases, createPackActiveCaseId],
@@ -4706,35 +4786,32 @@ export default function App() {
         : [],
     [activeCreatePackCase],
   );
+  const createPackCasesByMode = useMemo(() => {
+    const grouped: Record<UserPackCaseMode, UserPackCaseDraft[]> = {
+      3: [],
+      4: [],
+      5: [],
+      6: [],
+    };
+    for (const item of createPackCases) {
+      grouped[item.modePlayerCount].push(item);
+    }
+    for (const mode of [3, 4, 5, 6] as const) {
+      grouped[mode].sort((a, b) => (b.lastEditedAt ?? 0) - (a.lastEditedAt ?? 0));
+    }
+    return grouped;
+  }, [createPackCases]);
   const createPackModeTabCases = useMemo(
-    () =>
-      createPackCases
-        .filter((item) => item.modePlayerCount === createPackModeTab)
-        .sort((a, b) => (b.lastEditedAt ?? 0) - (a.lastEditedAt ?? 0)),
-    [createPackCases, createPackModeTab],
+    () => createPackCasesByMode[createPackModeTab] ?? [],
+    [createPackCasesByMode, createPackModeTab],
   );
-  const createPackCasesTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(createPackModeTabCases.length / USER_PACK_CASES_PER_PAGE)),
-    [createPackModeTabCases.length],
-  );
-  const createPackCasesPaged = useMemo(() => {
-    const safePage = Math.max(1, Math.min(createPackCasesPage, createPackCasesTotalPages));
-    const start = (safePage - 1) * USER_PACK_CASES_PER_PAGE;
-    return createPackModeTabCases.slice(start, start + USER_PACK_CASES_PER_PAGE);
-  }, [createPackModeTabCases, createPackCasesPage, createPackCasesTotalPages]);
-  const createPackCasesPageStartIndex = useMemo(() => {
-    const safePage = Math.max(1, Math.min(createPackCasesPage, createPackCasesTotalPages));
-    return (safePage - 1) * USER_PACK_CASES_PER_PAGE;
-  }, [createPackCasesPage, createPackCasesTotalPages]);
   const createPackAllCasesByMode = useMemo(
     () =>
       USER_PACK_MODE_OPTIONS.map((mode) => ({
         mode,
-        cases: createPackCases
-          .filter((item) => item.modePlayerCount === mode.value)
-          .sort((a, b) => (b.lastEditedAt ?? 0) - (a.lastEditedAt ?? 0)),
+        cases: createPackCasesByMode[mode.value] ?? [],
       })),
-    [createPackCases],
+    [createPackCasesByMode],
   );
   const createPackHasOverflowCases = createPackModeTabCases.length > 5;
   const createPackModeTabPreviewCases = useMemo(
@@ -4743,14 +4820,37 @@ export default function App() {
   );
   const activeCreatePackModeCases = useMemo(() => {
     if (!activeCreatePackCase) return [] as UserPackCaseDraft[];
-    return createPackCases
-      .filter((item) => item.modePlayerCount === activeCreatePackCase.modePlayerCount)
-      .sort((a, b) => (b.lastEditedAt ?? 0) - (a.lastEditedAt ?? 0));
-  }, [activeCreatePackCase, createPackCases]);
+    return createPackCasesByMode[activeCreatePackCase.modePlayerCount] ?? [];
+  }, [activeCreatePackCase, createPackCasesByMode]);
+  const createPackCasesDialogModeCases = useMemo(
+    () => createPackCasesByMode[createPackCasesDialogModeTab] ?? [],
+    [createPackCasesByMode, createPackCasesDialogModeTab],
+  );
+  const createPackCasesDialogTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(createPackCasesDialogModeCases.length / USER_PACK_CASES_PER_PAGE)),
+    [createPackCasesDialogModeCases.length],
+  );
+  const createPackCasesDialogPaged = useMemo(() => {
+    const safePage = Math.max(1, Math.min(createPackCasesPage, createPackCasesDialogTotalPages));
+    const start = (safePage - 1) * USER_PACK_CASES_PER_PAGE;
+    return createPackCasesDialogModeCases.slice(start, start + USER_PACK_CASES_PER_PAGE);
+  }, [createPackCasesDialogModeCases, createPackCasesPage, createPackCasesDialogTotalPages]);
+  const createPackCasesDialogPageStartIndex = useMemo(() => {
+    const safePage = Math.max(1, Math.min(createPackCasesPage, createPackCasesDialogTotalPages));
+    return (safePage - 1) * USER_PACK_CASES_PER_PAGE;
+  }, [createPackCasesPage, createPackCasesDialogTotalPages]);
   const activeCreatePackCaseModeIndex = useMemo(() => {
     if (!activeCreatePackCase) return -1;
     return activeCreatePackModeCases.findIndex((item) => item.id === activeCreatePackCase.id);
   }, [activeCreatePackCase, activeCreatePackModeCases]);
+  const activeCreatePackCaseDescription = useMemo(
+    () => sanitizeLegacyCaseText(activeCreatePackCase?.description, "description"),
+    [activeCreatePackCase?.description],
+  );
+  const activeCreatePackCaseTruth = useMemo(
+    () => sanitizeLegacyCaseText(activeCreatePackCase?.truth, "truth"),
+    [activeCreatePackCase?.truth],
+  );
   const createPackCatalogActionLabel = createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
@@ -4901,10 +5001,12 @@ export default function App() {
     setCreatePackError("");
     setCreatePackEditKey(null);
     setCreatePackCasesDialogOpen(false);
+    setCreatePackCasesDialogModeTab(firstCase.modePlayerCount);
     setCreatePackCasesPage(1);
     setCreatePackTitle("");
     setCreatePackDescription("");
     setCreatePackColor(USER_PACK_COLOR_DEFAULT);
+    setCreatePackFactRoleExpanded({});
     setCreatePackCases([firstCase]);
     setCreatePackActiveCaseId(firstCase.id);
     setCreatePackModeTab(firstCase.modePlayerCount);
@@ -4940,6 +5042,7 @@ export default function App() {
     setCreatePackCatalogView("my_packs");
     setImportPackDialogOpen(false);
     setImportPackError("");
+    setMyCasePacksPage(1);
     void loadMyCasePacks();
   }, [loadMyCasePacks]);
 
@@ -5001,8 +5104,14 @@ export default function App() {
                 isAutoDraft: false,
                 hasUserChanges: false,
                 title: String(caseItem?.title ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.caseTitle),
-                description: String(caseItem?.description ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.caseDescription),
-                truth: String(caseItem?.truth ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.truth),
+                description: sanitizeLegacyCaseText(
+                  String(caseItem?.description ?? ""),
+                  "description",
+                ).slice(0, USER_PACK_TEXT_LIMITS.caseDescription),
+                truth: sanitizeLegacyCaseText(String(caseItem?.truth ?? ""), "truth").slice(
+                  0,
+                  USER_PACK_TEXT_LIMITS.truth,
+                ),
                 expectedVerdict:
                   caseItem?.expectedVerdict === "guilty" ||
                   caseItem?.expectedVerdict === "not_guilty" ||
@@ -5022,6 +5131,8 @@ export default function App() {
         setCreatePackCases(drafts);
         setCreatePackActiveCaseId(drafts[0]?.id ?? null);
         setCreatePackModeTab((drafts[0]?.modePlayerCount ?? 3) as UserPackCaseMode);
+        setCreatePackCasesDialogModeTab((drafts[0]?.modePlayerCount ?? 3) as UserPackCaseMode);
+        setCreatePackCasesPage(1);
       } catch (error) {
         const message =
           error instanceof Error && error.message.trim()
@@ -5036,44 +5147,113 @@ export default function App() {
     [authToken, resetCreatePackEditor],
   );
 
-  const submitImportPackByShareCode = useCallback(async () => {
-    if (!authToken) {
-      setImportPackError("Сессия истекла. Войдите снова.");
-      return;
-    }
-    const shareCode = importPackShareCode.trim().toUpperCase();
-    if (!shareCode) {
-      setImportPackError("Введите ключ пака.");
-      return;
-    }
-    setImportPackLoading(true);
-    setImportPackError("");
-    try {
-      const payload = await authRequest<{ ok: true; pack: CasePackInfo }>(
-        "/auth/case-packs/import",
-        {
-          method: "POST",
-          token: authToken,
-          body: { shareCode },
-        },
-      );
-      setImportPackShareCode("");
-      setImportPackDialogOpen(false);
-      await loadMyCasePacks();
-      requestCasePacks();
-      if (payload?.pack?.key) {
-        setCreateRoomPackKey(payload.pack.key);
+  const importPackByShareCode = useCallback(
+    async (
+      rawShareCode: string,
+      options?: {
+        silent?: boolean;
+        closeDialog?: boolean;
+        switchToMyPacks?: boolean;
+      },
+    ) => {
+      const shareCode = String(rawShareCode ?? "").trim().toUpperCase();
+      if (!shareCode) {
+        if (!options?.silent) setImportPackError("Введите ключ пака.");
+        return null;
       }
-    } catch (error) {
-      const message =
-        error instanceof Error && error.message.trim()
-          ? error.message
-          : "Не удалось импортировать пак.";
-      setImportPackError(message);
-    } finally {
-      setImportPackLoading(false);
-    }
-  }, [authToken, importPackShareCode, loadMyCasePacks, requestCasePacks]);
+      if (!authToken) {
+        if (!options?.silent) setImportPackError("Сессия истекла. Войдите снова.");
+        return null;
+      }
+      if (!canCreatePacks) {
+        openSubscriptionUpsell(
+          "canCreatePacks",
+          "Импорт пользовательских паков доступен только в подписке «Арбитр».",
+          "Функция недоступна",
+        );
+        setPendingImportShareCode(null);
+        clearPackImportQueryParam();
+        if (!options?.silent) {
+          setImportPackError("Импорт доступен только для подписки «Арбитр».");
+        }
+        return null;
+      }
+      setImportPackLoading(true);
+      if (!options?.silent) setImportPackError("");
+      try {
+        const payload = await authRequest<{ ok: true; pack: CasePackInfo }>(
+          "/auth/case-packs/import",
+          {
+            method: "POST",
+            token: authToken,
+            body: { shareCode },
+          },
+        );
+        setImportPackShareCode("");
+        if (options?.closeDialog !== false) {
+          setImportPackDialogOpen(false);
+        }
+        if (options?.switchToMyPacks) {
+          setCreatePackCatalogOpen(true);
+          setCreatePackCatalogView("my_packs");
+        }
+        setPendingImportShareCode(null);
+        clearPackImportQueryParam();
+        await loadMyCasePacks();
+        requestCasePacks();
+        if (payload?.pack?.key) {
+          setCreateRoomPackKey(payload.pack.key);
+        }
+        return payload?.pack ?? null;
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Не удалось импортировать пак.";
+        if (!options?.silent) {
+          setImportPackError(message);
+        }
+        return null;
+      } finally {
+        setImportPackLoading(false);
+      }
+    },
+    [
+      authToken,
+      canCreatePacks,
+      clearPackImportQueryParam,
+      loadMyCasePacks,
+      openSubscriptionUpsell,
+      requestCasePacks,
+    ],
+  );
+
+  const submitImportPackByShareCode = useCallback(async () => {
+    await importPackByShareCode(importPackShareCode, {
+      closeDialog: true,
+      switchToMyPacks: true,
+    });
+  }, [importPackByShareCode, importPackShareCode]);
+
+  useEffect(() => {
+    if (!pendingImportShareCode || importPackLoading) return;
+    if (!authToken) return;
+    let cancelled = false;
+    void (async () => {
+      const imported = await importPackByShareCode(pendingImportShareCode, {
+        silent: true,
+        closeDialog: false,
+        switchToMyPacks: true,
+      });
+      if (cancelled) return;
+      if (!imported && canCreatePacks) {
+        setImportPackError("Не удалось импортировать пак по ссылке.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken, canCreatePacks, importPackByShareCode, importPackLoading, pendingImportShareCode]);
 
   const dropUntouchedAutoDraftsForMode = useCallback(
     (cases: UserPackCaseDraft[], mode: UserPackCaseMode) =>
@@ -5081,6 +5261,29 @@ export default function App() {
         (item) => !(item.modePlayerCount === mode && item.isAutoDraft && !item.hasUserChanges),
       ),
     [],
+  );
+
+  const activateCreatePackCase = useCallback(
+    (caseId: string, mode: UserPackCaseMode, touchRecent = false) => {
+      if (touchRecent) {
+        const stamp = nextCreatePackEditStamp();
+        setCreatePackCases((prev) =>
+          prev.map((item) =>
+            item.id === caseId
+              ? {
+                  ...item,
+                  lastEditedAt: stamp,
+                }
+              : item,
+          ),
+        );
+      }
+      setCreatePackModeTab(mode);
+      setCreatePackCasesDialogModeTab(mode);
+      setCreatePackActiveCaseId(caseId);
+      setCreatePackError("");
+    },
+    [nextCreatePackEditStamp],
   );
 
   const switchCreatePackModeTab = useCallback(
@@ -5104,18 +5307,37 @@ export default function App() {
       setCreatePackModeTab(nextMode);
       setCreatePackActiveCaseId(nextActiveId);
       setCreatePackCasesPage(1);
+      setCreatePackCasesDialogModeTab(nextMode);
+      setCreatePackError("");
     },
     [createPackCases, createPackModeTab, dropUntouchedAutoDraftsForMode, nextCreatePackEditStamp],
   );
 
   const addCreatePackCase = useCallback(() => {
+    const untouchedAutoDraft = createPackCases.find(
+      (item) => item.modePlayerCount === createPackModeTab && item.isAutoDraft && !item.hasUserChanges,
+    );
+    if (untouchedAutoDraft) {
+      setCreatePackActiveCaseId(untouchedAutoDraft.id);
+      setCreatePackError("");
+      return;
+    }
     const baseCases = dropUntouchedAutoDraftsForMode(createPackCases, createPackModeTab);
+    const modeCount = baseCases.filter((item) => item.modePlayerCount === createPackModeTab).length;
+    if (modeCount >= USER_PACK_CASES_PER_MODE_LIMIT) {
+      setCreatePackError(
+        `Для режима ${createPackModeTab} игроков можно добавить максимум ${USER_PACK_CASES_PER_MODE_LIMIT} дел.`,
+      );
+      return;
+    }
     const nextCase = createEmptyUserPackCaseDraft(createPackModeTab);
     nextCase.lastEditedAt = nextCreatePackEditStamp();
     setCreatePackCases([nextCase, ...baseCases]);
     setCreatePackActiveCaseId(nextCase.id);
     setCreatePackModeTab(nextCase.modePlayerCount);
+    setCreatePackCasesDialogModeTab(nextCase.modePlayerCount);
     setCreatePackCasesPage(1);
+    setCreatePackError("");
   }, [createPackCases, createPackModeTab, dropUntouchedAutoDraftsForMode, nextCreatePackEditStamp]);
 
   const removeCreatePackCase = useCallback((caseId: string) => {
@@ -5239,6 +5461,53 @@ export default function App() {
     [nextCreatePackEditStamp],
   );
 
+  const addCreatePackCaseFactRow = useCallback(
+    (caseId: string, roleKey: UserPackRoleKey) => {
+      setCreatePackCases((prev) =>
+        prev.map((item) => {
+          if (item.id !== caseId) return item;
+          const currentRows = item.factsByRole[roleKey] ?? [""];
+          if (currentRows.length >= 4) return item;
+          return {
+            ...item,
+            lastEditedAt: nextCreatePackEditStamp(),
+            isAutoDraft: false,
+            hasUserChanges: true,
+            factsByRole: {
+              ...item.factsByRole,
+              [roleKey]: [...currentRows, ""],
+            },
+          };
+        }),
+      );
+    },
+    [nextCreatePackEditStamp],
+  );
+
+  const removeCreatePackCaseFactRow = useCallback(
+    (caseId: string, roleKey: UserPackRoleKey, rowIndex: number) => {
+      setCreatePackCases((prev) =>
+        prev.map((item) => {
+          if (item.id !== caseId) return item;
+          const currentRows = item.factsByRole[roleKey] ?? [""];
+          if (currentRows.length <= 1) return item;
+          const nextRows = currentRows.filter((_, index) => index !== rowIndex);
+          return {
+            ...item,
+            lastEditedAt: nextCreatePackEditStamp(),
+            isAutoDraft: false,
+            hasUserChanges: true,
+            factsByRole: {
+              ...item.factsByRole,
+              [roleKey]: nextRows.length > 0 ? nextRows : [""],
+            },
+          };
+        }),
+      );
+    },
+    [nextCreatePackEditStamp],
+  );
+
   const submitCreatePack = useCallback(async () => {
     if (!authToken) {
       setCreatePackError("Сессия истекла. Войдите снова.");
@@ -5265,19 +5534,21 @@ export default function App() {
           const lines = (draft.factsByRole[role] ?? [])
             .map((item) => item.trim().slice(0, USER_PACK_TEXT_LIMITS.fact))
             .filter(Boolean);
-          if (allowedRoles.includes(role) && lines.length < 4) {
+          if (allowedRoles.includes(role) && lines.length < 1) {
             throw new Error(
-              `Дело ${index + 1}: для роли «${USER_PACK_ROLE_TITLES[role]}» нужно минимум 4 факта.`,
+              `Дело ${index + 1}: для роли «${USER_PACK_ROLE_TITLES[role]}» нужен минимум 1 факт.`,
             );
           }
           factsByRole[role] = lines;
         }
+        const safeDescription = sanitizeLegacyCaseText(draft.description, "description");
+        const safeTruth = sanitizeLegacyCaseText(draft.truth, "truth");
 
         return {
           modePlayerCount: mode,
           title: (draft.title.trim() || `Дело ${index + 1}`).slice(0, USER_PACK_TEXT_LIMITS.caseTitle),
-          description: draft.description.trim().slice(0, USER_PACK_TEXT_LIMITS.caseDescription),
-          truth: draft.truth.trim().slice(0, USER_PACK_TEXT_LIMITS.truth),
+          description: safeDescription.slice(0, USER_PACK_TEXT_LIMITS.caseDescription),
+          truth: safeTruth.slice(0, USER_PACK_TEXT_LIMITS.truth),
           expectedVerdict: draft.expectedVerdict,
           evidence: (draft.evidenceRows ?? []).map((item) => item.trim()).filter(Boolean),
           factsByRole,
@@ -5330,19 +5601,42 @@ export default function App() {
     requestCasePacks,
   ]);
 
-  const copyPackShareCode = useCallback(async (shareCode: string) => {
-    const safeCode = String(shareCode ?? "").trim();
-    if (!safeCode) return;
-    try {
-      await navigator.clipboard.writeText(safeCode);
-      setCopiedPackShareCode(safeCode);
-      window.setTimeout(() => {
-        setCopiedPackShareCode((prev) => (prev === safeCode ? null : prev));
-      }, 1600);
-    } catch {
-      setError(`Ключ пака: ${safeCode}`);
-    }
-  }, []);
+  const openSharePackDialog = useCallback(
+    (pack: CasePackInfo) => {
+      const shareCode = String(pack.shareCode ?? "").trim().toUpperCase();
+      if (!shareCode) {
+        setError("Не удалось получить код пака.");
+        return;
+      }
+      setSharePackData({
+        title: String(pack.title ?? "").trim() || "Пак",
+        shareCode,
+        importLink: buildPackImportLink(shareCode),
+      });
+      setSharePackCopiedKind(null);
+      setSharePackDialogOpen(true);
+    },
+    [buildPackImportLink],
+  );
+  const copySharePackDialogValue = useCallback(
+    async (kind: "code" | "link") => {
+      const value =
+        kind === "code"
+          ? String(sharePackData?.shareCode ?? "")
+          : String(sharePackData?.importLink ?? "");
+      if (!value.trim()) return;
+      try {
+        await navigator.clipboard.writeText(value);
+        setSharePackCopiedKind(kind);
+        window.setTimeout(() => {
+          setSharePackCopiedKind((prev) => (prev === kind ? null : prev));
+        }, 1600);
+      } catch {
+        setError("Не удалось скопировать значение.");
+      }
+    },
+    [sharePackData],
+  );
 
   const handleShopPaymentDialogChange = useCallback((open: boolean) => {
     setShopPaymentDialogOpen(open);
@@ -13125,11 +13419,18 @@ export default function App() {
                   setCreatePackCatalogOpen(false);
                   setCreatePackCatalogView("catalog");
                   setImportPackDialogOpen(false);
+                  setSharePackDialogOpen(false);
+                  setSharePackData(null);
+                  setSharePackCopiedKind(null);
                   setMyCasePacksError("");
+                  setMyCasePacksPage(1);
                   setImportPackError("");
                   setCreatePackError("");
                   setCreatePackEditLoading(false);
                   setCreatePackEditKey(null);
+                  setCreatePackCasesDialogOpen(false);
+                  setCreatePackCasesDialogModeTab(createPackModeTab);
+                  setCreatePackCasesPage(1);
                 }
               }}
             >
@@ -13333,9 +13634,8 @@ export default function App() {
                           </div>
                         ) : (
                           <div className="space-y-3">
-                            {myCasePacks.map((pack) => {
+                            {myCasePacksPaged.map((pack) => {
                               const accent = normalizePackColor(pack.color);
-                              const copied = copiedPackShareCode === String(pack.shareCode ?? "").trim();
                               return (
                                 <div
                                   key={pack.key}
@@ -13376,13 +13676,11 @@ export default function App() {
                                         type="button"
                                         variant="outline"
                                         onClick={() => {
-                                          void copyPackShareCode(pack.shareCode ?? "");
+                                          openSharePackDialog(pack);
                                         }}
-                                        className={`h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800 ${
-                                          copied ? "border-emerald-500/70 text-emerald-200" : ""
-                                        }`}
+                                        className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800"
                                       >
-                                        {copied ? "Скопировано" : "Поделиться"}
+                                        Поделиться
                                       </Button>
                                       <Button
                                         type="button"
@@ -13400,6 +13698,35 @@ export default function App() {
                                 </div>
                               );
                             })}
+                          </div>
+                        )}
+                        {myCasePacksTotalPages > 1 && (
+                          <div className="flex items-center justify-between gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setMyCasePacksPage((prev) => Math.max(1, prev - 1))}
+                              disabled={myCasePacksPage <= 1}
+                              className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                            >
+                              <ChevronLeft className="mr-1 h-4 w-4" />
+                              Назад
+                            </Button>
+                            <div className="text-xs text-zinc-400">
+                              Страница {Math.min(myCasePacksPage, myCasePacksTotalPages)} из {myCasePacksTotalPages}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() =>
+                                setMyCasePacksPage((prev) => Math.min(myCasePacksTotalPages, prev + 1))
+                              }
+                              disabled={myCasePacksPage >= myCasePacksTotalPages}
+                              className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                            >
+                              Вперед
+                              <ChevronRight className="ml-1 h-4 w-4" />
+                            </Button>
                           </div>
                         )}
 
@@ -13438,12 +13765,77 @@ export default function App() {
                             </div>
                           </DialogContent>
                         </Dialog>
+                        <Dialog
+                          open={sharePackDialogOpen}
+                          onOpenChange={(open) => {
+                            setSharePackDialogOpen(open);
+                            if (!open) setSharePackCopiedKind(null);
+                          }}
+                        >
+                          <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+                            <DialogHeader>
+                              <DialogTitle>Поделиться паком</DialogTitle>
+                              <DialogDescription className="text-zinc-400">
+                                Ссылка добавит пак автоматически, код можно ввести вручную через импорт.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-3">
+                              <div className="rounded-xl border border-zinc-800 bg-zinc-900/65 px-3 py-2.5">
+                                <div className="text-xs uppercase tracking-[0.1em] text-zinc-500">Пак</div>
+                                <div className="mt-1 text-sm font-semibold text-zinc-100 break-words">
+                                  {sharePackData?.title ?? "Пак"}
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <div className="text-xs text-zinc-400">Ссылка</div>
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    readOnly
+                                    value={sharePackData?.importLink ?? ""}
+                                    className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                      void copySharePackDialogValue("link");
+                                    }}
+                                    className={`h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 ${
+                                      sharePackCopiedKind === "link" ? "border-emerald-500/70 text-emerald-200" : ""
+                                    }`}
+                                  >
+                                    {sharePackCopiedKind === "link" ? "OK" : "Копия"}
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <div className="text-xs text-zinc-400">Код</div>
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    readOnly
+                                    value={sharePackData?.shareCode ?? ""}
+                                    className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 uppercase tracking-[0.08em]"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                      void copySharePackDialogValue("code");
+                                    }}
+                                    className={`h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 ${
+                                      sharePackCopiedKind === "code" ? "border-emerald-500/70 text-emerald-200" : ""
+                                    }`}
+                                  >
+                                    {sharePackCopiedKind === "code" ? "OK" : "Копия"}
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                       </div>
                     ) : (
                       <div className="relative space-y-3 min-w-0 overflow-x-hidden max-w-[980px] mx-auto">
-                        {createPackCasesDialogOpen && (
-                          <div className="pointer-events-none absolute inset-0 z-[204] rounded-2xl bg-black/55" />
-                        )}
                         <div className="rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_56%),linear-gradient(140deg,rgba(24,24,27,0.94),rgba(39,39,42,0.82))] p-4">
                           <div className="space-y-1">
                             <div className="text-base font-semibold text-zinc-100">
@@ -13594,7 +13986,9 @@ export default function App() {
                                     <button
                                       key={draft.id}
                                       type="button"
-                                      onClick={() => setCreatePackActiveCaseId(draft.id)}
+                                      onClick={() =>
+                                        activateCreatePackCase(draft.id, draft.modePlayerCount, true)
+                                      }
                                       className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
                                         isActive
                                           ? "border-red-500/70 bg-red-500/12"
@@ -13612,27 +14006,34 @@ export default function App() {
                             ) : null}
                           </div>
 
-                          <Dialog open={createPackCasesDialogOpen} onOpenChange={setCreatePackCasesDialogOpen}>
-                            <DialogContent
-                              overlayClassName="z-[205] !bg-transparent backdrop-blur-0"
-                              className="z-[210] max-w-2xl border-zinc-800 bg-zinc-950 text-zinc-100"
-                            >
-                              <DialogHeader>
-                                <DialogTitle>Список дел в паке</DialogTitle>
-                                <DialogDescription>
-                                  Показаны дела текущего режима, по 10 на страницу.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-3">
-                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {createPackCasesDialogOpen && (
+                            <div className="absolute inset-0 z-[210] flex items-center justify-center rounded-2xl bg-black/55 p-3">
+                              <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl">
+                                <div className="mb-3 flex items-start justify-between gap-2">
+                                  <div>
+                                    <div className="text-base font-semibold text-zinc-100">Список дел</div>
+                                    <div className="text-xs text-zinc-400">По 10 дел на страницу.</div>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setCreatePackCasesDialogOpen(false)}
+                                    className="h-8 rounded-lg border-zinc-700 bg-zinc-900 px-2 text-zinc-200 hover:bg-zinc-800"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+
+                                <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                                   {createPackAllCasesByMode.map(({ mode, cases }) => {
-                                    const isActive = mode.value === createPackModeTab;
+                                    const isActive = mode.value === createPackCasesDialogModeTab;
                                     return (
                                       <button
                                         key={`cases-dialog-mode-${mode.value}`}
                                         type="button"
                                         onClick={() => {
-                                          switchCreatePackModeTab(mode.value);
+                                          setCreatePackCasesDialogModeTab(mode.value);
+                                          setCreatePackCasesPage(1);
                                         }}
                                         className={`rounded-lg border px-2 py-1.5 text-left transition-colors ${
                                           isActive
@@ -13650,20 +14051,22 @@ export default function App() {
                                     );
                                   })}
                                 </div>
-                                <div className="text-xs uppercase tracking-[0.11em] text-zinc-500 break-words">
-                                  {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackModeTab)?.label} —{" "}
-                                  {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackModeTab)?.subtitle}
+
+                                <div className="mb-3 text-xs uppercase tracking-[0.11em] text-zinc-500 break-words">
+                                  {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackCasesDialogModeTab)?.label} —{" "}
+                                  {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackCasesDialogModeTab)?.subtitle}
                                 </div>
-                                <div className="space-y-1.5">
-                                  {createPackCasesPaged.map((item, modeIndex) => {
+
+                                <div className="max-h-[46vh] space-y-1.5 overflow-y-auto pr-1">
+                                  {createPackCasesDialogPaged.map((item, modeIndex) => {
                                     const isActive = activeCreatePackCase?.id === item.id;
-                                    const displayIndex = createPackCasesPageStartIndex + modeIndex + 1;
+                                    const displayIndex = createPackCasesDialogPageStartIndex + modeIndex + 1;
                                     return (
                                       <button
                                         key={`list-item-${item.id}`}
                                         type="button"
                                         onClick={() => {
-                                          setCreatePackActiveCaseId(item.id);
+                                          activateCreatePackCase(item.id, item.modePlayerCount, true);
                                           setCreatePackCasesDialogOpen(false);
                                         }}
                                         className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
@@ -13680,7 +14083,8 @@ export default function App() {
                                     );
                                   })}
                                 </div>
-                                <div className="flex items-center justify-between gap-2 pt-1">
+
+                                <div className="mt-3 flex items-center justify-between gap-2">
                                   <Button
                                     type="button"
                                     variant="outline"
@@ -13692,17 +14096,17 @@ export default function App() {
                                     Назад
                                   </Button>
                                   <div className="text-xs text-zinc-400">
-                                    Страница {createPackCasesPage} из {createPackCasesTotalPages}
+                                    Страница {createPackCasesPage} из {createPackCasesDialogTotalPages}
                                   </div>
                                   <Button
                                     type="button"
                                     variant="outline"
                                     onClick={() =>
                                       setCreatePackCasesPage((prev) =>
-                                        Math.min(createPackCasesTotalPages, prev + 1),
+                                        Math.min(createPackCasesDialogTotalPages, prev + 1),
                                       )
                                     }
-                                    disabled={createPackCasesPage >= createPackCasesTotalPages}
+                                    disabled={createPackCasesPage >= createPackCasesDialogTotalPages}
                                     className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
                                   >
                                     Вперед
@@ -13710,8 +14114,8 @@ export default function App() {
                                   </Button>
                                 </div>
                               </div>
-                            </DialogContent>
-                          </Dialog>
+                            </div>
+                          )}
 
                           {createPackEditLoading ? (
                             <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-5 text-sm text-zinc-400">
@@ -13762,11 +14166,11 @@ export default function App() {
                                   <div className="flex items-center justify-between gap-2">
                                     <label className="text-[11px] text-zinc-500">Описание дела</label>
                                     <span className="text-[11px] text-zinc-500">
-                                      {activeCreatePackCase.description.length}/{USER_PACK_TEXT_LIMITS.caseDescription}
+                                      {activeCreatePackCaseDescription.length}/{USER_PACK_TEXT_LIMITS.caseDescription}
                                     </span>
                                   </div>
                                   <textarea
-                                    value={activeCreatePackCase.description}
+                                    value={activeCreatePackCaseDescription}
                                     onChange={(event) =>
                                       updateCreatePackCaseField(
                                         activeCreatePackCase.id,
@@ -13783,11 +14187,11 @@ export default function App() {
                                   <div className="flex items-center justify-between gap-2">
                                     <label className="text-[11px] text-zinc-500">Истина (обоснование)</label>
                                     <span className="text-[11px] text-zinc-500">
-                                      {activeCreatePackCase.truth.length}/{USER_PACK_TEXT_LIMITS.truth}
+                                      {activeCreatePackCaseTruth.length}/{USER_PACK_TEXT_LIMITS.truth}
                                     </span>
                                   </div>
                                   <textarea
-                                    value={activeCreatePackCase.truth}
+                                    value={activeCreatePackCaseTruth}
                                     onChange={(event) =>
                                       updateCreatePackCaseField(
                                         activeCreatePackCase.id,
@@ -13861,36 +14265,93 @@ export default function App() {
                                 <div className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
                                   Факты по ролям
                                 </div>
-                                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                <div className="space-y-2">
                                   {activeCreatePackRequiredRoles.map((roleKey) => {
-                                    const roleRows = activeCreatePackCase.factsByRole[roleKey] ?? ["", "", "", ""];
+                                    const roleRows = activeCreatePackCase.factsByRole[roleKey] ?? [""];
+                                    const isExpanded =
+                                      createPackFactRoleExpanded[roleKey] ??
+                                      roleKey === activeCreatePackRequiredRoles[0];
+                                    const filledCount = roleRows.filter((row) => String(row ?? "").trim()).length;
                                     return (
                                       <div
                                         key={`${activeCreatePackCase.id}-${roleKey}`}
-                                        className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-2.5 space-y-2"
+                                        className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-2.5"
                                       >
-                                        <div className="text-xs font-medium text-zinc-300">
-                                          {USER_PACK_ROLE_TITLES[roleKey]}
-                                        </div>
-                                        <div className="space-y-1.5">
-                                          {roleRows.map((row, rowIndex) => (
-                                            <Input
-                                              key={`${activeCreatePackCase.id}-${roleKey}-${rowIndex}`}
-                                              value={row}
-                                              onChange={(event) =>
-                                                updateCreatePackCaseFactRow(
-                                                  activeCreatePackCase.id,
-                                                  roleKey,
-                                                  rowIndex,
-                                                  event.target.value.slice(0, USER_PACK_TEXT_LIMITS.fact),
-                                                )
-                                              }
-                                              maxLength={USER_PACK_TEXT_LIMITS.fact}
-                                              placeholder={`Факт ${rowIndex + 1}`}
-                                              className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                        <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-zinc-950/80 px-2.5 py-2">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setCreatePackFactRoleExpanded((prev) => ({
+                                                ...prev,
+                                                [roleKey]: !isExpanded,
+                                              }))
+                                            }
+                                            className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left"
+                                          >
+                                            <div className="min-w-0">
+                                              <div className="text-xs font-medium text-zinc-300">
+                                                {USER_PACK_ROLE_TITLES[roleKey]}
+                                              </div>
+                                              <div className="text-[11px] text-zinc-500">
+                                                {filledCount}/{roleRows.length} заполнено
+                                              </div>
+                                            </div>
+                                            <ChevronDown
+                                              className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${
+                                                isExpanded ? "rotate-180" : ""
+                                              }`}
                                             />
-                                          ))}
+                                          </button>
+                                          {isExpanded && (
+                                            <div className="flex items-center gap-1.5">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  addCreatePackCaseFactRow(activeCreatePackCase.id, roleKey)
+                                                }
+                                                disabled={roleRows.length >= 4}
+                                                className="h-7 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                                              >
+                                                + факт
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  removeCreatePackCaseFactRow(
+                                                    activeCreatePackCase.id,
+                                                    roleKey,
+                                                    roleRows.length - 1,
+                                                  )
+                                                }
+                                                disabled={roleRows.length <= 1}
+                                                className="h-7 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                                              >
+                                                - факт
+                                              </button>
+                                            </div>
+                                          )}
                                         </div>
+                                        {isExpanded && (
+                                          <div className="mt-2 grid grid-cols-1 gap-2">
+                                            {roleRows.map((row, rowIndex) => (
+                                              <Input
+                                                key={`${activeCreatePackCase.id}-${roleKey}-${rowIndex}`}
+                                                value={row}
+                                                onChange={(event) =>
+                                                  updateCreatePackCaseFactRow(
+                                                    activeCreatePackCase.id,
+                                                    roleKey,
+                                                    rowIndex,
+                                                    event.target.value.slice(0, USER_PACK_TEXT_LIMITS.fact),
+                                                  )
+                                                }
+                                                maxLength={USER_PACK_TEXT_LIMITS.fact}
+                                                placeholder={`Факт ${rowIndex + 1}`}
+                                                className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                                              />
+                                            ))}
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}
@@ -13901,8 +14362,11 @@ export default function App() {
                         </div>
 
                         {createPackError && (
-                          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                            {createPackError}
+                          <div className="rounded-2xl border border-red-500/50 bg-[linear-gradient(145deg,rgba(127,29,29,0.4),rgba(69,10,10,0.22))] px-4 py-3.5 text-[14px] font-semibold text-red-100 shadow-[0_0_0_1px_rgba(239,68,68,0.16)]">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" />
+                              <span>{createPackError}</span>
+                            </div>
                           </div>
                         )}
 
@@ -13912,7 +14376,7 @@ export default function App() {
                             void submitCreatePack();
                           }}
                           disabled={createPackSaving || createPackEditLoading}
-                          className="h-11 w-full rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
+                          className="h-14 w-full rounded-2xl bg-red-600 text-[17px] font-bold text-white hover:bg-red-500 border-0 shadow-[0_10px_26px_rgba(220,38,38,0.34)]"
                         >
                           {createPackSaving
                             ? createPackEditKey

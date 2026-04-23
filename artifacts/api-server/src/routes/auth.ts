@@ -933,6 +933,11 @@ authRouter.post("/auth/case-packs/import", async (req, res) => {
   if (!user) {
     return res.status(401).json({ message: "Сессия недействительна." });
   }
+  if (!user.subscription?.capabilities?.canCreatePacks) {
+    return res.status(403).json({
+      message: "Импорт пользовательских паков доступен только для подписки «Арбитр».",
+    });
+  }
   try {
     const shareCode = String(req.body?.shareCode ?? "").trim();
     const pack = await importUserCasePackByShareCode(user.id, shareCode);
