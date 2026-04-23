@@ -54,9 +54,13 @@ const MODE_TITLE_BY_PLAYERS: Record<CaseModePlayerCount, string> = {
 
 const DEFAULT_PACK_COLOR = "#ef4444";
 const MAX_CASES_PER_MODE = 20;
-const CASE_DESCRIPTION_LIMIT = 150;
-const CASE_TRUTH_LIMIT = 150;
-const CASE_FACT_LIMIT = 40;
+const PACK_TITLE_LIMIT = 45;
+const CASE_TITLE_LIMIT = 45;
+const PACK_DESCRIPTION_LIMIT = 210;
+const CASE_DESCRIPTION_LIMIT = 75;
+const CASE_TRUTH_LIMIT = 75;
+const CASE_EVIDENCE_LIMIT = 110;
+const CASE_FACT_LIMIT = 20;
 
 export interface UserCasePackCaseInput {
   modePlayerCount: CaseModePlayerCount;
@@ -138,7 +142,12 @@ function normalizeColor(value: unknown): string {
 }
 
 function normalizeTitle(value: unknown, fallback: string): string {
-  const title = String(value ?? "").trim().slice(0, 90);
+  const title = String(value ?? "").trim().slice(0, CASE_TITLE_LIMIT);
+  return title || fallback;
+}
+
+function normalizePackTitle(value: unknown, fallback: string): string {
+  const title = String(value ?? "").trim().slice(0, PACK_TITLE_LIMIT);
   return title || fallback;
 }
 
@@ -179,7 +188,12 @@ function sanitizeLegacyCaseText(value: unknown, field: "description" | "truth"):
   return safe;
 }
 
-function normalizeDescription(value: unknown, fallback = ""): string {
+function normalizePackDescription(value: unknown, fallback = ""): string {
+  const description = String(value ?? "").trim().slice(0, PACK_DESCRIPTION_LIMIT);
+  return description || fallback;
+}
+
+function normalizeCaseDescription(value: unknown, fallback = ""): string {
   const description = sanitizeLegacyCaseText(value, "description").slice(0, CASE_DESCRIPTION_LIMIT);
   return description || fallback;
 }
@@ -213,7 +227,7 @@ function normalizeModePlayerCount(value: unknown): CaseModePlayerCount {
 function normalizeEvidence(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value
-    .map((item) => String(item ?? "").trim().slice(0, 220))
+    .map((item) => String(item ?? "").trim().slice(0, CASE_EVIDENCE_LIMIT))
     .filter((item) => item.length > 0)
     .slice(0, 12);
 }
@@ -240,7 +254,7 @@ function normalizeFactsByRole(
     const roleValue = safeObject[roleKey];
     const rows = Array.isArray(roleValue)
       ? roleValue
-          .map((item) => String(item ?? "").trim().slice(0, 220))
+          .map((item) => String(item ?? "").trim().slice(0, CASE_FACT_LIMIT))
           .filter((item) => item.length > 0)
       : [];
     next[roleKey] = rows;
@@ -441,8 +455,8 @@ function mapRowToPackInfo(row: {
   return {
     id: row.id,
     key: row.key,
-    title: row.title,
-    description: row.description,
+    title: normalizePackTitle(row.title, "Пользовательский пак"),
+    description: normalizePackDescription(row.description, "Пользовательский пак дел."),
     color: normalizeColor(row.color),
     shareCode: row.share_code,
     caseCount: Math.max(0, Number(row.case_count ?? 0) || 0),
@@ -523,8 +537,8 @@ export async function getUserCasePackImportPreviewByShareCode(
   }
   const row = result.rows[0];
   return {
-    title: String(row.title ?? "").trim() || "Пользовательский пак",
-    description: String(row.description ?? "").trim(),
+    title: normalizePackTitle(row.title, "Пользовательский пак"),
+    description: normalizePackDescription(row.description, "Пользовательский пак дел."),
     color: normalizeColor(row.color),
     shareCode: String(row.share_code ?? "").trim().toUpperCase(),
     caseCount: Math.max(0, Number(row.case_count ?? 0) || 0),
@@ -588,7 +602,7 @@ function normalizeCaseInput(
       : {};
   const modePlayerCount = normalizeModePlayerCount(source.modePlayerCount);
   const title = normalizeTitle(source.title, `Дело ${index + 1}`);
-  const description = normalizeDescription(source.description);
+  const description = normalizeCaseDescription(source.description);
   const truth = normalizeTruthOptional(source.truth);
   const expectedVerdict = normalizeExpectedVerdict(source.expectedVerdict, truth);
   const evidence = normalizeEvidence(source.evidence);
@@ -618,11 +632,11 @@ export async function createUserCasePack(
     throw new Error("Не удалось определить владельца пака.");
   }
 
-  const title = normalizeTitle(input?.title, "");
+  const title = normalizePackTitle(input?.title, "");
   if (!title) {
     throw new Error("Введите название пака.");
   }
-  const description = normalizeDescription(input?.description, "Пользовательский пак дел.");
+  const description = normalizePackDescription(input?.description, "Пользовательский пак дел.");
   const color = normalizeColor(input?.color);
   const rawCases = Array.isArray(input?.cases) ? input.cases : [];
   if (rawCases.length === 0) {
@@ -805,8 +819,8 @@ export async function importUserCasePackByShareCode(
         newPackId,
         safeUserId,
         newPackKey,
-        sourcePack.title,
-        sourcePack.description,
+        normalizePackTitle(sourcePack.title, "Пользовательский пак"),
+        normalizePackDescription(sourcePack.description, "Пользовательский пак дел."),
         normalizeColor(sourcePack.color),
         newShareCode,
         sourcePack.id,
@@ -839,7 +853,7 @@ export async function importUserCasePackByShareCode(
           `${sourceCase.case_key}_${crypto.randomUUID().slice(0, 6)}`.slice(0, 120),
           normalizeModePlayerCount(sourceCase.mode_player_count),
           normalizeTitle(sourceCase.title, "Дело"),
-          normalizeDescription(sourceCase.description),
+          normalizeCaseDescription(sourceCase.description),
           normalizeTruth(sourceCase.truth),
           normalizeExpectedVerdict(sourceCase.expected_verdict, sourceCase.truth),
           JSON.stringify(normalizeEvidence(sourceCase.evidence_json)),
@@ -979,11 +993,11 @@ export async function updateUserCasePack(
     throw new Error("Ключ пака не указан.");
   }
 
-  const title = normalizeTitle(input?.title, "");
+  const title = normalizePackTitle(input?.title, "");
   if (!title) {
     throw new Error("Введите название пака.");
   }
-  const description = normalizeDescription(input?.description, "Пользовательский пак дел.");
+  const description = normalizePackDescription(input?.description, "Пользовательский пак дел.");
   const color = normalizeColor(input?.color);
   const rawCases = Array.isArray(input?.cases) ? input.cases : [];
   if (rawCases.length === 0) {

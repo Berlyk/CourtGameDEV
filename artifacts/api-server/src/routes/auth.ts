@@ -868,6 +868,11 @@ authRouter.post("/auth/case-packs", async (req, res) => {
   if (!user) {
     return res.status(401).json({ message: "Сессия недействительна." });
   }
+  if (!user.subscription?.capabilities?.canCreatePacks) {
+    return res.status(403).json({
+      message: "Создание пользовательских паков доступно только для подписки «Арбитр».",
+    });
+  }
   try {
     const pack = await createUserCasePack(user.id, {
       title: req.body?.title,
@@ -921,6 +926,11 @@ authRouter.patch("/auth/case-packs/:packKey", async (req, res) => {
   const user = await getUserByToken(token, resolveClientIp(req));
   if (!user) {
     return res.status(401).json({ message: "Сессия недействительна." });
+  }
+  if (!user.subscription?.capabilities?.canCreatePacks) {
+    return res.status(403).json({
+      message: "Редактирование пользовательских паков доступно только для подписки «Арбитр».",
+    });
   }
   try {
     const packKey = String(req.params?.packKey ?? "").trim();
