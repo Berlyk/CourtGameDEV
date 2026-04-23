@@ -7235,6 +7235,7 @@ export default function App() {
 
   const attemptSessionRejoin = useCallback(
     (source: "boot" | "connect" | "manual" = "manual") => {
+      if (pendingImportShareCode) return;
       const sessionCode = localStorage.getItem("court_session");
       const sessionToken =
         (mySessionToken ?? localStorage.getItem("court_session_token")) || "";
@@ -7259,7 +7260,7 @@ export default function App() {
       }
       socket.emit("rejoin_room", rejoinPayload);
     },
-    [authToken, mySessionToken, sharedAvatar, sharedBanner, socket],
+    [authToken, mySessionToken, pendingImportShareCode, sharedAvatar, sharedBanner, socket],
   );
 
   useEffect(() => {
@@ -13731,7 +13732,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
-                className={`z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
+                className={`z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),radial-gradient(120%_120%_at_100%_100%,rgba(59,130,246,0.14),transparent_62%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -13936,29 +13937,31 @@ export default function App() {
                               return (
                                 <div
                                   key={pack.key}
-                                  className="rounded-2xl border bg-zinc-900/75 px-4 py-3 h-[148px] overflow-hidden"
+                                  className="rounded-2xl border bg-zinc-900/75 px-4 py-3 h-[132px] overflow-hidden"
                                   style={{
                                     borderColor: hexToRgba(accent, 0.48),
                                     backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(accent, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
                                   }}
                                 >
-                                  <div className="grid h-full grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
+                                  <div className="grid h-full grid-cols-1 gap-2 lg:grid-cols-[1fr_auto] lg:items-start">
                                     <div className="min-w-0">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <div
-                                          className="h-2.5 w-2.5 rounded-full"
-                                          style={{ backgroundColor: accent }}
-                                        />
-                                        <div className="truncate text-base font-semibold text-zinc-100">{pack.title}</div>
-                                      </div>
-                                      <div className="mt-1 max-h-[2.5rem] overflow-hidden text-[12px] leading-5 text-zinc-300/90 break-all">
-                                        {pack.description}
-                                      </div>
-                                      <div className="mt-1.5 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                                        Пользовательский пак
-                                      </div>
-                                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
-                                        <span className="rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-2">
+                                            <div
+                                              className="h-2.5 w-2.5 rounded-full shrink-0"
+                                              style={{ backgroundColor: accent }}
+                                            />
+                                            <div className="truncate text-base font-semibold text-zinc-100">{pack.title}</div>
+                                          </div>
+                                          <div className="mt-1 max-h-[2.5rem] overflow-hidden text-[12px] leading-5 text-zinc-300/90 break-all">
+                                            {pack.description}
+                                          </div>
+                                          <div className="mt-1.5 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                            Пользовательский пак
+                                          </div>
+                                        </div>
+                                        <span className="shrink-0 rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
                                           {pack.caseCount ?? 0} дел
                                         </span>
                                       </div>
@@ -14166,7 +14169,7 @@ export default function App() {
                         )}
                       </>
                     ) : (
-                      <div className="relative space-y-3 min-w-0 overflow-x-hidden max-w-[980px] mx-auto">
+                      <div className="relative mx-auto max-w-[980px] min-w-0 space-y-3 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),radial-gradient(120%_120%_at_100%_100%,rgba(59,130,246,0.1),transparent_62%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-3">
                         {createPackCasesDialogOpen && (
                           <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
                         )}
