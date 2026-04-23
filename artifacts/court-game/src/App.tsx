@@ -1067,12 +1067,13 @@ function getCasePackSortOrder(
 
 function createEmptyUserPackCaseDraft(
   modePlayerCount: UserPackCaseMode = 3,
-  options?: { isAutoDraft?: boolean },
+  options?: { isAutoDraft?: boolean; caseOrderNumber?: number },
 ): UserPackCaseDraft {
   const buildFactRows = () => [""];
   return {
     id: `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     modePlayerCount,
+    caseOrderNumber: Math.max(1, Number(options?.caseOrderNumber ?? 1) || 1),
     lastEditedAt: Date.now(),
     isAutoDraft: !!options?.isAutoDraft,
     hasUserChanges: false,
@@ -1090,6 +1091,13 @@ function createEmptyUserPackCaseDraft(
       plaintiffLawyer: buildFactRows(),
     },
   };
+}
+
+function getNextCaseOrderNumberByMode(cases: UserPackCaseDraft[], mode: UserPackCaseMode): number {
+  const maxOrder = cases
+    .filter((item) => item.modePlayerCount === mode)
+    .reduce((max, item) => Math.max(max, Number(item.caseOrderNumber ?? 0) || 0), 0);
+  return maxOrder + 1;
 }
 
 function normalizeDraftRows(value: unknown, minRows = 1): string[] {
@@ -2617,6 +2625,7 @@ type UserPackRoleKey =
 type UserPackCaseDraft = {
   id: string;
   modePlayerCount: UserPackCaseMode;
+  caseOrderNumber: number;
   lastEditedAt: number;
   isAutoDraft: boolean;
   hasUserChanges: boolean;
@@ -2630,6 +2639,7 @@ type UserPackCaseDraft = {
 
 type UserPackApiCase = {
   caseKey?: string;
+  sortOrder?: number;
   modePlayerCount: UserPackCaseMode;
   title: string;
   description: string;
@@ -4885,10 +4895,6 @@ export default function App() {
     () => createPackModeTabCases.slice(0, 5),
     [createPackModeTabCases],
   );
-  const activeCreatePackModeCases = useMemo(() => {
-    if (!activeCreatePackCase) return [] as UserPackCaseDraft[];
-    return createPackCasesByMode[activeCreatePackCase.modePlayerCount] ?? [];
-  }, [activeCreatePackCase, createPackCasesByMode]);
   const createPackCasesDialogModeCases = useMemo(
     () => createPackCasesByMode[createPackCasesDialogModeTab] ?? [],
     [createPackCasesByMode, createPackCasesDialogModeTab],
@@ -4902,14 +4908,6 @@ export default function App() {
     const start = (safePage - 1) * USER_PACK_CASES_PER_PAGE;
     return createPackCasesDialogModeCases.slice(start, start + USER_PACK_CASES_PER_PAGE);
   }, [createPackCasesDialogModeCases, createPackCasesPage, createPackCasesDialogTotalPages]);
-  const createPackCasesDialogPageStartIndex = useMemo(() => {
-    const safePage = Math.max(1, Math.min(createPackCasesPage, createPackCasesDialogTotalPages));
-    return (safePage - 1) * USER_PACK_CASES_PER_PAGE;
-  }, [createPackCasesPage, createPackCasesDialogTotalPages]);
-  const activeCreatePackCaseModeIndex = useMemo(() => {
-    if (!activeCreatePackCase) return -1;
-    return activeCreatePackModeCases.findIndex((item) => item.id === activeCreatePackCase.id);
-  }, [activeCreatePackCase, activeCreatePackModeCases]);
   useEffect(() => {
     if (!createPackActiveCaseId) return;
     const stamp = nextCreatePackEditStamp();
@@ -5181,6 +5179,7 @@ export default function App() {
                 id: caseItem?.caseKey
                   ? `case_${caseItem.caseKey}_${index}`
                   : `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                caseOrderNumber: Math.max(1, Number(caseItem?.sortOrder ?? index + 1) || index + 1),
                 lastEditedAt: Date.now() - index,
                 isAutoDraft: false,
                 hasUserChanges: false,
@@ -5203,7 +5202,7 @@ export default function App() {
                 factsByRole,
               };
             })
-          : [createEmptyUserPackCaseDraft(3)];
+          : [createEmptyUserPackCaseDraft(3, { caseOrderNumber: 1 })];
 
         setCreatePackEditKey(pack?.key ?? packKey);
         setCreatePackTitle(String(pack?.title ?? ""));
@@ -5386,7 +5385,10 @@ export default function App() {
 
       let nextActiveId: string | null = null;
       if (modeCases.length === 0) {
-        const autoDraft = createEmptyUserPackCaseDraft(nextMode, { isAutoDraft: true });
+        const autoDraft = createEmptyUserPackCaseDraft(nextMode, {
+          isAutoDraft: true,
+          caseOrderNumber: getNextCaseOrderNumberByMode(nextCases, nextMode),
+        });
         autoDraft.lastEditedAt = nextCreatePackEditStamp();
         nextCases = [autoDraft, ...nextCases];
         nextActiveId = autoDraft.id;
@@ -5421,7 +5423,9 @@ export default function App() {
       );
       return;
     }
-    const nextCase = createEmptyUserPackCaseDraft(createPackModeTab);
+    const nextCase = createEmptyUserPackCaseDraft(createPackModeTab, {
+      caseOrderNumber: getNextCaseOrderNumberByMode(baseCases, createPackModeTab),
+    });
     nextCase.lastEditedAt = nextCreatePackEditStamp();
     setCreatePackCases([nextCase, ...baseCases]);
     setCreatePackActiveCaseId(nextCase.id);
@@ -14075,7 +14079,7 @@ export default function App() {
 
                             {createPackModeTabPreviewCases.length > 0 ? (
                               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                                {createPackModeTabPreviewCases.map((draft, modeIndex) => {
+                                {createPackModeTabPreviewCases.map((draft) => {
                                   const isActive = activeCreatePackCase?.id === draft.id;
                                   return (
                                     <button
@@ -14091,9 +14095,11 @@ export default function App() {
                                       }`}
                                       >
                                       <div className="truncate text-sm font-semibold text-zinc-100">
-                                        {draft.title.trim() || `Дело ${Math.max(1, modeIndex + 1)}`}
+                                        {draft.title.trim() || `Дело ${Math.max(1, draft.caseOrderNumber)}`}
                                       </div>
-                                      <div className="mt-0.5 truncate text-[11px] text-zinc-500">#{Math.max(1, modeIndex + 1)}</div>
+                                      <div className="mt-0.5 truncate text-[11px] text-zinc-500">
+                                        #{Math.max(1, draft.caseOrderNumber)}
+                                      </div>
                                     </button>
                                   );
                                 })}
@@ -14165,9 +14171,9 @@ export default function App() {
                                   </div>
 
                                   <div className="max-h-[46vh] space-y-1.5 overflow-y-auto pr-1">
-                                    {createPackCasesDialogPaged.map((item, modeIndex) => {
+                                    {createPackCasesDialogPaged.map((item) => {
                                       const isActive = activeCreatePackCase?.id === item.id;
-                                      const displayIndex = createPackCasesDialogPageStartIndex + modeIndex + 1;
+                                      const displayIndex = Math.max(1, item.caseOrderNumber);
                                       return (
                                         <button
                                           key={`list-item-${item.id}`}
@@ -14233,7 +14239,7 @@ export default function App() {
                             <div className="rounded-2xl border border-zinc-800 bg-zinc-950/55 p-3 space-y-3 min-w-0 overflow-x-hidden">
                               <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div className="text-sm font-semibold text-zinc-100">
-                                  Редактор дела #{Math.max(1, activeCreatePackCaseModeIndex + 1)}
+                                  Редактор дела #{Math.max(1, activeCreatePackCase.caseOrderNumber)}
                                 </div>
                                 {createPackCases.length > 1 && (
                                   <Button
@@ -14264,7 +14270,7 @@ export default function App() {
                                     )
                                   }
                                   maxLength={USER_PACK_TEXT_LIMITS.caseTitle}
-                                  placeholder={`Дело ${Math.max(1, activeCreatePackCaseModeIndex + 1)}`}
+                                  placeholder={`Дело ${Math.max(1, activeCreatePackCase.caseOrderNumber)}`}
                                   className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
                                 />
                               </div>
@@ -16428,7 +16434,7 @@ export default function App() {
                         disabled={importPackLoading}
                         className="h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
                       >
-                        {importPackLoading ? "Добавляем..." : "Добавить в мои паки"}
+                        {importPackLoading ? "Забираем..." : "Забрать пак"}
                       </Button>
                       <Button
                         type="button"
@@ -16436,7 +16442,7 @@ export default function App() {
                         onClick={closeImportPackPreviewDialog}
                         className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
                       >
-                        Не сейчас
+                        Отказаться
                       </Button>
                     </div>
                   ) : (
