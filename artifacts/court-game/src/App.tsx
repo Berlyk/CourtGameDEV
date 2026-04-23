@@ -4852,20 +4852,11 @@ export default function App() {
     if (homeTab !== "play") {
       setHomeTab("play");
     }
-    if (createMatchDialogOpen) {
-      setCreateMatchDialogOpen(false);
-    }
-    if (createPackCatalogOpen) {
-      setCreatePackCatalogOpen(false);
-      setCreatePackCatalogView("catalog");
-    }
   }, [
     pendingImportShareCode,
     screen,
     homeTab,
     socket,
-    createMatchDialogOpen,
-    createPackCatalogOpen,
   ]);
   const closeImportPackPreviewDialog = useCallback(() => {
     setImportPackPreviewDialogOpen(false);
