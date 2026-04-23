@@ -54,12 +54,12 @@ const MODE_TITLE_BY_PLAYERS: Record<CaseModePlayerCount, string> = {
 
 const DEFAULT_PACK_COLOR = "#ef4444";
 const MAX_CASES_PER_MODE = 20;
-const PACK_TITLE_LIMIT = 45;
+const PACK_TITLE_LIMIT = 25;
 const CASE_TITLE_LIMIT = 45;
-const PACK_DESCRIPTION_LIMIT = 350;
+const PACK_DESCRIPTION_LIMIT = 50;
 const CASE_DESCRIPTION_LIMIT = 100;
 const CASE_TRUTH_LIMIT = 100;
-const CASE_EVIDENCE_LIMIT = 110;
+const CASE_EVIDENCE_LIMIT = 30;
 const CASE_FACT_LIMIT = 40;
 
 export interface UserCasePackCaseInput {

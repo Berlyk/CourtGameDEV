@@ -4839,6 +4839,34 @@ export default function App() {
     if (!shareCode) return;
     setPendingImportShareCode((prev) => (prev === shareCode ? prev : shareCode));
   }, [screen, homeTab, getPackImportShareCodeFromLocation]);
+  useEffect(() => {
+    if (!pendingImportShareCode) return;
+    if (screen === "room" || screen === "game") {
+      socket.emit("leave_room", { preserveForRejoin: false });
+      setRoom(null);
+      setGame(null);
+    }
+    if (screen !== "home") {
+      setScreen("home");
+    }
+    if (homeTab !== "play") {
+      setHomeTab("play");
+    }
+    if (createMatchDialogOpen) {
+      setCreateMatchDialogOpen(false);
+    }
+    if (createPackCatalogOpen) {
+      setCreatePackCatalogOpen(false);
+      setCreatePackCatalogView("catalog");
+    }
+  }, [
+    pendingImportShareCode,
+    screen,
+    homeTab,
+    socket,
+    createMatchDialogOpen,
+    createPackCatalogOpen,
+  ]);
   const closeImportPackPreviewDialog = useCallback(() => {
     setImportPackPreviewDialogOpen(false);
     setImportPackPreviewLoading(false);
@@ -13704,7 +13732,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
-                className={`z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "border-zinc-800 bg-[radial-gradient(120%_140%_at_0%_0%,rgba(239,68,68,0.16),transparent_60%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
+                className={`z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -13909,13 +13937,13 @@ export default function App() {
                               return (
                                 <div
                                   key={pack.key}
-                                  className="rounded-2xl border bg-zinc-900/75 px-4 py-3"
+                                  className="rounded-2xl border bg-zinc-900/75 px-4 py-3 h-[148px] overflow-hidden"
                                   style={{
                                     borderColor: hexToRgba(accent, 0.48),
                                     backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(accent, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
                                   }}
                                 >
-                                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
+                                  <div className="grid h-full grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
                                     <div className="min-w-0">
                                       <div className="flex flex-wrap items-center gap-2">
                                         <div
@@ -14013,7 +14041,7 @@ export default function App() {
 
                         {sharePackDialogOpen && (
                           <div className="absolute inset-0 z-[383] overflow-y-auto p-3 sm:p-5">
-                            <div className="mx-auto w-full max-w-[700px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5">
+                            <div className="mx-auto w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 space-y-1">
                                   <div className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
