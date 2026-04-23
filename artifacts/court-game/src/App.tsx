@@ -246,12 +246,12 @@ const USER_PACK_COLOR_PRESETS = [
 const USER_PACK_COLOR_DEFAULT = "#ef4444";
 const USER_PACK_CASES_PER_MODE_LIMIT = 20;
 const USER_PACK_TEXT_LIMITS = {
-  packTitle: 45,
-  packDescription: 350,
+  packTitle: 25,
+  packDescription: 50,
   caseTitle: 45,
   caseDescription: 100,
   truth: 100,
-  evidence: 110,
+  evidence: 30,
   fact: 40,
 };
 const USER_PACK_CASES_PER_PAGE = 10;
@@ -4819,10 +4819,26 @@ export default function App() {
     window.history.replaceState(window.history.state, "", nextUrl);
   }, []);
   useEffect(() => {
+    const syncShareCodeFromLocation = () => {
+      const shareCode = getPackImportShareCodeFromLocation();
+      if (!shareCode) return;
+      setPendingImportShareCode((prev) => (prev === shareCode ? prev : shareCode));
+    };
+    syncShareCodeFromLocation();
+    window.addEventListener("popstate", syncShareCodeFromLocation);
+    window.addEventListener("hashchange", syncShareCodeFromLocation);
+    window.addEventListener("focus", syncShareCodeFromLocation);
+    return () => {
+      window.removeEventListener("popstate", syncShareCodeFromLocation);
+      window.removeEventListener("hashchange", syncShareCodeFromLocation);
+      window.removeEventListener("focus", syncShareCodeFromLocation);
+    };
+  }, [getPackImportShareCodeFromLocation]);
+  useEffect(() => {
     const shareCode = getPackImportShareCodeFromLocation();
     if (!shareCode) return;
-    setPendingImportShareCode(shareCode);
-  }, [getPackImportShareCodeFromLocation]);
+    setPendingImportShareCode((prev) => (prev === shareCode ? prev : shareCode));
+  }, [screen, homeTab, getPackImportShareCodeFromLocation]);
   const closeImportPackPreviewDialog = useCallback(() => {
     setImportPackPreviewDialogOpen(false);
     setImportPackPreviewLoading(false);
@@ -5203,6 +5219,7 @@ export default function App() {
       }
       setCreatePackCatalogView("create_pack");
       setCreatePackError("");
+      setCreatePackFactRoleExpanded({});
       setCreatePackEditLoading(true);
       try {
         const payload = await authRequest<{ pack: CasePackInfo; cases: UserPackApiCase[] }>(
@@ -5272,8 +5289,10 @@ export default function App() {
           : [createEmptyUserPackCaseDraft(3, { caseOrderNumber: 1 })];
 
         setCreatePackEditKey(pack?.key ?? packKey);
-        setCreatePackTitle(String(pack?.title ?? ""));
-        setCreatePackDescription(String(pack?.description ?? ""));
+        setCreatePackTitle(String(pack?.title ?? "").slice(0, USER_PACK_TEXT_LIMITS.packTitle));
+        setCreatePackDescription(
+          String(pack?.description ?? "").slice(0, USER_PACK_TEXT_LIMITS.packDescription),
+        );
         setCreatePackColor(String(pack?.color ?? USER_PACK_COLOR_DEFAULT));
         setCreatePackCases(drafts);
         setCreatePackActiveCaseId(drafts[0]?.id ?? null);
@@ -13685,7 +13704,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
-                className={`z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && createPackCatalogView === "my_packs" ? "border-red-500/30 bg-[radial-gradient(120%_140%_at_0%_0%,rgba(239,68,68,0.16),transparent_60%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
+                className={`z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "border-zinc-800 bg-[radial-gradient(120%_140%_at_0%_0%,rgba(239,68,68,0.16),transparent_60%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -13890,25 +13909,28 @@ export default function App() {
                               return (
                                 <div
                                   key={pack.key}
-                                  className="rounded-2xl border bg-zinc-900/75 px-4 py-3 min-h-[168px]"
+                                  className="rounded-2xl border bg-zinc-900/75 px-4 py-3"
                                   style={{
                                     borderColor: hexToRgba(accent, 0.48),
                                     backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(accent, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
                                   }}
                                 >
-                                  <div className="grid h-full grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
+                                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
                                     <div className="min-w-0">
                                       <div className="flex flex-wrap items-center gap-2">
                                         <div
                                           className="h-2.5 w-2.5 rounded-full"
                                           style={{ backgroundColor: accent }}
                                         />
-                                        <div className="text-base font-semibold text-zinc-100 break-all">{pack.title}</div>
+                                        <div className="truncate text-base font-semibold text-zinc-100">{pack.title}</div>
                                       </div>
-                                      <div className="mt-1 h-[4.5rem] overflow-hidden text-sm text-zinc-300/90 break-all">
+                                      <div className="mt-1 max-h-[2.5rem] overflow-hidden text-[12px] leading-5 text-zinc-300/90 break-all">
                                         {pack.description}
                                       </div>
-                                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
+                                      <div className="mt-1.5 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                        Пользовательский пак
+                                      </div>
+                                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
                                         <span className="rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5">
                                           {pack.caseCount ?? 0} дел
                                         </span>
@@ -13990,76 +14012,81 @@ export default function App() {
                         )}
 
                         {sharePackDialogOpen && (
-                          <div className="absolute inset-0 z-[383] overflow-y-auto rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0 space-y-1">
-                                <div className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
-                                <div className="text-zinc-400">
-                                  Ссылка откроет предпросмотр пака и позволит добавить его в «Мои паки».
+                          <div className="absolute inset-0 z-[383] overflow-y-auto p-3 sm:p-5">
+                            <div className="mx-auto w-full max-w-[700px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 space-y-1">
+                                  <div className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
+                                  <div className="text-zinc-400">
+                                    Ссылка откроет предпросмотр пака и позволит добавить его в «Мои паки».
+                                  </div>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSharePackDialogOpen(false);
+                                    setSharePackCopiedKind(null);
+                                  }}
+                                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-950 text-zinc-300 transition-colors hover:bg-zinc-900 hover:text-zinc-100"
+                                  aria-label="Закрыть окно"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSharePackDialogOpen(false);
-                                  setSharePackCopiedKind(null);
-                                }}
-                                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-950 text-zinc-300 transition-colors hover:bg-zinc-900 hover:text-zinc-100"
-                                aria-label="Закрыть окно"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                            <div className="mt-3 space-y-3">
-                              <div
-                                className="rounded-2xl border px-3 py-3"
-                                style={{
-                                  borderColor: hexToRgba(normalizePackColor(sharePackData?.color), 0.52),
-                                  backgroundImage: `radial-gradient(120% 130% at 0% 0%, ${hexToRgba(normalizePackColor(sharePackData?.color), 0.22)}, transparent 60%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
-                                }}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span
-                                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                        style={{ backgroundColor: normalizePackColor(sharePackData?.color) }}
-                                      />
-                                      <div className="break-all text-sm font-semibold text-zinc-100">
-                                        {sharePackData?.title ?? "Пак"}
+                              <div className="mt-3 space-y-3">
+                                <div
+                                  className="rounded-2xl border px-3 py-3 min-h-[112px]"
+                                  style={{
+                                    borderColor: hexToRgba(normalizePackColor(sharePackData?.color), 0.52),
+                                    backgroundImage: `radial-gradient(120% 130% at 0% 0%, ${hexToRgba(normalizePackColor(sharePackData?.color), 0.22)}, transparent 60%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
+                                  }}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                          style={{ backgroundColor: normalizePackColor(sharePackData?.color) }}
+                                        />
+                                        <div className="truncate text-base font-semibold text-zinc-100">
+                                          {sharePackData?.title ?? "Пак"}
+                                        </div>
+                                      </div>
+                                      <div className="mt-1 max-h-[2.5rem] overflow-hidden break-all text-[12px] leading-5 text-zinc-300">
+                                        {sharePackData?.description || "Описание не указано."}
+                                      </div>
+                                      <div className="mt-1.5 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                        Пользовательский пак
                                       </div>
                                     </div>
-                                    <div className="mt-1 break-all text-xs text-zinc-300">
-                                      {sharePackData?.description || "Описание не указано."}
-                                    </div>
+                                    <span className="shrink-0 rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
+                                      {Math.max(0, Number(sharePackData?.caseCount ?? 0) || 0)} дел
+                                    </span>
                                   </div>
-                                  <span className="shrink-0 rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
-                                    {Math.max(0, Number(sharePackData?.caseCount ?? 0) || 0)} дел
-                                  </span>
                                 </div>
-                              </div>
-                              <div className="space-y-1.5">
-                                <div className="text-xs text-zinc-400">Ссылка</div>
-                                <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                                  <Input
-                                    readOnly
-                                    value={sharePackData?.importLink ?? ""}
-                                    className="h-10 min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => {
-                                      void copySharePackDialogValue("link");
-                                    }}
-                                    className={`h-10 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800 sm:min-w-[150px] ${
-                                      sharePackCopiedKind === "link"
-                                        ? "border-red-500/70 bg-red-500/15 text-red-100"
-                                        : ""
-                                    }`}
-                                  >
-                                    {sharePackCopiedKind === "link" ? "Скопировано" : "Скопировать"}
-                                  </Button>
+                                <div className="space-y-1.5">
+                                  <div className="text-xs text-zinc-400">Ссылка</div>
+                                  <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                                    <Input
+                                      readOnly
+                                      value={sharePackData?.importLink ?? ""}
+                                      className="h-10 min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => {
+                                        void copySharePackDialogValue("link");
+                                      }}
+                                      className={`h-10 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800 sm:min-w-[150px] ${
+                                        sharePackCopiedKind === "link"
+                                          ? "border-red-500/70 bg-red-500/15 text-red-100"
+                                          : ""
+                                      }`}
+                                    >
+                                      {sharePackCopiedKind === "link" ? "Скопировано" : "Скопировать"}
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
