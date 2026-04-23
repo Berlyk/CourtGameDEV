@@ -54,6 +54,8 @@ import {
   X,
   List,
   Check,
+  Plus,
+  Minus,
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
@@ -2595,6 +2597,14 @@ interface CasePackInfo {
   color?: string;
 }
 
+interface ImportPackPreviewData {
+  title: string;
+  description: string;
+  color: string;
+  shareCode: string;
+  caseCount: number;
+}
+
 type UserPackCaseMode = 3 | 4 | 5 | 6;
 type UserPackRoleKey =
   | "judge"
@@ -4372,6 +4382,10 @@ export default function App() {
   const [importPackLoading, setImportPackLoading] = useState(false);
   const [importPackError, setImportPackError] = useState("");
   const [pendingImportShareCode, setPendingImportShareCode] = useState<string | null>(null);
+  const [importPackPreviewDialogOpen, setImportPackPreviewDialogOpen] = useState(false);
+  const [importPackPreviewLoading, setImportPackPreviewLoading] = useState(false);
+  const [importPackPreviewError, setImportPackPreviewError] = useState("");
+  const [importPackPreviewData, setImportPackPreviewData] = useState<ImportPackPreviewData | null>(null);
   const [createPackSaving, setCreatePackSaving] = useState(false);
   const [createPackEditLoading, setCreatePackEditLoading] = useState(false);
   const [createPackError, setCreatePackError] = useState("");
@@ -4756,6 +4770,44 @@ export default function App() {
     if (!shareCode) return;
     setPendingImportShareCode(shareCode);
   }, []);
+  const closeImportPackPreviewDialog = useCallback(() => {
+    setImportPackPreviewDialogOpen(false);
+    setImportPackPreviewLoading(false);
+    setImportPackPreviewError("");
+    setImportPackPreviewData(null);
+    setPendingImportShareCode(null);
+    clearPackImportQueryParam();
+  }, [clearPackImportQueryParam]);
+  useEffect(() => {
+    if (!pendingImportShareCode) return;
+    let cancelled = false;
+    setImportPackPreviewDialogOpen(true);
+    setImportPackPreviewLoading(true);
+    setImportPackPreviewError("");
+    setImportPackPreviewData(null);
+    void authRequest<{ ok: true; preview: ImportPackPreviewData }>(
+      `/auth/case-packs/import-preview?shareCode=${encodeURIComponent(pendingImportShareCode)}`,
+    )
+      .then((payload) => {
+        if (cancelled) return;
+        setImportPackPreviewData(payload?.preview ?? null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const message =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Не удалось загрузить предпросмотр пака.";
+        setImportPackPreviewError(message);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setImportPackPreviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingImportShareCode]);
   const buildPackImportLink = useCallback((rawShareCode: string) => {
     const shareCode = String(rawShareCode ?? "").trim().toUpperCase();
     if (!shareCode) return "";
@@ -4772,6 +4824,7 @@ export default function App() {
   const canLetPlayersChooseRoles = hasCapability(myTier, "canLetPlayersChooseRoles");
   const canChooseRoleInOwnLobby = hasCapability(myTier, "canChooseRoleInOwnLobby");
   const canCreatePacks = hasCapability(myTier, "canCreatePacks");
+  const canImportPackFromPreview = !!authToken && canCreatePacks;
   const createPackOwnedCount = useMemo(
     () => casePacks.filter((pack) => pack.isCustom).length,
     [casePacks],
@@ -4828,7 +4881,6 @@ export default function App() {
       })),
     [createPackCasesByMode],
   );
-  const createPackHasOverflowCases = createPackModeTabCases.length > 5;
   const createPackModeTabPreviewCases = useMemo(
     () => createPackModeTabCases.slice(0, 5),
     [createPackModeTabCases],
@@ -4858,6 +4910,20 @@ export default function App() {
     if (!activeCreatePackCase) return -1;
     return activeCreatePackModeCases.findIndex((item) => item.id === activeCreatePackCase.id);
   }, [activeCreatePackCase, activeCreatePackModeCases]);
+  useEffect(() => {
+    if (!createPackActiveCaseId) return;
+    const stamp = nextCreatePackEditStamp();
+    setCreatePackCases((prev) =>
+      prev.map((item) =>
+        item.id === createPackActiveCaseId
+          ? {
+              ...item,
+              lastEditedAt: stamp,
+            }
+          : item,
+      ),
+    );
+  }, [createPackActiveCaseId, nextCreatePackEditStamp]);
   const activeCreatePackCaseDescription = useMemo(
     () => sanitizeLegacyCaseText(activeCreatePackCase?.description, "description"),
     [activeCreatePackCase?.description],
@@ -5250,25 +5316,32 @@ export default function App() {
     });
   }, [importPackByShareCode, importPackShareCode]);
 
-  useEffect(() => {
+  const submitImportPackFromPreview = useCallback(async () => {
     if (!pendingImportShareCode || importPackLoading) return;
-    if (!authToken) return;
-    let cancelled = false;
-    void (async () => {
-      const imported = await importPackByShareCode(pendingImportShareCode, {
-        silent: true,
-        closeDialog: false,
-        switchToMyPacks: true,
-      });
-      if (cancelled) return;
-      if (!imported && canCreatePacks) {
-        setImportPackError("Не удалось импортировать пак по ссылке.");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [authToken, canCreatePacks, importPackByShareCode, importPackLoading, pendingImportShareCode]);
+    if (!canImportPackFromPreview) {
+      setImportPackPreviewError("Функция недоступна: импорт открыт только для подписки «Арбитр».");
+      return;
+    }
+    const imported = await importPackByShareCode(pendingImportShareCode, {
+      silent: true,
+      closeDialog: false,
+      switchToMyPacks: true,
+    });
+    if (!imported) {
+      setImportPackPreviewError("Не удалось забрать пак по ссылке.");
+      return;
+    }
+    setImportPackPreviewError("");
+    closeImportPackPreviewDialog();
+    setCreatePackCatalogOpen(true);
+    setCreatePackCatalogView("my_packs");
+  }, [
+    canImportPackFromPreview,
+    closeImportPackPreviewDialog,
+    importPackByShareCode,
+    importPackLoading,
+    pendingImportShareCode,
+  ]);
 
   const dropUntouchedAutoDraftsForMode = useCallback(
     (cases: UserPackCaseDraft[], mode: UserPackCaseMode) =>
@@ -5279,7 +5352,7 @@ export default function App() {
   );
 
   const activateCreatePackCase = useCallback(
-    (caseId: string, mode: UserPackCaseMode, touchRecent = false) => {
+    (caseId: string, mode: UserPackCaseMode, touchRecent = true) => {
       const stamp = touchRecent ? nextCreatePackEditStamp() : null;
       setCreatePackCases((prev) => {
         const cleanedCases =
@@ -13749,7 +13822,10 @@ export default function App() {
                         )}
 
                         <Dialog open={importPackDialogOpen} onOpenChange={setImportPackDialogOpen}>
-                          <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+                          <DialogContent
+                            overlayClassName="z-[280] bg-black/82"
+                            className="z-[281] max-w-md border-zinc-800 bg-zinc-950 text-zinc-100"
+                          >
                             <DialogHeader>
                               <DialogTitle>Импорт пака</DialogTitle>
                               <DialogDescription className="text-zinc-400">
@@ -13790,11 +13866,14 @@ export default function App() {
                             if (!open) setSharePackCopiedKind(null);
                           }}
                         >
-                          <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+                          <DialogContent
+                            overlayClassName="z-[282] bg-black/84"
+                            className="z-[283] max-w-md border-zinc-800 bg-zinc-950 text-zinc-100"
+                          >
                             <DialogHeader>
                               <DialogTitle>Поделиться паком</DialogTitle>
                               <DialogDescription className="text-zinc-400">
-                                Ссылка добавит пак автоматически, код можно ввести вручную через импорт.
+                                Ссылка откроет предпросмотр пака, а код можно ввести вручную через импорт.
                               </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-3">
@@ -13943,17 +14022,15 @@ export default function App() {
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              {createPackHasOverflowCases && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => setCreatePackCasesDialogOpen(true)}
-                                  className="h-9 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800"
-                                >
-                                  <List className="h-4 w-4" />
-                                  <span className="ml-2">Список дел</span>
-                                </Button>
-                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setCreatePackCasesDialogOpen(true)}
+                                className="h-9 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800"
+                              >
+                                <List className="h-4 w-4" />
+                                <span className="ml-2">Список дел</span>
+                              </Button>
                               <Button
                                 type="button"
                                 variant="outline"
@@ -14024,116 +14101,129 @@ export default function App() {
                             ) : null}
                           </div>
 
-                          {createPackCasesDialogOpen && (
-                            <div className="absolute inset-0 z-[210] flex items-center justify-center rounded-2xl p-3">
-                              <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl">
-                                <div className="mb-3 flex items-start justify-between gap-2">
-                                  <div>
-                                    <div className="text-base font-semibold text-zinc-100">Список дел</div>
-                                    <div className="text-xs text-zinc-400">По 10 дел на страницу.</div>
+                          {createPackCasesDialogOpen &&
+                            typeof document !== "undefined" &&
+                            createPortal(
+                              <div
+                                className="fixed inset-0 z-[286] flex items-center justify-center bg-black/0 p-3 sm:p-4"
+                                onMouseDown={(event) => {
+                                  if (event.target === event.currentTarget) {
+                                    setCreatePackCasesDialogOpen(false);
+                                  }
+                                }}
+                              >
+                                <div
+                                  className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl"
+                                  onMouseDown={(event) => event.stopPropagation()}
+                                >
+                                  <div className="mb-3 flex items-start justify-between gap-2">
+                                    <div>
+                                      <div className="text-base font-semibold text-zinc-100">Список дел</div>
+                                      <div className="text-xs text-zinc-400">По 10 дел на страницу.</div>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => setCreatePackCasesDialogOpen(false)}
+                                      className="h-8 rounded-lg border-zinc-700 bg-zinc-900 px-2 text-zinc-200 hover:bg-zinc-800"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
                                   </div>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setCreatePackCasesDialogOpen(false)}
-                                    className="h-8 rounded-lg border-zinc-700 bg-zinc-900 px-2 text-zinc-200 hover:bg-zinc-800"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
 
-                                <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                  {createPackAllCasesByMode.map(({ mode, cases }) => {
-                                    const isActive = mode.value === createPackCasesDialogModeTab;
-                                    return (
-                                      <button
-                                        key={`cases-dialog-mode-${mode.value}`}
-                                        type="button"
-                                        onClick={() => {
-                                          setCreatePackCasesDialogModeTab(mode.value);
-                                          setCreatePackCasesPage(1);
-                                        }}
-                                        className={`rounded-lg border px-2 py-1.5 text-left transition-colors ${
-                                          isActive
-                                            ? "border-red-500/70 bg-red-500/12"
-                                            : "border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800"
-                                        }`}
-                                      >
-                                        <div className="flex items-center justify-between gap-1">
-                                          <span className="text-xs font-semibold text-zinc-100">{mode.label}</span>
-                                          <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-300">
-                                            {cases.length}
-                                          </span>
-                                        </div>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-
-                                <div className="mb-3 text-xs uppercase tracking-[0.11em] text-zinc-500 break-words">
-                                  {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackCasesDialogModeTab)?.label} —{" "}
-                                  {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackCasesDialogModeTab)?.subtitle}
-                                </div>
-
-                                <div className="max-h-[46vh] space-y-1.5 overflow-y-auto pr-1">
-                                  {createPackCasesDialogPaged.map((item, modeIndex) => {
-                                    const isActive = activeCreatePackCase?.id === item.id;
-                                    const displayIndex = createPackCasesDialogPageStartIndex + modeIndex + 1;
-                                    return (
-                                      <button
-                                        key={`list-item-${item.id}`}
-                                        type="button"
-                                        onClick={() => {
-                                          activateCreatePackCase(item.id, item.modePlayerCount, true);
-                                          setCreatePackCasesDialogOpen(false);
-                                        }}
-                                        className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
-                                          isActive
-                                            ? "border-red-500/70 bg-red-500/12"
-                                            : "border-zinc-700 bg-zinc-900/80 hover:border-zinc-600"
-                                        }`}
-                                      >
-                                        <div className="truncate text-sm font-semibold text-zinc-100">
-                                          {item.title.trim() || `Дело ${displayIndex}`}
-                                        </div>
-                                        <div className="mt-0.5 text-[11px] text-zinc-500">#{displayIndex}</div>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-
-                                <div className="mt-3 flex items-center justify-between gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setCreatePackCasesPage((prev) => Math.max(1, prev - 1))}
-                                    disabled={createPackCasesPage <= 1}
-                                    className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                                  >
-                                    <ChevronLeft className="mr-1 h-4 w-4" />
-                                    Назад
-                                  </Button>
-                                  <div className="text-xs text-zinc-400">
-                                    Страница {createPackCasesPage} из {createPackCasesDialogTotalPages}
+                                  <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                    {createPackAllCasesByMode.map(({ mode, cases }) => {
+                                      const isActive = mode.value === createPackCasesDialogModeTab;
+                                      return (
+                                        <button
+                                          key={`cases-dialog-mode-${mode.value}`}
+                                          type="button"
+                                          onClick={() => {
+                                            setCreatePackCasesDialogModeTab(mode.value);
+                                            setCreatePackCasesPage(1);
+                                          }}
+                                          className={`rounded-lg border px-2 py-1.5 text-left transition-colors ${
+                                            isActive
+                                              ? "border-red-500/70 bg-red-500/12"
+                                              : "border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800"
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between gap-1">
+                                            <span className="text-xs font-semibold text-zinc-100">{mode.label}</span>
+                                            <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                                              {cases.length}
+                                            </span>
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
                                   </div>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() =>
-                                      setCreatePackCasesPage((prev) =>
-                                        Math.min(createPackCasesDialogTotalPages, prev + 1),
-                                      )
-                                    }
-                                    disabled={createPackCasesPage >= createPackCasesDialogTotalPages}
-                                    className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                                  >
-                                    Вперед
-                                    <ChevronRight className="ml-1 h-4 w-4" />
-                                  </Button>
+
+                                  <div className="mb-3 text-xs uppercase tracking-[0.11em] text-zinc-500 break-words">
+                                    {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackCasesDialogModeTab)?.label} —{" "}
+                                    {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackCasesDialogModeTab)?.subtitle}
+                                  </div>
+
+                                  <div className="max-h-[46vh] space-y-1.5 overflow-y-auto pr-1">
+                                    {createPackCasesDialogPaged.map((item, modeIndex) => {
+                                      const isActive = activeCreatePackCase?.id === item.id;
+                                      const displayIndex = createPackCasesDialogPageStartIndex + modeIndex + 1;
+                                      return (
+                                        <button
+                                          key={`list-item-${item.id}`}
+                                          type="button"
+                                          onClick={() => {
+                                            activateCreatePackCase(item.id, item.modePlayerCount, true);
+                                            setCreatePackCasesDialogOpen(false);
+                                          }}
+                                          className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
+                                            isActive
+                                              ? "border-red-500/70 bg-red-500/12"
+                                              : "border-zinc-700 bg-zinc-900/80 hover:border-zinc-600"
+                                          }`}
+                                        >
+                                          <div className="truncate text-sm font-semibold text-zinc-100">
+                                            {item.title.trim() || `Дело ${displayIndex}`}
+                                          </div>
+                                          <div className="mt-0.5 text-[11px] text-zinc-500">#{displayIndex}</div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+
+                                  <div className="mt-3 flex items-center justify-between gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => setCreatePackCasesPage((prev) => Math.max(1, prev - 1))}
+                                      disabled={createPackCasesPage <= 1}
+                                      className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                                    >
+                                      <ChevronLeft className="mr-1 h-4 w-4" />
+                                      Назад
+                                    </Button>
+                                    <div className="text-xs text-zinc-400">
+                                      Страница {createPackCasesPage} из {createPackCasesDialogTotalPages}
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() =>
+                                        setCreatePackCasesPage((prev) =>
+                                          Math.min(createPackCasesDialogTotalPages, prev + 1),
+                                        )
+                                      }
+                                      disabled={createPackCasesPage >= createPackCasesDialogTotalPages}
+                                      className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                                    >
+                                      Вперед
+                                      <ChevronRight className="ml-1 h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                          )}
+                              </div>,
+                              document.body,
+                            )}
 
                           {createPackEditLoading ? (
                             <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-5 text-sm text-zinc-400">
@@ -14280,8 +14370,11 @@ export default function App() {
                               </div>
 
                               <div className="space-y-2">
-                                <div className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-400">
-                                  Факты по ролям
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-300">
+                                    Факты по ролям
+                                  </div>
+                                  <div className="text-[11px] text-zinc-500">От 1 до 4 фактов на роль</div>
                                 </div>
                                 <div className="space-y-2">
                                   {activeCreatePackRequiredRoles.map((roleKey) => {
@@ -14293,9 +14386,19 @@ export default function App() {
                                     return (
                                       <div
                                         key={`${activeCreatePackCase.id}-${roleKey}`}
-                                        className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-2.5"
+                                        className={`rounded-xl border p-2.5 transition-colors ${
+                                          isExpanded
+                                            ? "border-red-500/35 bg-[linear-gradient(160deg,rgba(32,16,19,0.75),rgba(18,18,24,0.92))]"
+                                            : "border-zinc-800 bg-zinc-900/55"
+                                        }`}
                                       >
-                                        <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-zinc-950/80 px-2.5 py-2">
+                                        <div
+                                          className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 transition-colors ${
+                                            isExpanded
+                                              ? "border-red-500/35 bg-zinc-950/95"
+                                              : "border-zinc-800 bg-zinc-950/80"
+                                          }`}
+                                        >
                                           <button
                                             type="button"
                                             onClick={() =>
@@ -14307,17 +14410,17 @@ export default function App() {
                                             className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left"
                                           >
                                             <div className="min-w-0">
-                                              <div className="text-xs font-medium text-zinc-300">
+                                              <div className="text-sm font-semibold text-zinc-100">
                                                 {USER_PACK_ROLE_TITLES[roleKey]}
                                               </div>
-                                              <div className="text-[11px] text-zinc-500">
+                                              <div className="text-[11px] text-zinc-400">
                                                 {filledCount}/{roleRows.length} заполнено
                                               </div>
                                             </div>
                                             <ChevronDown
-                                              className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${
+                                              className={`h-4 w-4 shrink-0 transition-transform ${
                                                 isExpanded ? "rotate-180" : ""
-                                              }`}
+                                              } ${isExpanded ? "text-red-300" : "text-zinc-400"}`}
                                             />
                                           </button>
                                           {isExpanded && (
@@ -14328,9 +14431,10 @@ export default function App() {
                                                   addCreatePackCaseFactRow(activeCreatePackCase.id, roleKey)
                                                 }
                                                 disabled={roleRows.length >= 4}
-                                                className="h-7 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-400/45 bg-emerald-500/14 px-2.5 text-xs font-semibold text-emerald-100 transition-colors hover:bg-emerald-500/24 disabled:cursor-not-allowed disabled:opacity-45"
                                               >
-                                                + факт
+                                                <Plus className="h-3.5 w-3.5" />
+                                                Факт
                                               </button>
                                               <button
                                                 type="button"
@@ -14342,9 +14446,10 @@ export default function App() {
                                                   )
                                                 }
                                                 disabled={roleRows.length <= 1}
-                                                className="h-7 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-400/45 bg-red-500/14 px-2.5 text-xs font-semibold text-red-100 transition-colors hover:bg-red-500/22 disabled:cursor-not-allowed disabled:opacity-45"
                                               >
-                                                - факт
+                                                <Minus className="h-3.5 w-3.5" />
+                                                Факт
                                               </button>
                                             </div>
                                           )}
@@ -16252,6 +16357,108 @@ export default function App() {
             onQueryChange={setContextHelpQuery}
           />
         </div>
+        <Dialog
+          open={importPackPreviewDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeImportPackPreviewDialog();
+              return;
+            }
+            setImportPackPreviewDialogOpen(true);
+          }}
+        >
+          <DialogContent
+            overlayClassName="z-[288] bg-black/86"
+            className="z-[289] max-w-lg border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100"
+          >
+            <DialogHeader>
+              <DialogTitle>Предпросмотр пака по ссылке</DialogTitle>
+              <DialogDescription className="text-zinc-400">
+                Вы можете просмотреть пак и решить, добавлять его в свои пользовательские паки или нет.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              {importPackPreviewLoading ? (
+                <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/70 px-3 py-3 text-sm text-zinc-300">
+                  Загружаем предпросмотр...
+                </div>
+              ) : importPackPreviewError ? (
+                <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-3 text-sm text-red-200">
+                  {importPackPreviewError}
+                </div>
+              ) : importPackPreviewData ? (
+                <div
+                  className="rounded-2xl border px-4 py-3"
+                  style={{
+                    borderColor: hexToRgba(importPackPreviewData.color, 0.52),
+                    backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(importPackPreviewData.color, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: importPackPreviewData.color }}
+                        />
+                        <div className="truncate text-base font-semibold text-zinc-100">
+                          {importPackPreviewData.title}
+                        </div>
+                      </div>
+                      <div className="mt-1 text-sm text-zinc-300 break-words">
+                        {importPackPreviewData.description || "Описание не указано."}
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
+                      {importPackPreviewData.caseCount} дел
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              {!importPackPreviewLoading && !importPackPreviewError && importPackPreviewData && (
+                <>
+                  {canImportPackFromPreview ? (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          void submitImportPackFromPreview();
+                        }}
+                        disabled={importPackLoading}
+                        className="h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
+                      >
+                        {importPackLoading ? "Добавляем..." : "Добавить в мои паки"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={closeImportPackPreviewDialog}
+                        className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                      >
+                        Не сейчас
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                        Функция недоступна. Импорт пака по ссылке открыт только для подписки «Арбитр».
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={closeImportPackPreviewDialog}
+                        className="h-11 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                      >
+                        Понятно
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
         {renderPublicProfileDialog()}
         <Dialog open={observerListDialogOpen} onOpenChange={setObserverListDialogOpen}>
           <DialogContent className="max-w-lg border-zinc-800 bg-zinc-950 text-zinc-100">

@@ -35,6 +35,7 @@ import {
 import { syncUserProfileInActiveRooms } from "../socket/index.js";
 import {
   createUserCasePack,
+  getUserCasePackImportPreviewByShareCode,
   getUserCasePackDetails,
   importUserCasePackByShareCode,
   listUserCasePacks,
@@ -877,6 +878,18 @@ authRouter.post("/auth/case-packs", async (req, res) => {
     return res.status(200).json({ ok: true, pack });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось создать пак.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.get("/auth/case-packs/import-preview", async (req, res) => {
+  try {
+    const shareCode =
+      typeof req.query?.shareCode === "string" ? req.query.shareCode : String(req.query?.shareCode ?? "");
+    const preview = await getUserCasePackImportPreviewByShareCode(shareCode);
+    return res.status(200).json({ ok: true, preview });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось загрузить предпросмотр пака.";
     return res.status(400).json({ message });
   }
 });

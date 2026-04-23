@@ -89,6 +89,14 @@ export interface UserCasePackInfo {
   createdAt: number;
 }
 
+export interface UserCasePackImportPreview {
+  title: string;
+  description: string;
+  color: string;
+  shareCode: string;
+  caseCount: number;
+}
+
 export interface UserCasePackCaseDetails {
   caseKey: string;
   modePlayerCount: CaseModePlayerCount;
@@ -478,6 +486,49 @@ async function fetchPackInfoById(packId: string): Promise<UserCasePackInfo> {
     throw new Error("Пак не найден.");
   }
   return mapRowToPackInfo(result.rows[0]);
+}
+
+export async function getUserCasePackImportPreviewByShareCode(
+  shareCodeInput: string,
+): Promise<UserCasePackImportPreview> {
+  await ensureUserCasePacksStorage();
+  const shareCode = String(shareCodeInput ?? "").trim().toUpperCase();
+  if (!shareCode) {
+    throw new Error("Введите ключ пака.");
+  }
+  const result = await pool.query<{
+    title: string;
+    description: string;
+    color: string;
+    share_code: string;
+    case_count: number;
+  }>(
+    `
+      SELECT
+        p.title,
+        p.description,
+        p.color,
+        p.share_code,
+        COUNT(c.id)::int AS case_count
+      FROM user_case_packs p
+      LEFT JOIN user_case_pack_cases c ON c.pack_id = p.id
+      WHERE p.share_code = $1
+      GROUP BY p.id
+      LIMIT 1
+    `,
+    [shareCode],
+  );
+  if (!result.rowCount) {
+    throw new Error("Пак с таким ключом не найден.");
+  }
+  const row = result.rows[0];
+  return {
+    title: String(row.title ?? "").trim() || "Пользовательский пак",
+    description: String(row.description ?? "").trim(),
+    color: normalizeColor(row.color),
+    shareCode: String(row.share_code ?? "").trim().toUpperCase(),
+    caseCount: Math.max(0, Number(row.case_count ?? 0) || 0),
+  };
 }
 
 export async function listUserCasePacks(userId: string): Promise<UserCasePackInfo[]> {
