@@ -4389,6 +4389,7 @@ export default function App() {
   const [myCasePacksError, setMyCasePacksError] = useState("");
   const [myCasePacksPage, setMyCasePacksPage] = useState(1);
   const [myCasePackDeleteKey, setMyCasePackDeleteKey] = useState<string | null>(null);
+  const [myCasePackDeleteConfirmKey, setMyCasePackDeleteConfirmKey] = useState<string | null>(null);
   const [importPackLoading, setImportPackLoading] = useState(false);
   const [pendingImportShareCode, setPendingImportShareCode] = useState<string | null>(null);
   const [importPackPreviewDialogOpen, setImportPackPreviewDialogOpen] = useState(false);
@@ -4412,6 +4413,7 @@ export default function App() {
   const [createPackCases, setCreatePackCases] = useState<UserPackCaseDraft[]>([
     createEmptyUserPackCaseDraft(3),
   ]);
+  const createPackCasesRef = useRef<UserPackCaseDraft[]>(createPackCases);
   const [createPackActiveCaseId, setCreatePackActiveCaseId] = useState<string | null>(null);
   const [createRoomPrivate, setCreateRoomPrivate] = useState(false);
   const [createVoiceUrl, setCreateVoiceUrl] = useState("");
@@ -4887,9 +4889,22 @@ export default function App() {
     const start = (safePage - 1) * USER_PACKS_PAGE_SIZE;
     return myCasePacks.slice(start, start + USER_PACKS_PAGE_SIZE);
   }, [myCasePacks, myCasePacksPage, myCasePacksTotalPages]);
+  const myCasePackDeleteConfirmItem = useMemo(
+    () => myCasePacks.find((pack) => pack.key === myCasePackDeleteConfirmKey) ?? null,
+    [myCasePacks, myCasePackDeleteConfirmKey],
+  );
   useEffect(() => {
     setMyCasePacksPage((prev) => Math.max(1, Math.min(prev, myCasePacksTotalPages)));
   }, [myCasePacksTotalPages]);
+  useEffect(() => {
+    if (createPackCatalogView === "my_packs") return;
+    setSharePackDialogOpen(false);
+    setSharePackCopiedKind(null);
+    setMyCasePackDeleteConfirmKey(null);
+  }, [createPackCatalogView]);
+  useEffect(() => {
+    createPackCasesRef.current = createPackCases;
+  }, [createPackCases]);
   const activeCreatePackCase = useMemo(
     () => createPackCases.find((item) => item.id === createPackActiveCaseId) ?? createPackCases[0] ?? null,
     [createPackCases, createPackActiveCaseId],
@@ -5174,6 +5189,7 @@ export default function App() {
           "Создание и редактирование пользовательских паков доступно только в подписке «Арбитр».",
           "Нет доступа",
         );
+        setCreatePackError("");
         return;
       }
       if (!packKey) {
@@ -5269,6 +5285,18 @@ export default function App() {
           error instanceof Error && error.message.trim()
             ? error.message
             : "Не удалось открыть пак для редактирования.";
+        const normalized = message.toLowerCase().replace(/ё/g, "е");
+        if (normalized.includes("арбитр") || normalized.includes("подписк")) {
+          openSubscriptionUpsell(
+            "canCreatePacks",
+            "Создание и редактирование пользовательских паков доступно только в подписке «Арбитр».",
+            "Нет доступа",
+          );
+          setCreatePackCatalogView("my_packs");
+          setCreatePackError("");
+          setCreatePackEditKey(null);
+          return;
+        }
         setCreatePackError(message);
         setCreatePackEditKey(null);
       } finally {
@@ -5290,8 +5318,6 @@ export default function App() {
         );
         return;
       }
-      const confirmed = window.confirm("Удалить этот пользовательский пак? Действие нельзя отменить.");
-      if (!confirmed) return;
       setMyCasePackDeleteKey(packKey);
       setMyCasePacksError("");
       try {
@@ -5698,7 +5724,7 @@ export default function App() {
         "Создание пользовательских паков доступно только в подписке «Арбитр».",
         "Функция недоступна",
       );
-      setCreatePackError("Функция недоступна: нужен доступ «Арбитр».");
+      setCreatePackError("");
       return;
     }
     const title = createPackTitle.trim();
@@ -5721,10 +5747,11 @@ export default function App() {
           (draft.factsByRole[role] ?? []).some((item) => normalizeFactLine(item).length > 0),
         );
       };
-      const sourceCases = createPackCases.filter(
+      const latestCases = createPackCasesRef.current;
+      const sourceCases = latestCases.filter(
         (draft) => !(draft.isAutoDraft && !draft.hasUserChanges) && hasMeaningfulCaseContent(draft),
       );
-      const preparedCases = sourceCases.length > 0 ? sourceCases : createPackCases.filter(hasMeaningfulCaseContent);
+      const preparedCases = sourceCases.length > 0 ? sourceCases : latestCases.filter(hasMeaningfulCaseContent);
       if (preparedCases.length < 1) {
         throw new Error("Добавьте хотя бы одно дело в пак.");
       }
@@ -5739,8 +5766,9 @@ export default function App() {
             .map((item) => normalizeFactLine(item))
             .filter(Boolean);
           if (allowedRoles.includes(role) && lines.length < 1) {
+            const caseNumber = Math.max(1, Number(draft.caseOrderNumber ?? index + 1) || index + 1);
             throw new Error(
-              `Дело ${index + 1}: для роли «${USER_PACK_ROLE_TITLES[role]}» нужен минимум 1 факт.`,
+              `Дело #${caseNumber}: для роли «${USER_PACK_ROLE_TITLES[role]}» нужен минимум 1 факт.`,
             );
           }
           factsByRole[role] = lines;
@@ -5791,6 +5819,16 @@ export default function App() {
           : createPackEditKey
             ? "Не удалось обновить пак."
             : "Не удалось создать пак.";
+      const normalized = message.toLowerCase().replace(/ё/g, "е");
+      if (normalized.includes("арбитр") || normalized.includes("подписк")) {
+        openSubscriptionUpsell(
+          "canCreatePacks",
+          "Создание и редактирование пользовательских паков доступно только в подписке «Арбитр».",
+          "Нет доступа",
+        );
+        setCreatePackError("");
+        return;
+      }
       setCreatePackError(message);
     } finally {
       setCreatePackSaving(false);
@@ -13634,6 +13672,7 @@ export default function App() {
                   setMyCasePacksError("");
                   setMyCasePacksPage(1);
                   setMyCasePackDeleteKey(null);
+                  setMyCasePackDeleteConfirmKey(null);
                   setCreatePackError("");
                   setCreatePackEditLoading(false);
                   setCreatePackEditKey(null);
@@ -13828,7 +13867,7 @@ export default function App() {
                           })}
                       </div>
                     ) : createPackCatalogView === "my_packs" ? (
-                      <div className="space-y-3 rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_140%_at_0%_0%,rgba(239,68,68,0.14),transparent_60%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3">
+                      <div className="relative space-y-3 rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_140%_at_0%_0%,rgba(239,68,68,0.14),transparent_60%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3">
                         {myCasePacksError && (
                           <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                             {myCasePacksError}
@@ -13899,7 +13938,7 @@ export default function App() {
                                         type="button"
                                         variant="outline"
                                         onClick={() => {
-                                          void deleteMyCasePack(pack.key);
+                                          setMyCasePackDeleteConfirmKey(pack.key);
                                         }}
                                         disabled={myCasePackDeleteKey === pack.key}
                                         className="h-9 rounded-xl border-red-500/55 bg-red-500/12 text-red-100 hover:bg-red-500/22 disabled:cursor-not-allowed disabled:opacity-50"
@@ -13943,24 +13982,32 @@ export default function App() {
                           </div>
                         )}
 
-                        <Dialog
-                          open={sharePackDialogOpen}
-                          onOpenChange={(open) => {
-                            setSharePackDialogOpen(open);
-                            if (!open) setSharePackCopiedKind(null);
-                          }}
-                        >
-                        <DialogContent
-                            overlayClassName="z-[382] bg-black/55"
-                            className="z-[383] !fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1.25rem)] sm:w-full max-w-md border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100"
-                          >
-                            <DialogHeader>
-                              <DialogTitle>Поделиться паком</DialogTitle>
-                              <DialogDescription className="text-zinc-400">
-                                Ссылка откроет предпросмотр пака и позволит добавить его в «Мои паки».
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-3">
+                        {(sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
+                          <div className="pointer-events-none absolute inset-0 z-[381] rounded-2xl bg-black/52" />
+                        )}
+
+                        {sharePackDialogOpen && (
+                          <div className="absolute inset-0 z-[383] overflow-y-auto rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 space-y-1">
+                                <div className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
+                                <div className="text-zinc-400">
+                                  Ссылка откроет предпросмотр пака и позволит добавить его в «Мои паки».
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSharePackDialogOpen(false);
+                                  setSharePackCopiedKind(null);
+                                }}
+                                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-950 text-zinc-300 transition-colors hover:bg-zinc-900 hover:text-zinc-100"
+                                aria-label="Закрыть окно"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div className="mt-3 space-y-3">
                               <div
                                 className="rounded-2xl border px-3 py-3"
                                 style={{
@@ -13990,11 +14037,11 @@ export default function App() {
                               </div>
                               <div className="space-y-1.5">
                                 <div className="text-xs text-zinc-400">Ссылка</div>
-                                <div className="flex min-w-0 items-center gap-2">
+                                <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                                   <Input
                                     readOnly
                                     value={sharePackData?.importLink ?? ""}
-                                    className="h-10 w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
+                                    className="h-10 min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
                                   />
                                   <Button
                                     type="button"
@@ -14002,7 +14049,7 @@ export default function App() {
                                     onClick={() => {
                                       void copySharePackDialogValue("link");
                                     }}
-                                    className={`h-10 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800 ${
+                                    className={`h-10 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800 sm:min-w-[150px] ${
                                       sharePackCopiedKind === "link"
                                         ? "border-red-500/70 bg-red-500/15 text-red-100"
                                         : ""
@@ -14013,11 +14060,59 @@ export default function App() {
                                 </div>
                               </div>
                             </div>
-                          </DialogContent>
-                        </Dialog>
+                          </div>
+                        )}
+
+                        {myCasePackDeleteConfirmKey && (
+                          <div className="absolute inset-0 z-[384] flex items-center justify-center p-3">
+                            <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="space-y-1">
+                                  <div className="text-lg font-semibold text-zinc-100">Удалить пак?</div>
+                                  <div className="text-sm text-zinc-400">
+                                    Пак «{myCasePackDeleteConfirmItem?.title ?? "Без названия"}» будет удалён без возможности восстановления.
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setMyCasePackDeleteConfirmKey(null)}
+                                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-950 text-zinc-300 transition-colors hover:bg-zinc-900 hover:text-zinc-100"
+                                  aria-label="Закрыть окно"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => setMyCasePackDeleteConfirmKey(null)}
+                                  className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                                >
+                                  Отмена
+                                </Button>
+                                <Button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!myCasePackDeleteConfirmKey) return;
+                                    void deleteMyCasePack(myCasePackDeleteConfirmKey);
+                                    setMyCasePackDeleteConfirmKey(null);
+                                  }}
+                                  disabled={!!myCasePackDeleteKey}
+                                  className="h-10 rounded-xl border-0 bg-red-600 text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {myCasePackDeleteKey ? "Удаляем..." : "Удалить пак"}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="relative space-y-3 min-w-0 overflow-x-hidden max-w-[980px] mx-auto">
+                        {createPackCasesDialogOpen && (
+                          <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
+                        )}
                         <div className="rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_56%),linear-gradient(140deg,rgba(24,24,27,0.94),rgba(39,39,42,0.82))] p-4">
                           <div className="space-y-1">
                             <div className="text-base font-semibold text-zinc-100">
@@ -14195,8 +14290,8 @@ export default function App() {
                             }}
                           >
                             <DialogContent
-                              overlayClassName="z-[386] bg-black/52"
-                              className="z-[387] !fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1.25rem)] sm:w-[min(760px,calc(100vw-2rem))] max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 p-4 text-zinc-100 sm:p-5"
+                              overlayClassName="z-[386] !bg-transparent"
+                              className={`z-[387] !fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1.25rem)] sm:w-[min(760px,calc(100vw-2rem))] max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 p-4 text-zinc-100 sm:p-5 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
                             >
                               <DialogHeader>
                                 <DialogTitle>Список дел</DialogTitle>
@@ -14238,7 +14333,7 @@ export default function App() {
                                 {USER_PACK_MODE_OPTIONS.find((mode) => mode.value === createPackCasesDialogModeTab)?.subtitle}
                               </div>
 
-                              <div className="max-h-[46vh] space-y-1.5 overflow-y-auto pr-1">
+                              <div className="space-y-1.5">
                                 {createPackCasesDialogPaged.map((item) => {
                                   const isActive = activeCreatePackCase?.id === item.id;
                                   const displayIndex = Math.max(1, item.caseOrderNumber);
@@ -14452,9 +14547,7 @@ export default function App() {
                                 <div className="space-y-2">
                                   {activeCreatePackRequiredRoles.map((roleKey) => {
                                     const roleRows = activeCreatePackCase.factsByRole[roleKey] ?? [""];
-                                    const isExpanded =
-                                      createPackFactRoleExpanded[roleKey] ??
-                                      roleKey === activeCreatePackRequiredRoles[0];
+                                    const isExpanded = createPackFactRoleExpanded[roleKey] ?? false;
                                     const filledCount = roleRows.filter((row) => String(row ?? "").trim()).length;
                                     return (
                                       <div
@@ -14466,7 +14559,7 @@ export default function App() {
                                         }`}
                                       >
                                         <div
-                                          className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 transition-colors ${
+                                          className={`flex flex-col gap-2 rounded-lg border px-2.5 py-2 transition-colors sm:flex-row sm:items-center sm:justify-between ${
                                             isExpanded
                                               ? "border-zinc-700 bg-zinc-950/95"
                                               : "border-zinc-800 bg-zinc-950/80"
@@ -14480,7 +14573,7 @@ export default function App() {
                                                 [roleKey]: !isExpanded,
                                               }))
                                             }
-                                            className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left"
+                                            className="flex w-full min-w-0 flex-1 items-center justify-between gap-2 text-left"
                                           >
                                             <div className="min-w-0">
                                               <div className="text-sm font-semibold text-zinc-100">
@@ -14497,7 +14590,7 @@ export default function App() {
                                             />
                                           </button>
                                           {isExpanded && (
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex w-full flex-wrap items-center justify-end gap-1.5 sm:w-auto sm:flex-nowrap">
                                               <button
                                                 type="button"
                                                 onClick={() =>
@@ -14567,7 +14660,9 @@ export default function App() {
                         <Button
                           type="button"
                           onClick={() => {
-                            void submitCreatePack();
+                            window.setTimeout(() => {
+                              void submitCreatePack();
+                            }, 0);
                           }}
                           disabled={createPackSaving || createPackEditLoading}
                           className="h-14 w-full rounded-2xl bg-red-600 text-[17px] font-bold text-white hover:bg-red-500 border-0 shadow-[0_10px_26px_rgba(220,38,38,0.34)]"
