@@ -776,6 +776,20 @@ export async function importUserCasePackByShareCode(
       throw new Error("Этот пак уже принадлежит вам.");
     }
 
+    const alreadyImportedResult = await pool.query<{ id: string }>(
+      `
+        SELECT id
+        FROM user_case_packs
+        WHERE user_id = $1
+          AND (id = $2 OR source_pack_id = $2)
+        LIMIT 1
+      `,
+      [safeUserId, sourcePack.id],
+    );
+    if (alreadyImportedResult.rowCount) {
+      throw new Error("Пак уже есть в ваших паках.");
+    }
+
     const sourceCases = await pool.query<{
       case_key: string;
       mode_player_count: number;

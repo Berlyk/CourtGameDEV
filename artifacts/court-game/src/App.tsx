@@ -4632,7 +4632,6 @@ export default function App() {
   const knownUserIdByPlayerIdRef = useRef<Record<string, string>>({});
   const influenceAnnouncementTimerRef = useRef<number | null>(null);
   const roomActionTimeoutRef = useRef<number | null>(null);
-  const pendingImportHandledRef = useRef<string | null>(null);
   const ignoreLateRoomJoinedRef = useRef(false);
   const lastAutoRejoinAttemptAtRef = useRef(0);
   const speechTimerStageRef = useRef<string>("");
@@ -4823,7 +4822,10 @@ export default function App() {
   useEffect(() => {
     const syncShareCodeFromLocation = () => {
       const shareCode = getPackImportShareCodeFromLocation();
-      if (!shareCode) return;
+      if (!shareCode) {
+        setPendingImportShareCode(null);
+        return;
+      }
       setPendingImportShareCode((prev) => (prev === shareCode ? prev : shareCode));
     };
     syncShareCodeFromLocation();
@@ -4838,18 +4840,14 @@ export default function App() {
   }, [getPackImportShareCodeFromLocation]);
   useEffect(() => {
     const shareCode = getPackImportShareCodeFromLocation();
-    if (!shareCode) return;
+    if (!shareCode) {
+      setPendingImportShareCode(null);
+      return;
+    }
     setPendingImportShareCode((prev) => (prev === shareCode ? prev : shareCode));
   }, [screen, homeTab, getPackImportShareCodeFromLocation]);
   useEffect(() => {
-    if (!pendingImportShareCode) {
-      pendingImportHandledRef.current = null;
-      return;
-    }
-    if (pendingImportHandledRef.current === pendingImportShareCode) {
-      return;
-    }
-    pendingImportHandledRef.current = pendingImportShareCode;
+    if (!pendingImportShareCode) return;
     if (screen === "room" || screen === "game") {
       socket.emit("leave_room", { preserveForRejoin: false });
     }
@@ -4885,6 +4883,7 @@ export default function App() {
   }, [clearPackImportQueryParam]);
   useEffect(() => {
     if (!pendingImportShareCode) return;
+    if (screen !== "home" || homeTab !== "play") return;
     let cancelled = false;
     setImportPackPreviewDialogOpen(true);
     setImportPackPreviewLoading(true);
@@ -4912,7 +4911,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [pendingImportShareCode]);
+  }, [homeTab, pendingImportShareCode, screen]);
   const buildPackImportLink = useCallback((rawShareCode: string) => {
     const shareCode = String(rawShareCode ?? "").trim().toUpperCase();
     if (!shareCode) return "";
@@ -5471,7 +5470,10 @@ export default function App() {
           error instanceof Error && error.message.trim()
             ? error.message
             : "Не удалось импортировать пак.";
-        if (!options?.silent) setError(message);
+        if (options?.silent) {
+          throw new Error(message);
+        }
+        setError(message);
         return null;
       } finally {
         setImportPackLoading(false);
@@ -5500,18 +5502,26 @@ export default function App() {
       }
       return;
     }
-    const imported = await importPackByShareCode(pendingImportShareCode, {
-      silent: true,
-      switchToMyPacks: true,
-    });
-    if (!imported) {
-      setImportPackPreviewError("Не удалось забрать пак по ссылке.");
-      return;
+    try {
+      const imported = await importPackByShareCode(pendingImportShareCode, {
+        silent: true,
+        switchToMyPacks: true,
+      });
+      if (!imported) {
+        setImportPackPreviewError("Не удалось забрать пак по ссылке.");
+        return;
+      }
+      setImportPackPreviewError("");
+      closeImportPackPreviewDialog();
+      setCreatePackCatalogOpen(true);
+      setCreatePackCatalogView("my_packs");
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Не удалось забрать пак по ссылке.";
+      setImportPackPreviewError(message);
     }
-    setImportPackPreviewError("");
-    closeImportPackPreviewDialog();
-    setCreatePackCatalogOpen(true);
-    setCreatePackCatalogView("my_packs");
   }, [
     canImportPackFromPreview,
     closeImportPackPreviewDialog,
@@ -7280,7 +7290,8 @@ export default function App() {
 
   const attemptSessionRejoin = useCallback(
     (source: "boot" | "connect" | "manual" = "manual") => {
-      if (pendingImportShareCode) return;
+      const hasImportShareCodeInLocation = !!getPackImportShareCodeFromLocation();
+      if (pendingImportShareCode || hasImportShareCodeInLocation) return;
       const sessionCode = localStorage.getItem("court_session");
       const sessionToken =
         (mySessionToken ?? localStorage.getItem("court_session_token")) || "";
@@ -7305,7 +7316,15 @@ export default function App() {
       }
       socket.emit("rejoin_room", rejoinPayload);
     },
-    [authToken, mySessionToken, pendingImportShareCode, sharedAvatar, sharedBanner, socket],
+    [
+      authToken,
+      getPackImportShareCodeFromLocation,
+      mySessionToken,
+      pendingImportShareCode,
+      sharedAvatar,
+      sharedBanner,
+      socket,
+    ],
   );
 
   useEffect(() => {
@@ -7885,7 +7904,8 @@ export default function App() {
         if (ignoreLateRoomJoinedRef.current) {
           return;
         }
-        if (pendingImportShareCode) {
+        if (pendingImportShareCode || getPackImportShareCodeFromLocation()) {
+          socket.emit("leave_room", { preserveForRejoin: false });
           return;
         }
         clearRoomActionPending();
@@ -8568,7 +8588,7 @@ export default function App() {
       socket.off("verdict_set");
       socket.off("error");
     };
-  }, [socket, avatar, authToken, clearReconnectWindow, sharedAvatar, startReconnectWindow, syncRankResultAfterMatch, rememberKnownUserIds, clearRoomActionPending, myTier, room?.code, game?.code, game?.verdict, game?.me?.roleKey, pendingImportShareCode]);
+  }, [socket, avatar, authToken, clearReconnectWindow, sharedAvatar, startReconnectWindow, syncRankResultAfterMatch, rememberKnownUserIds, clearRoomActionPending, myTier, room?.code, game?.code, game?.verdict, game?.me?.roleKey, pendingImportShareCode, getPackImportShareCodeFromLocation]);
 
   const createQuickRoom = useCallback(() => {
     if (isUserBanned) return;
@@ -13859,6 +13879,10 @@ export default function App() {
                       )}
                     </div>
 
+                    {createPackCatalogView === "my_packs" && (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
+                      <div className="absolute inset-0 z-[381] rounded-2xl bg-black/52" />
+                    )}
+
                     {createPackCatalogView === "catalog" ? (
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         {[...casePacks]
@@ -13964,12 +13988,6 @@ export default function App() {
                     ) : createPackCatalogView === "my_packs" ? (
                       <>
                         <div className="space-y-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/55 p-3">
-                        {myCasePacksError && (
-                          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                            {myCasePacksError}
-                          </div>
-                        )}
-
                         {myCasePacksLoading ? (
                           <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-4 text-sm text-zinc-400">
                             Загружаем ваши паки...
@@ -13995,11 +14013,7 @@ export default function App() {
                                     <div className="min-w-0">
                                       <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
-                                          <div className="flex items-center gap-2">
-                                            <div
-                                              className="h-2.5 w-2.5 rounded-full shrink-0"
-                                              style={{ backgroundColor: accent }}
-                                            />
+                                          <div className="flex items-center">
                                             <div className="truncate text-base font-semibold text-zinc-100">{pack.title}</div>
                                           </div>
                                           <div className="mt-1 max-h-[2.5rem] overflow-hidden text-[12px] leading-5 text-zinc-300/90 break-all">
@@ -14084,13 +14098,13 @@ export default function App() {
                             </Button>
                           </div>
                         )}
-
-                        </div>
-
-                        {(sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
-                          <div className="absolute inset-0 z-[381] rounded-2xl bg-black/52" />
+                        {myCasePacksError && (
+                          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                            {myCasePacksError}
+                          </div>
                         )}
 
+                        </div>
                         {sharePackDialogOpen && (
                           <div className="absolute inset-0 z-[383] flex items-center justify-center p-3 sm:p-5">
                             <div className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5">
@@ -14123,11 +14137,7 @@ export default function App() {
                                 >
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <span
-                                          className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                          style={{ backgroundColor: normalizePackColor(sharePackData?.color) }}
-                                        />
+                                      <div className="flex items-center">
                                         <div className="truncate text-base font-semibold text-zinc-100">
                                           {sharePackData?.title ?? "Пак"}
                                         </div>
@@ -14174,7 +14184,7 @@ export default function App() {
                         )}
 
                         {myCasePackDeleteConfirmKey && (
-                          <div className="absolute inset-0 z-[384] flex items-center justify-center p-3">
+                          <div className="absolute inset-0 z-[384] flex items-center justify-center p-3 sm:p-5">
                             <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="space-y-1">
@@ -16644,7 +16654,7 @@ export default function App() {
           }}
         >
           <DialogContent
-            overlayClassName={createMatchDialogOpen ? "z-[288] !bg-transparent" : "z-[288] bg-black/86"}
+            overlayClassName="z-[288] bg-black/86"
             className="z-[289] max-w-lg border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100"
           >
             <DialogHeader>
@@ -16659,8 +16669,18 @@ export default function App() {
                   Загружаем предпросмотр...
                 </div>
               ) : importPackPreviewError ? (
-                <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-3 text-sm text-red-200">
-                  {importPackPreviewError}
+                <div className="space-y-2">
+                  <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-3 text-sm text-red-200">
+                    {importPackPreviewError}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={closeImportPackPreviewDialog}
+                    className="h-10 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                  >
+                    Понятно
+                  </Button>
                 </div>
               ) : importPackPreviewData ? (
                 <div
@@ -16672,11 +16692,7 @@ export default function App() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: importPackPreviewData.color }}
-                        />
+                      <div className="flex items-center">
                         <div className="truncate text-base font-semibold text-zinc-100">
                           {importPackPreviewData.title}
                         </div>
