@@ -4705,11 +4705,19 @@ export default function App() {
     myProfile?.subscription ?? authUser?.subscription ?? null,
   );
   const myTier = normalizeSubscriptionTier(mySubscription.tier);
+  const rawSubscription = myProfile?.subscription ?? authUser?.subscription ?? null;
+  const rawSubscriptionTier = String((rawSubscription as { tier?: unknown } | null)?.tier ?? "")
+    .trim()
+    .toLowerCase();
+  const rawSubscriptionLabel = String((rawSubscription as { label?: unknown } | null)?.label ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е");
   const hasCreatePacksFromRawSubscription =
-    String((myProfile?.subscription ?? authUser?.subscription ?? null)?.tier ?? "")
-      .trim()
-      .toLowerCase() === "arbiter" ||
-    !!(myProfile?.subscription ?? authUser?.subscription ?? null)?.capabilities?.canCreatePacks;
+    rawSubscriptionTier === "arbiter" ||
+    rawSubscriptionLabel.includes("арбитр") ||
+    !!(rawSubscription as { capabilities?: { canCreatePacks?: unknown } } | null)?.capabilities
+      ?.canCreatePacks;
   const shopPaymentPlan = useMemo(
     () => (shopPaymentTier ? SUBSCRIPTION_PLANS.find((plan) => plan.tier === shopPaymentTier) ?? null : null),
     [shopPaymentTier],
@@ -4958,11 +4966,6 @@ export default function App() {
     );
   }, [createPackActiveCaseId, nextCreatePackEditStamp]);
   const createPackCatalogActionLabel = createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
-  useEffect(() => {
-    if (canCreatePacks) return;
-    if (createPackCatalogView === "catalog") return;
-    setCreatePackCatalogView("catalog");
-  }, [canCreatePacks, createPackCatalogView]);
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
   const selectedCreatePack =
@@ -13701,25 +13704,19 @@ export default function App() {
                           onClick={openMyCasePacksPanel}
                           className="inline-flex h-11 min-w-[150px] items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-5 text-base font-semibold text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100"
                         >
-                          {canCreatePacks ? createPackCatalogActionLabel : "Нет доступа"}
+                          {createPackCatalogActionLabel}
                         </button>
                       ) : createPackCatalogView === "my_packs" ? (
                         <div className="flex flex-wrap items-center gap-2">
-                          {canCreatePacks ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void openCreatePackEditor();
-                              }}
-                              className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-2xl border border-zinc-600 bg-zinc-900 px-5 text-sm font-semibold text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
-                            >
-                              Создать пак
-                            </button>
-                          ) : (
-                            <div className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900/70 px-5 text-sm font-semibold text-zinc-500">
-                              Нет доступа
-                            </div>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void openCreatePackEditor();
+                            }}
+                            className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-2xl border border-zinc-600 bg-zinc-900 px-5 text-sm font-semibold text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+                          >
+                            Создать пак
+                          </button>
                         </div>
                       ) : (
                         <div className="inline-flex items-center rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-xs text-zinc-400">
@@ -13746,7 +13743,7 @@ export default function App() {
                             const isCustomPack = !!pack.isCustom;
                             const cardClass = `${
                               isCustomPack ? "bg-zinc-900/90 border-zinc-700" : visual.card
-                            } ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""} h-[170px]`;
+                            } ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
                             const customCardStyle = isCustomPack
                               ? {
                                   borderColor: hexToRgba(normalizedPackColor, createRoomPackKey === pack.key ? 0.88 : 0.52),
@@ -13757,8 +13754,20 @@ export default function App() {
                               <>
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0">
-                                    <div className="text-base font-semibold text-zinc-100 break-words">{displayTitle}</div>
-                                    <div className="mt-1 max-h-[3.75rem] overflow-hidden text-[12px] leading-5 text-zinc-300 break-words">
+                                    <div
+                                      className={`text-base font-semibold text-zinc-100 ${
+                                        isCustomPack ? "truncate" : "break-words"
+                                      }`}
+                                    >
+                                      {displayTitle}
+                                    </div>
+                                    <div
+                                      className={`mt-1 text-[12px] leading-5 text-zinc-300 ${
+                                        isCustomPack
+                                          ? "max-h-[2.5rem] overflow-hidden break-all"
+                                          : "break-words"
+                                      }`}
+                                    >
                                       {pack.description}
                                     </div>
                                     <div className="mt-1.5 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">

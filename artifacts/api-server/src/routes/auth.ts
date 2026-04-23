@@ -71,15 +71,37 @@ function getRequestToken(headers: Record<string, unknown>): string | null {
 function canManageUserCasePacks(user: {
   subscription?: {
     tier?: string | null;
-    capabilities?: { canCreatePacks?: boolean | null } | null;
+    label?: string | null;
+    plan?: string | null;
+    name?: string | null;
+    capabilities?: { canCreatePacks?: boolean | string | number | null } | null;
   } | null;
 } | null): boolean {
   if (!user) return false;
-  if (user.subscription?.capabilities?.canCreatePacks) return true;
-  const tier = String(user.subscription?.tier ?? "")
-    .trim()
-    .toLowerCase();
-  return tier === "arbiter";
+  const capability = user.subscription?.capabilities?.canCreatePacks;
+  if (
+    capability === true ||
+    capability === 1 ||
+    String(capability ?? "")
+      .trim()
+      .toLowerCase() === "true"
+  ) {
+    return true;
+  }
+  const variants = [
+    user.subscription?.tier,
+    user.subscription?.label,
+    user.subscription?.plan,
+    user.subscription?.name,
+  ]
+    .map((value) =>
+      String(value ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/ё/g, "е"),
+    )
+    .filter(Boolean);
+  return variants.some((value) => value.includes("arbiter") || value.includes("арбитр"));
 }
 
 function secureCompare(a: string, b: string): boolean {
@@ -864,11 +886,6 @@ authRouter.get("/auth/case-packs", async (req, res) => {
   const user = await getUserByToken(token, resolveClientIp(req));
   if (!user) {
     return res.status(401).json({ message: "Сессия недействительна." });
-  }
-  if (!canManageUserCasePacks(user)) {
-    return res.status(403).json({
-      message: "Пользовательские паки доступны только для подписки «Арбитр».",
-    });
   }
   try {
     const packs = await listUserCasePacks(user.id);
