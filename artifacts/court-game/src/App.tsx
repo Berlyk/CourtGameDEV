@@ -247,12 +247,12 @@ const USER_PACK_COLOR_DEFAULT = "#ef4444";
 const USER_PACK_CASES_PER_MODE_LIMIT = 20;
 const USER_PACK_TEXT_LIMITS = {
   packTitle: 45,
-  packDescription: 140,
+  packDescription: 350,
   caseTitle: 45,
-  caseDescription: 75,
-  truth: 75,
+  caseDescription: 100,
+  truth: 100,
   evidence: 110,
-  fact: 20,
+  fact: 40,
 };
 const USER_PACK_CASES_PER_PAGE = 10;
 const USER_PACKS_PAGE_SIZE = 12;
@@ -4388,6 +4388,7 @@ export default function App() {
   const [myCasePacksLoading, setMyCasePacksLoading] = useState(false);
   const [myCasePacksError, setMyCasePacksError] = useState("");
   const [myCasePacksPage, setMyCasePacksPage] = useState(1);
+  const [myCasePackDeleteKey, setMyCasePackDeleteKey] = useState<string | null>(null);
   const [importPackLoading, setImportPackLoading] = useState(false);
   const [pendingImportShareCode, setPendingImportShareCode] = useState<string | null>(null);
   const [importPackPreviewDialogOpen, setImportPackPreviewDialogOpen] = useState(false);
@@ -4704,6 +4705,11 @@ export default function App() {
     myProfile?.subscription ?? authUser?.subscription ?? null,
   );
   const myTier = normalizeSubscriptionTier(mySubscription.tier);
+  const hasCreatePacksFromRawSubscription =
+    String((myProfile?.subscription ?? authUser?.subscription ?? null)?.tier ?? "")
+      .trim()
+      .toLowerCase() === "arbiter" ||
+    !!(myProfile?.subscription ?? authUser?.subscription ?? null)?.capabilities?.canCreatePacks;
   const shopPaymentPlan = useMemo(
     () => (shopPaymentTier ? SUBSCRIPTION_PLANS.find((plan) => plan.tier === shopPaymentTier) ?? null : null),
     [shopPaymentTier],
@@ -4848,7 +4854,7 @@ export default function App() {
   const buildPackImportLink = useCallback((rawShareCode: string) => {
     const shareCode = String(rawShareCode ?? "").trim().toUpperCase();
     if (!shareCode) return "";
-    const origin = "https://courtgame.site";
+    const origin = window.location.origin;
     return `${origin}/?pack_import=${encodeURIComponent(shareCode)}`;
   }, []);
   const canUseRating = hasCapability(myTier, "canUseRating");
@@ -4857,7 +4863,8 @@ export default function App() {
   const canCreatePrivateRooms = hasCapability(myTier, "canCreatePrivateRooms");
   const canLetPlayersChooseRoles = hasCapability(myTier, "canLetPlayersChooseRoles");
   const canChooseRoleInOwnLobby = hasCapability(myTier, "canChooseRoleInOwnLobby");
-  const canCreatePacks = hasCapability(myTier, "canCreatePacks");
+  const canCreatePacks =
+    hasCapability(myTier, "canCreatePacks") || hasCreatePacksFromRawSubscription;
   const canImportPackFromPreview = !!authToken && canCreatePacks;
   const createPackOwnedCount = useMemo(
     () => casePacks.filter((pack) => pack.isCustom).length,
@@ -4951,6 +4958,11 @@ export default function App() {
     );
   }, [createPackActiveCaseId, nextCreatePackEditStamp]);
   const createPackCatalogActionLabel = createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
+  useEffect(() => {
+    if (canCreatePacks) return;
+    if (createPackCatalogView === "catalog") return;
+    setCreatePackCatalogView("catalog");
+  }, [canCreatePacks, createPackCatalogView]);
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
   const selectedCreatePack =
@@ -5142,7 +5154,7 @@ export default function App() {
       openSubscriptionUpsell(
         "canCreatePacks",
         "Пользовательские паки доступны только в подписке «Арбитр».",
-        "Функция недоступна",
+        "Нет доступа",
       );
       return;
     }
@@ -5157,7 +5169,7 @@ export default function App() {
         openSubscriptionUpsell(
           "canCreatePacks",
           "Создание и редактирование пользовательских паков доступно только в подписке «Арбитр».",
-          "Функция недоступна",
+          "Нет доступа",
         );
         return;
       }
@@ -5261,6 +5273,54 @@ export default function App() {
       }
     },
     [authToken, canCreatePacks, openSubscriptionUpsell, resetCreatePackEditor],
+  );
+
+  const deleteMyCasePack = useCallback(
+    async (packKeyInput: string) => {
+      const packKey = String(packKeyInput ?? "").trim();
+      if (!packKey || !authToken) return;
+      if (!canCreatePacks) {
+        openSubscriptionUpsell(
+          "canCreatePacks",
+          "Удаление пользовательских паков доступно только в подписке «Арбитр».",
+          "Нет доступа",
+        );
+        return;
+      }
+      const confirmed = window.confirm("Удалить этот пользовательский пак? Действие нельзя отменить.");
+      if (!confirmed) return;
+      setMyCasePackDeleteKey(packKey);
+      setMyCasePacksError("");
+      try {
+        await authRequest<{ ok: true }>(`/auth/case-packs/${encodeURIComponent(packKey)}`, {
+          method: "DELETE",
+          token: authToken,
+        });
+        setMyCasePacks((prev) => prev.filter((pack) => pack.key !== packKey));
+        if (createRoomPackKey === packKey) {
+          setCreateRoomPackKey(baseCreatePackKey);
+        }
+        await loadMyCasePacks();
+        requestCasePacks();
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Не удалось удалить пак.";
+        setMyCasePacksError(message);
+      } finally {
+        setMyCasePackDeleteKey((prev) => (prev === packKey ? null : prev));
+      }
+    },
+    [
+      authToken,
+      baseCreatePackKey,
+      canCreatePacks,
+      createRoomPackKey,
+      loadMyCasePacks,
+      openSubscriptionUpsell,
+      requestCasePacks,
+    ],
   );
 
   const importPackByShareCode = useCallback(
@@ -5425,7 +5485,7 @@ export default function App() {
     const untouchedAutoDraft = createPackCases.find(
       (item) => item.modePlayerCount === createPackModeTab && item.isAutoDraft && !item.hasUserChanges,
     );
-    if (untouchedAutoDraft) {
+    if (untouchedAutoDraft && createPackActiveCaseId !== untouchedAutoDraft.id) {
       setCreatePackActiveCaseId(untouchedAutoDraft.id);
       setCreatePackError("");
       return;
@@ -5448,7 +5508,13 @@ export default function App() {
     setCreatePackCasesDialogModeTab(nextCase.modePlayerCount);
     setCreatePackCasesPage(1);
     setCreatePackError("");
-  }, [createPackCases, createPackModeTab, dropUntouchedAutoDraftsForMode, nextCreatePackEditStamp]);
+  }, [
+    createPackActiveCaseId,
+    createPackCases,
+    createPackModeTab,
+    dropUntouchedAutoDraftsForMode,
+    nextCreatePackEditStamp,
+  ]);
 
   const removeCreatePackCase = useCallback((caseId: string) => {
     setCreatePackCases((prev) => {
@@ -13564,6 +13630,7 @@ export default function App() {
                   setSharePackCopiedKind(null);
                   setMyCasePacksError("");
                   setMyCasePacksPage(1);
+                  setMyCasePackDeleteKey(null);
                   setCreatePackError("");
                   setCreatePackEditLoading(false);
                   setCreatePackEditKey(null);
@@ -13575,7 +13642,7 @@ export default function App() {
             >
               <DialogContent
                 ref={createMatchDialogRef}
-                overlayClassName="bg-black/88"
+                overlayClassName="z-[238] bg-black/88"
                 className={`z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden border-zinc-800 bg-zinc-950 text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
@@ -13634,20 +13701,25 @@ export default function App() {
                           onClick={openMyCasePacksPanel}
                           className="inline-flex h-11 min-w-[150px] items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-5 text-base font-semibold text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100"
                         >
-                          {createPackCatalogActionLabel}
+                          {canCreatePacks ? createPackCatalogActionLabel : "Нет доступа"}
                         </button>
                       ) : createPackCatalogView === "my_packs" ? (
                         <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              void openCreatePackEditor();
-                            }}
-                            disabled={!canCreatePacks}
-                            className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-2xl border border-zinc-600 bg-zinc-900 px-5 text-sm font-semibold text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900/60 disabled:text-zinc-500"
-                          >
-                            Создать пак
-                          </button>
+                          {canCreatePacks ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void openCreatePackEditor();
+                              }}
+                              className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-2xl border border-zinc-600 bg-zinc-900 px-5 text-sm font-semibold text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+                            >
+                              Создать пак
+                            </button>
+                          ) : (
+                            <div className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900/70 px-5 text-sm font-semibold text-zinc-500">
+                              Нет доступа
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="inline-flex items-center rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-xs text-zinc-400">
@@ -13674,7 +13746,7 @@ export default function App() {
                             const isCustomPack = !!pack.isCustom;
                             const cardClass = `${
                               isCustomPack ? "bg-zinc-900/90 border-zinc-700" : visual.card
-                            } ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
+                            } ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""} h-[170px]`;
                             const customCardStyle = isCustomPack
                               ? {
                                   borderColor: hexToRgba(normalizedPackColor, createRoomPackKey === pack.key ? 0.88 : 0.52),
@@ -13686,10 +13758,10 @@ export default function App() {
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0">
                                     <div className="text-base font-semibold text-zinc-100 break-words">{displayTitle}</div>
-                                    <div className="mt-1 text-[12px] leading-5 text-zinc-300 break-words">
+                                    <div className="mt-1 max-h-[3.75rem] overflow-hidden text-[12px] leading-5 text-zinc-300 break-words">
                                       {pack.description}
                                     </div>
-                                    <div className="mt-1.5 text-[11px] uppercase tracking-[0.24em] text-zinc-500 break-words">
+                                    <div className="mt-1.5 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
                                       {visual.vibe}
                                     </div>
                                   </div>
@@ -13747,7 +13819,7 @@ export default function App() {
                           })}
                       </div>
                     ) : createPackCatalogView === "my_packs" ? (
-                      <div className="space-y-3">
+                      <div className="space-y-3 rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_140%_at_0%_0%,rgba(239,68,68,0.14),transparent_60%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3">
                         {myCasePacksError && (
                           <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                             {myCasePacksError}
@@ -13769,13 +13841,13 @@ export default function App() {
                               return (
                                 <div
                                   key={pack.key}
-                                  className="rounded-2xl border bg-zinc-900/75 px-4 py-3"
+                                  className="rounded-2xl border bg-zinc-900/75 px-4 py-3 min-h-[168px]"
                                   style={{
                                     borderColor: hexToRgba(accent, 0.48),
                                     backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(accent, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
                                   }}
                                 >
-                                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+                                  <div className="grid h-full grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
                                     <div className="min-w-0">
                                       <div className="flex flex-wrap items-center gap-2">
                                         <div
@@ -13784,7 +13856,7 @@ export default function App() {
                                         />
                                         <div className="text-base font-semibold text-zinc-100 break-all">{pack.title}</div>
                                       </div>
-                                      <div className="mt-1 max-h-[4.5rem] overflow-hidden text-sm text-zinc-300/90 break-all">
+                                      <div className="mt-1 h-[4.5rem] overflow-hidden text-sm text-zinc-300/90 break-all">
                                         {pack.description}
                                       </div>
                                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
@@ -13816,14 +13888,14 @@ export default function App() {
                                       </Button>
                                       <Button
                                         type="button"
+                                        variant="outline"
                                         onClick={() => {
-                                          setCreateRoomPackKey(pack.key);
-                                          setCreatePackCatalogOpen(false);
-                                          setCreatePackCatalogView("catalog");
+                                          void deleteMyCasePack(pack.key);
                                         }}
-                                        className="h-9 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
+                                        disabled={myCasePackDeleteKey === pack.key}
+                                        className="h-9 rounded-xl border-red-500/55 bg-red-500/12 text-red-100 hover:bg-red-500/22 disabled:cursor-not-allowed disabled:opacity-50"
                                       >
-                                        Выбрать
+                                        {myCasePackDeleteKey === pack.key ? "Удаляем..." : "Удалить"}
                                       </Button>
                                     </div>
                                   </div>
@@ -13869,9 +13941,9 @@ export default function App() {
                             if (!open) setSharePackCopiedKind(null);
                           }}
                         >
-                          <DialogContent
-                            overlayClassName="z-[282] !bg-transparent"
-                            className="z-[283] max-w-md border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100"
+                        <DialogContent
+                            overlayClassName="z-[382] bg-black/55"
+                            className="z-[383] !fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1.25rem)] sm:w-full max-w-md border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100"
                           >
                             <DialogHeader>
                               <DialogTitle>Поделиться паком</DialogTitle>
@@ -14114,8 +14186,8 @@ export default function App() {
                             }}
                           >
                             <DialogContent
-                              overlayClassName="z-[286] !bg-transparent"
-                              className="z-[287] max-w-2xl border-zinc-800 bg-zinc-950 p-4 text-zinc-100 sm:p-5"
+                              overlayClassName="z-[386] bg-black/52"
+                              className="z-[387] !fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 w-[calc(100vw-1.25rem)] sm:w-[min(760px,calc(100vw-2rem))] max-h-[88vh] overflow-y-auto border-zinc-800 bg-zinc-950 p-4 text-zinc-100 sm:p-5"
                             >
                               <DialogHeader>
                                 <DialogTitle>Список дел</DialogTitle>

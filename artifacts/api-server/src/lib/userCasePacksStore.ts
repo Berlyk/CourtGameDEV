@@ -56,11 +56,11 @@ const DEFAULT_PACK_COLOR = "#ef4444";
 const MAX_CASES_PER_MODE = 20;
 const PACK_TITLE_LIMIT = 45;
 const CASE_TITLE_LIMIT = 45;
-const PACK_DESCRIPTION_LIMIT = 140;
-const CASE_DESCRIPTION_LIMIT = 75;
-const CASE_TRUTH_LIMIT = 75;
+const PACK_DESCRIPTION_LIMIT = 350;
+const CASE_DESCRIPTION_LIMIT = 100;
+const CASE_TRUTH_LIMIT = 100;
 const CASE_EVIDENCE_LIMIT = 110;
-const CASE_FACT_LIMIT = 20;
+const CASE_FACT_LIMIT = 40;
 
 export interface UserCasePackCaseInput {
   modePlayerCount: CaseModePlayerCount;
@@ -1079,6 +1079,30 @@ export async function updateUserCasePack(
   } catch (error) {
     await pool.query("ROLLBACK");
     throw error;
+  }
+}
+
+export async function deleteUserCasePack(userId: string, packKeyInput: string): Promise<void> {
+  await ensureUserCasePacksStorage();
+  const safeUserId = String(userId ?? "").trim();
+  if (!safeUserId) {
+    throw new Error("Не удалось определить пользователя.");
+  }
+  const packKey = String(packKeyInput ?? "").trim().toLowerCase();
+  if (!packKey) {
+    throw new Error("Ключ пака не указан.");
+  }
+  const result = await pool.query<{ id: string }>(
+    `
+      DELETE FROM user_case_packs
+      WHERE user_id = $1
+        AND key = $2
+      RETURNING id
+    `,
+    [safeUserId, packKey],
+  );
+  if (!result.rowCount) {
+    throw new Error("Пак не найден.");
   }
 }
 

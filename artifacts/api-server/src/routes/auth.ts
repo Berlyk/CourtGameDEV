@@ -35,6 +35,7 @@ import {
 import { syncUserProfileInActiveRooms } from "../socket/index.js";
 import {
   createUserCasePack,
+  deleteUserCasePack,
   getUserCasePackImportPreviewByShareCode,
   getUserCasePackDetails,
   importUserCasePackByShareCode,
@@ -65,6 +66,20 @@ function getRequestToken(headers: Record<string, unknown>): string | null {
     return readBearerToken(xAuth);
   }
   return null;
+}
+
+function canManageUserCasePacks(user: {
+  subscription?: {
+    tier?: string | null;
+    capabilities?: { canCreatePacks?: boolean | null } | null;
+  } | null;
+} | null): boolean {
+  if (!user) return false;
+  if (user.subscription?.capabilities?.canCreatePacks) return true;
+  const tier = String(user.subscription?.tier ?? "")
+    .trim()
+    .toLowerCase();
+  return tier === "arbiter";
 }
 
 function secureCompare(a: string, b: string): boolean {
@@ -850,6 +865,11 @@ authRouter.get("/auth/case-packs", async (req, res) => {
   if (!user) {
     return res.status(401).json({ message: "Сессия недействительна." });
   }
+  if (!canManageUserCasePacks(user)) {
+    return res.status(403).json({
+      message: "Пользовательские паки доступны только для подписки «Арбитр».",
+    });
+  }
   try {
     const packs = await listUserCasePacks(user.id);
     return res.status(200).json({ packs });
@@ -868,7 +888,7 @@ authRouter.post("/auth/case-packs", async (req, res) => {
   if (!user) {
     return res.status(401).json({ message: "Сессия недействительна." });
   }
-  if (!user.subscription?.capabilities?.canCreatePacks) {
+  if (!canManageUserCasePacks(user)) {
     return res.status(403).json({
       message: "Создание пользовательских паков доступно только для подписки «Арбитр».",
     });
@@ -908,6 +928,11 @@ authRouter.get("/auth/case-packs/:packKey", async (req, res) => {
   if (!user) {
     return res.status(401).json({ message: "Сессия недействительна." });
   }
+  if (!canManageUserCasePacks(user)) {
+    return res.status(403).json({
+      message: "Редактирование пользовательских паков доступно только для подписки «Арбитр».",
+    });
+  }
   try {
     const packKey = String(req.params?.packKey ?? "").trim();
     const payload = await getUserCasePackDetails(user.id, packKey);
@@ -927,7 +952,7 @@ authRouter.patch("/auth/case-packs/:packKey", async (req, res) => {
   if (!user) {
     return res.status(401).json({ message: "Сессия недействительна." });
   }
-  if (!user.subscription?.capabilities?.canCreatePacks) {
+  if (!canManageUserCasePacks(user)) {
     return res.status(403).json({
       message: "Редактирование пользовательских паков доступно только для подписки «Арбитр».",
     });
@@ -947,6 +972,30 @@ authRouter.patch("/auth/case-packs/:packKey", async (req, res) => {
   }
 });
 
+authRouter.delete("/auth/case-packs/:packKey", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Сессия недействительна." });
+  }
+  if (!canManageUserCasePacks(user)) {
+    return res.status(403).json({
+      message: "Удаление пользовательских паков доступно только для подписки «Арбитр».",
+    });
+  }
+  try {
+    const packKey = String(req.params?.packKey ?? "").trim();
+    await deleteUserCasePack(user.id, packKey);
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось удалить пак.";
+    return res.status(400).json({ message });
+  }
+});
+
 authRouter.post("/auth/case-packs/import", async (req, res) => {
   const token = getRequestToken(req.headers as Record<string, unknown>);
   if (!token) {
@@ -956,7 +1005,7 @@ authRouter.post("/auth/case-packs/import", async (req, res) => {
   if (!user) {
     return res.status(401).json({ message: "Сессия недействительна." });
   }
-  if (!user.subscription?.capabilities?.canCreatePacks) {
+  if (!canManageUserCasePacks(user)) {
     return res.status(403).json({
       message: "Импорт пользовательских паков доступен только для подписки «Арбитр».",
     });
