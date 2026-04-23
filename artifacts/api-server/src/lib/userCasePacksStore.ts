@@ -134,17 +134,54 @@ function normalizeTitle(value: unknown, fallback: string): string {
   return title || fallback;
 }
 
+function sanitizeLegacyCaseText(value: unknown, field: "description" | "truth"): string {
+  const safe = String(value ?? "").trim();
+  if (!safe) return "";
+  const normalized = safe
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/["'`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const compact = normalized
+    .replace(/[.,!?;:()[\]{}«»]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (field === "description") {
+    if (
+      compact === "описание недоступно" ||
+      compact === "описнаие недоступно" ||
+      compact === "описание не указано" ||
+      compact.startsWith("описание недоступно ") ||
+      compact.startsWith("описнаие недоступно ") ||
+      compact.startsWith("описание не указано ")
+    ) {
+      return "";
+    }
+    return safe;
+  }
+  if (
+    compact === "истина недоступна" ||
+    compact === "истина не указана" ||
+    compact.startsWith("истина недоступна ") ||
+    compact.startsWith("истина не указана ")
+  ) {
+    return "";
+  }
+  return safe;
+}
+
 function normalizeDescription(value: unknown, fallback = ""): string {
-  const description = String(value ?? "").trim().slice(0, CASE_DESCRIPTION_LIMIT);
+  const description = sanitizeLegacyCaseText(value, "description").slice(0, CASE_DESCRIPTION_LIMIT);
   return description || fallback;
 }
 
 function normalizeTruthOptional(value: unknown): string {
-  return String(value ?? "").trim().slice(0, CASE_TRUTH_LIMIT);
+  return sanitizeLegacyCaseText(value, "truth").slice(0, CASE_TRUTH_LIMIT);
 }
 
 function normalizeTruth(value: unknown): string {
-  return String(value ?? "").trim().slice(0, CASE_TRUTH_LIMIT);
+  return sanitizeLegacyCaseText(value, "truth").slice(0, CASE_TRUTH_LIMIT);
 }
 
 function normalizeExpectedVerdict(value: unknown, truth: string): CaseVerdictKey {

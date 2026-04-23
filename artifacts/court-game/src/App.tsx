@@ -274,24 +274,34 @@ function inferVerdictKeyFromTruth(value: string | undefined): "guilty" | "not_gu
 function sanitizeLegacyCaseText(value: string | undefined, field: "description" | "truth"): string {
   const safe = String(value ?? "").trim();
   if (!safe) return "";
-  const normalized = safe.toLowerCase().replace(/ё/g, "е");
+  const normalized = safe
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/["'`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const compact = normalized
+    .replace(/[.,!?;:()[\]{}«»]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (field === "description") {
     if (
-      normalized === "описание недоступно." ||
-      normalized === "описание недоступно" ||
-      normalized === "описнаие недоступно" ||
-      normalized === "описание не указано." ||
-      normalized === "описание не указано"
+      compact === "описание недоступно" ||
+      compact === "описнаие недоступно" ||
+      compact === "описание не указано" ||
+      compact.startsWith("описание недоступно ") ||
+      compact.startsWith("описнаие недоступно ") ||
+      compact.startsWith("описание не указано ")
     ) {
       return "";
     }
     return safe;
   }
   if (
-    normalized === "истина недоступна." ||
-    normalized === "истина недоступна" ||
-    normalized === "истина не указана." ||
-    normalized === "истина не указана"
+    compact === "истина недоступна" ||
+    compact === "истина не указана" ||
+    compact.startsWith("истина недоступна ") ||
+    compact.startsWith("истина не указана ")
   ) {
     return "";
   }
@@ -1057,11 +1067,7 @@ function createEmptyUserPackCaseDraft(
   modePlayerCount: UserPackCaseMode = 3,
   options?: { isAutoDraft?: boolean },
 ): UserPackCaseDraft {
-  const requiredRoles = (ROLE_KEYS_BY_PLAYERS[modePlayerCount] ?? []).filter(
-    (role) => role !== "judge",
-  ) as UserPackRoleKey[];
-  const buildFactRows = (role: UserPackRoleKey) =>
-    requiredRoles.includes(role) ? ["", "", "", ""] : [""];
+  const buildFactRows = () => [""];
   return {
     id: `case_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     modePlayerCount,
@@ -1075,11 +1081,11 @@ function createEmptyUserPackCaseDraft(
     evidenceRows: ["", "", ""],
     factsByRole: {
       judge: [""],
-      plaintiff: buildFactRows("plaintiff"),
-      defendant: buildFactRows("defendant"),
-      prosecutor: buildFactRows("prosecutor"),
-      defenseLawyer: buildFactRows("defenseLawyer"),
-      plaintiffLawyer: buildFactRows("plaintiffLawyer"),
+      plaintiff: buildFactRows(),
+      defendant: buildFactRows(),
+      prosecutor: buildFactRows(),
+      defenseLawyer: buildFactRows(),
+      plaintiffLawyer: buildFactRows(),
     },
   };
 }
@@ -1098,9 +1104,18 @@ function ensureDraftFactRows(
   roleRows: string[],
   isRequired: boolean,
 ): string[] {
-  const minRows = isRequired ? 1 : 1;
-  const next = normalizeDraftRows(roleRows, minRows);
-  return next.length > 4 ? next.slice(0, 4) : next;
+  const next = normalizeDraftRows(roleRows, 1)
+    .map((item) => String(item ?? "").slice(0, USER_PACK_TEXT_LIMITS.fact))
+    .slice(0, 4);
+  const firstFilledIndex = next.findIndex((row) => row.trim().length > 0);
+  if (firstFilledIndex === -1) {
+    return isRequired ? [""] : [""];
+  }
+  const compact = next.slice(firstFilledIndex);
+  while (compact.length > 1 && !compact[compact.length - 1].trim()) {
+    compact.pop();
+  }
+  return compact.length > 4 ? compact.slice(0, 4) : compact;
 }
 
 function getSubscriptionPlanBadgeKey(tier: SubscriptionTier): string | undefined {
@@ -5265,25 +5280,28 @@ export default function App() {
 
   const activateCreatePackCase = useCallback(
     (caseId: string, mode: UserPackCaseMode, touchRecent = false) => {
-      if (touchRecent) {
-        const stamp = nextCreatePackEditStamp();
-        setCreatePackCases((prev) =>
-          prev.map((item) =>
-            item.id === caseId
-              ? {
-                  ...item,
-                  lastEditedAt: stamp,
-                }
-              : item,
-          ),
+      const stamp = touchRecent ? nextCreatePackEditStamp() : null;
+      setCreatePackCases((prev) => {
+        const cleanedCases =
+          mode === createPackModeTab
+            ? prev
+            : dropUntouchedAutoDraftsForMode(prev, createPackModeTab);
+        if (stamp === null) return cleanedCases;
+        return cleanedCases.map((item) =>
+          item.id === caseId
+            ? {
+                ...item,
+                lastEditedAt: stamp,
+              }
+            : item,
         );
-      }
+      });
       setCreatePackModeTab(mode);
       setCreatePackCasesDialogModeTab(mode);
       setCreatePackActiveCaseId(caseId);
       setCreatePackError("");
     },
-    [nextCreatePackEditStamp],
+    [createPackModeTab, dropUntouchedAutoDraftsForMode, nextCreatePackEditStamp],
   );
 
   const switchCreatePackModeTab = useCallback(
@@ -14007,7 +14025,7 @@ export default function App() {
                           </div>
 
                           {createPackCasesDialogOpen && (
-                            <div className="absolute inset-0 z-[210] flex items-center justify-center rounded-2xl bg-black/55 p-3">
+                            <div className="absolute inset-0 z-[210] flex items-center justify-center rounded-2xl p-3">
                               <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl">
                                 <div className="mb-3 flex items-start justify-between gap-2">
                                   <div>
