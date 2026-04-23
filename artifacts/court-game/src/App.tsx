@@ -247,7 +247,7 @@ const USER_PACK_COLOR_DEFAULT = "#ef4444";
 const USER_PACK_CASES_PER_MODE_LIMIT = 20;
 const USER_PACK_TEXT_LIMITS = {
   packTitle: 45,
-  packDescription: 210,
+  packDescription: 140,
   caseTitle: 45,
   caseDescription: 75,
   truth: 75,
@@ -4382,17 +4382,13 @@ export default function App() {
     description: string;
     color: string;
     caseCount: number;
-    shareCode: string;
     importLink: string;
   } | null>(null);
-  const [sharePackCopiedKind, setSharePackCopiedKind] = useState<"code" | "link" | null>(null);
+  const [sharePackCopiedKind, setSharePackCopiedKind] = useState<"link" | null>(null);
   const [myCasePacksLoading, setMyCasePacksLoading] = useState(false);
   const [myCasePacksError, setMyCasePacksError] = useState("");
   const [myCasePacksPage, setMyCasePacksPage] = useState(1);
-  const [importPackDialogOpen, setImportPackDialogOpen] = useState(false);
-  const [importPackShareCode, setImportPackShareCode] = useState("");
   const [importPackLoading, setImportPackLoading] = useState(false);
-  const [importPackError, setImportPackError] = useState("");
   const [pendingImportShareCode, setPendingImportShareCode] = useState<string | null>(null);
   const [importPackPreviewDialogOpen, setImportPackPreviewDialogOpen] = useState(false);
   const [importPackPreviewLoading, setImportPackPreviewLoading] = useState(false);
@@ -4771,22 +4767,46 @@ export default function App() {
       cancelled = true;
     };
   }, [authToken, authUser]);
+  const getPackImportShareCodeFromLocation = useCallback(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const direct = String(searchParams.get("pack_import") ?? "")
+      .trim()
+      .toUpperCase();
+    if (direct) return direct;
+    const hash = String(window.location.hash ?? "");
+    const queryIndex = hash.indexOf("?");
+    if (queryIndex === -1) return "";
+    const hashParams = new URLSearchParams(hash.slice(queryIndex + 1));
+    return String(hashParams.get("pack_import") ?? "").trim().toUpperCase();
+  }, []);
   const clearPackImportQueryParam = useCallback(() => {
     const params = new URLSearchParams(window.location.search);
-    if (!params.has("pack_import")) return;
-    params.delete("pack_import");
+    const hadSearchParam = params.has("pack_import");
+    if (hadSearchParam) {
+      params.delete("pack_import");
+    }
+    const rawHash = String(window.location.hash ?? "");
+    const hashQueryIndex = rawHash.indexOf("?");
+    let nextHash = rawHash;
+    if (hashQueryIndex !== -1) {
+      const hashPath = rawHash.slice(0, hashQueryIndex);
+      const hashParams = new URLSearchParams(rawHash.slice(hashQueryIndex + 1));
+      if (hashParams.has("pack_import")) {
+        hashParams.delete("pack_import");
+        const nextHashQuery = hashParams.toString();
+        nextHash = `${hashPath}${nextHashQuery ? `?${nextHashQuery}` : ""}`;
+      }
+    }
+    if (!hadSearchParam && nextHash === rawHash) return;
     const nextSearch = params.toString();
-    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`;
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${nextHash}`;
     window.history.replaceState(window.history.state, "", nextUrl);
   }, []);
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const shareCode = String(params.get("pack_import") ?? "")
-      .trim()
-      .toUpperCase();
+    const shareCode = getPackImportShareCodeFromLocation();
     if (!shareCode) return;
     setPendingImportShareCode(shareCode);
-  }, []);
+  }, [getPackImportShareCodeFromLocation]);
   const closeImportPackPreviewDialog = useCallback(() => {
     setImportPackPreviewDialogOpen(false);
     setImportPackPreviewLoading(false);
@@ -4828,10 +4848,7 @@ export default function App() {
   const buildPackImportLink = useCallback((rawShareCode: string) => {
     const shareCode = String(rawShareCode ?? "").trim().toUpperCase();
     if (!shareCode) return "";
-    const origin =
-      typeof window !== "undefined" && window.location?.origin
-        ? window.location.origin
-        : "https://courtgame.site";
+    const origin = "https://courtgame.site";
     return `${origin}/?pack_import=${encodeURIComponent(shareCode)}`;
   }, []);
   const canUseRating = hasCapability(myTier, "canUseRating");
@@ -4933,14 +4950,6 @@ export default function App() {
       ),
     );
   }, [createPackActiveCaseId, nextCreatePackEditStamp]);
-  const activeCreatePackCaseDescription = useMemo(
-    () => sanitizeLegacyCaseText(activeCreatePackCase?.description, "description"),
-    [activeCreatePackCase?.description],
-  );
-  const activeCreatePackCaseTruth = useMemo(
-    () => sanitizeLegacyCaseText(activeCreatePackCase?.truth, "truth"),
-    [activeCreatePackCase?.truth],
-  );
   const createPackCatalogActionLabel = createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
@@ -5138,8 +5147,6 @@ export default function App() {
       return;
     }
     setCreatePackCatalogView("my_packs");
-    setImportPackDialogOpen(false);
-    setImportPackError("");
     setMyCasePacksPage(1);
     void loadMyCasePacks();
   }, [canCreatePacks, loadMyCasePacks, openSubscriptionUpsell]);
@@ -5261,17 +5268,14 @@ export default function App() {
       rawShareCode: string,
       options?: {
         silent?: boolean;
-        closeDialog?: boolean;
         switchToMyPacks?: boolean;
       },
     ) => {
       const shareCode = String(rawShareCode ?? "").trim().toUpperCase();
       if (!shareCode) {
-        if (!options?.silent) setImportPackError("Введите ключ пака.");
         return null;
       }
       if (!authToken) {
-        if (!options?.silent) setImportPackError("Сессия истекла. Войдите снова.");
         return null;
       }
       if (!canCreatePacks) {
@@ -5282,13 +5286,9 @@ export default function App() {
         );
         setPendingImportShareCode(null);
         clearPackImportQueryParam();
-        if (!options?.silent) {
-          setImportPackError("Импорт доступен только для подписки «Арбитр».");
-        }
         return null;
       }
       setImportPackLoading(true);
-      if (!options?.silent) setImportPackError("");
       try {
         const payload = await authRequest<{ ok: true; pack: CasePackInfo }>(
           "/auth/case-packs/import",
@@ -5298,10 +5298,6 @@ export default function App() {
             body: { shareCode },
           },
         );
-        setImportPackShareCode("");
-        if (options?.closeDialog !== false) {
-          setImportPackDialogOpen(false);
-        }
         if (options?.switchToMyPacks) {
           setCreatePackCatalogOpen(true);
           setCreatePackCatalogView("my_packs");
@@ -5319,9 +5315,7 @@ export default function App() {
           error instanceof Error && error.message.trim()
             ? error.message
             : "Не удалось импортировать пак.";
-        if (!options?.silent) {
-          setImportPackError(message);
-        }
+        if (!options?.silent) setError(message);
         return null;
       } finally {
         setImportPackLoading(false);
@@ -5337,13 +5331,6 @@ export default function App() {
     ],
   );
 
-  const submitImportPackByShareCode = useCallback(async () => {
-    await importPackByShareCode(importPackShareCode, {
-      closeDialog: true,
-      switchToMyPacks: true,
-    });
-  }, [importPackByShareCode, importPackShareCode]);
-
   const submitImportPackFromPreview = useCallback(async () => {
     if (!pendingImportShareCode || importPackLoading) return;
     if (!canImportPackFromPreview) {
@@ -5352,7 +5339,6 @@ export default function App() {
     }
     const imported = await importPackByShareCode(pendingImportShareCode, {
       silent: true,
-      closeDialog: false,
       switchToMyPacks: true,
     });
     if (!imported) {
@@ -5653,10 +5639,26 @@ export default function App() {
     }
 
     try {
+      const normalizeFactLine = (value: unknown) =>
+        String(value ?? "")
+          .replace(/\u00A0/g, " ")
+          .replace(/[\u200B-\u200D\uFEFF]/g, "")
+          .trim()
+          .slice(0, USER_PACK_TEXT_LIMITS.fact);
+      const hasMeaningfulCaseContent = (draft: UserPackCaseDraft) => {
+        if (draft.title.trim() || draft.description.trim() || draft.truth.trim()) return true;
+        if ((draft.evidenceRows ?? []).some((item) => String(item ?? "").trim().length > 0)) return true;
+        return USER_PACK_ROLE_KEYS.some((role) =>
+          (draft.factsByRole[role] ?? []).some((item) => normalizeFactLine(item).length > 0),
+        );
+      };
       const sourceCases = createPackCases.filter(
-        (draft) => !(draft.isAutoDraft && !draft.hasUserChanges),
+        (draft) => !(draft.isAutoDraft && !draft.hasUserChanges) && hasMeaningfulCaseContent(draft),
       );
-      const preparedCases = sourceCases.length > 0 ? sourceCases : createPackCases;
+      const preparedCases = sourceCases.length > 0 ? sourceCases : createPackCases.filter(hasMeaningfulCaseContent);
+      if (preparedCases.length < 1) {
+        throw new Error("Добавьте хотя бы одно дело в пак.");
+      }
       const casesPayload = preparedCases.map((draft, index) => {
         const mode = Number(draft.modePlayerCount) as UserPackCaseMode;
         const allowedRoles = (ROLE_KEYS_BY_PLAYERS[mode] ?? []).filter(
@@ -5665,7 +5667,7 @@ export default function App() {
         const factsByRole: Partial<Record<UserPackRoleKey, string[]>> = {};
         for (const role of USER_PACK_ROLE_KEYS) {
           const lines = (draft.factsByRole[role] ?? [])
-            .map((item) => item.trim().slice(0, USER_PACK_TEXT_LIMITS.fact))
+            .map((item) => normalizeFactLine(item))
             .filter(Boolean);
           if (allowedRoles.includes(role) && lines.length < 1) {
             throw new Error(
@@ -5750,7 +5752,6 @@ export default function App() {
         description: String(pack.description ?? "").trim(),
         color: normalizePackColor(pack.color),
         caseCount: Math.max(0, Number(pack.caseCount ?? 0) || 0),
-        shareCode,
         importLink: buildPackImportLink(shareCode),
       });
       setSharePackCopiedKind(null);
@@ -5759,11 +5760,8 @@ export default function App() {
     [buildPackImportLink],
   );
   const copySharePackDialogValue = useCallback(
-    async (kind: "code" | "link") => {
-      const value =
-        kind === "code"
-          ? String(sharePackData?.shareCode ?? "")
-          : String(sharePackData?.importLink ?? "");
+    async (kind: "link") => {
+      const value = String(sharePackData?.importLink ?? "");
       if (!value.trim()) return;
       try {
         await navigator.clipboard.writeText(value);
@@ -13561,13 +13559,11 @@ export default function App() {
                   setCreateRoomPasswordVisible(false);
                   setCreatePackCatalogOpen(false);
                   setCreatePackCatalogView("catalog");
-                  setImportPackDialogOpen(false);
                   setSharePackDialogOpen(false);
                   setSharePackData(null);
                   setSharePackCopiedKind(null);
                   setMyCasePacksError("");
                   setMyCasePacksPage(1);
-                  setImportPackError("");
                   setCreatePackError("");
                   setCreatePackEditLoading(false);
                   setCreatePackEditKey(null);
@@ -13600,7 +13596,7 @@ export default function App() {
                       ? createPackCatalogView === "catalog"
                         ? "Выберите пак для комнаты."
                         : createPackCatalogView === "my_packs"
-                          ? "Ваши пользовательские паки и импорт по ключу."
+                          ? "Ваши пользовательские паки."
                           : "Создайте пак и добавьте в него дела."
                       : "Настройте комнату для раздела «Подбор игроков»."}
                   </DialogDescription>
@@ -13642,16 +13638,6 @@ export default function App() {
                         </button>
                       ) : createPackCatalogView === "my_packs" ? (
                         <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setImportPackError("");
-                              setImportPackDialogOpen(true);
-                            }}
-                            className="inline-flex h-11 min-w-[140px] items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-900 px-5 text-sm font-semibold text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100"
-                          >
-                            Импорт пака
-                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -13796,9 +13782,9 @@ export default function App() {
                                           className="h-2.5 w-2.5 rounded-full"
                                           style={{ backgroundColor: accent }}
                                         />
-                                        <div className="text-base font-semibold text-zinc-100 break-words">{pack.title}</div>
+                                        <div className="text-base font-semibold text-zinc-100 break-all">{pack.title}</div>
                                       </div>
-                                      <div className="mt-1 max-h-[4.5rem] overflow-hidden text-sm text-zinc-300/90 break-words">
+                                      <div className="mt-1 max-h-[4.5rem] overflow-hidden text-sm text-zinc-300/90 break-all">
                                         {pack.description}
                                       </div>
                                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
@@ -13876,44 +13862,6 @@ export default function App() {
                           </div>
                         )}
 
-                        <Dialog open={importPackDialogOpen} onOpenChange={setImportPackDialogOpen}>
-                          <DialogContent
-                            overlayClassName="z-[280] !bg-transparent"
-                            className="z-[281] max-w-md border-zinc-800 bg-zinc-950 text-zinc-100"
-                          >
-                            <DialogHeader>
-                              <DialogTitle>Импорт пака</DialogTitle>
-                              <DialogDescription className="text-zinc-400">
-                                Вставьте ключ, чтобы добавить чужой пак в свой список.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-3">
-                              <Input
-                                value={importPackShareCode}
-                                onChange={(event) =>
-                                  setImportPackShareCode(event.target.value.toUpperCase())
-                                }
-                                placeholder="Например: AB12CD34EF56GH78"
-                                className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
-                              />
-                              {importPackError && (
-                                <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                                  {importPackError}
-                                </div>
-                              )}
-                              <Button
-                                type="button"
-                                onClick={() => {
-                                  void submitImportPackByShareCode();
-                                }}
-                                disabled={importPackLoading}
-                                className="h-11 w-full rounded-xl bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border-0"
-                              >
-                                {importPackLoading ? "Импорт..." : "Импортировать"}
-                              </Button>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
                         <Dialog
                           open={sharePackDialogOpen}
                           onOpenChange={(open) => {
@@ -13928,7 +13876,7 @@ export default function App() {
                             <DialogHeader>
                               <DialogTitle>Поделиться паком</DialogTitle>
                               <DialogDescription className="text-zinc-400">
-                                Ссылка откроет предпросмотр пака, а код можно ввести вручную через импорт.
+                                Ссылка откроет предпросмотр пака и позволит добавить его в «Мои паки».
                               </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-3">
@@ -13946,11 +13894,11 @@ export default function App() {
                                         className="h-2.5 w-2.5 shrink-0 rounded-full"
                                         style={{ backgroundColor: normalizePackColor(sharePackData?.color) }}
                                       />
-                                      <div className="break-words text-sm font-semibold text-zinc-100">
+                                      <div className="break-all text-sm font-semibold text-zinc-100">
                                         {sharePackData?.title ?? "Пак"}
                                       </div>
                                     </div>
-                                    <div className="mt-1 break-words text-xs text-zinc-300">
+                                    <div className="mt-1 break-all text-xs text-zinc-300">
                                       {sharePackData?.description || "Описание не указано."}
                                     </div>
                                   </div>
@@ -13961,11 +13909,11 @@ export default function App() {
                               </div>
                               <div className="space-y-1.5">
                                 <div className="text-xs text-zinc-400">Ссылка</div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex min-w-0 items-center gap-2">
                                   <Input
                                     readOnly
                                     value={sharePackData?.importLink ?? ""}
-                                    className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
+                                    className="h-10 w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
                                   />
                                   <Button
                                     type="button"
@@ -13980,30 +13928,6 @@ export default function App() {
                                     }`}
                                   >
                                     {sharePackCopiedKind === "link" ? "Скопировано" : "Скопировать"}
-                                  </Button>
-                                </div>
-                              </div>
-                              <div className="space-y-1.5">
-                                <div className="text-xs text-zinc-400">Код</div>
-                                <div className="flex items-center gap-2">
-                                  <Input
-                                    readOnly
-                                    value={sharePackData?.shareCode ?? ""}
-                                    className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 uppercase tracking-[0.08em]"
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => {
-                                      void copySharePackDialogValue("code");
-                                    }}
-                                    className={`h-10 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800 ${
-                                      sharePackCopiedKind === "code"
-                                        ? "border-red-500/70 bg-red-500/15 text-red-100"
-                                        : ""
-                                    }`}
-                                  >
-                                    {sharePackCopiedKind === "code" ? "Скопировано" : "Скопировать"}
                                   </Button>
                                 </div>
                               </div>
@@ -14341,11 +14265,11 @@ export default function App() {
                                   <div className="flex items-center justify-between gap-2">
                                     <label className="text-[11px] text-zinc-500">Описание дела</label>
                                     <span className="text-[11px] text-zinc-500">
-                                      {activeCreatePackCaseDescription.length}/{USER_PACK_TEXT_LIMITS.caseDescription}
+                                      {activeCreatePackCase.description.length}/{USER_PACK_TEXT_LIMITS.caseDescription}
                                     </span>
                                   </div>
                                   <textarea
-                                    value={activeCreatePackCaseDescription}
+                                    value={activeCreatePackCase.description}
                                     onChange={(event) =>
                                       updateCreatePackCaseField(
                                         activeCreatePackCase.id,
@@ -14362,11 +14286,11 @@ export default function App() {
                                   <div className="flex items-center justify-between gap-2">
                                     <label className="text-[11px] text-zinc-500">Истина (обоснование)</label>
                                     <span className="text-[11px] text-zinc-500">
-                                      {activeCreatePackCaseTruth.length}/{USER_PACK_TEXT_LIMITS.truth}
+                                      {activeCreatePackCase.truth.length}/{USER_PACK_TEXT_LIMITS.truth}
                                     </span>
                                   </div>
                                   <textarea
-                                    value={activeCreatePackCaseTruth}
+                                    value={activeCreatePackCase.truth}
                                     onChange={(event) =>
                                       updateCreatePackCaseField(
                                         activeCreatePackCase.id,
@@ -14456,7 +14380,7 @@ export default function App() {
                                         key={`${activeCreatePackCase.id}-${roleKey}`}
                                         className={`rounded-xl border p-2.5 transition-colors ${
                                           isExpanded
-                                            ? "border-zinc-700 bg-[linear-gradient(160deg,rgba(30,20,22,0.7),rgba(18,18,24,0.92))] shadow-[0_0_0_1px_rgba(239,68,68,0.12)]"
+                                            ? "border-zinc-700 bg-[linear-gradient(160deg,rgba(24,24,27,0.9),rgba(18,18,24,0.92))]"
                                             : "border-zinc-800 bg-zinc-900/55"
                                         }`}
                                       >
@@ -14499,7 +14423,7 @@ export default function App() {
                                                   addCreatePackCaseFactRow(activeCreatePackCase.id, roleKey)
                                                 }
                                                 disabled={roleRows.length >= 4}
-                                                className="inline-flex h-8 items-center rounded-lg border border-zinc-600 bg-zinc-900 px-2.5 text-xs font-semibold text-zinc-100 transition-colors hover:border-red-500/60 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+                                                className="inline-flex h-8 items-center rounded-lg border border-zinc-600 bg-zinc-900 px-2.5 text-xs font-semibold text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
                                               >
                                                 Добавить факт
                                               </button>
