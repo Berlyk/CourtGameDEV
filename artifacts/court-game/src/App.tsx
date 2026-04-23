@@ -13711,7 +13711,7 @@ export default function App() {
                   </DialogDescription>
                 </DialogHeader>
                 {createPackCatalogOpen ? (
-                  <div className="mt-1 space-y-3">
+                  <div className="mt-1 relative space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Button
                         type="button"
@@ -13867,7 +13867,8 @@ export default function App() {
                           })}
                       </div>
                     ) : createPackCatalogView === "my_packs" ? (
-                      <div className="relative space-y-3 rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_140%_at_0%_0%,rgba(239,68,68,0.14),transparent_60%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3">
+                      <>
+                        <div className="space-y-3 rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_140%_at_0%_0%,rgba(239,68,68,0.14),transparent_60%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3">
                         {myCasePacksError && (
                           <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                             {myCasePacksError}
@@ -13982,8 +13983,10 @@ export default function App() {
                           </div>
                         )}
 
+                        </div>
+
                         {(sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
-                          <div className="pointer-events-none absolute inset-0 z-[381] rounded-2xl bg-black/52" />
+                          <div className="absolute inset-0 z-[381] rounded-2xl bg-black/52" />
                         )}
 
                         {sharePackDialogOpen && (
@@ -14107,7 +14110,7 @@ export default function App() {
                             </div>
                           </div>
                         )}
-                      </div>
+                      </>
                     ) : (
                       <div className="relative space-y-3 min-w-0 overflow-x-hidden max-w-[980px] mx-auto">
                         {createPackCasesDialogOpen && (

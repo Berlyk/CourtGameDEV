@@ -38,6 +38,7 @@ export interface AuthUserPublic {
   selectedBadgeKey?: string;
   preferredRole?: PreferredRole;
   adminRole?: AdminStaffRole | null;
+  subscription: UserSubscriptionView;
   ban?: UserBanView;
 }
 
@@ -657,6 +658,7 @@ function toPublicUser(row: {
     !selectedBadgeSubscriptionAllowed
       ? undefined
       : selectedBadgeRaw;
+  const safeSubscription = subscription ?? resolveSubscriptionView({});
   return {
     id: row.id,
     login: row.login,
@@ -683,6 +685,7 @@ function toPublicUser(row: {
         ? row.preferred_role
         : undefined,
     adminRole: normalizeAdminStaffRole(row.admin_role),
+    subscription: safeSubscription,
     ban,
   };
 }
