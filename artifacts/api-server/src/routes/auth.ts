@@ -44,6 +44,20 @@ import {
 } from "../lib/userCasePacksStore.js";
 
 const authRouter = Router();
+const USER_CASE_PACKS_LIMIT = 4;
+const REQUIRED_FACT_ROLES_BY_MODE: Record<number, string[]> = {
+  3: ["plaintiff", "defendant"],
+  4: ["plaintiff", "defendant", "prosecutor"],
+  5: ["plaintiff", "defendant", "prosecutor", "defenseLawyer"],
+  6: ["plaintiff", "defendant", "prosecutor", "defenseLawyer", "plaintiffLawyer"],
+};
+const USER_PACK_ROLE_LABELS: Record<string, string> = {
+  plaintiff: "Истец",
+  defendant: "Ответчик",
+  prosecutor: "Прокурор",
+  defenseLawyer: "Адвокат ответчика",
+  plaintiffLawyer: "Адвокат истца",
+};
 
 function readBearerToken(value: string | undefined): string | null {
   if (!value) return null;
@@ -102,6 +116,54 @@ function canManageUserCasePacks(user: {
     )
     .filter(Boolean);
   return variants.some((value) => value.includes("arbiter") || value.includes("арбитр"));
+}
+
+function validateUserPackCasesPayload(casesInput: unknown): string | null {
+  if (!Array.isArray(casesInput) || casesInput.length < 1) {
+    return "Добавьте хотя бы одно дело в пак.";
+  }
+  for (let index = 0; index < casesInput.length; index += 1) {
+    const caseNumber = index + 1;
+    const row = casesInput[index];
+    const source =
+      row && typeof row === "object" && !Array.isArray(row)
+        ? (row as Record<string, unknown>)
+        : {};
+    const title = String(source.title ?? "").trim();
+    if (!title) {
+      return `Дело #${caseNumber}: заполните название дела.`;
+    }
+    const truth = String(source.truth ?? "").trim();
+    if (!truth) {
+      return `Дело #${caseNumber}: заполните поле «Истина (обоснование)».`;
+    }
+    const evidenceRows = Array.isArray(source.evidence)
+      ? source.evidence
+          .map((item) => String(item ?? "").trim())
+          .filter((item) => item.length > 0)
+      : [];
+    if (evidenceRows.length < 3) {
+      return `Дело #${caseNumber}: заполните все 3 улики.`;
+    }
+    const mode = Number(source.modePlayerCount);
+    const requiredRoles = REQUIRED_FACT_ROLES_BY_MODE[mode] ?? REQUIRED_FACT_ROLES_BY_MODE[3];
+    const factsByRole =
+      source.factsByRole && typeof source.factsByRole === "object" && !Array.isArray(source.factsByRole)
+        ? (source.factsByRole as Record<string, unknown>)
+        : {};
+    for (const role of requiredRoles) {
+      const facts = Array.isArray(factsByRole[role])
+        ? (factsByRole[role] as unknown[])
+            .map((item) => String(item ?? "").trim())
+            .filter((item) => item.length > 0)
+        : [];
+      if (facts.length < 1) {
+        const roleLabel = USER_PACK_ROLE_LABELS[role] ?? role;
+        return `Дело #${caseNumber}: для роли «${roleLabel}» нужен минимум 1 факт.`;
+      }
+    }
+  }
+  return null;
 }
 
 function secureCompare(a: string, b: string): boolean {
@@ -911,11 +973,22 @@ authRouter.post("/auth/case-packs", async (req, res) => {
     });
   }
   try {
+    const existingPacks = await listUserCasePacks(user.id);
+    if (existingPacks.length >= USER_CASE_PACKS_LIMIT) {
+      return res.status(400).json({
+        message: `Можно хранить максимум ${USER_CASE_PACKS_LIMIT} пользовательских паков. Удалите один из текущих.`,
+      });
+    }
+    const payloadCases = Array.isArray(req.body?.cases) ? req.body.cases : [];
+    const payloadValidationError = validateUserPackCasesPayload(payloadCases);
+    if (payloadValidationError) {
+      return res.status(400).json({ message: payloadValidationError });
+    }
     const pack = await createUserCasePack(user.id, {
       title: req.body?.title,
       description: req.body?.description,
       color: req.body?.color,
-      cases: Array.isArray(req.body?.cases) ? req.body.cases : [],
+      cases: payloadCases,
     });
     return res.status(200).json({ ok: true, pack });
   } catch (error) {
@@ -976,11 +1049,16 @@ authRouter.patch("/auth/case-packs/:packKey", async (req, res) => {
   }
   try {
     const packKey = String(req.params?.packKey ?? "").trim();
+    const payloadCases = Array.isArray(req.body?.cases) ? req.body.cases : [];
+    const payloadValidationError = validateUserPackCasesPayload(payloadCases);
+    if (payloadValidationError) {
+      return res.status(400).json({ message: payloadValidationError });
+    }
     const pack = await updateUserCasePack(user.id, packKey, {
       title: req.body?.title,
       description: req.body?.description,
       color: req.body?.color,
-      cases: Array.isArray(req.body?.cases) ? req.body.cases : [],
+      cases: payloadCases,
     });
     return res.status(200).json({ ok: true, pack });
   } catch (error) {
@@ -1028,6 +1106,12 @@ authRouter.post("/auth/case-packs/import", async (req, res) => {
     });
   }
   try {
+    const existingPacks = await listUserCasePacks(user.id);
+    if (existingPacks.length >= USER_CASE_PACKS_LIMIT) {
+      return res.status(400).json({
+        message: `Можно хранить максимум ${USER_CASE_PACKS_LIMIT} пользовательских паков. Удалите один из текущих.`,
+      });
+    }
     const shareCode = String(req.body?.shareCode ?? "").trim();
     const pack = await importUserCasePackByShareCode(user.id, shareCode);
     return res.status(200).json({ ok: true, pack });

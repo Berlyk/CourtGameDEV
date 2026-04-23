@@ -245,6 +245,7 @@ const USER_PACK_COLOR_PRESETS = [
 ];
 const USER_PACK_COLOR_DEFAULT = "#ef4444";
 const USER_PACK_CASES_PER_MODE_LIMIT = 20;
+const USER_PACKS_TOTAL_LIMIT = 4;
 const USER_PACK_TEXT_LIMITS = {
   packTitle: 25,
   packDescription: 50,
@@ -4851,9 +4852,17 @@ export default function App() {
     pendingImportHandledRef.current = pendingImportShareCode;
     if (screen === "room" || screen === "game") {
       socket.emit("leave_room", { preserveForRejoin: false });
-      setRoom(null);
-      setGame(null);
     }
+    setRoom(null);
+    setGame(null);
+    setHasSession(false);
+    setMySessionToken(null);
+    setReconnectExpiresAt(null);
+    setReconnectPersistent(false);
+    localStorage.removeItem("court_session");
+    localStorage.removeItem("court_session_token");
+    localStorage.removeItem("court_reconnect_expires_at");
+    localStorage.removeItem(RECONNECT_PERSISTENT_STORAGE_KEY);
     if (screen !== "home") {
       setScreen("home");
     }
@@ -4918,11 +4927,12 @@ export default function App() {
   const canChooseRoleInOwnLobby = hasCapability(myTier, "canChooseRoleInOwnLobby");
   const canCreatePacks =
     hasCapability(myTier, "canCreatePacks") || hasCreatePacksFromRawSubscription;
-  const canImportPackFromPreview = !!authToken && canCreatePacks;
   const createPackOwnedCount = useMemo(
     () => casePacks.filter((pack) => pack.isCustom).length,
     [casePacks],
   );
+  const hasReachedUserPackLimit = createPackOwnedCount >= USER_PACKS_TOTAL_LIMIT;
+  const canImportPackFromPreview = !!authToken && canCreatePacks && !hasReachedUserPackLimit;
   const myCasePacksTotalPages = useMemo(
     () => Math.max(1, Math.ceil(myCasePacks.length / USER_PACKS_PAGE_SIZE)),
     [myCasePacks.length],
@@ -5236,6 +5246,12 @@ export default function App() {
         return;
       }
       if (!packKey) {
+        if (hasReachedUserPackLimit) {
+          setMyCasePacksError(
+            `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков. Удалите один из текущих.`,
+          );
+          return;
+        }
         resetCreatePackEditor();
         setCreatePackCatalogView("create_pack");
         return;
@@ -5349,7 +5365,7 @@ export default function App() {
         setCreatePackEditLoading(false);
       }
     },
-    [authToken, canCreatePacks, openSubscriptionUpsell, resetCreatePackEditor],
+    [authToken, canCreatePacks, hasReachedUserPackLimit, openSubscriptionUpsell, resetCreatePackEditor],
   );
 
   const deleteMyCasePack = useCallback(
@@ -5423,6 +5439,11 @@ export default function App() {
         clearPackImportQueryParam();
         return null;
       }
+      if (hasReachedUserPackLimit) {
+        const limitMessage = `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков. Удалите один из текущих.`;
+        if (!options?.silent) setError(limitMessage);
+        return null;
+      }
       setImportPackLoading(true);
       try {
         const payload = await authRequest<{ ok: true; pack: CasePackInfo }>(
@@ -5460,6 +5481,7 @@ export default function App() {
       authToken,
       canCreatePacks,
       clearPackImportQueryParam,
+      hasReachedUserPackLimit,
       loadMyCasePacks,
       openSubscriptionUpsell,
       requestCasePacks,
@@ -5469,7 +5491,13 @@ export default function App() {
   const submitImportPackFromPreview = useCallback(async () => {
     if (!pendingImportShareCode || importPackLoading) return;
     if (!canImportPackFromPreview) {
-      setImportPackPreviewError("Функция недоступна: импорт открыт только для подписки «Арбитр».");
+      if (hasReachedUserPackLimit) {
+        setImportPackPreviewError(
+          `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков. Удалите один из текущих.`,
+        );
+      } else {
+        setImportPackPreviewError("Функция недоступна: импорт открыт только для подписки «Арбитр».");
+      }
       return;
     }
     const imported = await importPackByShareCode(pendingImportShareCode, {
@@ -5487,6 +5515,7 @@ export default function App() {
   }, [
     canImportPackFromPreview,
     closeImportPackPreviewDialog,
+    hasReachedUserPackLimit,
     importPackByShareCode,
     importPackLoading,
     pendingImportShareCode,
@@ -5802,35 +5831,51 @@ export default function App() {
         throw new Error("Добавьте хотя бы одно дело в пак.");
       }
       const casesPayload = preparedCases.map((draft, index) => {
+        const caseNumber = Math.max(1, Number(draft.caseOrderNumber ?? index + 1) || index + 1);
         const mode = Number(draft.modePlayerCount) as UserPackCaseMode;
         const allowedRoles = (ROLE_KEYS_BY_PLAYERS[mode] ?? []).filter(
           (role) => role !== "judge",
         ) as UserPackRoleKey[];
+        const safeTitle = String(draft.title ?? "").trim();
+        if (!safeTitle) {
+          throw new Error(`Дело #${caseNumber}: заполните название дела.`);
+        }
+        const safeDescription = sanitizeLegacyCaseText(draft.description, "description");
+        const safeTruth = sanitizeLegacyCaseText(draft.truth, "truth");
+        if (!safeTruth.trim()) {
+          throw new Error(`Дело #${caseNumber}: заполните поле «Истина (обоснование)».`);
+        }
+        const hasValidVerdict = USER_PACK_VERDICT_OPTIONS.some(
+          (option) => option.key === draft.expectedVerdict,
+        );
+        if (!hasValidVerdict) {
+          throw new Error(`Дело #${caseNumber}: выберите правильный вердикт по истине.`);
+        }
+        const evidenceRows = (draft.evidenceRows ?? [])
+          .slice(0, 3)
+          .map((item) => String(item ?? "").trim().slice(0, USER_PACK_TEXT_LIMITS.evidence));
+        if (evidenceRows.length < 3 || evidenceRows.some((item) => item.length === 0)) {
+          throw new Error(`Дело #${caseNumber}: заполните все 3 улики.`);
+        }
         const factsByRole: Partial<Record<UserPackRoleKey, string[]>> = {};
         for (const role of USER_PACK_ROLE_KEYS) {
           const lines = (draft.factsByRole[role] ?? [])
             .map((item) => normalizeFactLine(item))
             .filter(Boolean);
           if (allowedRoles.includes(role) && lines.length < 1) {
-            const caseNumber = Math.max(1, Number(draft.caseOrderNumber ?? index + 1) || index + 1);
             throw new Error(
               `Дело #${caseNumber}: для роли «${USER_PACK_ROLE_TITLES[role]}» нужен минимум 1 факт.`,
             );
           }
           factsByRole[role] = lines;
         }
-        const safeDescription = sanitizeLegacyCaseText(draft.description, "description");
-        const safeTruth = sanitizeLegacyCaseText(draft.truth, "truth");
-
         return {
           modePlayerCount: mode,
-          title: (draft.title.trim() || `Дело ${index + 1}`).slice(0, USER_PACK_TEXT_LIMITS.caseTitle),
+          title: safeTitle.slice(0, USER_PACK_TEXT_LIMITS.caseTitle),
           description: safeDescription.slice(0, USER_PACK_TEXT_LIMITS.caseDescription),
           truth: safeTruth.slice(0, USER_PACK_TEXT_LIMITS.truth),
           expectedVerdict: draft.expectedVerdict,
-          evidence: (draft.evidenceRows ?? [])
-            .map((item) => item.trim().slice(0, USER_PACK_TEXT_LIMITS.evidence))
-            .filter(Boolean),
+          evidence: evidenceRows,
           factsByRole,
         };
       });
@@ -7840,6 +7885,9 @@ export default function App() {
         if (ignoreLateRoomJoinedRef.current) {
           return;
         }
+        if (pendingImportShareCode) {
+          return;
+        }
         clearRoomActionPending();
         setMyId(playerId);
         if (sessionToken) {
@@ -8520,7 +8568,7 @@ export default function App() {
       socket.off("verdict_set");
       socket.off("error");
     };
-  }, [socket, avatar, authToken, clearReconnectWindow, sharedAvatar, startReconnectWindow, syncRankResultAfterMatch, rememberKnownUserIds, clearRoomActionPending, myTier, room?.code, game?.code, game?.verdict, game?.me?.roleKey]);
+  }, [socket, avatar, authToken, clearReconnectWindow, sharedAvatar, startReconnectWindow, syncRankResultAfterMatch, rememberKnownUserIds, clearRoomActionPending, myTier, room?.code, game?.code, game?.verdict, game?.me?.roleKey, pendingImportShareCode]);
 
   const createQuickRoom = useCallback(() => {
     if (isUserBanned) return;
@@ -13732,7 +13780,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
-                className={`z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),radial-gradient(120%_120%_at_100%_100%,rgba(59,130,246,0.14),transparent_62%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS} [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.35)_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/45 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/60`}
+                className={`z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -13857,7 +13905,7 @@ export default function App() {
                                       {pack.description}
                                     </div>
                                     <div className="mt-1.5 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                                      {visual.vibe}
+                                      {isCustomPack ? "Пользовательский пак" : visual.vibe}
                                     </div>
                                   </div>
                                   <div className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visual.countChip}`}>
@@ -13961,7 +14009,9 @@ export default function App() {
                                             Пользовательский пак
                                           </div>
                                         </div>
-                                        <span className="shrink-0 rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
+                                      </div>
+                                      <div className="mt-1.5 flex items-center">
+                                        <span className="rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
                                           {pack.caseCount ?? 0} дел
                                         </span>
                                       </div>
@@ -14042,8 +14092,8 @@ export default function App() {
                         )}
 
                         {sharePackDialogOpen && (
-                          <div className="absolute inset-0 z-[383] overflow-y-auto p-3 sm:p-5">
-                            <div className="mx-auto w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5">
+                          <div className="absolute inset-0 z-[383] flex items-center justify-center p-3 sm:p-5">
+                            <div className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 space-y-1">
                                   <div className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
@@ -14169,7 +14219,7 @@ export default function App() {
                         )}
                       </>
                     ) : (
-                      <div className="relative mx-auto max-w-[980px] min-w-0 space-y-3 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),radial-gradient(120%_120%_at_100%_100%,rgba(59,130,246,0.1),transparent_62%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-3">
+                      <div className="relative mx-auto max-w-[980px] min-w-0 space-y-3 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-3">
                         {createPackCasesDialogOpen && (
                           <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
                         )}
@@ -16598,9 +16648,9 @@ export default function App() {
             className="z-[289] max-w-lg border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100"
           >
             <DialogHeader>
-              <DialogTitle>Предпросмотр пака по ссылке</DialogTitle>
+              <DialogTitle>Добавление пака</DialogTitle>
               <DialogDescription className="text-zinc-400">
-                Вы можете просмотреть пак и решить, добавлять его в свои пользовательские паки или нет.
+                Проверьте данные пака и добавьте его в «Мои паки».
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -16654,7 +16704,7 @@ export default function App() {
                         disabled={importPackLoading}
                         className="h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
                       >
-                        {importPackLoading ? "Добавляем..." : "Добавить в мои паки"}
+                        {importPackLoading ? "Добавляем..." : "Добавить"}
                       </Button>
                       <Button
                         type="button"
@@ -16668,7 +16718,9 @@ export default function App() {
                   ) : (
                     <div className="space-y-2">
                       <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                        Функция недоступна. Импорт пака по ссылке открыт только для подписки «Арбитр».
+                        {hasReachedUserPackLimit
+                          ? `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков. Удалите один из текущих.`
+                          : "Функция недоступна. Импорт пака по ссылке открыт только для подписки «Арбитр»."}
                       </div>
                       <Button
                         type="button"
