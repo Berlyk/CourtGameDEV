@@ -4631,6 +4631,7 @@ export default function App() {
   const knownUserIdByPlayerIdRef = useRef<Record<string, string>>({});
   const influenceAnnouncementTimerRef = useRef<number | null>(null);
   const roomActionTimeoutRef = useRef<number | null>(null);
+  const pendingImportHandledRef = useRef<string | null>(null);
   const ignoreLateRoomJoinedRef = useRef(false);
   const lastAutoRejoinAttemptAtRef = useRef(0);
   const speechTimerStageRef = useRef<string>("");
@@ -4840,7 +4841,14 @@ export default function App() {
     setPendingImportShareCode((prev) => (prev === shareCode ? prev : shareCode));
   }, [screen, homeTab, getPackImportShareCodeFromLocation]);
   useEffect(() => {
-    if (!pendingImportShareCode) return;
+    if (!pendingImportShareCode) {
+      pendingImportHandledRef.current = null;
+      return;
+    }
+    if (pendingImportHandledRef.current === pendingImportShareCode) {
+      return;
+    }
+    pendingImportHandledRef.current = pendingImportShareCode;
     if (screen === "room" || screen === "game") {
       socket.emit("leave_room", { preserveForRejoin: false });
       setRoom(null);
