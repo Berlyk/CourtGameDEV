@@ -4822,10 +4822,7 @@ export default function App() {
   useEffect(() => {
     const syncShareCodeFromLocation = () => {
       const shareCode = getPackImportShareCodeFromLocation();
-      if (!shareCode) {
-        setPendingImportShareCode(null);
-        return;
-      }
+      if (!shareCode) return;
       setPendingImportShareCode((prev) => (prev === shareCode ? prev : shareCode));
     };
     syncShareCodeFromLocation();
@@ -4840,10 +4837,7 @@ export default function App() {
   }, [getPackImportShareCodeFromLocation]);
   useEffect(() => {
     const shareCode = getPackImportShareCodeFromLocation();
-    if (!shareCode) {
-      setPendingImportShareCode(null);
-      return;
-    }
+    if (!shareCode) return;
     setPendingImportShareCode((prev) => (prev === shareCode ? prev : shareCode));
   }, [screen, homeTab, getPackImportShareCodeFromLocation]);
   useEffect(() => {
@@ -4883,7 +4877,7 @@ export default function App() {
   }, [clearPackImportQueryParam]);
   useEffect(() => {
     if (!pendingImportShareCode) return;
-    if (screen !== "home" || homeTab !== "play") return;
+    if (screen !== "home") return;
     let cancelled = false;
     setImportPackPreviewDialogOpen(true);
     setImportPackPreviewLoading(true);
@@ -4911,7 +4905,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [homeTab, pendingImportShareCode, screen]);
+  }, [pendingImportShareCode, screen]);
   const buildPackImportLink = useCallback((rawShareCode: string) => {
     const shareCode = String(rawShareCode ?? "").trim().toUpperCase();
     if (!shareCode) return "";
@@ -7905,6 +7899,7 @@ export default function App() {
           return;
         }
         if (pendingImportShareCode || getPackImportShareCodeFromLocation()) {
+          clearRoomActionPending();
           socket.emit("leave_room", { preserveForRejoin: false });
           return;
         }
@@ -13800,11 +13795,16 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
-                className={`z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
+                className={`relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
                 )}
+                {createPackCatalogOpen &&
+                  createPackCatalogView === "my_packs" &&
+                  (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
+                    <div className="absolute inset-0 z-[372] rounded-2xl sm:rounded-3xl bg-black/58" />
+                  )}
                 <DialogHeader className="space-y-1">
                   <DialogTitle>
                     {createPackCatalogOpen
@@ -13878,10 +13878,6 @@ export default function App() {
                         </div>
                       )}
                     </div>
-
-                    {createPackCatalogView === "my_packs" && (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
-                      <div className="absolute inset-0 z-[381] rounded-2xl bg-black/52" />
-                    )}
 
                     {createPackCatalogView === "catalog" ? (
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
