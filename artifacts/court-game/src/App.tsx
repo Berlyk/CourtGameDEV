@@ -4916,7 +4916,6 @@ export default function App() {
     const shareCode = getPackImportShareCodeFromLocation();
     if (!shareCode) return;
     setPendingImportShareCode((prev) => (prev === shareCode ? prev : shareCode));
-    setImportPackPreviewDialogOpen(true);
   }, [getPackImportShareCodeFromLocation, screen]);
   useEffect(() => {
     if (!pendingImportShareCode) return;
@@ -4976,11 +4975,7 @@ export default function App() {
     if (!pendingImportShareCode) return;
     if (screen !== "home") return;
     let cancelled = false;
-    const loadingIndicatorTimer = window.setTimeout(() => {
-      if (cancelled) return;
-      setImportPackPreviewShowLoading(true);
-    }, 450);
-    setImportPackPreviewDialogOpen(true);
+    setImportPackPreviewDialogOpen(false);
     setImportPackPreviewLoading(true);
     setImportPackPreviewShowLoading(false);
     setImportPackPreviewError("");
@@ -4994,6 +4989,9 @@ export default function App() {
       blockReason?: "none" | "no_access" | "limit" | "already_added";
     }>(
       `/auth/case-packs/import-preview?shareCode=${encodeURIComponent(pendingImportShareCode)}`,
+      {
+        token: authToken,
+      },
     )
       .then((payload) => {
         if (cancelled) return;
@@ -5014,15 +5012,14 @@ export default function App() {
       })
       .finally(() => {
         if (cancelled) return;
-        window.clearTimeout(loadingIndicatorTimer);
         setImportPackPreviewLoading(false);
         setImportPackPreviewShowLoading(false);
+        setImportPackPreviewDialogOpen(true);
       });
     return () => {
       cancelled = true;
-      window.clearTimeout(loadingIndicatorTimer);
     };
-  }, [pendingImportShareCode, screen]);
+  }, [authToken, pendingImportShareCode, screen]);
   const buildPackImportLink = useCallback((rawShareCode: string) => {
     const shareCode = String(rawShareCode ?? "").trim().toUpperCase();
     if (!shareCode) return "";
@@ -5265,7 +5262,7 @@ export default function App() {
     );
   }, [createPackActiveCaseId, nextCreatePackEditStamp]);
   const createPackCatalogActionLabel =
-    !myCasePacksLoadedOnce || createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
+    canCreatePacks && createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
   const selectedCreatePack =
@@ -10470,7 +10467,11 @@ export default function App() {
   const renderUpsellModal = () => (
     <Dialog open={upsellModalOpen} onOpenChange={setUpsellModalOpen}>
       <DialogContent
-        overlayClassName={upsellNestedBackdrop ? "z-[510] !bg-transparent" : "z-[510] bg-black/86"}
+        overlayClassName={
+          upsellNestedBackdrop
+            ? "z-[510] bg-black/68 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
+            : "z-[510] bg-black/86 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
+        }
         className="z-[520] max-w-[470px] border-red-950/70 bg-[radial-gradient(130%_110%_at_0%_0%,rgba(239,68,68,0.22),transparent_50%),linear-gradient(160deg,rgba(12,10,11,0.98),rgba(10,10,12,0.98))] text-zinc-100 shadow-[0_24px_84px_rgba(0,0,0,0.72)]"
       >
         <DialogHeader>
@@ -14039,15 +14040,7 @@ export default function App() {
                 overlayClassName="z-[238] bg-black/88"
                 className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${createPackCatalogOpen && createPackCatalogView === "my_packs" && (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
-                {createPackCatalogOpen &&
-                  createPackCatalogView === "my_packs" &&
-                  (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
-                    <div className="pointer-events-none absolute inset-0 z-[382] rounded-[inherit] bg-black/62" />
-                  )}
                 <div className="relative">
-                {upsellModalOpen && createMatchDialogOpen && (
-                  <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
-                )}
                 <DialogHeader className="space-y-1">
                   <DialogTitle>
                     {createPackCatalogOpen
@@ -14099,7 +14092,15 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => {
-                            if (createPackCatalogActionLabel === "Мои паки") {
+                            if (!canCreatePacks) {
+                              openSubscriptionUpsell(
+                                "canCreatePacks",
+                                "Создание и редактирование пользовательских паков доступно только в подписке «Арбитр».",
+                                "Нет доступа",
+                              );
+                              return;
+                            }
+                            if (createPackOwnedCount > 0) {
                               void openMyCasePacksPanel();
                               return;
                             }
@@ -14372,39 +14373,36 @@ export default function App() {
                           </div>
                         )}
                         {myCasePacksError && (
-                          myCasePacksError.toLowerCase().includes("максимум") ? (
-                            <div className="rounded-2xl border border-red-500/50 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.18),transparent_58%),linear-gradient(145deg,rgba(19,9,10,0.95),rgba(10,10,12,0.95))] p-3 text-zinc-100">
-                              <div className="flex items-start gap-3">
-                                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-500/55 bg-red-500/12 text-red-100">
-                                  <Lock className="h-4 w-4" />
-                                </span>
-                                <div className="min-w-0">
-                                  <div className="text-lg font-semibold leading-tight">Лимит паков достигнут</div>
-                                  <div className="mt-1 text-sm text-zinc-300">{myCasePacksError}</div>
-                                </div>
-                              </div>
-                              <div className="mt-3">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => setMyCasePacksError("")}
-                                  className="h-10 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                                >
-                                  Понятно
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                              {myCasePacksError}
-                            </div>
-                          )
+                          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                            {myCasePacksError}
+                          </div>
                         )}
 
                         </div>
-                        {sharePackDialogOpen && (
-                          <div className="absolute inset-0 z-[392] flex items-center justify-center p-3 sm:p-5">
-                            <div className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5">
+                        <AnimatePresence>
+                          {sharePackDialogOpen && (
+                            <>
+                              <motion.div
+                                className="pointer-events-none absolute inset-0 z-[390] rounded-[inherit] bg-black/68"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.18, ease: "easeOut" }}
+                              />
+                              <motion.div
+                                className="absolute inset-0 z-[395] flex items-center justify-center p-3 sm:p-5"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.2, ease: "easeOut" }}
+                              >
+                                <motion.div
+                                  className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5"
+                                  initial={{ opacity: 0, y: 18, scale: 0.97 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: 14, scale: 0.97 }}
+                                  transition={{ duration: 0.22, ease: "easeOut" }}
+                                >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 space-y-1">
                                   <div className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
@@ -14479,9 +14477,11 @@ export default function App() {
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          </div>
-                        )}
+                                </motion.div>
+                              </motion.div>
+                            </>
+                          )}
+                        </AnimatePresence>
 
                         {myCasePackDeleteConfirmKey && (
                           <div className="absolute inset-0 z-[393] flex items-center justify-center p-3 sm:p-5">
@@ -16024,8 +16024,8 @@ export default function App() {
           }}
         >
           <DialogContent
-            overlayClassName="z-[288] bg-black/86"
-            className="z-[289] max-w-lg border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100"
+            overlayClassName="z-[288] bg-black/86 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
+            className="z-[289] max-w-lg border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
           >
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -16369,9 +16369,6 @@ export default function App() {
             <DialogContent
               className="top-[4vh] sm:top-[6vh] translate-y-0 rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.28)_transparent] [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/40 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/55"
             >
-              {upsellModalOpen && roomManageOpen && (
-                <div className="pointer-events-none absolute inset-0 z-20 rounded-3xl bg-black/45" />
-              )}
               <DialogHeader>
                 <DialogTitle>Управление комнатой</DialogTitle>
                 <DialogDescription className="text-zinc-400">

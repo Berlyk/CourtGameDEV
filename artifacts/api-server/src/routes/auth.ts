@@ -94,12 +94,16 @@ function canManageUserCasePacks(user: {
 } | null): boolean {
   if (!user) return false;
   const capability = user.subscription?.capabilities?.canCreatePacks;
+  const capabilityNormalized = String(capability ?? "")
+    .trim()
+    .toLowerCase();
   if (
     capability === true ||
     capability === 1 ||
-    String(capability ?? "")
-      .trim()
-      .toLowerCase() === "true"
+    capabilityNormalized === "true" ||
+    capabilityNormalized === "1" ||
+    capabilityNormalized === "yes" ||
+    capabilityNormalized === "да"
   ) {
     return true;
   }
