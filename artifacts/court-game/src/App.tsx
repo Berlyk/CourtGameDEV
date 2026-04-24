@@ -14167,7 +14167,6 @@ export default function App() {
                 overlayClassName="z-[238] bg-black/88"
                 className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
-                <div className="relative">
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-[380] rounded-[inherit] bg-black/58" />
                 )}
@@ -14176,6 +14175,7 @@ export default function App() {
                   (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
                     <div className="pointer-events-none absolute inset-0 z-[390] rounded-[inherit] bg-black/62" />
                   )}
+                <div className="relative">
                 <DialogHeader className="space-y-1">
                   <DialogTitle>
                     {createPackCatalogOpen
@@ -16636,7 +16636,7 @@ export default function App() {
                           <SelectTrigger className="h-10 w-24 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 focus:ring-red-500/40">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
+                          <SelectContent className="z-[460] border-zinc-800 bg-zinc-950 text-zinc-100">
                             {[0, 1, 2, 3, 4, 5, 6].map((value) => (
                               <SelectItem key={`obs-limit-${value}`} value={String(value)}>
                                 {value}
@@ -16675,7 +16675,7 @@ export default function App() {
                         <SelectTrigger className="h-10 w-28 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 focus:ring-red-500/40">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
+                            <SelectContent className="z-[460] border-zinc-800 bg-zinc-950 text-zinc-100">
                           {[15, 30, 45, 60, 90, 120, 150, 180].map((value) => (
                             <SelectItem key={`open-timer-${value}`} value={String(value)}>
                               {value} сек.
@@ -16713,7 +16713,7 @@ export default function App() {
                         <SelectTrigger className="h-10 w-28 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 focus:ring-red-500/40">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
+                            <SelectContent className="z-[460] border-zinc-800 bg-zinc-950 text-zinc-100">
                           {[15, 30, 45, 60, 90, 120, 150, 180].map((value) => (
                             <SelectItem key={`close-timer-${value}`} value={String(value)}>
                               {value} сек.
@@ -16858,7 +16858,7 @@ export default function App() {
                       <SelectTrigger className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 focus:ring-red-500/40">
                         <SelectValue placeholder="Выбрать игрока" />
                       </SelectTrigger>
-                      <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
+                          <SelectContent className="z-[460] border-zinc-800 bg-zinc-950 text-zinc-100">
                         {hostTransferCandidates.length === 0 && (
                           <SelectItem value="__none__" disabled>
                             Нет кандидатов

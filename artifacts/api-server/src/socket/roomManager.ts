@@ -770,6 +770,13 @@ export function setHostJudge(code: string, isHostJudge: boolean): Room | null {
   const room = rooms.get(code);
   if (!room) return null;
   room.isHostJudge = isHostJudge;
+  if (!isHostJudge) {
+    const host = room.players.find((player) => player.id === room.hostId);
+    if (host && host.lobbyAssignedRole === "judge") {
+      clearLobbyRoleState(host);
+      host.roleAssignmentSource = "random";
+    }
+  }
   rebalanceLobbyRoleAssignments(room);
   return room;
 }
@@ -2005,20 +2012,46 @@ export function prevStage(code: string): Room | null {
   return room;
 }
 
+function resolveExpectedVerdictLabel(caseData: any): string {
+  const normalize = (value: string | undefined | null): string | null => {
+    if (typeof value !== "string") return null;
+    const raw = value.trim().toLowerCase().replace(/ё/g, "е");
+    if (!raw) return null;
+
+    if (
+      raw.includes("not_guilty") ||
+      raw.includes("not guilty") ||
+      raw.includes("не винов")
+    ) {
+      return "Не виновен";
+    }
+    if (
+      raw.includes("partial_guilty") ||
+      raw.includes("partially guilty") ||
+      raw.includes("частично винов")
+    ) {
+      return "Частично виновен";
+    }
+    if (raw.includes("guilty") || raw.includes("винов")) {
+      return "Виновен";
+    }
+    return null;
+  };
+
+  const explicit = normalize(caseData?.expectedVerdict);
+  if (explicit) return explicit;
+
+  const byTruth = normalize(caseData?.truth);
+  if (byTruth) return byTruth;
+
+  return "Частично виновен";
+}
+
 export function setVerdict(code: string, verdict: string): Room | null {
   const room = rooms.get(code);
   if (!room?.game) return null;
 
-  const truth = room.game.caseData.truth.toLowerCase().replace(/ё/g, "е");
-  let expectedVerdict = "Частично виновен";
-
-  if (truth.includes("не виновен") || truth.includes("не виноват")) {
-    expectedVerdict = "Не виновен";
-  } else if (truth.includes("частично винов")) {
-    expectedVerdict = "Частично виновен";
-  } else {
-    expectedVerdict = "Виновен";
-  }
+  const expectedVerdict = resolveExpectedVerdictLabel(room.game.caseData);
 
   const verdictEvaluation =
     verdict === expectedVerdict
