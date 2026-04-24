@@ -15295,7 +15295,9 @@ export default function App() {
               {createMatchDialogOpen &&
                 createPackCatalogOpen &&
                 createPackCatalogView === "my_packs" &&
-                sharePackDialogOpen && (
+                sharePackDialogOpen &&
+                typeof document !== "undefined" &&
+                createPortal(
                   <motion.div
                     key="my-packs-share-dialog"
                     className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5"
@@ -15394,13 +15396,16 @@ export default function App() {
                         </div>
                       </div>
                     </motion.div>
-                  </motion.div>
+                  </motion.div>,
+                  document.body,
                 )}
             </AnimatePresence>
             {createMatchDialogOpen &&
               createPackCatalogOpen &&
               createPackCatalogView === "my_packs" &&
-              myCasePackDeleteConfirmKey && (
+              myCasePackDeleteConfirmKey &&
+              typeof document !== "undefined" &&
+              createPortal(
                 <div className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5">
                   <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -15442,7 +15447,8 @@ export default function App() {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </div>,
+                document.body,
               )}
 
             <Dialog
