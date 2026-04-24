@@ -4864,6 +4864,13 @@ export default function App() {
     }
   }, [getPackImportShareCodeFromLocation, homeTab, screen]);
   useEffect(() => {
+    if (screen !== "home") return;
+    const shareCode = getPackImportShareCodeFromLocation();
+    if (!shareCode) return;
+    setPendingImportShareCode((prev) => (prev === shareCode ? prev : shareCode));
+    setImportPackPreviewDialogOpen(true);
+  }, [getPackImportShareCodeFromLocation, screen]);
+  useEffect(() => {
     if (!pendingImportShareCode) return;
     if (screen === "room" || screen === "game") {
       socket.emit("leave_room", { preserveForRejoin: false });
@@ -13818,7 +13825,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
-                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
+                className={`!fixed z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
                 <div className="relative">
                 {upsellModalOpen && createMatchDialogOpen && (
@@ -13827,7 +13834,7 @@ export default function App() {
                 {createPackCatalogOpen &&
                   createPackCatalogView === "my_packs" &&
                   (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
-                    <div className="pointer-events-none absolute inset-px z-[372] rounded-2xl sm:rounded-3xl bg-black/58" />
+                    <div className="absolute inset-0 z-[372] rounded-2xl sm:rounded-3xl bg-black/58" />
                   )}
                 <DialogHeader className="space-y-1">
                   <DialogTitle>
@@ -16772,116 +16779,6 @@ export default function App() {
             onQueryChange={setContextHelpQuery}
           />
         </div>
-        <Dialog
-          open={importPackPreviewDialogOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              closeImportPackPreviewDialog();
-              return;
-            }
-            setImportPackPreviewDialogOpen(true);
-          }}
-        >
-          <DialogContent
-            overlayClassName="z-[288] bg-black/86"
-            className="z-[289] max-w-lg border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100"
-          >
-            <DialogHeader>
-              <DialogTitle>Добавление пака</DialogTitle>
-              <DialogDescription className="text-zinc-400">
-                Проверьте данные пака и добавьте его в «Мои паки».
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              {importPackPreviewLoading ? (
-                <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/70 px-3 py-3 text-sm text-zinc-300">
-                  Загружаем предпросмотр...
-                </div>
-              ) : importPackPreviewError ? (
-                <div className="space-y-2">
-                  <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-3 text-sm text-red-200">
-                    {importPackPreviewError}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={closeImportPackPreviewDialog}
-                    className="h-10 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                  >
-                    Понятно
-                  </Button>
-                </div>
-              ) : importPackPreviewData ? (
-                <div
-                  className="rounded-2xl border px-4 py-3"
-                  style={{
-                    borderColor: hexToRgba(importPackPreviewData.color, 0.52),
-                    backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(importPackPreviewData.color, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center">
-                        <div className="truncate text-base font-semibold text-zinc-100">
-                          {importPackPreviewData.title}
-                        </div>
-                      </div>
-                      <div className="mt-1 text-sm text-zinc-300 break-words">
-                        {importPackPreviewData.description || "Описание не указано."}
-                      </div>
-                    </div>
-                    <span className="shrink-0 rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
-                      {importPackPreviewData.caseCount} дел
-                    </span>
-                  </div>
-                </div>
-              ) : null}
-
-              {!importPackPreviewLoading && !importPackPreviewError && importPackPreviewData && (
-                <>
-                  {canImportPackFromPreview ? (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          void submitImportPackFromPreview();
-                        }}
-                        disabled={importPackLoading}
-                        className="h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
-                      >
-                        {importPackLoading ? "Добавляем..." : "Добавить"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={closeImportPackPreviewDialog}
-                        className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                      >
-                        Отмена
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                        {hasReachedUserPackLimit
-                          ? `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков. Удалите один из текущих.`
-                          : "Функция недоступна. Импорт пака по ссылке открыт только для подписки «Арбитр»."}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={closeImportPackPreviewDialog}
-                        className="h-11 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                      >
-                        Понятно
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
         {renderPublicProfileDialog()}
         <Dialog open={observerListDialogOpen} onOpenChange={setObserverListDialogOpen}>
           <DialogContent className="max-w-lg border-zinc-800 bg-zinc-950 text-zinc-100">
