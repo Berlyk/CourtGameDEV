@@ -14520,154 +14520,6 @@ export default function App() {
                         )}
 
                         </div>
-                        <AnimatePresence>
-                          {sharePackDialogOpen && (
-                            <motion.div
-                              key="my-packs-share-dialog"
-                              className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5"
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 0.2, ease: "easeOut" }}
-                            >
-                              <motion.div
-                                className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5"
-                                initial={{ opacity: 0, y: 18, scale: 0.97 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 14, scale: 0.97 }}
-                                transition={{ duration: 0.22, ease: "easeOut" }}
-                              >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 space-y-1">
-                                  <div className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
-                                  <div className="text-zinc-400">Ссылка позволит добавить пак в «Мои паки».</div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSharePackDialogOpen(false);
-                                    setSharePackCopiedKind(null);
-                                  }}
-                                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-950 text-zinc-300 transition-colors hover:bg-zinc-900 hover:text-zinc-100"
-                                  aria-label="Закрыть окно"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              </div>
-                              <div className="mt-3 space-y-3">
-                                {(() => {
-                                  const sharePreviewChip = getCustomPackCountChipVisual(
-                                    normalizePackColor(sharePackData?.color),
-                                  );
-                                  return (
-                                <div
-                                  className="relative rounded-2xl border px-3 py-3 min-h-[112px]"
-                                  style={{
-                                    borderColor: hexToRgba(normalizePackColor(sharePackData?.color), 0.52),
-                                    backgroundImage: `radial-gradient(120% 130% at 0% 0%, ${hexToRgba(normalizePackColor(sharePackData?.color), 0.22)}, transparent 60%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
-                                  }}
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0">
-                                      <div className="flex items-center">
-                                        <div className="truncate text-base font-semibold text-zinc-100">
-                                          {sharePackData?.title ?? "Пак"}
-                                        </div>
-                                      </div>
-                                      <div className="mt-1 max-h-[2.5rem] overflow-hidden break-all text-[12px] leading-5 text-zinc-300">
-                                        {sharePackData?.description || "Описание не указано."}
-                                      </div>
-                                      <div className="mt-1.5 min-w-0 truncate pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                                        Пользовательский пак
-                                      </div>
-                                    </div>
-                                    <span
-                                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${sharePreviewChip.className}`}
-                                      style={sharePreviewChip.style}
-                                    >
-                                      {Math.max(0, Number(sharePackData?.caseCount ?? 0) || 0)} дел
-                                    </span>
-                                  </div>
-                                  <div className="pointer-events-none absolute bottom-3 right-4 max-w-[55%] truncate text-right text-[11px] text-zinc-400">
-                                    Автор: {sharePackData?.creatorNickname || "Игрок"}
-                                  </div>
-                                </div>
-                                  );
-                                })()}
-                                <div className="space-y-1.5">
-                                  <div className="text-xs text-zinc-400">Ссылка</div>
-                                  <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                                    <Input
-                                      readOnly
-                                      value={sharePackData?.importLink ?? ""}
-                                      className="h-10 min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
-                                    />
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      onClick={() => {
-                                        void copySharePackDialogValue("link");
-                                      }}
-                                      className={`h-10 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800 sm:min-w-[150px] ${
-                                        sharePackCopiedKind === "link"
-                                          ? "border-red-500/70 bg-red-500/15 text-red-100"
-                                          : ""
-                                      }`}
-                                    >
-                                      {sharePackCopiedKind === "link" ? "Скопировано" : "Скопировать"}
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                              </motion.div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-
-                        {myCasePackDeleteConfirmKey && (
-                          <div className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5">
-                            <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="space-y-1">
-                                  <div className="text-lg font-semibold text-zinc-100">Удалить пак?</div>
-                                  <div className="text-sm text-zinc-400">
-                                    Пак «{myCasePackDeleteConfirmItem?.title ?? "Без названия"}» будет удалён без возможности восстановления.
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setMyCasePackDeleteConfirmKey(null)}
-                                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-950 text-zinc-300 transition-colors hover:bg-zinc-900 hover:text-zinc-100"
-                                  aria-label="Закрыть окно"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              </div>
-                              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => setMyCasePackDeleteConfirmKey(null)}
-                                  className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                                >
-                                  Отмена
-                                </Button>
-                                <Button
-                                  type="button"
-                                  onClick={() => {
-                                    if (!myCasePackDeleteConfirmKey) return;
-                                    void deleteMyCasePack(myCasePackDeleteConfirmKey);
-                                    setMyCasePackDeleteConfirmKey(null);
-                                  }}
-                                  disabled={!!myCasePackDeleteKey}
-                                  className="h-10 rounded-xl border-0 bg-red-600 text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {myCasePackDeleteKey ? "Удаляем..." : "Удалить пак"}
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
                       </>
                     ) : (
                       <div className="relative mx-auto max-w-[980px] min-w-0 space-y-3 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-3">
@@ -15439,6 +15291,159 @@ export default function App() {
                 </div>
               </DialogContent>
             </Dialog>
+            <AnimatePresence>
+              {createMatchDialogOpen &&
+                createPackCatalogOpen &&
+                createPackCatalogView === "my_packs" &&
+                sharePackDialogOpen && (
+                  <motion.div
+                    key="my-packs-share-dialog"
+                    className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                  >
+                    <motion.div
+                      className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5"
+                      initial={{ opacity: 0, y: 18, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 14, scale: 0.97 }}
+                      transition={{ duration: 0.22, ease: "easeOut" }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <div className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
+                          <div className="text-zinc-400">Ссылка позволит добавить пак в «Мои паки».</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSharePackDialogOpen(false);
+                            setSharePackCopiedKind(null);
+                          }}
+                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-950 text-zinc-300 transition-colors hover:bg-zinc-900 hover:text-zinc-100"
+                          aria-label="Закрыть окно"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        {(() => {
+                          const sharePreviewChip = getCustomPackCountChipVisual(
+                            normalizePackColor(sharePackData?.color),
+                          );
+                          return (
+                            <div
+                              className="relative rounded-2xl border px-3 py-3 min-h-[112px]"
+                              style={{
+                                borderColor: hexToRgba(normalizePackColor(sharePackData?.color), 0.52),
+                                backgroundImage: `radial-gradient(120% 130% at 0% 0%, ${hexToRgba(normalizePackColor(sharePackData?.color), 0.22)}, transparent 60%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex items-center">
+                                    <div className="truncate text-base font-semibold text-zinc-100">
+                                      {sharePackData?.title ?? "Пак"}
+                                    </div>
+                                  </div>
+                                  <div className="mt-1 max-h-[2.5rem] overflow-hidden break-all text-[12px] leading-5 text-zinc-300">
+                                    {sharePackData?.description || "Описание не указано."}
+                                  </div>
+                                  <div className="mt-1.5 min-w-0 truncate pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                    Пользовательский пак
+                                  </div>
+                                </div>
+                                <span
+                                  className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${sharePreviewChip.className}`}
+                                  style={sharePreviewChip.style}
+                                >
+                                  {Math.max(0, Number(sharePackData?.caseCount ?? 0) || 0)} дел
+                                </span>
+                              </div>
+                              <div className="pointer-events-none absolute bottom-3 right-4 max-w-[55%] truncate text-right text-[11px] text-zinc-400">
+                                Автор: {sharePackData?.creatorNickname || "Игрок"}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                        <div className="space-y-1.5">
+                          <div className="text-xs text-zinc-400">Ссылка</div>
+                          <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                            <Input
+                              readOnly
+                              value={sharePackData?.importLink ?? ""}
+                              className="h-10 min-w-0 flex-1 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                void copySharePackDialogValue("link");
+                              }}
+                              className={`h-10 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800 sm:min-w-[150px] ${
+                                sharePackCopiedKind === "link"
+                                  ? "border-red-500/70 bg-red-500/15 text-red-100"
+                                  : ""
+                              }`}
+                            >
+                              {sharePackCopiedKind === "link" ? "Скопировано" : "Скопировать"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+            </AnimatePresence>
+            {createMatchDialogOpen &&
+              createPackCatalogOpen &&
+              createPackCatalogView === "my_packs" &&
+              myCasePackDeleteConfirmKey && (
+                <div className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5">
+                  <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="text-lg font-semibold text-zinc-100">Удалить пак?</div>
+                        <div className="text-sm text-zinc-400">
+                          Пак «{myCasePackDeleteConfirmItem?.title ?? "Без названия"}» будет удалён без возможности восстановления.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMyCasePackDeleteConfirmKey(null)}
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-950 text-zinc-300 transition-colors hover:bg-zinc-900 hover:text-zinc-100"
+                        aria-label="Закрыть окно"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setMyCasePackDeleteConfirmKey(null)}
+                        className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                      >
+                        Отмена
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (!myCasePackDeleteConfirmKey) return;
+                          void deleteMyCasePack(myCasePackDeleteConfirmKey);
+                          setMyCasePackDeleteConfirmKey(null);
+                        }}
+                        disabled={!!myCasePackDeleteKey}
+                        className="h-10 rounded-xl border-0 bg-red-600 text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {myCasePackDeleteKey ? "Удаляем..." : "Удалить пак"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
             <Dialog
               open={joinPasswordDialogOpen}
