@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -4381,7 +4381,6 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false);
   const createMatchDialogRef = useRef<HTMLDivElement | null>(null);
-  const [myPacksDialogLockHeight, setMyPacksDialogLockHeight] = useState<number | null>(null);
   const oauthAuthHashHandledRef = useRef("");
   const passwordUpdatedToastTimerRef = useRef<number | null>(null);
   const [publicMatches, setPublicMatches] = useState<PublicMatchInfo[]>([]);
@@ -5277,25 +5276,6 @@ export default function App() {
     createPackCatalogOpen &&
     createPackCatalogView === "my_packs" &&
     (sharePackDialogOpen || !!myCasePackDeleteConfirmKey);
-  useLayoutEffect(() => {
-    if (!myPacksNestedOverlayOpen) {
-      setMyPacksDialogLockHeight(null);
-      return;
-    }
-    const node = createMatchDialogRef.current;
-    if (!node) return;
-    const captureHeight = () => {
-      const nextHeight = Math.round(node.getBoundingClientRect().height);
-      if (nextHeight > 0) {
-        setMyPacksDialogLockHeight(nextHeight);
-      }
-    };
-    captureHeight();
-    const rafId = window.requestAnimationFrame(captureHeight);
-    return () => {
-      window.cancelAnimationFrame(rafId);
-    };
-  }, [myPacksNestedOverlayOpen]);
   useEffect(() => {
     setMyCasePacksPage((prev) => Math.max(1, Math.min(prev, myCasePacksTotalPages)));
   }, [myCasePacksTotalPages]);
@@ -14190,11 +14170,6 @@ export default function App() {
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
                 className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
-                style={
-                  myPacksNestedOverlayOpen && myPacksDialogLockHeight
-                    ? { height: `${myPacksDialogLockHeight}px` }
-                    : undefined
-                }
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-[380] rounded-[inherit] bg-black/58" />
@@ -14546,10 +14521,12 @@ export default function App() {
 
                         </div>
                         <AnimatePresence>
-                          {sharePackDialogOpen && (
-                            <>
+                          {sharePackDialogOpen &&
+                            typeof document !== "undefined" &&
+                            createPortal(
                               <motion.div
-                                className="absolute inset-0 z-[395] flex items-center justify-center p-3 sm:p-5"
+                                key="my-packs-share-dialog"
+                                className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
@@ -14646,12 +14623,13 @@ export default function App() {
                               </div>
                                 </motion.div>
                               </motion.div>
-                            </>
-                          )}
+                            , document.body)}
                         </AnimatePresence>
 
-                        {myCasePackDeleteConfirmKey && (
-                          <div className="absolute inset-0 z-[395] flex items-center justify-center p-3 sm:p-5">
+                        {myCasePackDeleteConfirmKey &&
+                          typeof document !== "undefined" &&
+                          createPortal(
+                          <div className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5">
                             <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="space-y-1">
@@ -14693,7 +14671,7 @@ export default function App() {
                               </div>
                             </div>
                           </div>
-                        )}
+                        , document.body)}
                       </>
                     ) : (
                       <div className="relative mx-auto max-w-[980px] min-w-0 space-y-3 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-3">
@@ -18696,6 +18674,7 @@ export default function App() {
     </div>
   );
 }
+
 
 
 
