@@ -2603,6 +2603,7 @@ interface CasePackInfo {
   isCustom?: boolean;
   shareCode?: string;
   color?: string;
+  creatorNickname?: string;
 }
 
 interface ImportPackPreviewData {
@@ -2611,6 +2612,7 @@ interface ImportPackPreviewData {
   color: string;
   shareCode: string;
   caseCount: number;
+  creatorNickname?: string;
 }
 
 type UserPackCaseMode = 3 | 4 | 5 | 6;
@@ -4383,6 +4385,7 @@ export default function App() {
     description: string;
     color: string;
     caseCount: number;
+    creatorNickname: string;
     importLink: string;
   } | null>(null);
   const [sharePackCopiedKind, setSharePackCopiedKind] = useState<"link" | null>(null);
@@ -4397,6 +4400,7 @@ export default function App() {
   const [importPackPreviewLoading, setImportPackPreviewLoading] = useState(false);
   const [importPackPreviewError, setImportPackPreviewError] = useState("");
   const [importPackPreviewData, setImportPackPreviewData] = useState<ImportPackPreviewData | null>(null);
+  const [importPackPreviewAlreadyAdded, setImportPackPreviewAlreadyAdded] = useState(false);
   const [createPackSaving, setCreatePackSaving] = useState(false);
   const [createPackEditLoading, setCreatePackEditLoading] = useState(false);
   const [createPackError, setCreatePackError] = useState("");
@@ -4902,6 +4906,7 @@ export default function App() {
     setImportPackPreviewLoading(false);
     setImportPackPreviewError("");
     setImportPackPreviewData(null);
+    setImportPackPreviewAlreadyAdded(false);
     setPendingImportShareCode(null);
     clearPackImportQueryParam();
   }, [clearPackImportQueryParam]);
@@ -4929,15 +4934,18 @@ export default function App() {
     setImportPackPreviewLoading(true);
     setImportPackPreviewError("");
     setImportPackPreviewData(null);
-    void authRequest<{ ok: true; preview: ImportPackPreviewData }>(
+    setImportPackPreviewAlreadyAdded(false);
+    void authRequest<{ ok: true; preview: ImportPackPreviewData; alreadyAdded?: boolean }>(
       `/auth/case-packs/import-preview?shareCode=${encodeURIComponent(pendingImportShareCode)}`,
     )
       .then((payload) => {
         if (cancelled) return;
         setImportPackPreviewData(payload?.preview ?? null);
+        setImportPackPreviewAlreadyAdded(!!payload?.alreadyAdded);
       })
       .catch((error) => {
         if (cancelled) return;
+        setImportPackPreviewAlreadyAdded(false);
         const message =
           error instanceof Error && error.message.trim()
             ? error.message
@@ -4972,6 +4980,108 @@ export default function App() {
   );
   const hasReachedUserPackLimit = createPackOwnedCount >= USER_PACKS_TOTAL_LIMIT;
   const canImportPackFromPreview = !!authToken && canCreatePacks && !hasReachedUserPackLimit;
+  const myCasePackCreatorByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const pack of myCasePacks) {
+      const nickname = String(pack.creatorNickname ?? "").trim();
+      if (!nickname) continue;
+      map.set(pack.key, nickname);
+    }
+    return map;
+  }, [myCasePacks]);
+  const resolvePackCreatorNickname = useCallback((pack: { key?: string; isCustom?: boolean; creatorNickname?: string }) => {
+    const nickname = String(pack.creatorNickname ?? "").trim();
+    if (nickname) return nickname;
+    const fromMyPacks = String(myCasePackCreatorByKey.get(String(pack.key ?? "")) ?? "").trim();
+    if (fromMyPacks) return fromMyPacks;
+    return pack.isCustom ? "Игрок" : "CourtGame";
+  }, [myCasePackCreatorByKey]);
+  const catalogBuiltinPacks = useMemo(
+    () =>
+      [...casePacks]
+        .filter((pack) => !pack.isCustom)
+        .sort((a, b) => {
+          const aLocked = isPackLockedForTier(a, myTier);
+          const bLocked = isPackLockedForTier(b, myTier);
+          if (aLocked !== bLocked) return aLocked ? 1 : -1;
+          return getCasePackSortOrder(a) - getCasePackSortOrder(b);
+        }),
+    [casePacks, myTier],
+  );
+  const catalogCustomPacks = useMemo(
+    () =>
+      [...casePacks]
+        .filter((pack) => !!pack.isCustom)
+        .sort((a, b) => {
+          const aLocked = isPackLockedForTier(a, myTier);
+          const bLocked = isPackLockedForTier(b, myTier);
+          if (aLocked !== bLocked) return aLocked ? 1 : -1;
+          return getCasePackSortOrder(a) - getCasePackSortOrder(b);
+        }),
+    [casePacks, myTier],
+  );
+  const catalogPacksOrdered = useMemo(
+    () => [...catalogBuiltinPacks, ...catalogCustomPacks],
+    [catalogBuiltinPacks, catalogCustomPacks],
+  );
+  const normalizedImportPackPreviewError = useMemo(
+    () => importPackPreviewError.toLowerCase().replace(/ё/g, "е"),
+    [importPackPreviewError],
+  );
+  const importPackPreviewBlockingState = useMemo(() => {
+    if (importPackPreviewLoading) return null;
+    if (normalizedImportPackPreviewError.includes("максимум")) {
+      return {
+        title: "Лимит паков достигнут",
+        description: `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков.`,
+      };
+    }
+    if (importPackPreviewAlreadyAdded) {
+      return {
+        title: "У вас уже есть этот пак",
+        description: "Этот пак уже добавлен в «Мои паки».",
+      };
+    }
+    if (normalizedImportPackPreviewError.includes("уже")) {
+      return {
+        title: "У вас уже есть этот пак",
+        description: "Этот пак уже добавлен в «Мои паки».",
+      };
+    }
+    if (normalizedImportPackPreviewError.includes("не найден")) {
+      return {
+        title: "Пак не найден",
+        description: "Ссылка импорта недействительна или устарела.",
+      };
+    }
+    if (importPackPreviewError.trim()) {
+      return {
+        title: "Функция недоступна",
+        description: "Импорт пака по ссылке открыт только для подписки «Арбитр».",
+      };
+    }
+    if (importPackPreviewData && !canImportPackFromPreview) {
+      if (hasReachedUserPackLimit) {
+        return {
+          title: "Лимит паков достигнут",
+          description: `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков.`,
+        };
+      }
+      return {
+        title: "Функция недоступна",
+        description: "Импорт пака по ссылке открыт только для подписки «Арбитр».",
+      };
+    }
+    return null;
+  }, [
+    canImportPackFromPreview,
+    hasReachedUserPackLimit,
+    importPackPreviewAlreadyAdded,
+    importPackPreviewData,
+    importPackPreviewError,
+    importPackPreviewLoading,
+    normalizedImportPackPreviewError,
+  ]);
   const myCasePacksTotalPages = useMemo(
     () => Math.max(1, Math.ceil(myCasePacks.length / USER_PACKS_PAGE_SIZE)),
     [myCasePacks.length],
@@ -5522,6 +5632,10 @@ export default function App() {
 
   const submitImportPackFromPreview = useCallback(async () => {
     if (!pendingImportShareCode || importPackLoading) return;
+    if (importPackPreviewAlreadyAdded) {
+      setImportPackPreviewError("Этот пак уже добавлен в «Мои паки».");
+      return;
+    }
     if (!canImportPackFromPreview) {
       if (hasReachedUserPackLimit) {
         setImportPackPreviewError(
@@ -5558,6 +5672,7 @@ export default function App() {
     hasReachedUserPackLimit,
     importPackByShareCode,
     importPackLoading,
+    importPackPreviewAlreadyAdded,
     pendingImportShareCode,
   ]);
 
@@ -5990,12 +6105,13 @@ export default function App() {
         description: String(pack.description ?? "").trim(),
         color: normalizePackColor(pack.color),
         caseCount: Math.max(0, Number(pack.caseCount ?? 0) || 0),
+        creatorNickname: resolvePackCreatorNickname(pack),
         importLink: buildPackImportLink(shareCode),
       });
       setSharePackCopiedKind(null);
       setSharePackDialogOpen(true);
     },
-    [buildPackImportLink],
+    [buildPackImportLink, resolvePackCreatorNickname],
   );
   const copySharePackDialogValue = useCallback(
     async (kind: "link") => {
@@ -13917,14 +14033,7 @@ export default function App() {
 
                     {createPackCatalogView === "catalog" ? (
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                        {[...casePacks]
-                          .sort((a, b) => {
-                            const aLocked = isPackLockedForTier(a, myTier);
-                            const bLocked = isPackLockedForTier(b, myTier);
-                            if (aLocked !== bLocked) return aLocked ? 1 : -1;
-                            return getCasePackSortOrder(a) - getCasePackSortOrder(b);
-                          })
-                          .map((pack) => {
+                        {catalogPacksOrdered.map((pack, index) => {
                             const isLocked = isPackLockedForTier(pack, myTier);
                             const requiredTier = getRequiredTierForPack(pack);
                             const visual = getCasePackVisual(pack.key, pack.title);
@@ -13960,8 +14069,13 @@ export default function App() {
                                     >
                                       {pack.description}
                                     </div>
-                                    <div className="mt-1.5 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                                      {isCustomPack ? "Пользовательский пак" : visual.vibe}
+                                    <div className="mt-1.5 flex items-end justify-between gap-2">
+                                      <div className="min-w-0 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                        {isCustomPack ? "Пользовательский пак" : visual.vibe}
+                                      </div>
+                                      <div className="shrink-0 max-w-[55%] truncate text-[11px] text-zinc-400">
+                                        Автор: {resolvePackCreatorNickname(pack)}
+                                      </div>
                                     </div>
                                   </div>
                                   <div className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visual.countChip}`}>
@@ -13980,27 +14094,24 @@ export default function App() {
                                 )}
                               </>
                             );
-                            if (isLocked) {
-                              return (
-                                <button
-                                  key={pack.key}
-                                  type="button"
-                                  onClick={() =>
-                                    openSubscriptionUpsell(
-                                      requiredTier === "trainee"
-                                        ? "canAccessPackSevere"
-                                        : "canAccessAllPacks",
-                                      `Пак «${displayTitle}» доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`,
-                                    )
-                                  }
-                                  className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition-colors hover:border-zinc-500 ${cardClass}`}
-                                  style={customCardStyle}
-                                >
-                                  {content}
-                                </button>
-                              );
-                            }
-                            return (
+                            const cardNode = isLocked ? (
+                              <button
+                                key={pack.key}
+                                type="button"
+                                onClick={() =>
+                                  openSubscriptionUpsell(
+                                    requiredTier === "trainee"
+                                      ? "canAccessPackSevere"
+                                      : "canAccessAllPacks",
+                                    `Пак «${displayTitle}» доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`,
+                                  )
+                                }
+                                className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition-colors hover:border-zinc-500 ${cardClass}`}
+                                style={customCardStyle}
+                              >
+                                {content}
+                              </button>
+                            ) : (
                               <button
                                 key={pack.key}
                                 type="button"
@@ -14014,6 +14125,19 @@ export default function App() {
                               >
                                 {content}
                               </button>
+                            );
+                            const shouldShowUserDivider =
+                              catalogCustomPacks.length > 0 && index === catalogBuiltinPacks.length;
+                            if (!shouldShowUserDivider) {
+                              return cardNode;
+                            }
+                            return (
+                              <React.Fragment key={`divider_${pack.key}`}>
+                                <div className="sm:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs uppercase tracking-[0.18em] text-zinc-400">
+                                  Пользовательские паки
+                                </div>
+                                {cardNode}
+                              </React.Fragment>
                             );
                           })}
                       </div>
@@ -14051,8 +14175,13 @@ export default function App() {
                                           <div className="mt-1 max-h-[2.5rem] overflow-hidden text-[12px] leading-5 text-zinc-300/90 break-all">
                                             {pack.description}
                                           </div>
-                                          <div className="mt-1.5 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                                            Пользовательский пак
+                                          <div className="mt-1.5 flex items-end justify-between gap-2">
+                                            <div className="min-w-0 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                              Пользовательский пак
+                                            </div>
+                                            <div className="shrink-0 max-w-[55%] truncate text-[11px] text-zinc-400">
+                                              Автор: {resolvePackCreatorNickname(pack)}
+                                            </div>
                                           </div>
                                         </div>
                                       </div>
@@ -14069,7 +14198,7 @@ export default function App() {
                                         onClick={() => {
                                           void openCreatePackEditor(pack.key);
                                         }}
-                                        className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800"
+                                        className="h-9 rounded-xl border-zinc-800/90 bg-zinc-950/65 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900/85 hover:text-zinc-200"
                                       >
                                         Редактировать
                                       </Button>
@@ -14079,7 +14208,7 @@ export default function App() {
                                         onClick={() => {
                                           openSharePackDialog(pack);
                                         }}
-                                        className="h-9 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800"
+                                        className="h-9 rounded-xl border-zinc-800/90 bg-zinc-950/65 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900/85 hover:text-zinc-200"
                                       >
                                         Поделиться
                                       </Button>
@@ -14090,7 +14219,7 @@ export default function App() {
                                           setMyCasePackDeleteConfirmKey(pack.key);
                                         }}
                                         disabled={myCasePackDeleteKey === pack.key}
-                                        className="h-9 rounded-xl border-red-500/55 bg-red-500/12 text-red-100 hover:bg-red-500/22 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="h-9 rounded-xl border-red-500/30 bg-red-500/6 text-red-200/80 hover:border-red-400/40 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                                       >
                                         {myCasePackDeleteKey === pack.key ? "Удаляем..." : "Удалить"}
                                       </Button>
@@ -14199,8 +14328,13 @@ export default function App() {
                                       <div className="mt-1 max-h-[2.5rem] overflow-hidden break-all text-[12px] leading-5 text-zinc-300">
                                         {sharePackData?.description || "Описание не указано."}
                                       </div>
-                                      <div className="mt-1.5 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                                        Пользовательский пак
+                                      <div className="mt-1.5 flex items-end justify-between gap-2">
+                                        <div className="min-w-0 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                          Пользовательский пак
+                                        </div>
+                                        <div className="shrink-0 max-w-[55%] truncate text-[11px] text-zinc-400">
+                                          Автор: {sharePackData?.creatorNickname || "Игрок"}
+                                        </div>
                                       </div>
                                     </div>
                                     <span className="shrink-0 rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
@@ -15782,43 +15916,28 @@ export default function App() {
             className="z-[289] max-w-lg border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100"
           >
             <DialogHeader>
-              <DialogTitle>Добавление пака</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                {importPackPreviewBlockingState ? (
+                  <>
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-red-500/60 bg-red-500/12 text-red-100">
+                      <Lock className="h-3.5 w-3.5" />
+                    </span>
+                    {importPackPreviewBlockingState.title}
+                  </>
+                ) : (
+                  "Добавление пака"
+                )}
+              </DialogTitle>
               <DialogDescription className="text-zinc-400">
-                Проверьте данные пака и добавьте его в «Мои паки».
+                {importPackPreviewBlockingState
+                  ? importPackPreviewBlockingState.description
+                  : "Проверьте данные пака и добавьте его в «Мои паки»."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               {importPackPreviewLoading ? (
                 <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/70 px-3 py-3 text-sm text-zinc-300">
                   Загружаем предпросмотр...
-                </div>
-              ) : importPackPreviewError ? (
-                <div className="space-y-2">
-                  <div className="rounded-2xl border border-red-500/50 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.18),transparent_58%),linear-gradient(145deg,rgba(19,9,10,0.95),rgba(10,10,12,0.95))] px-3 py-3 text-zinc-100">
-                    <div className="flex items-start gap-3">
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-500/55 bg-red-500/12 text-red-100">
-                        <Lock className="h-4 w-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-lg font-semibold leading-tight">
-                          {importPackPreviewError.toLowerCase().includes("максимум")
-                            ? "Лимит паков достигнут"
-                            : importPackPreviewError.toLowerCase().includes("уже")
-                              ? "Пак уже добавлен"
-                            : "Функция недоступна"}
-                        </div>
-                        <div className="mt-1 text-sm text-zinc-300">{importPackPreviewError}</div>
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={closeImportPackPreviewDialog}
-                    className="h-10 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                  >
-                    Понятно
-                  </Button>
                 </div>
               ) : importPackPreviewData ? (
                 <div
@@ -15838,6 +15957,14 @@ export default function App() {
                       <div className="mt-1 text-sm text-zinc-300 break-words">
                         {importPackPreviewData.description || "Описание не указано."}
                       </div>
+                      <div className="mt-1.5 flex items-end justify-between gap-2">
+                        <div className="min-w-0 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                          Пользовательский пак
+                        </div>
+                        <div className="shrink-0 max-w-[55%] truncate text-[11px] text-zinc-400">
+                          Автор: {resolvePackCreatorNickname(importPackPreviewData)}
+                        </div>
+                      </div>
                     </div>
                     <span className="shrink-0 rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
                       {importPackPreviewData.caseCount} дел
@@ -15846,82 +15973,45 @@ export default function App() {
                 </div>
               ) : null}
 
-              {!importPackPreviewLoading && !importPackPreviewError && importPackPreviewData && (
+              {!importPackPreviewLoading && !importPackPreviewData && importPackPreviewError && (
+                <div className="rounded-xl border border-red-500/45 bg-red-500/10 px-3 py-3 text-sm text-red-100">
+                  {importPackPreviewError}
+                </div>
+              )}
+
+              {!importPackPreviewLoading && importPackPreviewData && !importPackPreviewBlockingState && (
                 <>
-                  {canImportPackFromPreview ? (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          void submitImportPackFromPreview();
-                        }}
-                        disabled={importPackLoading}
-                        className="h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
-                      >
-                        {importPackLoading ? "Добавляем..." : "Добавить"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={closeImportPackPreviewDialog}
-                        className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                      >
-                        Отмена
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="rounded-2xl border border-red-500/50 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.18),transparent_58%),linear-gradient(145deg,rgba(19,9,10,0.95),rgba(10,10,12,0.95))] px-3 py-3 text-zinc-100">
-                        <div className="flex items-start gap-3">
-                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-500/55 bg-red-500/12 text-red-100">
-                            <Lock className="h-4 w-4" />
-                          </span>
-                          <div className="min-w-0">
-                            <div className="text-lg font-semibold leading-tight">
-                              {hasReachedUserPackLimit ? "Лимит паков достигнут" : "Функция недоступна"}
-                            </div>
-                            <div className="mt-1 text-sm text-zinc-300">
-                              {hasReachedUserPackLimit
-                                ? `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков. Удалите один из текущих.`
-                                : "Импорт пака по ссылке открыт только для подписки «Арбитр»."}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      {hasReachedUserPackLimit ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={closeImportPackPreviewDialog}
-                          className="h-11 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                        >
-                          Понятно
-                        </Button>
-                      ) : (
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              closeImportPackPreviewDialog();
-                              navigateToShop();
-                            }}
-                            className="h-11 rounded-xl border-0 bg-red-600 text-white hover:bg-red-500"
-                          >
-                            Перейти в магазин
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={closeImportPackPreviewDialog}
-                            className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                          >
-                            Понятно
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        void submitImportPackFromPreview();
+                      }}
+                      disabled={importPackLoading}
+                      className="h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
+                    >
+                      {importPackLoading ? "Добавляем..." : "Добавить"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={closeImportPackPreviewDialog}
+                      className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                    >
+                      Отмена
+                    </Button>
+                  </div>
                 </>
+              )}
+              {!importPackPreviewLoading && importPackPreviewBlockingState && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeImportPackPreviewDialog}
+                  className="h-11 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                >
+                  Отмена
+                </Button>
               )}
             </div>
           </DialogContent>

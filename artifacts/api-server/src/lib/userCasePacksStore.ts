@@ -91,6 +91,7 @@ export interface UserCasePackInfo {
   isCustom: true;
   isAdult: false;
   createdAt: number;
+  creatorNickname: string;
 }
 
 export interface UserCasePackImportPreview {
@@ -99,6 +100,7 @@ export interface UserCasePackImportPreview {
   color: string;
   shareCode: string;
   caseCount: number;
+  creatorNickname: string;
 }
 
 export interface UserCasePackCaseDetails {
@@ -384,9 +386,62 @@ async function ensureTablesInternal(): Promise<void> {
       color TEXT NOT NULL DEFAULT '#ef4444',
       share_code TEXT NOT NULL UNIQUE,
       source_pack_id UUID NULL REFERENCES user_case_packs(id) ON DELETE SET NULL,
+      original_creator_user_id UUID NULL REFERENCES auth_users(id) ON DELETE SET NULL,
+      original_creator_nickname TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE user_case_packs
+    ADD COLUMN IF NOT EXISTS original_creator_user_id UUID NULL REFERENCES auth_users(id) ON DELETE SET NULL;
+  `);
+
+  await pool.query(`
+    ALTER TABLE user_case_packs
+    ADD COLUMN IF NOT EXISTS original_creator_nickname TEXT NOT NULL DEFAULT '';
+  `);
+
+  await pool.query(`
+    WITH RECURSIVE lineage AS (
+      SELECT id, source_pack_id, id AS root_id
+      FROM user_case_packs
+      WHERE source_pack_id IS NULL
+      UNION ALL
+      SELECT p.id, p.source_pack_id, l.root_id
+      FROM user_case_packs p
+      JOIN lineage l ON p.source_pack_id = l.id
+    ),
+    roots AS (
+      SELECT l.id AS pack_id, r.user_id AS root_user_id
+      FROM lineage l
+      JOIN user_case_packs r ON r.id = l.root_id
+    )
+    UPDATE user_case_packs p
+    SET original_creator_user_id = COALESCE(p.original_creator_user_id, roots.root_user_id, p.user_id)
+    FROM roots
+    WHERE roots.pack_id = p.id;
+  `);
+
+  await pool.query(`
+    UPDATE user_case_packs p
+    SET original_creator_user_id = COALESCE(p.original_creator_user_id, p.user_id)
+    WHERE p.original_creator_user_id IS NULL;
+  `);
+
+  await pool.query(`
+    UPDATE user_case_packs p
+    SET original_creator_nickname = COALESCE(NULLIF(TRIM(p.original_creator_nickname), ''), u.nickname, 'Игрок')
+    FROM auth_users u
+    WHERE u.id = p.original_creator_user_id
+      AND NULLIF(TRIM(p.original_creator_nickname), '') IS NULL;
+  `);
+
+  await pool.query(`
+    UPDATE user_case_packs
+    SET original_creator_nickname = COALESCE(NULLIF(TRIM(original_creator_nickname), ''), 'Игрок')
+    WHERE NULLIF(TRIM(original_creator_nickname), '') IS NULL;
   `);
 
   await pool.query(`
@@ -447,6 +502,7 @@ function mapRowToPackInfo(row: {
   share_code: string;
   case_count: number;
   created_at: Date | string;
+  original_creator_nickname?: string | null;
 }): UserCasePackInfo {
   const createdAt =
     row.created_at instanceof Date
@@ -464,6 +520,7 @@ function mapRowToPackInfo(row: {
     isCustom: true,
     isAdult: false,
     createdAt,
+    creatorNickname: String(row.original_creator_nickname ?? "").trim() || "Игрок",
   };
 }
 
@@ -477,6 +534,7 @@ async function fetchPackInfoById(packId: string): Promise<UserCasePackInfo> {
     share_code: string;
     case_count: number;
     created_at: Date;
+    original_creator_nickname: string | null;
   }>(
     `
       SELECT
@@ -486,6 +544,7 @@ async function fetchPackInfoById(packId: string): Promise<UserCasePackInfo> {
         p.description,
         p.color,
         p.share_code,
+        p.original_creator_nickname,
         COUNT(c.id)::int AS case_count,
         p.created_at
       FROM user_case_packs p
@@ -516,6 +575,7 @@ export async function getUserCasePackImportPreviewByShareCode(
     color: string;
     share_code: string;
     case_count: number;
+    original_creator_nickname: string | null;
   }>(
     `
       SELECT
@@ -523,6 +583,7 @@ export async function getUserCasePackImportPreviewByShareCode(
         p.description,
         p.color,
         p.share_code,
+        p.original_creator_nickname,
         COUNT(c.id)::int AS case_count
       FROM user_case_packs p
       LEFT JOIN user_case_pack_cases c ON c.pack_id = p.id
@@ -542,7 +603,40 @@ export async function getUserCasePackImportPreviewByShareCode(
     color: normalizeColor(row.color),
     shareCode: String(row.share_code ?? "").trim().toUpperCase(),
     caseCount: Math.max(0, Number(row.case_count ?? 0) || 0),
+    creatorNickname: String(row.original_creator_nickname ?? "").trim() || "Игрок",
   };
+}
+
+export async function isUserCasePackAlreadyAddedByShareCode(
+  userId: string,
+  shareCodeInput: string,
+): Promise<boolean> {
+  await ensureUserCasePacksStorage();
+  const safeUserId = String(userId ?? "").trim();
+  if (!safeUserId) return false;
+  const shareCode = String(shareCodeInput ?? "").trim().toUpperCase();
+  if (!shareCode) return false;
+
+  const result = await pool.query<{ already_added: boolean }>(
+    `
+      WITH source AS (
+        SELECT id
+        FROM user_case_packs
+        WHERE share_code = $1
+        LIMIT 1
+      )
+      SELECT EXISTS(
+        SELECT 1
+        FROM source s
+        JOIN user_case_packs p
+          ON p.user_id = $2
+         AND (p.id = s.id OR p.source_pack_id = s.id)
+      ) AS already_added
+    `,
+    [shareCode, safeUserId],
+  );
+
+  return !!result.rows[0]?.already_added;
 }
 
 export async function listUserCasePacks(userId: string): Promise<UserCasePackInfo[]> {
@@ -559,6 +653,7 @@ export async function listUserCasePacks(userId: string): Promise<UserCasePackInf
     share_code: string;
     case_count: number;
     created_at: Date;
+    original_creator_nickname: string | null;
   }>(
     `
       SELECT
@@ -568,6 +663,7 @@ export async function listUserCasePacks(userId: string): Promise<UserCasePackInf
         p.description,
         p.color,
         p.share_code,
+        p.original_creator_nickname,
         COUNT(c.id)::int AS case_count,
         p.created_at
       FROM user_case_packs p
@@ -648,6 +744,16 @@ export async function createUserCasePack(
 
   await pool.query("BEGIN");
   try {
+    const ownerResult = await pool.query<{ nickname: string }>(
+      `
+        SELECT nickname
+        FROM auth_users
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [safeUserId],
+    );
+    const ownerNickname = String(ownerResult.rows[0]?.nickname ?? "").trim() || "Игрок";
     const packId = crypto.randomUUID();
     const packKey = generatePackKey();
     const shareCode = generateShareCode();
@@ -655,10 +761,10 @@ export async function createUserCasePack(
     await pool.query(
       `
         INSERT INTO user_case_packs (
-          id, user_id, key, title, description, color, share_code, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+          id, user_id, key, title, description, color, share_code, original_creator_user_id, original_creator_nickname, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
       `,
-      [packId, safeUserId, packKey, title, description, color, shareCode],
+      [packId, safeUserId, packKey, title, description, color, shareCode, safeUserId, ownerNickname],
     );
 
     for (const caseRow of normalizedCases) {
@@ -708,6 +814,7 @@ export async function createUserCasePack(
       share_code: string;
       case_count: number;
       created_at: Date;
+      original_creator_nickname: string | null;
     }>(
       `
         SELECT
@@ -717,6 +824,7 @@ export async function createUserCasePack(
           p.description,
           p.color,
           p.share_code,
+          p.original_creator_nickname,
           COUNT(c.id)::int AS case_count,
           p.created_at
         FROM user_case_packs p
@@ -759,9 +867,11 @@ export async function importUserCasePackByShareCode(
       title: string;
       description: string;
       color: string;
+      original_creator_user_id: string | null;
+      original_creator_nickname: string | null;
     }>(
       `
-        SELECT id, user_id, title, description, color
+        SELECT id, user_id, title, description, color, original_creator_user_id, original_creator_nickname
         FROM user_case_packs
         WHERE share_code = $1
         LIMIT 1
@@ -772,6 +882,10 @@ export async function importUserCasePackByShareCode(
       throw new Error("Пак с таким ключом не найден.");
     }
     const sourcePack = sourcePackResult.rows[0];
+    const originCreatorUserId = String(
+      sourcePack.original_creator_user_id ?? sourcePack.user_id ?? "",
+    ).trim();
+    const originCreatorNickname = String(sourcePack.original_creator_nickname ?? "").trim() || "Игрок";
     if (sourcePack.user_id === safeUserId) {
       throw new Error("Этот пак уже принадлежит вам.");
     }
@@ -826,8 +940,8 @@ export async function importUserCasePackByShareCode(
     await pool.query(
       `
         INSERT INTO user_case_packs (
-          id, user_id, key, title, description, color, share_code, source_pack_id, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+          id, user_id, key, title, description, color, share_code, source_pack_id, original_creator_user_id, original_creator_nickname, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
       `,
       [
         newPackId,
@@ -838,6 +952,8 @@ export async function importUserCasePackByShareCode(
         normalizeColor(sourcePack.color),
         newShareCode,
         sourcePack.id,
+        originCreatorUserId || null,
+        originCreatorNickname,
       ],
     );
 
@@ -888,6 +1004,7 @@ export async function importUserCasePackByShareCode(
       share_code: string;
       case_count: number;
       created_at: Date;
+      original_creator_nickname: string | null;
     }>(
       `
         SELECT
@@ -897,6 +1014,7 @@ export async function importUserCasePackByShareCode(
           p.description,
           p.color,
           p.share_code,
+          p.original_creator_nickname,
           COUNT(c.id)::int AS case_count,
           p.created_at
         FROM user_case_packs p

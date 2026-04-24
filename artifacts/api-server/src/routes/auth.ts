@@ -39,6 +39,7 @@ import {
   getUserCasePackImportPreviewByShareCode,
   getUserCasePackDetails,
   importUserCasePackByShareCode,
+  isUserCasePackAlreadyAddedByShareCode,
   listUserCasePacks,
   updateUserCasePack,
 } from "../lib/userCasePacksStore.js";
@@ -1002,7 +1003,15 @@ authRouter.get("/auth/case-packs/import-preview", async (req, res) => {
     const shareCode =
       typeof req.query?.shareCode === "string" ? req.query.shareCode : String(req.query?.shareCode ?? "");
     const preview = await getUserCasePackImportPreviewByShareCode(shareCode);
-    return res.status(200).json({ ok: true, preview });
+    let alreadyAdded = false;
+    const token = getRequestToken(req.headers as Record<string, unknown>);
+    if (token) {
+      const user = await getUserByToken(token, resolveClientIp(req));
+      if (user) {
+        alreadyAdded = await isUserCasePackAlreadyAddedByShareCode(user.id, shareCode);
+      }
+    }
+    return res.status(200).json({ ok: true, preview, alreadyAdded });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось загрузить предпросмотр пака.";
     return res.status(400).json({ message });
