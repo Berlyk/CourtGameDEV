@@ -13835,7 +13835,7 @@ export default function App() {
                 {createPackCatalogOpen &&
                   createPackCatalogView === "my_packs" &&
                   (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
-                    <div className="pointer-events-none absolute inset-0 z-[375] rounded-[inherit] bg-black/62 backdrop-blur-[1.5px]" />
+                    <div className="pointer-events-none absolute inset-0 z-[382] rounded-[inherit] bg-black/62" />
                   )}
                 <div className="relative isolate">
                 {upsellModalOpen && createMatchDialogOpen && (
@@ -14162,7 +14162,7 @@ export default function App() {
 
                         </div>
                         {sharePackDialogOpen && (
-                          <div className="absolute inset-0 z-[383] flex items-center justify-center p-3 sm:p-5">
+                          <div className="absolute inset-0 z-[392] flex items-center justify-center p-3 sm:p-5">
                             <div className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 space-y-1">
@@ -14238,7 +14238,7 @@ export default function App() {
                         )}
 
                         {myCasePackDeleteConfirmKey && (
-                          <div className="absolute inset-0 z-[384] flex items-center justify-center p-3 sm:p-5">
+                          <div className="absolute inset-0 z-[393] flex items-center justify-center p-3 sm:p-5">
                             <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="space-y-1">
