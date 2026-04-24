@@ -246,6 +246,8 @@ const USER_PACK_COLOR_PRESETS = [
 const USER_PACK_COLOR_DEFAULT = "#ef4444";
 const USER_PACK_CASES_PER_MODE_LIMIT = 20;
 const USER_PACKS_TOTAL_LIMIT = 4;
+const USER_PACKS_CREATED_LIMIT = 2;
+const USER_PACKS_IMPORTED_LIMIT = 2;
 const USER_PACK_TEXT_LIMITS = {
   packTitle: 25,
   packDescription: 50,
@@ -2637,6 +2639,7 @@ interface CasePackInfo {
   shareCode?: string;
   color?: string;
   creatorNickname?: string;
+  sourcePackId?: string | null;
 }
 
 interface ImportPackPreviewData {
@@ -4423,7 +4426,6 @@ export default function App() {
   } | null>(null);
   const [sharePackCopiedKind, setSharePackCopiedKind] = useState<"link" | null>(null);
   const [myCasePacksLoading, setMyCasePacksLoading] = useState(false);
-  const [myCasePacksLoadedOnce, setMyCasePacksLoadedOnce] = useState(false);
   const [myCasePacksError, setMyCasePacksError] = useState("");
   const [myCasePacksPage, setMyCasePacksPage] = useState(1);
   const [myCasePackDeleteKey, setMyCasePackDeleteKey] = useState<string | null>(null);
@@ -4439,6 +4441,7 @@ export default function App() {
   const [importPackPreviewServerBlockReason, setImportPackPreviewServerBlockReason] = useState<
     "none" | "no_access" | "limit" | "already_added"
   >("none");
+  const [importPackPreviewServerBlockMessage, setImportPackPreviewServerBlockMessage] = useState("");
   const [createPackSaving, setCreatePackSaving] = useState(false);
   const [createPackEditLoading, setCreatePackEditLoading] = useState(false);
   const [createPackError, setCreatePackError] = useState("");
@@ -4496,6 +4499,7 @@ export default function App() {
   const [speechTimerLabel, setSpeechTimerLabel] = useState("");
   const [influenceAnnouncement, setInfluenceAnnouncement] =
     useState<InfluenceAnnouncement | null>(null);
+  const myCasePacksOwnerRef = useRef<string>("");
 
   useEffect(() => {
     if (!createMatchDialogOpen) return;
@@ -4503,10 +4507,13 @@ export default function App() {
   }, [createMatchDialogOpen]);
 
   useEffect(() => {
-    if (authToken) return;
+    const ownerKey = `${String(authUser?.id ?? "")}|${String(authToken ?? "")}`;
+    if (myCasePacksOwnerRef.current === ownerKey) return;
+    myCasePacksOwnerRef.current = ownerKey;
     setMyCasePacks([]);
-    setMyCasePacksLoadedOnce(false);
-  }, [authToken]);
+    setMyCasePacksPage(1);
+    setMyCasePacksError("");
+  }, [authToken, authUser?.id]);
 
   useEffect(() => {
     if (!createPackCases.length) {
@@ -4764,11 +4771,68 @@ export default function App() {
     .trim()
     .toLowerCase()
     .replace(/ё/g, "е");
+  const rawCanCreatePacksCapability = (rawSubscription as {
+    capabilities?: { canCreatePacks?: unknown };
+  } | null)?.capabilities?.canCreatePacks;
+  const rawSubscriptionActiveFlagValue = (rawSubscription as {
+    isActive?: unknown;
+  } | null)?.isActive;
+  const rawSubscriptionEndAtValue = (rawSubscription as {
+    endAt?: unknown;
+    expiresAt?: unknown;
+    expires_at?: unknown;
+  } | null);
+  const rawSubscriptionActiveFlagNormalized = String(rawSubscriptionActiveFlagValue ?? "")
+    .trim()
+    .toLowerCase();
+  const rawSubscriptionActiveFlag =
+    rawSubscriptionActiveFlagValue === true ||
+    rawSubscriptionActiveFlagValue === 1 ||
+    rawSubscriptionActiveFlagNormalized === "true" ||
+    rawSubscriptionActiveFlagNormalized === "1" ||
+    rawSubscriptionActiveFlagNormalized === "yes" ||
+    rawSubscriptionActiveFlagNormalized === "да"
+      ? true
+      : rawSubscriptionActiveFlagValue === false ||
+          rawSubscriptionActiveFlagValue === 0 ||
+          rawSubscriptionActiveFlagNormalized === "false" ||
+          rawSubscriptionActiveFlagNormalized === "0" ||
+          rawSubscriptionActiveFlagNormalized === "no" ||
+          rawSubscriptionActiveFlagNormalized === "нет"
+        ? false
+        : null;
+  const rawSubscriptionEndAtCandidate =
+    rawSubscriptionEndAtValue?.endAt ??
+    rawSubscriptionEndAtValue?.expiresAt ??
+    rawSubscriptionEndAtValue?.expires_at;
+  const rawSubscriptionEndAtMs =
+    typeof rawSubscriptionEndAtCandidate === "number" && Number.isFinite(rawSubscriptionEndAtCandidate)
+      ? rawSubscriptionEndAtCandidate > 10_000_000_000
+        ? Math.floor(rawSubscriptionEndAtCandidate)
+        : Math.floor(rawSubscriptionEndAtCandidate * 1000)
+      : typeof rawSubscriptionEndAtCandidate === "string" && rawSubscriptionEndAtCandidate.trim()
+        ? (() => {
+            const parsed = Date.parse(rawSubscriptionEndAtCandidate);
+            return Number.isFinite(parsed) ? parsed : null;
+          })()
+        : null;
+  const rawSubscriptionIsActive =
+    rawSubscriptionActiveFlag === true ||
+    (rawSubscriptionActiveFlag === null &&
+      (typeof rawSubscriptionEndAtMs === "number" ? rawSubscriptionEndAtMs > Date.now() : mySubscription.isActive));
+  const rawCanCreatePacksCapabilityNormalized = String(rawCanCreatePacksCapability ?? "")
+    .trim()
+    .toLowerCase();
   const hasCreatePacksFromRawSubscription =
-    rawSubscriptionTier === "arbiter" ||
-    rawSubscriptionLabel.includes("арбитр") ||
-    !!(rawSubscription as { capabilities?: { canCreatePacks?: unknown } } | null)?.capabilities
-      ?.canCreatePacks;
+    rawSubscriptionIsActive &&
+    (rawSubscriptionTier === "arbiter" ||
+      rawSubscriptionLabel.includes("арбитр") ||
+      rawCanCreatePacksCapability === true ||
+      rawCanCreatePacksCapability === 1 ||
+      rawCanCreatePacksCapabilityNormalized === "true" ||
+      rawCanCreatePacksCapabilityNormalized === "1" ||
+      rawCanCreatePacksCapabilityNormalized === "yes" ||
+      rawCanCreatePacksCapabilityNormalized === "да");
   const shopPaymentPlan = useMemo(
     () => (shopPaymentTier ? SUBSCRIPTION_PLANS.find((plan) => plan.tier === shopPaymentTier) ?? null : null),
     [shopPaymentTier],
@@ -4952,6 +5016,7 @@ export default function App() {
     setImportPackPreviewData(null);
     setImportPackPreviewAlreadyAdded(false);
     setImportPackPreviewServerBlockReason("none");
+    setImportPackPreviewServerBlockMessage("");
     setPendingImportShareCode(null);
     clearPackImportQueryParam();
   }, [clearPackImportQueryParam]);
@@ -4982,11 +5047,13 @@ export default function App() {
     setImportPackPreviewData(null);
     setImportPackPreviewAlreadyAdded(false);
     setImportPackPreviewServerBlockReason("none");
+    setImportPackPreviewServerBlockMessage("");
     void authRequest<{
       ok: true;
       preview: ImportPackPreviewData;
       alreadyAdded?: boolean;
       blockReason?: "none" | "no_access" | "limit" | "already_added";
+      blockMessage?: string;
     }>(
       `/auth/case-packs/import-preview?shareCode=${encodeURIComponent(pendingImportShareCode)}`,
       {
@@ -4998,12 +5065,14 @@ export default function App() {
         setImportPackPreviewData(payload?.preview ?? null);
         const serverReason = payload?.blockReason ?? "none";
         setImportPackPreviewServerBlockReason(serverReason);
+        setImportPackPreviewServerBlockMessage(String(payload?.blockMessage ?? "").trim());
         setImportPackPreviewAlreadyAdded(serverReason === "already_added" || !!payload?.alreadyAdded);
       })
       .catch((error) => {
         if (cancelled) return;
         setImportPackPreviewAlreadyAdded(false);
         setImportPackPreviewServerBlockReason("none");
+        setImportPackPreviewServerBlockMessage("");
         const message =
           error instanceof Error && error.message.trim()
             ? error.message
@@ -5038,8 +5107,25 @@ export default function App() {
     () => myCasePacks.length,
     [myCasePacks.length],
   );
+  const createPackCreatedCount = useMemo(
+    () =>
+      myCasePacks.filter(
+        (pack) => !String(pack.sourcePackId ?? "").trim(),
+      ).length,
+    [myCasePacks],
+  );
+  const createPackImportedCount = useMemo(
+    () =>
+      myCasePacks.filter(
+        (pack) => !!String(pack.sourcePackId ?? "").trim(),
+      ).length,
+    [myCasePacks],
+  );
   const hasReachedUserPackLimit = createPackOwnedCount >= USER_PACKS_TOTAL_LIMIT;
-  const canImportPackFromPreview = !!authToken && canCreatePacks && !hasReachedUserPackLimit;
+  const hasReachedUserPackCreateLimit = createPackCreatedCount >= USER_PACKS_CREATED_LIMIT;
+  const hasReachedUserPackImportLimit = createPackImportedCount >= USER_PACKS_IMPORTED_LIMIT;
+  const canImportPackFromPreview =
+    !!authToken && canCreatePacks && !hasReachedUserPackLimit && !hasReachedUserPackImportLimit;
   const myCasePackCreatorByKey = useMemo(() => {
     const map = new Map<string, string>();
     for (const pack of myCasePacks) {
@@ -5093,19 +5179,23 @@ export default function App() {
     if (importPackPreviewServerBlockReason === "limit") {
       return {
         title: "Лимит паков достигнут",
-        description: `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков.`,
+        description:
+          importPackPreviewServerBlockMessage ||
+          `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков.`,
       };
     }
     if (importPackPreviewServerBlockReason === "already_added") {
       return {
         title: "У вас уже есть этот пак",
-        description: "Этот пак уже добавлен в «Мои паки».",
+        description: importPackPreviewServerBlockMessage || "Этот пак уже добавлен в «Мои паки».",
       };
     }
     if (importPackPreviewServerBlockReason === "no_access") {
       return {
         title: "Функция недоступна",
-        description: "Импорт пака по ссылке открыт только для подписки «Арбитр».",
+        description:
+          importPackPreviewServerBlockMessage ||
+          "Импорт пака по ссылке открыт только для подписки «Арбитр».",
       };
     }
     if (normalizedImportPackPreviewError.includes("максимум")) {
@@ -5139,6 +5229,12 @@ export default function App() {
       };
     }
     if (importPackPreviewData && !canImportPackFromPreview) {
+      if (hasReachedUserPackImportLimit) {
+        return {
+          title: "Лимит паков достигнут",
+          description: `Можно импортировать не более ${USER_PACKS_IMPORTED_LIMIT} пользовательских паков.`,
+        };
+      }
       if (hasReachedUserPackLimit) {
         return {
           title: "Лимит паков достигнут",
@@ -5153,11 +5249,13 @@ export default function App() {
     return null;
   }, [
     canImportPackFromPreview,
+    hasReachedUserPackImportLimit,
     hasReachedUserPackLimit,
     importPackPreviewAlreadyAdded,
     importPackPreviewData,
     importPackPreviewError,
     importPackPreviewLoading,
+    importPackPreviewServerBlockMessage,
     importPackPreviewServerBlockReason,
     normalizedImportPackPreviewError,
   ]);
@@ -5426,7 +5524,6 @@ export default function App() {
   const loadMyCasePacks = useCallback(async () => {
     if (!authToken) {
       setMyCasePacks([]);
-      setMyCasePacksLoadedOnce(true);
       setMyCasePacksError("Войдите в аккаунт, чтобы управлять своими паками.");
       return;
     }
@@ -5438,9 +5535,7 @@ export default function App() {
       });
       const packs = Array.isArray(payload?.packs) ? payload.packs : [];
       setMyCasePacks(packs);
-      setMyCasePacksLoadedOnce(true);
     } catch (error) {
-      setMyCasePacksLoadedOnce(true);
       const message =
         error instanceof Error && error.message.trim()
           ? error.message
@@ -5457,6 +5552,14 @@ export default function App() {
     setCreatePackCatalogView("my_packs");
   }, [loadMyCasePacks]);
 
+  const openCreatePackCatalogPanel = useCallback(async () => {
+    setCreatePackCatalogView("catalog");
+    if (authToken) {
+      await loadMyCasePacks();
+    }
+    setCreatePackCatalogOpen(true);
+  }, [authToken, loadMyCasePacks]);
+
   const openCreatePackEditor = useCallback(
     async (packKey?: string) => {
       if (!canCreatePacks) {
@@ -5469,6 +5572,12 @@ export default function App() {
         return;
       }
       if (!packKey) {
+        if (hasReachedUserPackCreateLimit) {
+          setMyCasePacksError(
+            `Можно создать не более ${USER_PACKS_CREATED_LIMIT} собственных пользовательских паков.`,
+          );
+          return;
+        }
         if (hasReachedUserPackLimit) {
           setMyCasePacksError(
             `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков. Удалите один из текущих.`,
@@ -5588,7 +5697,14 @@ export default function App() {
         setCreatePackEditLoading(false);
       }
     },
-    [authToken, canCreatePacks, hasReachedUserPackLimit, openSubscriptionUpsell, resetCreatePackEditor],
+    [
+      authToken,
+      canCreatePacks,
+      hasReachedUserPackCreateLimit,
+      hasReachedUserPackLimit,
+      openSubscriptionUpsell,
+      resetCreatePackEditor,
+    ],
   );
 
   const deleteMyCasePack = useCallback(
@@ -5667,6 +5783,11 @@ export default function App() {
         if (!options?.silent) setError(limitMessage);
         return null;
       }
+      if (hasReachedUserPackImportLimit) {
+        const limitMessage = `Можно импортировать не более ${USER_PACKS_IMPORTED_LIMIT} пользовательских паков.`;
+        if (!options?.silent) setError(limitMessage);
+        return null;
+      }
       setImportPackLoading(true);
       try {
         const payload = await authRequest<{ ok: true; pack: CasePackInfo }>(
@@ -5707,6 +5828,7 @@ export default function App() {
       authToken,
       canCreatePacks,
       clearPackImportQueryParam,
+      hasReachedUserPackImportLimit,
       hasReachedUserPackLimit,
       loadMyCasePacks,
       openSubscriptionUpsell,
@@ -5724,7 +5846,11 @@ export default function App() {
       return;
     }
     if (!canImportPackFromPreview) {
-      if (hasReachedUserPackLimit) {
+      if (hasReachedUserPackImportLimit) {
+        setImportPackPreviewError(
+          `Можно импортировать не более ${USER_PACKS_IMPORTED_LIMIT} пользовательских паков.`,
+        );
+      } else if (hasReachedUserPackLimit) {
         setImportPackPreviewError(
           `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков. Удалите один из текущих.`,
         );
@@ -5756,6 +5882,7 @@ export default function App() {
   }, [
     canImportPackFromPreview,
     closeImportPackPreviewDialog,
+    hasReachedUserPackImportLimit,
     hasReachedUserPackLimit,
     importPackByShareCode,
     importPackLoading,
@@ -10469,10 +10596,10 @@ export default function App() {
       <DialogContent
         overlayClassName={
           upsellNestedBackdrop
-            ? "z-[510] bg-black/68 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
+            ? "z-[510] !bg-transparent !backdrop-blur-none data-[state=open]:animate-none data-[state=closed]:animate-none"
             : "z-[510] bg-black/86 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
         }
-        className="z-[520] max-w-[470px] border-red-950/70 bg-[radial-gradient(130%_110%_at_0%_0%,rgba(239,68,68,0.22),transparent_50%),linear-gradient(160deg,rgba(12,10,11,0.98),rgba(10,10,12,0.98))] text-zinc-100 shadow-[0_24px_84px_rgba(0,0,0,0.72)]"
+        className="z-[520] max-w-[470px] rounded-2xl sm:rounded-2xl border-red-950/70 bg-[radial-gradient(130%_110%_at_0%_0%,rgba(239,68,68,0.22),transparent_50%),linear-gradient(160deg,rgba(12,10,11,0.98),rgba(10,10,12,0.98))] text-zinc-100 shadow-[0_24px_84px_rgba(0,0,0,0.72)]"
       >
         <DialogHeader>
           <div className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-full border border-red-400/55 bg-red-600/20 text-red-100 shadow-[0_0_18px_rgba(239,68,68,0.2)]">
@@ -14038,9 +14165,12 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
-                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${createPackCatalogOpen && createPackCatalogView === "my_packs" && (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
+                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${createPackCatalogOpen && createPackCatalogView === "my_packs" && (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
                 <div className="relative">
+                {upsellModalOpen && createMatchDialogOpen && (
+                  <div className="pointer-events-none absolute inset-0 z-[380] rounded-[inherit] bg-black/58" />
+                )}
                 <DialogHeader className="space-y-1">
                   <DialogTitle>
                     {createPackCatalogOpen
@@ -15179,8 +15309,7 @@ export default function App() {
                               type="button"
                               variant="outline"
                               onClick={() => {
-                                setCreatePackCatalogView("catalog");
-                                setCreatePackCatalogOpen(true);
+                                void openCreatePackCatalogPanel();
                               }}
                               className="h-9 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                             >
@@ -16025,7 +16154,7 @@ export default function App() {
         >
           <DialogContent
             overlayClassName="z-[288] bg-black/86 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
-            className="z-[289] max-w-lg border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
+            className="z-[289] max-w-lg rounded-2xl sm:rounded-2xl border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
           >
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -16367,8 +16496,11 @@ export default function App() {
         {hasRoomHostControl && (
           <Dialog open={roomManageOpen} onOpenChange={setRoomManageOpen}>
             <DialogContent
-              className="top-[4vh] sm:top-[6vh] translate-y-0 rounded-3xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.28)_transparent] [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/40 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-500/55"
+              className={`top-[4vh] sm:top-[6vh] translate-y-0 rounded-2xl sm:rounded-2xl border-zinc-800 bg-[radial-gradient(130%_120%_at_0%_0%,rgba(220,38,38,0.13),transparent_45%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(10,10,12,0.96))] text-zinc-100 sm:max-w-3xl max-h-[88vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 ${HIDE_SCROLLBAR_CLASS}`}
             >
+              {upsellModalOpen && roomManageOpen && (
+                <div className="pointer-events-none absolute inset-0 z-20 rounded-[inherit] bg-black/58" />
+              )}
               <DialogHeader>
                 <DialogTitle>Управление комнатой</DialogTitle>
                 <DialogDescription className="text-zinc-400">
@@ -16414,38 +16546,7 @@ export default function App() {
                 <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/55 p-3 xl:col-span-2">
                   <div className="text-xs font-semibold tracking-[0.2em] uppercase text-zinc-500">Пак дел</div>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {[...casePacks]
-                      .sort((a, b) => {
-                        const orderByKey: Record<string, number> = {
-                          classic: 0,
-                          hard_cases: 1,
-                          adult_18_plus: 2,
-                          wild_west: 3,
-                        };
-                        const aTitle = String(a.title ?? "").toLowerCase();
-                        const bTitle = String(b.title ?? "").toLowerCase();
-                        const aOrder =
-                          orderByKey[a.key] ??
-                          (aTitle.includes("особо") || aTitle.includes("тяжк")
-                            ? 1
-                            : aTitle.includes("18+")
-                              ? 2
-                              : aTitle.includes("запад")
-                                ? 3
-                                : Number.MAX_SAFE_INTEGER);
-                        const bOrder =
-                          orderByKey[b.key] ??
-                          (bTitle.includes("особо") || bTitle.includes("тяжк")
-                            ? 1
-                            : bTitle.includes("18+")
-                              ? 2
-                              : bTitle.includes("запад")
-                                ? 3
-                                : Number.MAX_SAFE_INTEGER);
-                        if (aOrder !== bOrder) return aOrder - bOrder;
-                        return getCasePackSortOrder(a) - getCasePackSortOrder(b);
-                      })
-                      .map((pack) => {
+                    {catalogPacksOrdered.map((pack) => {
                       const isLocked = isPackLockedForTier(pack, roomManagementTier);
                       return (
                         <button
@@ -17265,16 +17366,31 @@ export default function App() {
             </Button>
           </div>
         )}
-        {speechSecondsLeft !== null && speechTimerLabel && (
-          <div className="fixed inset-0 z-[72] pointer-events-none flex items-center justify-center px-4">
-            <div className="w-full max-w-[320px] rounded-2xl border border-zinc-700 bg-zinc-950/95 px-5 py-6 text-center shadow-[0_22px_66px_rgba(0,0,0,0.72)]">
-              <div className="text-xs uppercase tracking-[0.14em] text-zinc-400">{speechTimerLabel}</div>
-              <div className={`mt-2 text-6xl font-black tabular-nums ${speechSecondsLeft === 0 ? "text-zinc-500" : "text-zinc-100"}`}>
-                {speechSecondsLeft}
-              </div>
-            </div>
-          </div>
-        )}
+        <AnimatePresence>
+          {speechSecondsLeft !== null && speechTimerLabel && (
+            <motion.div
+              key="speech-timer-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="fixed inset-0 z-[72] pointer-events-none flex items-center justify-center px-4"
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 16, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.96 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="w-full max-w-[320px] rounded-2xl border border-zinc-700 bg-zinc-950/95 px-5 py-6 text-center shadow-[0_22px_66px_rgba(0,0,0,0.72)]"
+              >
+                <div className="text-xs uppercase tracking-[0.14em] text-zinc-400">{speechTimerLabel}</div>
+                <div className={`mt-2 text-6xl font-black tabular-nums ${speechSecondsLeft === 0 ? "text-zinc-500" : "text-zinc-100"}`}>
+                  {speechSecondsLeft}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <AnimatePresence>
           {showFactHistory && (
             <motion.div

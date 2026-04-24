@@ -46,6 +46,8 @@ import {
 
 const authRouter = Router();
 const USER_CASE_PACKS_LIMIT = 4;
+const USER_CASE_PACKS_CREATED_LIMIT = 2;
+const USER_CASE_PACKS_IMPORTED_LIMIT = 2;
 const REQUIRED_FACT_ROLES_BY_MODE: Record<number, string[]> = {
   3: ["plaintiff", "defendant"],
   4: ["plaintiff", "defendant", "prosecutor"],
@@ -89,10 +91,53 @@ function canManageUserCasePacks(user: {
     label?: string | null;
     plan?: string | null;
     name?: string | null;
+    isActive?: boolean | string | number | null;
+    endAt?: string | number | null;
+    expiresAt?: string | number | null;
+    expires_at?: string | number | null;
     capabilities?: { canCreatePacks?: boolean | string | number | null } | null;
   } | null;
 } | null): boolean {
   if (!user) return false;
+  const activeRaw = user.subscription?.isActive;
+  const activeNormalized = String(activeRaw ?? "")
+    .trim()
+    .toLowerCase();
+  const isActiveExplicit =
+    activeRaw === true ||
+    activeRaw === 1 ||
+    activeNormalized === "true" ||
+    activeNormalized === "1" ||
+    activeNormalized === "yes" ||
+    activeNormalized === "да"
+      ? true
+      : activeRaw === false ||
+          activeRaw === 0 ||
+          activeNormalized === "false" ||
+          activeNormalized === "0" ||
+          activeNormalized === "no" ||
+          activeNormalized === "нет"
+        ? false
+        : null;
+  const endAtCandidate =
+    user.subscription?.endAt ?? user.subscription?.expiresAt ?? user.subscription?.expires_at;
+  const endAtMs =
+    typeof endAtCandidate === "number" && Number.isFinite(endAtCandidate)
+      ? endAtCandidate > 10_000_000_000
+        ? Math.floor(endAtCandidate)
+        : Math.floor(endAtCandidate * 1000)
+      : typeof endAtCandidate === "string" && endAtCandidate.trim()
+        ? (() => {
+            const parsed = Date.parse(endAtCandidate);
+            return Number.isFinite(parsed) ? parsed : null;
+          })()
+        : null;
+  if (isActiveExplicit === false) {
+    return false;
+  }
+  if (isActiveExplicit === null && typeof endAtMs === "number" && endAtMs <= Date.now()) {
+    return false;
+  }
   const capability = user.subscription?.capabilities?.canCreatePacks;
   const capabilityNormalized = String(capability ?? "")
     .trim()
@@ -121,6 +166,27 @@ function canManageUserCasePacks(user: {
     )
     .filter(Boolean);
   return variants.some((value) => value.includes("arbiter") || value.includes("арбитр"));
+}
+
+function getUserCasePacksStats(
+  packs: Array<{ sourcePackId?: string | null }>,
+): { total: number; created: number; imported: number } {
+  const total = Array.isArray(packs) ? packs.length : 0;
+  const imported = (Array.isArray(packs) ? packs : []).filter((pack) =>
+    !!String(pack?.sourcePackId ?? "").trim(),
+  ).length;
+  const created = Math.max(0, total - imported);
+  return { total, created, imported };
+}
+
+function getUserCasePackLimitMessage(kind: "total" | "created" | "imported"): string {
+  if (kind === "created") {
+    return `Можно создать не более ${USER_CASE_PACKS_CREATED_LIMIT} собственных пользовательских паков.`;
+  }
+  if (kind === "imported") {
+    return `Можно импортировать не более ${USER_CASE_PACKS_IMPORTED_LIMIT} пользовательских паков.`;
+  }
+  return `Можно хранить максимум ${USER_CASE_PACKS_LIMIT} пользовательских паков. Удалите один из текущих.`;
 }
 
 function validateUserPackCasesPayload(casesInput: unknown): string | null {
@@ -979,9 +1045,15 @@ authRouter.post("/auth/case-packs", async (req, res) => {
   }
   try {
     const existingPacks = await listUserCasePacks(user.id);
-    if (existingPacks.length >= USER_CASE_PACKS_LIMIT) {
+    const stats = getUserCasePacksStats(existingPacks);
+    if (stats.total >= USER_CASE_PACKS_LIMIT) {
       return res.status(400).json({
-        message: `Можно хранить максимум ${USER_CASE_PACKS_LIMIT} пользовательских паков. Удалите один из текущих.`,
+        message: getUserCasePackLimitMessage("total"),
+      });
+    }
+    if (stats.created >= USER_CASE_PACKS_CREATED_LIMIT) {
+      return res.status(400).json({
+        message: getUserCasePackLimitMessage("created"),
       });
     }
     const payloadCases = Array.isArray(req.body?.cases) ? req.body.cases : [];
@@ -1009,25 +1081,34 @@ authRouter.get("/auth/case-packs/import-preview", async (req, res) => {
     const preview = await getUserCasePackImportPreviewByShareCode(shareCode);
     let alreadyAdded = false;
     let blockReason: "none" | "no_access" | "limit" | "already_added" = "none";
+    let blockMessage = "";
     const token = getRequestToken(req.headers as Record<string, unknown>);
     if (!token) {
       blockReason = "no_access";
+      blockMessage = "Импорт пака по ссылке открыт только для подписки «Арбитр».";
     } else {
       const user = await getUserByToken(token, resolveClientIp(req));
       if (!user || !canManageUserCasePacks(user)) {
         blockReason = "no_access";
+        blockMessage = "Импорт пака по ссылке открыт только для подписки «Арбитр».";
       } else {
         const existingPacks = await listUserCasePacks(user.id);
-        if (existingPacks.length >= USER_CASE_PACKS_LIMIT) {
+        const stats = getUserCasePacksStats(existingPacks);
+        if (stats.total >= USER_CASE_PACKS_LIMIT) {
           blockReason = "limit";
+          blockMessage = getUserCasePackLimitMessage("total");
+        } else if (stats.imported >= USER_CASE_PACKS_IMPORTED_LIMIT) {
+          blockReason = "limit";
+          blockMessage = getUserCasePackLimitMessage("imported");
         }
         alreadyAdded = await isUserCasePackAlreadyAddedByShareCode(user.id, shareCode);
         if (alreadyAdded) {
           blockReason = "already_added";
+          blockMessage = "Этот пак уже добавлен в «Мои паки».";
         }
       }
     }
-    return res.status(200).json({ ok: true, preview, alreadyAdded, blockReason });
+    return res.status(200).json({ ok: true, preview, alreadyAdded, blockReason, blockMessage });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось загрузить предпросмотр пака.";
     return res.status(400).json({ message });
@@ -1132,9 +1213,15 @@ authRouter.post("/auth/case-packs/import", async (req, res) => {
   }
   try {
     const existingPacks = await listUserCasePacks(user.id);
-    if (existingPacks.length >= USER_CASE_PACKS_LIMIT) {
+    const stats = getUserCasePacksStats(existingPacks);
+    if (stats.total >= USER_CASE_PACKS_LIMIT) {
       return res.status(400).json({
-        message: `Можно хранить максимум ${USER_CASE_PACKS_LIMIT} пользовательских паков. Удалите один из текущих.`,
+        message: getUserCasePackLimitMessage("total"),
+      });
+    }
+    if (stats.imported >= USER_CASE_PACKS_IMPORTED_LIMIT) {
+      return res.status(400).json({
+        message: getUserCasePackLimitMessage("imported"),
       });
     }
     const shareCode = String(req.body?.shareCode ?? "").trim();
