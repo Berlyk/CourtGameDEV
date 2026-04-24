@@ -13837,7 +13837,7 @@ export default function App() {
                   (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
                     <div className="pointer-events-none absolute inset-0 z-[382] rounded-[inherit] bg-black/62" />
                   )}
-                <div className="relative isolate">
+                <div className="relative">
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
                 )}
