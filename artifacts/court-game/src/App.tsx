@@ -15296,11 +15296,11 @@ export default function App() {
                 createPackCatalogOpen &&
                 createPackCatalogView === "my_packs" &&
                 sharePackDialogOpen &&
-                typeof document !== "undefined" &&
+                createMatchDialogRef.current &&
                 createPortal(
                   <motion.div
                     key="my-packs-share-dialog"
-                    className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5"
+                    className="absolute inset-0 z-[430] flex items-center justify-center p-3 sm:p-5"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -15397,16 +15397,16 @@ export default function App() {
                       </div>
                     </motion.div>
                   </motion.div>,
-                  document.body,
+                  createMatchDialogRef.current,
                 )}
             </AnimatePresence>
             {createMatchDialogOpen &&
               createPackCatalogOpen &&
               createPackCatalogView === "my_packs" &&
               myCasePackDeleteConfirmKey &&
-              typeof document !== "undefined" &&
+              createMatchDialogRef.current &&
               createPortal(
-                <div className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5">
+                <div className="absolute inset-0 z-[430] flex items-center justify-center p-3 sm:p-5">
                   <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
@@ -15448,7 +15448,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>,
-                document.body,
+                createMatchDialogRef.current,
               )}
 
             <Dialog
