@@ -4381,6 +4381,11 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false);
   const createMatchDialogRef = useRef<HTMLDivElement | null>(null);
+  const [createMatchDialogPortalHost, setCreateMatchDialogPortalHost] = useState<HTMLDivElement | null>(null);
+  const setCreateMatchDialogNode = useCallback((node: HTMLDivElement | null) => {
+    createMatchDialogRef.current = node;
+    setCreateMatchDialogPortalHost(node);
+  }, []);
   const oauthAuthHashHandledRef = useRef("");
   const passwordUpdatedToastTimerRef = useRef<number | null>(null);
   const [publicMatches, setPublicMatches] = useState<PublicMatchInfo[]>([]);
@@ -14167,7 +14172,7 @@ export default function App() {
               }}
             >
               <DialogContent
-                ref={createMatchDialogRef}
+                ref={setCreateMatchDialogNode}
                 overlayClassName="z-[238] bg-black/88"
                 className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
@@ -15296,7 +15301,7 @@ export default function App() {
                 createPackCatalogOpen &&
                 createPackCatalogView === "my_packs" &&
                 sharePackDialogOpen &&
-                createMatchDialogRef.current &&
+                createMatchDialogPortalHost &&
                 createPortal(
                   <motion.div
                     key="my-packs-share-dialog"
@@ -15397,14 +15402,14 @@ export default function App() {
                       </div>
                     </motion.div>
                   </motion.div>,
-                  createMatchDialogRef.current,
+                  createMatchDialogPortalHost,
                 )}
             </AnimatePresence>
             {createMatchDialogOpen &&
               createPackCatalogOpen &&
               createPackCatalogView === "my_packs" &&
               myCasePackDeleteConfirmKey &&
-              createMatchDialogRef.current &&
+              createMatchDialogPortalHost &&
               createPortal(
                 <div className="absolute inset-0 z-[430] flex items-center justify-center p-3 sm:p-5">
                   <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
@@ -15448,7 +15453,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>,
-                createMatchDialogRef.current,
+                createMatchDialogPortalHost,
               )}
 
             <Dialog
