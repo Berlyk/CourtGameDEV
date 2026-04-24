@@ -14521,24 +14521,22 @@ export default function App() {
 
                         </div>
                         <AnimatePresence>
-                          {sharePackDialogOpen &&
-                            typeof document !== "undefined" &&
-                            createPortal(
+                          {sharePackDialogOpen && (
+                            <motion.div
+                              key="my-packs-share-dialog"
+                              className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.2, ease: "easeOut" }}
+                            >
                               <motion.div
-                                key="my-packs-share-dialog"
-                                className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5"
+                                initial={{ opacity: 0, y: 18, scale: 0.97 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 14, scale: 0.97 }}
+                                transition={{ duration: 0.22, ease: "easeOut" }}
                               >
-                                <motion.div
-                                  className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5"
-                                  initial={{ opacity: 0, y: 18, scale: 0.97 }}
-                                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                                  exit={{ opacity: 0, y: 14, scale: 0.97 }}
-                                  transition={{ duration: 0.22, ease: "easeOut" }}
-                                >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 space-y-1">
                                   <div className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
@@ -14621,14 +14619,12 @@ export default function App() {
                                   </div>
                                 </div>
                               </div>
-                                </motion.div>
                               </motion.div>
-                            , document.body)}
+                            </motion.div>
+                          )}
                         </AnimatePresence>
 
-                        {myCasePackDeleteConfirmKey &&
-                          typeof document !== "undefined" &&
-                          createPortal(
+                        {myCasePackDeleteConfirmKey && (
                           <div className="fixed inset-0 z-[450] flex items-center justify-center p-3 sm:p-5">
                             <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
                               <div className="flex items-start justify-between gap-3">
@@ -14671,7 +14667,7 @@ export default function App() {
                               </div>
                             </div>
                           </div>
-                        , document.body)}
+                        )}
                       </>
                     ) : (
                       <div className="relative mx-auto max-w-[980px] min-w-0 space-y-3 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-3">
