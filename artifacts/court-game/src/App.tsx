@@ -4906,6 +4906,22 @@ export default function App() {
     clearPackImportQueryParam();
   }, [clearPackImportQueryParam]);
   useEffect(() => {
+    if (!importPackPreviewDialogOpen) return;
+    if (screen !== "home") {
+      setScreen("home");
+    }
+    if (homeTab !== "play") {
+      setHomeTab("play");
+    }
+    if (createMatchDialogOpen) {
+      setCreateMatchDialogOpen(false);
+    }
+    if (room || game) {
+      setRoom(null);
+      setGame(null);
+    }
+  }, [createMatchDialogOpen, game, homeTab, importPackPreviewDialogOpen, room, screen]);
+  useEffect(() => {
     if (!pendingImportShareCode) return;
     if (screen !== "home") return;
     let cancelled = false;
@@ -4951,8 +4967,8 @@ export default function App() {
   const canCreatePacks =
     hasCapability(myTier, "canCreatePacks") || hasCreatePacksFromRawSubscription;
   const createPackOwnedCount = useMemo(
-    () => casePacks.filter((pack) => pack.isCustom).length,
-    [casePacks],
+    () => myCasePacks.length,
+    [myCasePacks.length],
   );
   const hasReachedUserPackLimit = createPackOwnedCount >= USER_PACKS_TOTAL_LIMIT;
   const canImportPackFromPreview = !!authToken && canCreatePacks && !hasReachedUserPackLimit;
@@ -5219,7 +5235,6 @@ export default function App() {
 
   const loadMyCasePacks = useCallback(async () => {
     if (!authToken) {
-      setMyCasePacks([]);
       setMyCasePacksError("Войдите в аккаунт, чтобы управлять своими паками.");
       return;
     }
@@ -5237,25 +5252,16 @@ export default function App() {
           ? error.message
           : "Не удалось загрузить ваши паки.";
       setMyCasePacksError(message);
-      setMyCasePacks([]);
     } finally {
       setMyCasePacksLoading(false);
     }
   }, [authToken]);
 
   const openMyCasePacksPanel = useCallback(() => {
-    if (!canCreatePacks) {
-      openSubscriptionUpsell(
-        "canCreatePacks",
-        "Пользовательские паки доступны только в подписке «Арбитр».",
-        "Нет доступа",
-      );
-      return;
-    }
     setCreatePackCatalogView("my_packs");
     setMyCasePacksPage(1);
     void loadMyCasePacks();
-  }, [canCreatePacks, loadMyCasePacks, openSubscriptionUpsell]);
+  }, [loadMyCasePacks]);
 
   const openCreatePackEditor = useCallback(
     async (packKey?: string) => {
@@ -8191,7 +8197,6 @@ export default function App() {
     socket.on("case_packs_updated", ({ packs }: { packs: CasePackInfo[] }) => {
       const safePacks = Array.isArray(packs) ? packs : [];
       setCasePacks(safePacks);
-      setMyCasePacks(safePacks.filter((pack) => pack.isCustom));
       if (safePacks.length > 0) {
         const defaultPackKey = safePacks.find((pack) => pack.key === "classic")?.key ?? safePacks[0].key;
         setCreateRoomPackKey((prev) => {
@@ -13825,16 +13830,16 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
-                className={`!fixed z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
+                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${createPackCatalogOpen && createPackCatalogView === "my_packs" && (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
-                <div className="relative">
+                <div className="relative isolate">
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
                 )}
                 {createPackCatalogOpen &&
                   createPackCatalogView === "my_packs" &&
                   (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
-                    <div className="absolute inset-0 z-[372] rounded-2xl sm:rounded-3xl bg-black/58" />
+                    <div className="pointer-events-none absolute inset-0 z-[372] rounded-2xl sm:rounded-3xl bg-black/62 backdrop-blur-[1.5px]" />
                   )}
                 <DialogHeader className="space-y-1">
                   <DialogTitle>
@@ -14126,9 +14131,33 @@ export default function App() {
                           </div>
                         )}
                         {myCasePacksError && (
-                          <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                            {myCasePacksError}
-                          </div>
+                          myCasePacksError.toLowerCase().includes("максимум") ? (
+                            <div className="rounded-2xl border border-red-500/50 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.18),transparent_58%),linear-gradient(145deg,rgba(19,9,10,0.95),rgba(10,10,12,0.95))] p-3 text-zinc-100">
+                              <div className="flex items-start gap-3">
+                                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-500/55 bg-red-500/12 text-red-100">
+                                  <Lock className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="text-lg font-semibold leading-tight">Лимит паков достигнут</div>
+                                  <div className="mt-1 text-sm text-zinc-300">{myCasePacksError}</div>
+                                </div>
+                              </div>
+                              <div className="mt-3">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => setMyCasePacksError("")}
+                                  className="h-10 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                                >
+                                  Понятно
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                              {myCasePacksError}
+                            </div>
+                          )
                         )}
 
                         </div>
@@ -15765,8 +15794,22 @@ export default function App() {
                 </div>
               ) : importPackPreviewError ? (
                 <div className="space-y-2">
-                  <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-3 text-sm text-red-200">
-                    {importPackPreviewError}
+                  <div className="rounded-2xl border border-red-500/50 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.18),transparent_58%),linear-gradient(145deg,rgba(19,9,10,0.95),rgba(10,10,12,0.95))] px-3 py-3 text-zinc-100">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-500/55 bg-red-500/12 text-red-100">
+                        <Lock className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-lg font-semibold leading-tight">
+                          {importPackPreviewError.toLowerCase().includes("максимум")
+                            ? "Лимит паков достигнут"
+                            : importPackPreviewError.toLowerCase().includes("уже")
+                              ? "Пак уже добавлен"
+                            : "Функция недоступна"}
+                        </div>
+                        <div className="mt-1 text-sm text-zinc-300">{importPackPreviewError}</div>
+                      </div>
+                    </div>
                   </div>
                   <Button
                     type="button"
@@ -15828,19 +15871,54 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                        {hasReachedUserPackLimit
-                          ? `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков. Удалите один из текущих.`
-                          : "Функция недоступна. Импорт пака по ссылке открыт только для подписки «Арбитр»."}
+                      <div className="rounded-2xl border border-red-500/50 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.18),transparent_58%),linear-gradient(145deg,rgba(19,9,10,0.95),rgba(10,10,12,0.95))] px-3 py-3 text-zinc-100">
+                        <div className="flex items-start gap-3">
+                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-500/55 bg-red-500/12 text-red-100">
+                            <Lock className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="text-lg font-semibold leading-tight">
+                              {hasReachedUserPackLimit ? "Лимит паков достигнут" : "Функция недоступна"}
+                            </div>
+                            <div className="mt-1 text-sm text-zinc-300">
+                              {hasReachedUserPackLimit
+                                ? `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков. Удалите один из текущих.`
+                                : "Импорт пака по ссылке открыт только для подписки «Арбитр»."}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={closeImportPackPreviewDialog}
-                        className="h-11 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
-                      >
-                        Понятно
-                      </Button>
+                      {hasReachedUserPackLimit ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={closeImportPackPreviewDialog}
+                          className="h-11 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                        >
+                          Понятно
+                        </Button>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              closeImportPackPreviewDialog();
+                              navigateToShop();
+                            }}
+                            className="h-11 rounded-xl border-0 bg-red-600 text-white hover:bg-red-500"
+                          >
+                            Перейти в магазин
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={closeImportPackPreviewDialog}
+                            className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                          >
+                            Понятно
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
