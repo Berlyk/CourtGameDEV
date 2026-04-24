@@ -1004,14 +1004,26 @@ authRouter.get("/auth/case-packs/import-preview", async (req, res) => {
       typeof req.query?.shareCode === "string" ? req.query.shareCode : String(req.query?.shareCode ?? "");
     const preview = await getUserCasePackImportPreviewByShareCode(shareCode);
     let alreadyAdded = false;
+    let blockReason: "none" | "no_access" | "limit" | "already_added" = "none";
     const token = getRequestToken(req.headers as Record<string, unknown>);
-    if (token) {
+    if (!token) {
+      blockReason = "no_access";
+    } else {
       const user = await getUserByToken(token, resolveClientIp(req));
-      if (user) {
+      if (!user || !canManageUserCasePacks(user)) {
+        blockReason = "no_access";
+      } else {
+        const existingPacks = await listUserCasePacks(user.id);
+        if (existingPacks.length >= USER_CASE_PACKS_LIMIT) {
+          blockReason = "limit";
+        }
         alreadyAdded = await isUserCasePackAlreadyAddedByShareCode(user.id, shareCode);
+        if (alreadyAdded) {
+          blockReason = "already_added";
+        }
       }
     }
-    return res.status(200).json({ ok: true, preview, alreadyAdded });
+    return res.status(200).json({ ok: true, preview, alreadyAdded, blockReason });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось загрузить предпросмотр пака.";
     return res.status(400).json({ message });

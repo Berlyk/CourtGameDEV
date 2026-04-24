@@ -4401,6 +4401,9 @@ export default function App() {
   const [importPackPreviewError, setImportPackPreviewError] = useState("");
   const [importPackPreviewData, setImportPackPreviewData] = useState<ImportPackPreviewData | null>(null);
   const [importPackPreviewAlreadyAdded, setImportPackPreviewAlreadyAdded] = useState(false);
+  const [importPackPreviewServerBlockReason, setImportPackPreviewServerBlockReason] = useState<
+    "none" | "no_access" | "limit" | "already_added"
+  >("none");
   const [createPackSaving, setCreatePackSaving] = useState(false);
   const [createPackEditLoading, setCreatePackEditLoading] = useState(false);
   const [createPackError, setCreatePackError] = useState("");
@@ -4907,6 +4910,7 @@ export default function App() {
     setImportPackPreviewError("");
     setImportPackPreviewData(null);
     setImportPackPreviewAlreadyAdded(false);
+    setImportPackPreviewServerBlockReason("none");
     setPendingImportShareCode(null);
     clearPackImportQueryParam();
   }, [clearPackImportQueryParam]);
@@ -4935,17 +4939,26 @@ export default function App() {
     setImportPackPreviewError("");
     setImportPackPreviewData(null);
     setImportPackPreviewAlreadyAdded(false);
-    void authRequest<{ ok: true; preview: ImportPackPreviewData; alreadyAdded?: boolean }>(
+    setImportPackPreviewServerBlockReason("none");
+    void authRequest<{
+      ok: true;
+      preview: ImportPackPreviewData;
+      alreadyAdded?: boolean;
+      blockReason?: "none" | "no_access" | "limit" | "already_added";
+    }>(
       `/auth/case-packs/import-preview?shareCode=${encodeURIComponent(pendingImportShareCode)}`,
     )
       .then((payload) => {
         if (cancelled) return;
         setImportPackPreviewData(payload?.preview ?? null);
-        setImportPackPreviewAlreadyAdded(!!payload?.alreadyAdded);
+        const serverReason = payload?.blockReason ?? "none";
+        setImportPackPreviewServerBlockReason(serverReason);
+        setImportPackPreviewAlreadyAdded(serverReason === "already_added" || !!payload?.alreadyAdded);
       })
       .catch((error) => {
         if (cancelled) return;
         setImportPackPreviewAlreadyAdded(false);
+        setImportPackPreviewServerBlockReason("none");
         const message =
           error instanceof Error && error.message.trim()
             ? error.message
@@ -5030,6 +5043,24 @@ export default function App() {
   );
   const importPackPreviewBlockingState = useMemo(() => {
     if (importPackPreviewLoading) return null;
+    if (importPackPreviewServerBlockReason === "limit") {
+      return {
+        title: "Лимит паков достигнут",
+        description: `Можно хранить максимум ${USER_PACKS_TOTAL_LIMIT} пользовательских паков.`,
+      };
+    }
+    if (importPackPreviewServerBlockReason === "already_added") {
+      return {
+        title: "У вас уже есть этот пак",
+        description: "Этот пак уже добавлен в «Мои паки».",
+      };
+    }
+    if (importPackPreviewServerBlockReason === "no_access") {
+      return {
+        title: "Функция недоступна",
+        description: "Импорт пака по ссылке открыт только для подписки «Арбитр».",
+      };
+    }
     if (normalizedImportPackPreviewError.includes("максимум")) {
       return {
         title: "Лимит паков достигнут",
@@ -5080,6 +5111,7 @@ export default function App() {
     importPackPreviewData,
     importPackPreviewError,
     importPackPreviewLoading,
+    importPackPreviewServerBlockReason,
     normalizedImportPackPreviewError,
   ]);
   const myCasePacksTotalPages = useMemo(
@@ -5367,10 +5399,10 @@ export default function App() {
     }
   }, [authToken]);
 
-  const openMyCasePacksPanel = useCallback(() => {
-    setCreatePackCatalogView("my_packs");
+  const openMyCasePacksPanel = useCallback(async () => {
     setMyCasePacksPage(1);
-    void loadMyCasePacks();
+    await loadMyCasePacks();
+    setCreatePackCatalogView("my_packs");
   }, [loadMyCasePacks]);
 
   const openCreatePackEditor = useCallback(
@@ -5632,6 +5664,9 @@ export default function App() {
 
   const submitImportPackFromPreview = useCallback(async () => {
     if (!pendingImportShareCode || importPackLoading) return;
+    if (importPackPreviewServerBlockReason !== "none") {
+      return;
+    }
     if (importPackPreviewAlreadyAdded) {
       setImportPackPreviewError("Этот пак уже добавлен в «Мои паки».");
       return;
@@ -5673,6 +5708,7 @@ export default function App() {
     importPackByShareCode,
     importPackLoading,
     importPackPreviewAlreadyAdded,
+    importPackPreviewServerBlockReason,
     pendingImportShareCode,
   ]);
 
@@ -13946,7 +13982,7 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
-                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${createPackCatalogOpen && createPackCatalogView === "my_packs" && (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] ${createPackCatalogOpen && (createPackCatalogView === "my_packs" || createPackCatalogView === "create_pack") ? "!border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))]" : "border-zinc-800 bg-zinc-950"} text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
+                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-3xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${createPackCatalogOpen && createPackCatalogView === "my_packs" && (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
                 {createPackCatalogOpen &&
                   createPackCatalogView === "my_packs" &&
@@ -14007,10 +14043,13 @@ export default function App() {
                       {createPackCatalogView === "catalog" ? (
                         <button
                           type="button"
-                          onClick={openMyCasePacksPanel}
-                          className="inline-flex h-11 min-w-[150px] items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-5 text-base font-semibold text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100"
+                          onClick={() => {
+                            void openMyCasePacksPanel();
+                          }}
+                          disabled={myCasePacksLoading}
+                          className="inline-flex h-11 min-w-[150px] items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-5 text-base font-semibold text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-70"
                         >
-                          {createPackCatalogActionLabel}
+                          {myCasePacksLoading ? "Загрузка..." : createPackCatalogActionLabel}
                         </button>
                       ) : createPackCatalogView === "my_packs" ? (
                         <div className="flex flex-wrap items-center gap-2">
@@ -14069,19 +14108,23 @@ export default function App() {
                                     >
                                       {pack.description}
                                     </div>
-                                    <div className="mt-1.5 flex items-end justify-between gap-2">
-                                      <div className="min-w-0 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                                        {isCustomPack ? "Пользовательский пак" : visual.vibe}
-                                      </div>
-                                      <div className="shrink-0 max-w-[55%] truncate text-[11px] text-zinc-400">
-                                        Автор: {resolvePackCreatorNickname(pack)}
-                                      </div>
+                                    <div
+                                      className={`mt-1.5 min-w-0 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500 ${
+                                        isCustomPack ? "pr-[110px]" : ""
+                                      }`}
+                                    >
+                                      {isCustomPack ? "Пользовательский пак" : visual.vibe}
                                     </div>
                                   </div>
                                   <div className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visual.countChip}`}>
                                     {pack.caseCount ?? 0} дел
                                   </div>
                                 </div>
+                                {isCustomPack && (
+                                  <div className="pointer-events-none absolute bottom-3 right-4 max-w-[55%] truncate text-right text-[11px] text-zinc-400">
+                                    Автор: {resolvePackCreatorNickname(pack)}
+                                  </div>
+                                )}
                                 {isLocked && (
                                   <>
                                     <div className="pointer-events-none absolute inset-0 rounded-2xl border border-zinc-600/65 bg-[linear-gradient(180deg,rgba(9,10,13,0.22),rgba(9,10,13,0.76))]" />
@@ -14133,7 +14176,7 @@ export default function App() {
                             }
                             return (
                               <React.Fragment key={`divider_${pack.key}`}>
-                                <div className="sm:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs uppercase tracking-[0.18em] text-zinc-400">
+                                <div className="sm:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-center text-xs uppercase tracking-[0.18em] text-zinc-400">
                                   Пользовательские паки
                                 </div>
                                 {cardNode}
@@ -14159,7 +14202,7 @@ export default function App() {
                               return (
                                 <div
                                   key={pack.key}
-                                  className="rounded-2xl border bg-zinc-900/75 px-4 py-3 h-[132px] overflow-hidden"
+                                  className="relative rounded-2xl border bg-zinc-900/75 px-4 py-3 h-[132px] overflow-hidden"
                                   style={{
                                     borderColor: hexToRgba(accent, 0.48),
                                     backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(accent, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
@@ -14175,13 +14218,8 @@ export default function App() {
                                           <div className="mt-1 max-h-[2.5rem] overflow-hidden text-[12px] leading-5 text-zinc-300/90 break-all">
                                             {pack.description}
                                           </div>
-                                          <div className="mt-1.5 flex items-end justify-between gap-2">
-                                            <div className="min-w-0 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                                              Пользовательский пак
-                                            </div>
-                                            <div className="shrink-0 max-w-[55%] truncate text-[11px] text-zinc-400">
-                                              Автор: {resolvePackCreatorNickname(pack)}
-                                            </div>
+                                          <div className="mt-1.5 min-w-0 truncate pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                            Пользовательский пак
                                           </div>
                                         </div>
                                       </div>
@@ -14191,6 +14229,9 @@ export default function App() {
                                         </span>
                                       </div>
                                     </div>
+                                    <div className="pointer-events-none absolute bottom-3 right-4 max-w-[55%] truncate text-right text-[11px] text-zinc-400">
+                                      Автор: {resolvePackCreatorNickname(pack)}
+                                    </div>
                                     <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                                       <Button
                                         type="button"
@@ -14198,7 +14239,7 @@ export default function App() {
                                         onClick={() => {
                                           void openCreatePackEditor(pack.key);
                                         }}
-                                        className="h-9 rounded-xl border-zinc-800/90 bg-zinc-950/65 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900/85 hover:text-zinc-200"
+                                        className="h-9 rounded-xl border-zinc-700/90 bg-zinc-900/80 text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
                                       >
                                         Редактировать
                                       </Button>
@@ -14208,7 +14249,7 @@ export default function App() {
                                         onClick={() => {
                                           openSharePackDialog(pack);
                                         }}
-                                        className="h-9 rounded-xl border-zinc-800/90 bg-zinc-950/65 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900/85 hover:text-zinc-200"
+                                        className="h-9 rounded-xl border-zinc-700/90 bg-zinc-900/80 text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
                                       >
                                         Поделиться
                                       </Button>
@@ -14219,7 +14260,7 @@ export default function App() {
                                           setMyCasePackDeleteConfirmKey(pack.key);
                                         }}
                                         disabled={myCasePackDeleteKey === pack.key}
-                                        className="h-9 rounded-xl border-red-500/30 bg-red-500/6 text-red-200/80 hover:border-red-400/40 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="h-9 rounded-xl border-red-500/45 bg-red-500/12 text-red-100 hover:border-red-400/55 hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-50"
                                       >
                                         {myCasePackDeleteKey === pack.key ? "Удаляем..." : "Удалить"}
                                       </Button>
@@ -15919,9 +15960,7 @@ export default function App() {
               <DialogTitle className="flex items-center gap-2">
                 {importPackPreviewBlockingState ? (
                   <>
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-red-500/60 bg-red-500/12 text-red-100">
-                      <Lock className="h-3.5 w-3.5" />
-                    </span>
+                    <Lock className="h-4 w-4 text-red-300" />
                     {importPackPreviewBlockingState.title}
                   </>
                 ) : (
