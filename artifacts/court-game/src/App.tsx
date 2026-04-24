@@ -14165,12 +14165,17 @@ export default function App() {
               <DialogContent
                 ref={createMatchDialogRef}
                 overlayClassName="z-[238] bg-black/88"
-                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${createPackCatalogOpen && createPackCatalogView === "my_packs" && (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
+                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
                 <div className="relative">
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-[380] rounded-[inherit] bg-black/58" />
                 )}
+                {createPackCatalogOpen &&
+                  createPackCatalogView === "my_packs" &&
+                  (sharePackDialogOpen || !!myCasePackDeleteConfirmKey) && (
+                    <div className="pointer-events-none absolute inset-0 z-[390] rounded-[inherit] bg-black/62" />
+                  )}
                 <DialogHeader className="space-y-1">
                   <DialogTitle>
                     {createPackCatalogOpen
@@ -14192,7 +14197,7 @@ export default function App() {
                   </DialogDescription>
                 </DialogHeader>
                 {createPackCatalogOpen ? (
-                  <div className="mt-1 relative space-y-3">
+                  <div className="mt-1 space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Button
                         type="button"
@@ -14272,13 +14277,17 @@ export default function App() {
                             const customCountChipVisual = isCustomPack
                               ? getCustomPackCountChipVisual(normalizedPackColor)
                               : null;
+                            const isSelectedPack = createRoomPackKey === pack.key;
                             const cardClass = `${
                               isCustomPack ? "bg-zinc-900/90 border-zinc-700" : visual.card
-                            } ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
+                            } ${isSelectedPack ? "ring-1 ring-zinc-200/35 shadow-[0_0_0_1px_rgba(244,244,245,0.18),0_0_18px_rgba(255,255,255,0.08)]" : ""}`;
                             const customCardStyle = isCustomPack
                               ? {
-                                  borderColor: hexToRgba(normalizedPackColor, createRoomPackKey === pack.key ? 0.88 : 0.52),
+                                  borderColor: hexToRgba(normalizedPackColor, isSelectedPack ? 0.88 : 0.52),
                                   backgroundImage: `radial-gradient(130% 140% at 0% 0%, ${hexToRgba(normalizedPackColor, 0.24)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.96), rgba(39,39,42,0.88))`,
+                                  boxShadow: isSelectedPack
+                                    ? `0 0 0 1px ${hexToRgba(normalizedPackColor, 0.34)}, 0 0 16px ${hexToRgba(normalizedPackColor, 0.24)}`
+                                    : undefined,
                                 }
                               : undefined;
                             const content = (
@@ -14513,13 +14522,6 @@ export default function App() {
                           {sharePackDialogOpen && (
                             <>
                               <motion.div
-                                className="pointer-events-none absolute inset-0 z-[390] rounded-[inherit] bg-black/68"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.18, ease: "easeOut" }}
-                              />
-                              <motion.div
                                 className="absolute inset-0 z-[395] flex items-center justify-center p-3 sm:p-5"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
@@ -14551,8 +14553,13 @@ export default function App() {
                                 </button>
                               </div>
                               <div className="mt-3 space-y-3">
+                                {(() => {
+                                  const sharePreviewChip = getCustomPackCountChipVisual(
+                                    normalizePackColor(sharePackData?.color),
+                                  );
+                                  return (
                                 <div
-                                  className="rounded-2xl border px-3 py-3 min-h-[112px]"
+                                  className="relative rounded-2xl border px-3 py-3 min-h-[112px]"
                                   style={{
                                     borderColor: hexToRgba(normalizePackColor(sharePackData?.color), 0.52),
                                     backgroundImage: `radial-gradient(120% 130% at 0% 0%, ${hexToRgba(normalizePackColor(sharePackData?.color), 0.22)}, transparent 60%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
@@ -14568,20 +14575,23 @@ export default function App() {
                                       <div className="mt-1 max-h-[2.5rem] overflow-hidden break-all text-[12px] leading-5 text-zinc-300">
                                         {sharePackData?.description || "Описание не указано."}
                                       </div>
-                                      <div className="mt-1.5 flex items-end justify-between gap-2">
-                                        <div className="min-w-0 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                                          Пользовательский пак
-                                        </div>
-                                        <div className="shrink-0 max-w-[55%] truncate text-[11px] text-zinc-400">
-                                          Автор: {sharePackData?.creatorNickname || "Игрок"}
-                                        </div>
+                                      <div className="mt-1.5 min-w-0 truncate pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                        Пользовательский пак
                                       </div>
                                     </div>
-                                    <span className="shrink-0 rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
+                                    <span
+                                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${sharePreviewChip.className}`}
+                                      style={sharePreviewChip.style}
+                                    >
                                       {Math.max(0, Number(sharePackData?.caseCount ?? 0) || 0)} дел
                                     </span>
                                   </div>
+                                  <div className="pointer-events-none absolute bottom-3 right-4 max-w-[55%] truncate text-right text-[11px] text-zinc-400">
+                                    Автор: {sharePackData?.creatorNickname || "Игрок"}
+                                  </div>
                                 </div>
+                                  );
+                                })()}
                                 <div className="space-y-1.5">
                                   <div className="text-xs text-zinc-400">Ссылка</div>
                                   <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
@@ -14614,7 +14624,7 @@ export default function App() {
                         </AnimatePresence>
 
                         {myCasePackDeleteConfirmKey && (
-                          <div className="absolute inset-0 z-[393] flex items-center justify-center p-3 sm:p-5">
+                          <div className="absolute inset-0 z-[395] flex items-center justify-center p-3 sm:p-5">
                             <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="space-y-1">
