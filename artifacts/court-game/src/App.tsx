@@ -15303,6 +15303,7 @@ export default function App() {
                 <motion.div
                   key="my-packs-share-dialog"
                   className="fixed inset-0 z-[470] flex items-center justify-center p-3 sm:p-5"
+                  style={{ zIndex: 2147483000, pointerEvents: "auto" }}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -15310,6 +15311,7 @@ export default function App() {
                 >
                   <motion.div
                     className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5"
+                    style={{ pointerEvents: "auto" }}
                     initial={{ opacity: 0, y: 18, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 14, scale: 0.97 }}
@@ -15406,8 +15408,14 @@ export default function App() {
               createPackCatalogView === "my_packs" &&
               myCasePackDeleteConfirmKey &&
               createPortal(
-                <div className="fixed inset-0 z-[470] flex items-center justify-center p-3 sm:p-5">
-                  <div className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
+                <div
+                  className="fixed inset-0 z-[470] flex items-center justify-center p-3 sm:p-5"
+                  style={{ zIndex: 2147483000, pointerEvents: "auto" }}
+                >
+                  <div
+                    className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4"
+                    style={{ pointerEvents: "auto" }}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="text-lg font-semibold text-zinc-100">Удалить пак?</div>
