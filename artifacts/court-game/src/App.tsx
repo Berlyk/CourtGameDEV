@@ -325,6 +325,39 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+const CUSTOM_PACK_COUNT_CHIP_CLASS_BY_COLOR: Record<string, string> = {
+  "#ef4444": "border-red-400/40 bg-red-600/25 text-red-100",
+  "#dc2626": "border-red-400/40 bg-red-700/30 text-red-100",
+  "#f97316": "border-orange-400/40 bg-orange-600/25 text-orange-100",
+  "#f59e0b": "border-yellow-400/40 bg-yellow-600/25 text-yellow-100",
+  "#eab308": "border-yellow-400/40 bg-yellow-600/25 text-yellow-100",
+  "#22c55e": "border-emerald-400/40 bg-emerald-600/25 text-emerald-100",
+  "#14b8a6": "border-teal-400/40 bg-teal-600/25 text-teal-100",
+  "#06b6d4": "border-cyan-400/40 bg-cyan-600/25 text-cyan-100",
+  "#3b82f6": "border-sky-400/40 bg-sky-600/25 text-sky-100",
+  "#6366f1": "border-indigo-400/35 bg-indigo-600/25 text-indigo-100",
+  "#8b5cf6": "border-violet-400/40 bg-violet-600/25 text-violet-100",
+  "#ec4899": "border-fuchsia-400/40 bg-fuchsia-600/25 text-fuchsia-100",
+};
+
+function getCustomPackCountChipVisual(
+  colorInput: string | undefined,
+): { className: string; style?: React.CSSProperties } {
+  const color = normalizePackColor(colorInput);
+  const mappedClass = CUSTOM_PACK_COUNT_CHIP_CLASS_BY_COLOR[color];
+  if (mappedClass) {
+    return { className: mappedClass };
+  }
+  return {
+    className: "border text-zinc-100",
+    style: {
+      borderColor: hexToRgba(color, 0.6),
+      backgroundColor: hexToRgba(color, 0.24),
+      color: "rgb(244 244 245)",
+    },
+  };
+}
+
 const QUICK_ROOM_MODE = {
   key: "quick_flex" as RoomModeKey,
   title: "Быстрая комната",
@@ -4390,6 +4423,7 @@ export default function App() {
   } | null>(null);
   const [sharePackCopiedKind, setSharePackCopiedKind] = useState<"link" | null>(null);
   const [myCasePacksLoading, setMyCasePacksLoading] = useState(false);
+  const [myCasePacksLoadedOnce, setMyCasePacksLoadedOnce] = useState(false);
   const [myCasePacksError, setMyCasePacksError] = useState("");
   const [myCasePacksPage, setMyCasePacksPage] = useState(1);
   const [myCasePackDeleteKey, setMyCasePackDeleteKey] = useState<string | null>(null);
@@ -4398,6 +4432,7 @@ export default function App() {
   const [pendingImportShareCode, setPendingImportShareCode] = useState<string | null>(null);
   const [importPackPreviewDialogOpen, setImportPackPreviewDialogOpen] = useState(false);
   const [importPackPreviewLoading, setImportPackPreviewLoading] = useState(false);
+  const [importPackPreviewShowLoading, setImportPackPreviewShowLoading] = useState(false);
   const [importPackPreviewError, setImportPackPreviewError] = useState("");
   const [importPackPreviewData, setImportPackPreviewData] = useState<ImportPackPreviewData | null>(null);
   const [importPackPreviewAlreadyAdded, setImportPackPreviewAlreadyAdded] = useState(false);
@@ -4466,6 +4501,12 @@ export default function App() {
     if (!createMatchDialogOpen) return;
     setUpsellModalOpen(false);
   }, [createMatchDialogOpen]);
+
+  useEffect(() => {
+    if (authToken) return;
+    setMyCasePacks([]);
+    setMyCasePacksLoadedOnce(false);
+  }, [authToken]);
 
   useEffect(() => {
     if (!createPackCases.length) {
@@ -4907,6 +4948,7 @@ export default function App() {
   const closeImportPackPreviewDialog = useCallback(() => {
     setImportPackPreviewDialogOpen(false);
     setImportPackPreviewLoading(false);
+    setImportPackPreviewShowLoading(false);
     setImportPackPreviewError("");
     setImportPackPreviewData(null);
     setImportPackPreviewAlreadyAdded(false);
@@ -4934,8 +4976,13 @@ export default function App() {
     if (!pendingImportShareCode) return;
     if (screen !== "home") return;
     let cancelled = false;
+    const loadingIndicatorTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      setImportPackPreviewShowLoading(true);
+    }, 450);
     setImportPackPreviewDialogOpen(true);
     setImportPackPreviewLoading(true);
+    setImportPackPreviewShowLoading(false);
     setImportPackPreviewError("");
     setImportPackPreviewData(null);
     setImportPackPreviewAlreadyAdded(false);
@@ -4967,10 +5014,13 @@ export default function App() {
       })
       .finally(() => {
         if (cancelled) return;
+        window.clearTimeout(loadingIndicatorTimer);
         setImportPackPreviewLoading(false);
+        setImportPackPreviewShowLoading(false);
       });
     return () => {
       cancelled = true;
+      window.clearTimeout(loadingIndicatorTimer);
     };
   }, [pendingImportShareCode, screen]);
   const buildPackImportLink = useCallback((rawShareCode: string) => {
@@ -5214,7 +5264,8 @@ export default function App() {
       ),
     );
   }, [createPackActiveCaseId, nextCreatePackEditStamp]);
-  const createPackCatalogActionLabel = createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
+  const createPackCatalogActionLabel =
+    !myCasePacksLoadedOnce || createPackOwnedCount > 0 ? "Мои паки" : "Создать пак";
   const baseCreatePackKey = casePacks.find((pack) => pack.key === "classic")?.key ?? casePacks[0]?.key ?? "classic";
   const freeCreatePack = casePacks.find((pack) => pack.key === baseCreatePackKey) ?? casePacks[0] ?? null;
   const selectedCreatePack =
@@ -5377,6 +5428,8 @@ export default function App() {
 
   const loadMyCasePacks = useCallback(async () => {
     if (!authToken) {
+      setMyCasePacks([]);
+      setMyCasePacksLoadedOnce(true);
       setMyCasePacksError("Войдите в аккаунт, чтобы управлять своими паками.");
       return;
     }
@@ -5388,7 +5441,9 @@ export default function App() {
       });
       const packs = Array.isArray(payload?.packs) ? payload.packs : [];
       setMyCasePacks(packs);
+      setMyCasePacksLoadedOnce(true);
     } catch (error) {
+      setMyCasePacksLoadedOnce(true);
       const message =
         error instanceof Error && error.message.trim()
           ? error.message
@@ -14044,7 +14099,11 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => {
-                            void openMyCasePacksPanel();
+                            if (createPackCatalogActionLabel === "Мои паки") {
+                              void openMyCasePacksPanel();
+                              return;
+                            }
+                            void openCreatePackEditor();
                           }}
                           disabled={myCasePacksLoading}
                           className="inline-flex h-11 min-w-[150px] items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-5 text-base font-semibold text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-70"
@@ -14079,6 +14138,9 @@ export default function App() {
                             const displayTitle = getCasePackTitleDisplay(pack.title);
                             const normalizedPackColor = normalizePackColor(pack.color);
                             const isCustomPack = !!pack.isCustom;
+                            const customCountChipVisual = isCustomPack
+                              ? getCustomPackCountChipVisual(normalizedPackColor)
+                              : null;
                             const cardClass = `${
                               isCustomPack ? "bg-zinc-900/90 border-zinc-700" : visual.card
                             } ${createRoomPackKey === pack.key ? "ring-1 ring-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.16)]" : ""}`;
@@ -14116,7 +14178,12 @@ export default function App() {
                                       {isCustomPack ? "Пользовательский пак" : visual.vibe}
                                     </div>
                                   </div>
-                                  <div className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${visual.countChip}`}>
+                                  <div
+                                    className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                                      isCustomPack ? customCountChipVisual?.className : visual.countChip
+                                    }`}
+                                    style={isCustomPack ? customCountChipVisual?.style : undefined}
+                                  >
                                     {pack.caseCount ?? 0} дел
                                   </div>
                                 </div>
@@ -14193,12 +14260,13 @@ export default function App() {
                           </div>
                         ) : myCasePacks.length === 0 ? (
                           <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-4 text-sm text-zinc-400">
-                            Пока нет пользовательских паков. Нажмите «Создать пак».
+                            Пока нет пользовательских паков.
                           </div>
                         ) : (
                           <div className="space-y-3">
                             {myCasePacksPaged.map((pack) => {
                               const accent = normalizePackColor(pack.color);
+                              const myPackCountChipVisual = getCustomPackCountChipVisual(accent);
                               return (
                                 <div
                                   key={pack.key}
@@ -14224,7 +14292,10 @@ export default function App() {
                                         </div>
                                       </div>
                                       <div className="mt-1.5 flex items-center">
-                                        <span className="rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
+                                        <span
+                                          className={`rounded-full border px-2 py-0.5 text-[11px] ${myPackCountChipVisual.className}`}
+                                          style={myPackCountChipVisual.style}
+                                        >
                                           {pack.caseCount ?? 0} дел
                                         </span>
                                       </div>
@@ -15974,18 +16045,21 @@ export default function App() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
-              {importPackPreviewLoading ? (
+              {importPackPreviewLoading && importPackPreviewShowLoading ? (
                 <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/70 px-3 py-3 text-sm text-zinc-300">
                   Загружаем предпросмотр...
                 </div>
               ) : importPackPreviewData ? (
                 <div
-                  className="rounded-2xl border px-4 py-3"
+                  className="relative rounded-2xl border px-4 py-3 min-h-[112px]"
                   style={{
                     borderColor: hexToRgba(importPackPreviewData.color, 0.52),
                     backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(importPackPreviewData.color, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
                   }}
                 >
+                  {(() => {
+                    const previewChip = getCustomPackCountChipVisual(importPackPreviewData.color);
+                    return (
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center">
@@ -15996,18 +16070,21 @@ export default function App() {
                       <div className="mt-1 text-sm text-zinc-300 break-words">
                         {importPackPreviewData.description || "Описание не указано."}
                       </div>
-                      <div className="mt-1.5 flex items-end justify-between gap-2">
-                        <div className="min-w-0 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                          Пользовательский пак
-                        </div>
-                        <div className="shrink-0 max-w-[55%] truncate text-[11px] text-zinc-400">
-                          Автор: {resolvePackCreatorNickname(importPackPreviewData)}
-                        </div>
+                      <div className="mt-1.5 min-w-0 truncate pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                        Пользовательский пак
                       </div>
                     </div>
-                    <span className="shrink-0 rounded-full border border-zinc-700/90 bg-zinc-950/80 px-2 py-0.5 text-[11px] text-zinc-300">
+                    <span
+                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${previewChip.className}`}
+                      style={previewChip.style}
+                    >
                       {importPackPreviewData.caseCount} дел
                     </span>
+                  </div>
+                    );
+                  })()}
+                  <div className="pointer-events-none absolute bottom-3 right-4 max-w-[55%] truncate text-right text-[11px] text-zinc-400">
+                    Автор: {resolvePackCreatorNickname(importPackPreviewData)}
                   </div>
                 </div>
               ) : null}
