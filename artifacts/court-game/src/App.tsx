@@ -14758,7 +14758,7 @@ export default function App() {
                               return (
                                 <div
                                   key={pack.key}
-                                  className="relative rounded-2xl border bg-zinc-900/75 px-4 py-3 h-[132px] overflow-hidden"
+                                  className="relative rounded-2xl border bg-zinc-900/75 px-3 py-3 sm:px-4 min-h-[168px] sm:min-h-[132px] sm:h-[132px]"
                                   style={{
                                     borderColor: hexToRgba(accent, 0.48),
                                     backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(accent, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
@@ -14774,7 +14774,7 @@ export default function App() {
                                           <div className="mt-1 max-h-[2.5rem] overflow-hidden text-[12px] leading-5 text-zinc-300/90 break-all">
                                             {pack.description}
                                           </div>
-                                          <div className="mt-1.5 min-w-0 truncate pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                          <div className="mt-1.5 min-w-0 truncate pr-0 sm:pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
                                             Пользовательский пак
                                           </div>
                                         </div>
@@ -14788,17 +14788,17 @@ export default function App() {
                                         </span>
                                       </div>
                                     </div>
-                                    <div className="pointer-events-none absolute bottom-3 right-4 max-w-[55%] truncate text-right text-[11px] text-zinc-400">
+                                    <div className="pointer-events-none mt-1 text-[11px] text-zinc-400 lg:absolute lg:bottom-3 lg:right-4 lg:mt-0 lg:max-w-[55%] lg:truncate lg:text-right">
                                       Автор: {resolvePackCreatorNickname(pack)}
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                                    <div className="mt-1 grid grid-cols-3 gap-1.5 sm:mt-0 sm:flex sm:flex-wrap sm:items-center sm:gap-2 lg:justify-end">
                                       <Button
                                         type="button"
                                         variant="outline"
                                         onClick={() => {
                                           void openCreatePackEditor(pack.key);
                                         }}
-                                        className="h-9 rounded-xl border-zinc-700/90 bg-zinc-900/80 text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+                                        className="h-8 w-full rounded-lg border-zinc-700/90 bg-zinc-900/80 px-1 text-[11px] text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 sm:h-9 sm:w-auto sm:rounded-xl sm:px-3 sm:text-xs"
                                       >
                                         Редактировать
                                       </Button>
@@ -14808,7 +14808,7 @@ export default function App() {
                                         onClick={() => {
                                           openSharePackDialog(pack);
                                         }}
-                                        className="h-9 rounded-xl border-zinc-700/90 bg-zinc-900/80 text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+                                        className="h-8 w-full rounded-lg border-zinc-700/90 bg-zinc-900/80 px-1 text-[11px] text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 sm:h-9 sm:w-auto sm:rounded-xl sm:px-3 sm:text-xs"
                                       >
                                         Поделиться
                                       </Button>
@@ -14819,7 +14819,7 @@ export default function App() {
                                           setMyCasePackDeleteConfirmKey(pack.key);
                                         }}
                                         disabled={myCasePackDeleteKey === pack.key}
-                                        className="h-9 rounded-xl border-red-500/45 bg-red-500/12 text-red-100 hover:border-red-400/55 hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="h-8 w-full rounded-lg border-red-500/45 bg-red-500/12 px-1 text-[11px] text-red-100 hover:border-red-400/55 hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-auto sm:rounded-xl sm:px-3 sm:text-xs"
                                       >
                                         {myCasePackDeleteKey === pack.key ? "Удаляем..." : "Удалить"}
                                       </Button>
@@ -15654,7 +15654,7 @@ export default function App() {
               createPortal(
                 <motion.div
                   key="my-packs-share-dialog"
-                  className="absolute inset-0 z-[420] flex items-center justify-center p-3 sm:p-5"
+                  className="absolute inset-0 z-[420] flex items-start justify-center overflow-y-auto p-2 pt-3 sm:items-center sm:p-5"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -15664,7 +15664,7 @@ export default function App() {
                 >
                   <div className="absolute inset-0 rounded-[inherit] bg-black/72" />
                   <motion.div
-                    className="relative z-[421] w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5"
+                    className="relative z-[421] w-[calc(100%-0.25rem)] max-w-[560px] max-h-[calc(100vh-1rem)] overflow-y-auto rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:w-full sm:max-h-[calc(90vh-1rem)] sm:p-5"
                     initial={{ opacity: 0, y: 18, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 14, scale: 0.97 }}
