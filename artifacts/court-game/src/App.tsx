@@ -15028,7 +15028,7 @@ export default function App() {
 
                             {createPackModeTabPreviewCases.length > 0 ? (
                               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                                {createPackModeTabPreviewCases.map((draft) => {
+                                {createPackModeTabPreviewCases.map((draft, index) => {
                                   const isActive = activeCreatePackCase?.id === draft.id;
                                   return (
                                     <button
@@ -15038,6 +15038,8 @@ export default function App() {
                                         activateCreatePackCase(draft.id, draft.modePlayerCount, true)
                                       }
                                       className={`w-full min-w-0 max-w-full overflow-hidden rounded-xl border px-3 py-2 text-left transition-colors ${
+                                        index >= 3 ? "hidden sm:block " : ""
+                                      }${
                                         isActive
                                           ? "border-red-500/70 bg-red-500/12"
                                           : "border-zinc-700 bg-zinc-950 hover:border-zinc-600"
