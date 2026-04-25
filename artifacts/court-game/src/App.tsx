@@ -16615,20 +16615,20 @@ export default function App() {
         >
           <DialogContent
             overlayClassName="z-[288] bg-black/86 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
-            className="z-[289] w-[calc(100vw-1rem)] max-w-lg rounded-2xl sm:rounded-2xl border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-3 sm:p-6 text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
+            className="z-[289] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg overflow-x-hidden rounded-2xl sm:rounded-2xl border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-3 sm:p-6 text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
           >
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+            <DialogHeader className="text-left">
+              <DialogTitle className="flex flex-wrap items-center gap-2 pr-8 text-left leading-tight">
                 {importPackPreviewBlockingState ? (
                   <>
-                    <Lock className="h-4 w-4 text-red-300" />
-                    {importPackPreviewBlockingState.title}
+                    <Lock className="h-4 w-4 shrink-0 text-red-300" />
+                    <span className="min-w-0 break-words">{importPackPreviewBlockingState.title}</span>
                   </>
                 ) : (
-                  "Добавление пака"
+                  <span className="min-w-0 break-words">Добавление пака</span>
                 )}
               </DialogTitle>
-              <DialogDescription className="text-zinc-400">
+              <DialogDescription className="break-words pr-8 text-left text-zinc-400">
                 {importPackPreviewBlockingState
                   ? importPackPreviewBlockingState.description
                   : "Проверьте данные пака и добавьте его в «Мои паки»."}
@@ -16641,7 +16641,7 @@ export default function App() {
                 </div>
               ) : importPackPreviewData ? (
                 <div
-                  className="relative min-h-[112px] overflow-hidden rounded-2xl border px-3 py-3 sm:px-4"
+                  className="relative w-full min-w-0 min-h-[112px] overflow-hidden rounded-2xl border px-3 py-3 sm:px-4"
                   style={{
                     borderColor: hexToRgba(importPackPreviewData.color, 0.52),
                     backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(importPackPreviewData.color, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
