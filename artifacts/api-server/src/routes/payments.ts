@@ -21,7 +21,7 @@ type PayPalCheckoutMode = "paypal" | "paypal_cards";
 const PAID_TIERS = new Set<PaidTier>(["trainee", "practitioner", "arbiter"]);
 const PAID_DURATIONS = new Set<PaidDuration>(["1_month", "1_year"]);
 const CIS_METHOD_IDS = new Set<number>([2, 4, 8, 12, 42]);
-const CRYPTO_METHOD_IDS = new Set<number>([15, 26, 39, 41, 45]);
+const CRYPTO_METHOD_IDS = new Set<number>([13, 15, 26, 39, 41, 45]);
 const TOME_CARD_METHOD_IDS = new Set<number>([4, 8, 12]);
 const TOME_SBP_METHOD_IDS = new Set<number>([2, 42]);
 const PLATEGA_SBP_METHOD_IDS = new Set<number>([2, 42]);
@@ -614,6 +614,7 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
   const paymentId = createMerchantOrderId();
   const clientIp = resolveClientIp(req) || "127.0.0.1";
   const nonce = Date.now();
+  const shouldSendConcreteMethod = !(region === "crypto" && methodId === 13);
   let checkoutUrl = "";
   let fkPayload: Record<string, unknown> = {};
 
@@ -633,7 +634,9 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
     checkout.searchParams.set("s", signature);
     checkout.searchParams.set("currency", currency);
     checkout.searchParams.set("lang", "ru");
-    checkout.searchParams.set("i", String(methodId));
+    if (shouldSendConcreteMethod) {
+      checkout.searchParams.set("i", String(methodId));
+    }
     checkout.searchParams.set("em", user.email);
     checkout.searchParams.set("us_userId", user.id);
     checkout.searchParams.set("us_tier", paidTier);
@@ -652,12 +655,14 @@ paymentsRouter.post("/payments/freekassa/create", async (req, res) => {
       amount: amountRub,
       currency: "RUB",
       email: user.email,
-      i: methodId,
       ip: clientIp,
       nonce,
       paymentId,
       shopId,
     };
+    if (shouldSendConcreteMethod) {
+      payloadBase.i = methodId;
+    }
     const signature = buildApiSignature(payloadBase, apiKey);
 
     const fkResponse = await fetch("https://api.fk.life/v1/orders/create", {

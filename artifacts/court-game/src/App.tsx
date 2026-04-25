@@ -425,6 +425,7 @@ const SHOP_PAYMENT_INLINE_LOGOS: Record<string, string> = {
   visa: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="VISA"><rect width="640" height="220" rx="28" fill="transparent"/><text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" fill="#1a4dff" font-size="126" font-weight="800" letter-spacing="2" font-family="Arial Black,Segoe UI,Arial,sans-serif">VISA</text></svg>`),
   mastercard: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Mastercard"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(170 45)"><circle cx="110" cy="65" r="56" fill="#eb001b"/><circle cx="190" cy="65" r="56" fill="#f79e1b" fill-opacity="0.95"/><path d="M150 20a56 56 0 0 1 0 90a56 56 0 0 1 0-90z" fill="#ff5f00"/></g><text x="320" y="188" text-anchor="middle" fill="#f4f6ff" font-size="44" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">mastercard</text></svg>`),
   mir: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="МИР"><defs><linearGradient id="mirg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#09b570"/><stop offset="52%" stop-color="#25c58e"/><stop offset="100%" stop-color="#22a9ff"/></linearGradient></defs><rect width="640" height="220" rx="28" fill="transparent"/><text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" fill="url(#mirg)" font-size="130" font-weight="800" font-family="Arial Black,Segoe UI,Arial,sans-serif">МИР</text></svg>`),
+  universalCrypto: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Универсальный крипто"><defs><linearGradient id="ucg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#818cf8"/><stop offset="55%" stop-color="#22d3ee"/><stop offset="100%" stop-color="#14b8a6"/></linearGradient></defs><rect width="640" height="220" rx="28" fill="transparent"/><circle cx="124" cy="110" r="58" fill="url(#ucg)"/><path d="M124 75v70M99 98h50c11 0 19 8 19 17c0 10-8 18-19 18H99" fill="none" stroke="#f8fafc" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><text x="230" y="105" fill="#e4e4e7" font-size="48" font-weight="700" font-family="Inter,Segoe UI,Arial,sans-serif">UNIVERSAL</text><text x="230" y="153" fill="#a1a1aa" font-size="36" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">CRYPTO</text></svg>`),
   usdtTrc20: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="USDT TRC20"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(80 45)"><circle cx="65" cy="65" r="58" fill="#25a77a"/><rect x="26" y="38" width="78" height="14" rx="6" fill="#fff"/><rect x="58" y="52" width="14" height="47" rx="6" fill="#fff"/><ellipse cx="65" cy="66" rx="30" ry="11" fill="none" stroke="#fff" stroke-width="9"/></g><text x="200" y="102" fill="#eafbf5" font-size="66" font-weight="700" font-family="Inter,Segoe UI,Arial,sans-serif">USDT</text><text x="200" y="156" fill="#9ee5c9" font-size="40" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">TRC20</text></svg>`),
   ethereum: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Ethereum"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(290 18)"><polygon points="30,0 72,68 30,88 -12,68" fill="#8f8bf7"/><polygon points="30,96 72,76 30,184 -12,76" fill="#6d65dd"/><polygon points="30,86 72,70 30,92 -12,70" fill="#b3adff"/></g><text x="320" y="207" text-anchor="middle" fill="#d8d5ff" font-size="36" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">Ethereum</text></svg>`),
   ton: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="TON"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(90 36)"><circle cx="75" cy="75" r="66" fill="#40b7ff"/><path d="M75 30l33 24-33 50-33-50z" fill="none" stroke="#072032" stroke-width="9" stroke-linejoin="round"/></g><text x="250" y="125" fill="#8ad2ff" font-size="84" font-weight="800" font-family="Arial Black,Segoe UI,Arial,sans-serif">TON</text></svg>`),
@@ -512,6 +513,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     title: "Универсальный крипто",
     subtitle: "Универсальная крипто-оплата",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(99,102,241,0.36), rgba(99,102,241,0.02) 62%)",
+    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.universalCrypto,
+    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.universalCrypto,
   },
   {
     id: 15,
@@ -1348,14 +1351,14 @@ const BADGE_THEME: Record<
     iconOnly: "text-violet-200",
   },
   booster: {
-    chip: "border-transparent bg-[linear-gradient(120deg,rgba(34,211,238,0.24),rgba(99,102,241,0.26))] text-cyan-100 shadow-[0_0_16px_rgba(56,189,248,0.32)]",
-    icon: "bg-[linear-gradient(135deg,rgba(34,211,238,0.55),rgba(99,102,241,0.55))] text-white shadow-[0_0_12px_rgba(56,189,248,0.42)]",
-    iconOnly: "text-cyan-200 drop-shadow-[0_0_7px_rgba(34,211,238,0.58)]",
+    chip: "border-cyan-500/55 bg-cyan-500/20 text-cyan-200",
+    icon: "bg-cyan-500/35 text-cyan-100",
+    iconOnly: "text-cyan-300",
   },
   tournament_winner: {
-    chip: "border-transparent bg-[linear-gradient(120deg,rgba(251,191,36,0.24),rgba(244,63,94,0.24))] text-amber-100 shadow-[0_0_16px_rgba(251,191,36,0.3)]",
-    icon: "bg-[linear-gradient(135deg,rgba(251,191,36,0.55),rgba(244,63,94,0.55))] text-white shadow-[0_0_12px_rgba(251,191,36,0.42)]",
-    iconOnly: "text-amber-200 drop-shadow-[0_0_7px_rgba(251,191,36,0.58)]",
+    chip: "border-amber-500/60 bg-amber-500/20 text-amber-100",
+    icon: "bg-amber-500/35 text-amber-100",
+    iconOnly: "text-amber-200",
   },
   media: {
     chip: "border-cyan-500/55 bg-cyan-500/20 text-cyan-200",
@@ -2360,7 +2363,7 @@ const HELP_TOPICS_SOURCE: HelpTopicDraft[] = [
     category: "Шаблоны речей",
     title: "Шаблоны для судьи",
     content:
-      "Судье полезно держать базовые формулировки: «Слушается дело...», «Стороны, соблюдаем порядок», «Переходим к следующему этапу», «Суд удаляется для вынесения вердикта». Используйте шаблон как каркас, но подстраивайте формулировки под конкретный матч, чтобы речь звучала живо и по делу.",
+      "Вступление: «Слушается дело №{номер}. Стороны готовы к началу?». Перед фактами: «Слово предоставляется {роль}. Просьба говорить по существу». Перед вопросами: «Переходим к перекрёстным вопросам, по одному вопросу за раз». Перед вердиктом: «Суд заслушал позиции сторон, удаляюсь для принятия решения». Оглашение: «По результатам рассмотрения дела суд выносит вердикт: {вердикт}. Краткое обоснование: {1-2 ключевые причины}».",
     keywords: ["шаблон судьи", "вступительная речь судьи", "заключительная речь судьи", "фразы судьи"],
   },
   {
@@ -2368,7 +2371,7 @@ const HELP_TOPICS_SOURCE: HelpTopicDraft[] = [
     category: "Шаблоны речей",
     title: "Шаблоны для сторон",
     content:
-      "Для истца, ответчика, адвокатов и прокурора можно использовать мягкие заготовки: короткое вступление, 2-3 ключевых тезиса, усиление фактами и финальный вывод. Шаблон нужен как старт, но лучше адаптировать речь под ситуацию и стиль оппонента, а не читать текст по шаблону дословно.",
+      "Истец: «Прошу суд признать требования обоснованными, потому что {тезис 1} и {тезис 2}». Ответчик: «Считаю иск необоснованным, так как {контртезис 1} и {контртезис 2}». Адвокат: «Поддерживаю позицию доверителя и обращаю внимание суда на {ключевой факт}». Прокурор: «Прошу суд оценить действия через состав правонарушения: {элемент 1}, {элемент 2}, {элемент 3}». Шаблоны используйте как опору; в реальном матче лучше говорить своими словами и под конкретную ситуацию.",
     keywords: ["шаблоны речи", "шаблон истца", "шаблон ответчика", "шаблон прокурора", "как строить речь"],
   },
   {
@@ -2376,7 +2379,7 @@ const HELP_TOPICS_SOURCE: HelpTopicDraft[] = [
     category: "Подписка и функции",
     title: "Выбор роли и предпочитаемая роль",
     content:
-      "Функции выбора роли и предпочитаемой роли влияют на распределение участников в лобби, но не гарантируют стопроцентное получение роли в каждом матче. Итог зависит от состава комнаты, режима, решений ведущего и доступных ролей.",
+      "Выбор роли и предпочитаемая роль повышают шанс получить нужную роль, но не дают 100% гарантии. Итог зависит от режима, количества игроков, уже занятых ролей и настроек комнаты. Если роль недоступна в текущем составе, система назначит ближайший возможный вариант.",
     keywords: ["предпочитаемая роль", "выбор роли", "подписка роли", "распределение ролей"],
   },
   {
@@ -2384,7 +2387,7 @@ const HELP_TOPICS_SOURCE: HelpTopicDraft[] = [
     category: "Подписка и функции",
     title: "Что будет с рангом после окончания подписки",
     content:
-      "После окончания подписки накопленный ранг не пропадает и не откатывается. Ограничивается только дальнейшая прокачка ранга до повторного получения доступа к рейтинговой прогрессии.",
+      "Накопленный ранг сохраняется полностью и не откатывается. После окончания подписки вы просто перестаёте получать новый ранговый прогресс. Когда подписка снова активна, прокачка продолжается с того же места.",
     keywords: ["ранг после подписки", "прогресс ранга", "закончилась подписка ранг"],
   },
   {
@@ -2392,7 +2395,7 @@ const HELP_TOPICS_SOURCE: HelpTopicDraft[] = [
     category: "Подписка и функции",
     title: "Что будет с пользовательскими паками после окончания подписки",
     content:
-      "Если подписка закончилась, уже сохраненные пользовательские паки остаются доступными для использования в матчах и для отправки по ссылке. Ограничиваются создание новых паков, импорт по ссылке и редактирование до повторной активации подписки «Арбитр».",
+      "После окончания «Арбитра» ваши уже добавленные паки остаются в аккаунте: ими можно пользоваться в матчах и делиться ссылкой. Недоступны действия, требующие подписки: создание новых паков, импорт новых паков и редактирование существующих.",
     keywords: ["паки после подписки", "редактирование паков", "импорт паков", "арбитр паки"],
   },
   {
@@ -2400,7 +2403,7 @@ const HELP_TOPICS_SOURCE: HelpTopicDraft[] = [
     category: "Система суда",
     title: "Какой тип суда используется в CourtGame",
     content:
-      "В основе ролевой логики CourtGame используется англо-саксонская (прецедентная) модель: большое значение имеет спор сторон, качество аргументации, перекрестные вопросы и убедительность позиции перед судьей. Акцент сделан на состязательность процесса.",
+      "В CourtGame используется англо-саксонская (прецедентная) модель. Это значит, что ключевую роль играет спор сторон: кто лучше докажет позицию фактами, вопросами и логикой аргументов. Судья оценивает убедительность и согласованность позиции, а не только формальные ссылки.",
     keywords: ["англо-саксонская система", "прецедентная система", "тип суда", "какая система суда"],
   },
   {
@@ -2408,7 +2411,7 @@ const HELP_TOPICS_SOURCE: HelpTopicDraft[] = [
     category: "Система суда",
     title: "Где происходят события игры",
     content:
-      "События матчей и кейсов внутри CourtGame разворачиваются в правовом сеттинге штата Калифорния. Это влияет на стиль формулировок, общий тон разбирательств и ролевой контекст отдельных дел.",
+      "События кейсов происходят в правовом сеттинге штата Калифорния. Поэтому стилистика дел, роли сторон и формулировки в игре ориентированы на этот контекст.",
     keywords: ["калифорния", "сеттинг игры", "где происходят события", "юрисдикция courtgame"],
   },
 ];
