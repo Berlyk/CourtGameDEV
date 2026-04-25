@@ -14600,10 +14600,11 @@ export default function App() {
                     {createPackCatalogView === "catalog" ? (
                       <motion.div
                         key="create-pack-view-catalog"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        initial={{ opacity: 0, y: 10, scale: 0.985 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.985 }}
+                        transition={{ duration: 0.22, ease: "easeOut" }}
+                        style={{ transformOrigin: "center top" }}
                       >
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         {catalogPacksOrdered.map((pack, index) => {
@@ -14734,10 +14735,11 @@ export default function App() {
                     ) : createPackCatalogView === "my_packs" ? (
                       <motion.div
                         key="create-pack-view-my-packs"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        initial={{ opacity: 0, y: 10, scale: 0.985 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.985 }}
+                        transition={{ duration: 0.22, ease: "easeOut" }}
+                        style={{ transformOrigin: "center top" }}
                       >
                         <div className="space-y-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/55 p-3">
                         {myCasePacksLoading ? (
@@ -14868,10 +14870,11 @@ export default function App() {
                     ) : (
                       <motion.div
                         key="create-pack-view-editor"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        initial={{ opacity: 0, y: 10, scale: 0.985 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.985 }}
+                        transition={{ duration: 0.22, ease: "easeOut" }}
+                        style={{ transformOrigin: "center top" }}
                       >
                       <div className="relative mx-auto max-w-[980px] min-w-0 space-y-3 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-3">
                         {createPackCasesDialogOpen && (
