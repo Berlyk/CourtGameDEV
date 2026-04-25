@@ -691,10 +691,10 @@ function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
           />
           <image
             href="https://upload.wikimedia.org/wikipedia/commons/0/01/USDT_Logo.png"
-            x="272"
-            y="74"
-            width="52"
-            height="52"
+            x="268"
+            y="70"
+            width="60"
+            height="60"
             preserveAspectRatio="xMidYMid meet"
           />
         </svg>
@@ -16202,10 +16202,10 @@ export default function App() {
 
                                                       <image
                                                         href="https://upload.wikimedia.org/wikipedia/commons/0/01/USDT_Logo.png"
-                                                        x="339"
-                                                        y="131"
-                                                        width="70"
-                                                        height="70"
+                                                        x="333"
+                                                        y="125"
+                                                        width="82"
+                                                        height="82"
                                                         preserveAspectRatio="xMidYMid meet"
                                                       />
                                                     </svg>
