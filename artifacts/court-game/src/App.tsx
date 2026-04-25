@@ -6564,7 +6564,7 @@ export default function App() {
         const checkoutEndpoint =
           method.providerCategory === "europe"
             ? "/payments/paypal/create"
-            : method.id === 2
+            : method.id === 2 || method.id === 13
               ? "/payments/platega/create"
             : "/payments/freekassa/create";
         const payload = await authRequest<{ ok: true; checkoutUrl: string }>(
@@ -12529,7 +12529,7 @@ export default function App() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-zinc-700/70 bg-black/30">
-                            <BadgeGlyph badgeKey={badge.key} className={`h-4 w-4 ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
+                            <BadgeGlyph badgeKey={badge.key} className={`${badge.key === "booster" || badge.key === "tournament_winner" ? "h-3.5 w-3.5" : "h-4 w-4"} ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
                           </span>
                           <div className="text-sm font-semibold truncate">{badge.title}</div>
                         </div>
@@ -12577,7 +12577,7 @@ export default function App() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-zinc-700/70 bg-black/30">
-                            <BadgeGlyph badgeKey={badge.key} className={`h-4 w-4 ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
+                            <BadgeGlyph badgeKey={badge.key} className={`${badge.key === "booster" || badge.key === "tournament_winner" ? "h-3.5 w-3.5" : "h-4 w-4"} ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
                           </span>
                           <div className="text-sm font-semibold truncate">{badge.title}</div>
                         </div>
@@ -12625,7 +12625,7 @@ export default function App() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-zinc-700/70 bg-black/30">
-                            <BadgeGlyph badgeKey={badge.key} className={`h-4 w-4 ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
+                            <BadgeGlyph badgeKey={badge.key} className={`${badge.key === "booster" || badge.key === "tournament_winner" ? "h-3.5 w-3.5" : "h-4 w-4"} ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
                           </span>
                           <div className="text-sm font-semibold truncate">{badge.title}</div>
                         </div>
@@ -12673,7 +12673,7 @@ export default function App() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-zinc-700/70 bg-black/30">
-                            <BadgeGlyph badgeKey={badge.key} className={`h-4 w-4 ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
+                            <BadgeGlyph badgeKey={badge.key} className={`${badge.key === "booster" || badge.key === "tournament_winner" ? "h-3.5 w-3.5" : "h-4 w-4"} ${getBadgeTheme(badge.key).iconOnly ?? "text-zinc-300"}`} />
                           </span>
                           <div className="text-sm font-semibold truncate">{badge.title}</div>
                         </div>
@@ -16128,6 +16128,10 @@ export default function App() {
                                                       className="relative z-10 h-auto w-auto max-h-[27px] max-w-[64%] -translate-y-[4px] object-contain drop-shadow-[0_6px_18px_rgba(15,23,42,0.45)] sm:max-h-[33px] sm:max-w-[66%] sm:-translate-y-[6px]"
                                                       loading="lazy"
                                                     />
+                                                  </div>
+                                                ) : method.id === 13 ? (
+                                                  <div className="flex h-full w-full items-center justify-center">
+                                                    {renderShopPaymentLogo(method)}
                                                   </div>
                                                 ) : (
                                                   <img

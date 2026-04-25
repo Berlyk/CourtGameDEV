@@ -24,7 +24,7 @@ const CIS_METHOD_IDS = new Set<number>([2, 4, 8, 12, 42]);
 const CRYPTO_METHOD_IDS = new Set<number>([13, 15, 26, 39, 41, 45]);
 const TOME_CARD_METHOD_IDS = new Set<number>([4, 8, 12]);
 const TOME_SBP_METHOD_IDS = new Set<number>([2, 42]);
-const PLATEGA_SBP_METHOD_IDS = new Set<number>([2, 42]);
+const PLATEGA_METHOD_IDS = new Set<number>([2, 42, 13]);
 const PAYPAL_METHOD_IDS = new Set<number>([201, 202]);
 const PAYPAL_ONLY_METHOD_IDS = new Set<number>([201]);
 const PAYPAL_CARDS_METHOD_IDS = new Set<number>([202]);
@@ -944,16 +944,20 @@ paymentsRouter.post("/payments/platega/create", async (req, res) => {
       .json({ message: "Only 1 month and 1 year durations are available for payment." });
   }
 
-  const regionRaw = String(req.body?.category ?? "").trim().toLowerCase();
-  if (regionRaw !== "cis") {
-    return res.status(400).json({ message: "Platega is available only for CIS payments." });
-  }
-
   const methodId = Number(req.body?.paymentSystemId);
   if (!Number.isFinite(methodId) || methodId <= 0) {
     return res.status(400).json({ message: "Invalid payment method." });
   }
-  if (!CIS_METHOD_IDS.has(methodId) || !PLATEGA_SBP_METHOD_IDS.has(methodId)) {
+  const regionRaw = String(req.body?.category ?? "").trim().toLowerCase();
+  const isUniversalCrypto = methodId === 13;
+  if (isUniversalCrypto ? regionRaw !== "crypto" : regionRaw !== "cis") {
+    return res.status(400).json({
+      message: isUniversalCrypto
+        ? "Universal crypto via Platega is available only for crypto payments."
+        : "Platega is available only for CIS payments.",
+    });
+  }
+  if (!PLATEGA_METHOD_IDS.has(methodId)) {
     return res.status(400).json({ message: "Method is not available for Platega payments." });
   }
 
