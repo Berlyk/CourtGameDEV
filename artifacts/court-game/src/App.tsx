@@ -14765,9 +14765,15 @@ export default function App() {
                                   }}
                                 >
                                   <div className="grid h-full grid-cols-1 gap-2 lg:grid-cols-[1fr_auto] lg:items-start">
+                                    <span
+                                      className={`absolute right-3 top-3 rounded-full border px-2 py-0.5 text-[11px] sm:right-4 sm:top-4 ${myPackCountChipVisual.className}`}
+                                      style={myPackCountChipVisual.style}
+                                    >
+                                      {pack.caseCount ?? 0} дел
+                                    </span>
                                     <div className="min-w-0">
                                       <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
+                                        <div className="min-w-0 pr-[78px] sm:pr-[84px]">
                                           <div className="flex items-center">
                                             <div className="truncate text-base font-semibold text-zinc-100">{pack.title}</div>
                                           </div>
@@ -14779,14 +14785,7 @@ export default function App() {
                                           </div>
                                         </div>
                                       </div>
-                                      <div className="mt-1.5 flex items-center">
-                                        <span
-                                          className={`rounded-full border px-2 py-0.5 text-[11px] ${myPackCountChipVisual.className}`}
-                                          style={myPackCountChipVisual.style}
-                                        >
-                                          {pack.caseCount ?? 0} дел
-                                        </span>
-                                      </div>
+                                      <div className="mt-1.5 flex items-center" />
                                     </div>
                                     <div className="pointer-events-none mt-1 text-[11px] text-zinc-400 lg:absolute lg:bottom-3 lg:right-4 lg:mt-0 lg:max-w-[55%] lg:truncate lg:text-right">
                                       Автор: {resolvePackCreatorNickname(pack)}
@@ -15700,8 +15699,14 @@ export default function App() {
                               backgroundImage: `radial-gradient(120% 130% at 0% 0%, ${hexToRgba(normalizePackColor(sharePackData?.color), 0.22)}, transparent 60%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
                             }}
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
+                            <span
+                              className={`absolute right-3 top-3 shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${sharePreviewChip.className}`}
+                              style={sharePreviewChip.style}
+                            >
+                              {Math.max(0, Number(sharePackData?.caseCount ?? 0) || 0)} дел
+                            </span>
+                            <div className="flex items-start gap-2">
+                              <div className="min-w-0 pr-[82px]">
                                 <div className="flex items-center">
                                   <div className="truncate text-base font-semibold text-zinc-100">
                                     {sharePackData?.title ?? "Пак"}
@@ -15714,14 +15719,8 @@ export default function App() {
                                   Пользовательский пак
                                 </div>
                               </div>
-                              <span
-                                className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${sharePreviewChip.className}`}
-                                style={sharePreviewChip.style}
-                              >
-                                {Math.max(0, Number(sharePackData?.caseCount ?? 0) || 0)} дел
-                              </span>
                             </div>
-                            <div className="pointer-events-none absolute bottom-3 right-4 max-w-[55%] truncate text-right text-[11px] text-zinc-400">
+                            <div className="pointer-events-none absolute bottom-3 right-3 max-w-[58%] truncate text-right text-[11px] text-zinc-400 sm:right-4">
                               Автор: {sharePackData?.creatorNickname || "Игрок"}
                             </div>
                           </div>
@@ -16644,30 +16643,32 @@ export default function App() {
                   {(() => {
                     const previewChip = getCustomPackCountChipVisual(importPackPreviewData.color);
                     return (
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center">
-                        <div className="truncate text-base font-semibold text-zinc-100">
-                          {importPackPreviewData.title}
+                      <>
+                        <span
+                          className={`absolute right-3 top-3 shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${previewChip.className}`}
+                          style={previewChip.style}
+                        >
+                          {importPackPreviewData.caseCount} дел
+                        </span>
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0 pr-[82px]">
+                            <div className="flex items-center">
+                              <div className="truncate text-base font-semibold text-zinc-100">
+                                {importPackPreviewData.title}
+                              </div>
+                            </div>
+                            <div className="mt-1 text-sm text-zinc-300 break-words">
+                              {importPackPreviewData.description || "Описание не указано."}
+                            </div>
+                            <div className="mt-1.5 min-w-0 truncate pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                              Пользовательский пак
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="mt-1 text-sm text-zinc-300 break-words">
-                        {importPackPreviewData.description || "Описание не указано."}
-                      </div>
-                      <div className="mt-1.5 min-w-0 truncate pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                        Пользовательский пак
-                      </div>
-                    </div>
-                    <span
-                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${previewChip.className}`}
-                      style={previewChip.style}
-                    >
-                      {importPackPreviewData.caseCount} дел
-                    </span>
-                  </div>
+                      </>
                     );
                   })()}
-                  <div className="pointer-events-none absolute bottom-3 right-4 max-w-[55%] truncate text-right text-[11px] text-zinc-400">
+                  <div className="pointer-events-none absolute bottom-3 right-3 max-w-[58%] truncate text-right text-[11px] text-zinc-400 sm:right-4">
                     Автор: {resolvePackCreatorNickname(importPackPreviewData)}
                   </div>
                 </div>
