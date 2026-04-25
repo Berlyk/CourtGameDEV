@@ -14596,7 +14596,15 @@ export default function App() {
                       )}
                     </div>
 
+                    <AnimatePresence mode="wait" initial={false}>
                     {createPackCatalogView === "catalog" ? (
+                      <motion.div
+                        key="create-pack-view-catalog"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                      >
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         {catalogPacksOrdered.map((pack, index) => {
                             const isLocked = isPackLockedForTier(pack, myTier);
@@ -14722,8 +14730,15 @@ export default function App() {
                             );
                           })}
                       </div>
+                      </motion.div>
                     ) : createPackCatalogView === "my_packs" ? (
-                      <>
+                      <motion.div
+                        key="create-pack-view-my-packs"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                      >
                         <div className="space-y-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/55 p-3">
                         {myCasePacksLoading ? (
                           <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-4 text-sm text-zinc-400">
@@ -14849,8 +14864,15 @@ export default function App() {
                         )}
 
                         </div>
-                      </>
+                      </motion.div>
                     ) : (
+                      <motion.div
+                        key="create-pack-view-editor"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                      >
                       <div className="relative mx-auto max-w-[980px] min-w-0 space-y-3 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-3">
                         {createPackCasesDialogOpen && (
                           <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
@@ -15418,7 +15440,9 @@ export default function App() {
                               : "Сохранить пак"}
                         </Button>
                       </div>
+                      </motion.div>
                     )}
+                    </AnimatePresence>
                   </div>
                 ) : (
                 <div className="mt-1 space-y-3">
