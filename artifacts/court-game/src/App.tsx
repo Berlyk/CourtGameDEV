@@ -425,7 +425,7 @@ const SHOP_PAYMENT_INLINE_LOGOS: Record<string, string> = {
   visa: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="VISA"><rect width="640" height="220" rx="28" fill="transparent"/><text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" fill="#1a4dff" font-size="126" font-weight="800" letter-spacing="2" font-family="Arial Black,Segoe UI,Arial,sans-serif">VISA</text></svg>`),
   mastercard: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Mastercard"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(170 45)"><circle cx="110" cy="65" r="56" fill="#eb001b"/><circle cx="190" cy="65" r="56" fill="#f79e1b" fill-opacity="0.95"/><path d="M150 20a56 56 0 0 1 0 90a56 56 0 0 1 0-90z" fill="#ff5f00"/></g><text x="320" y="188" text-anchor="middle" fill="#f4f6ff" font-size="44" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">mastercard</text></svg>`),
   mir: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="МИР"><defs><linearGradient id="mirg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#09b570"/><stop offset="52%" stop-color="#25c58e"/><stop offset="100%" stop-color="#22a9ff"/></linearGradient></defs><rect width="640" height="220" rx="28" fill="transparent"/><text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" fill="url(#mirg)" font-size="130" font-weight="800" font-family="Arial Black,Segoe UI,Arial,sans-serif">МИР</text></svg>`),
-  universalCrypto: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Универсальный крипто"><defs><linearGradient id="ucg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#818cf8"/><stop offset="55%" stop-color="#22d3ee"/><stop offset="100%" stop-color="#14b8a6"/></linearGradient></defs><rect width="640" height="220" rx="28" fill="transparent"/><circle cx="124" cy="110" r="58" fill="url(#ucg)"/><path d="M124 75v70M99 98h50c11 0 19 8 19 17c0 10-8 18-19 18H99" fill="none" stroke="#f8fafc" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><text x="230" y="105" fill="#e4e4e7" font-size="48" font-weight="700" font-family="Inter,Segoe UI,Arial,sans-serif">UNIVERSAL</text><text x="230" y="153" fill="#a1a1aa" font-size="36" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">CRYPTO</text></svg>`),
+  universalCrypto: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Универсальный крипто"><defs><radialGradient id="uc-bg" cx="20%" cy="8%" r="120%"><stop offset="0%" stop-color="rgba(248,113,113,0.22)"/><stop offset="52%" stop-color="rgba(30,41,59,0.2)"/><stop offset="100%" stop-color="rgba(2,6,23,0.82)"/></radialGradient><linearGradient id="uc-net" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#7dd3fc" stop-opacity="0.38"/><stop offset="100%" stop-color="#34d399" stop-opacity="0.34"/></linearGradient><linearGradient id="uc-sol" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient></defs><rect width="640" height="220" rx="28" fill="transparent"/><ellipse cx="320" cy="110" rx="148" ry="78" fill="url(#uc-bg)" opacity="0.55"/><circle cx="320" cy="110" r="74" fill="none" stroke="url(#uc-net)" stroke-width="5"/><ellipse cx="320" cy="110" rx="74" ry="29" fill="none" stroke="#93c5fd" stroke-opacity="0.48" stroke-width="3"/><ellipse cx="320" cy="110" rx="74" ry="49" fill="none" stroke="#6ee7b7" stroke-opacity="0.3" stroke-width="2.6"/><path d="M246 110h148" fill="none" stroke="#cbd5e1" stroke-opacity="0.36" stroke-width="2.6"/><path d="M320 36v148" fill="none" stroke="#cbd5e1" stroke-opacity="0.32" stroke-width="2.6"/><circle cx="232" cy="110" r="25" fill="#f7931a"/><text x="232" y="117" text-anchor="middle" fill="#ffffff" font-size="26" font-weight="800" font-family="Arial Black,Segoe UI,Arial,sans-serif">B</text><line x1="225" y1="94" x2="225" y2="126" stroke="#fff" stroke-width="3" stroke-linecap="round"/><line x1="239" y1="94" x2="239" y2="126" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="320" cy="110" r="25" fill="#0f172a" stroke="url(#uc-sol)" stroke-width="3.6"/><g transform="translate(299 95)"><rect x="0" y="0" width="42" height="6.6" rx="3.3" fill="url(#uc-sol)" transform="skewX(-18)"/><rect x="0" y="11" width="42" height="6.6" rx="3.3" fill="url(#uc-sol)" transform="skewX(-18)"/><rect x="0" y="22" width="42" height="6.6" rx="3.3" fill="url(#uc-sol)" transform="skewX(-18)"/></g><circle cx="408" cy="110" r="25" fill="#26a17b"/><rect x="391" y="95" width="34" height="6.8" rx="3.4" fill="#fff"/><rect x="404" y="101" width="8.5" height="21" rx="4.2" fill="#fff"/><ellipse cx="408" cy="110" rx="16" ry="5.2" fill="none" stroke="#fff" stroke-width="4.6"/></svg>`),
   usdtTrc20: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="USDT TRC20"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(80 45)"><circle cx="65" cy="65" r="58" fill="#25a77a"/><rect x="26" y="38" width="78" height="14" rx="6" fill="#fff"/><rect x="58" y="52" width="14" height="47" rx="6" fill="#fff"/><ellipse cx="65" cy="66" rx="30" ry="11" fill="none" stroke="#fff" stroke-width="9"/></g><text x="200" y="102" fill="#eafbf5" font-size="66" font-weight="700" font-family="Inter,Segoe UI,Arial,sans-serif">USDT</text><text x="200" y="156" fill="#9ee5c9" font-size="40" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">TRC20</text></svg>`),
   ethereum: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Ethereum"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(290 18)"><polygon points="30,0 72,68 30,88 -12,68" fill="#8f8bf7"/><polygon points="30,96 72,76 30,184 -12,76" fill="#6d65dd"/><polygon points="30,86 72,70 30,92 -12,70" fill="#b3adff"/></g><text x="320" y="207" text-anchor="middle" fill="#d8d5ff" font-size="36" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">Ethereum</text></svg>`),
   ton: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="TON"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(90 36)"><circle cx="75" cy="75" r="66" fill="#40b7ff"/><path d="M75 30l33 24-33 50-33-50z" fill="none" stroke="#072032" stroke-width="9" stroke-linejoin="round"/></g><text x="250" y="125" fill="#8ad2ff" font-size="84" font-weight="800" font-family="Arial Black,Segoe UI,Arial,sans-serif">TON</text></svg>`),
@@ -652,28 +652,42 @@ function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
       return (
         <svg viewBox="0 0 420 200" aria-hidden="true" className={commonClass}>
           <defs>
-            <linearGradient id="shop-logo-crypto-universal" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#818CF8" />
-              <stop offset="55%" stopColor="#22D3EE" />
-              <stop offset="100%" stopColor="#14B8A6" />
+            <radialGradient id="shop-logo-crypto-universal-bg" cx="20%" cy="8%" r="120%">
+              <stop offset="0%" stopColor="rgba(248,113,113,0.22)" />
+              <stop offset="52%" stopColor="rgba(30,41,59,0.2)" />
+              <stop offset="100%" stopColor="rgba(2,6,23,0.82)" />
+            </radialGradient>
+            <linearGradient id="shop-logo-crypto-universal-net" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.38" />
+              <stop offset="100%" stopColor="#34d399" stopOpacity="0.34" />
+            </linearGradient>
+            <linearGradient id="shop-logo-crypto-universal-sol" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#8b5cf6" />
+              <stop offset="100%" stopColor="#22d3ee" />
             </linearGradient>
           </defs>
-          <rect x="34" y="24" width="352" height="152" rx="28" fill="rgba(24,24,27,0.55)" />
-          <circle cx="114" cy="100" r="44" fill="url(#shop-logo-crypto-universal)" />
-          <path
-            d="M114 72v56M95 90h38c8 0 14 6 14 13s-6 13-14 13H95"
-            fill="none"
-            stroke="#f8fafc"
-            strokeWidth="9"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <text x="182" y="91" fill="#E4E4E7" fontSize="24" fontWeight="700" fontFamily="Inter, sans-serif">
-            UNIVERSAL
+          <ellipse cx="210" cy="100" rx="118" ry="66" fill="url(#shop-logo-crypto-universal-bg)" opacity="0.58" />
+          <circle cx="210" cy="100" r="62" fill="none" stroke="url(#shop-logo-crypto-universal-net)" strokeWidth="4.2" />
+          <ellipse cx="210" cy="100" rx="62" ry="24" fill="none" stroke="#93c5fd" strokeOpacity="0.48" strokeWidth="2.8" />
+          <ellipse cx="210" cy="100" rx="62" ry="41" fill="none" stroke="#6ee7b7" strokeOpacity="0.3" strokeWidth="2.3" />
+          <path d="M148 100h124" fill="none" stroke="#cbd5e1" strokeOpacity="0.36" strokeWidth="2.3" />
+          <path d="M210 38v124" fill="none" stroke="#cbd5e1" strokeOpacity="0.32" strokeWidth="2.3" />
+          <circle cx="136" cy="100" r="21" fill="#f7931a" />
+          <text x="136" y="106" textAnchor="middle" fill="#ffffff" fontSize="22" fontWeight="800" fontFamily="Arial Black, Segoe UI, Arial, sans-serif">
+            B
           </text>
-          <text x="182" y="124" fill="#A1A1AA" fontSize="20" fontWeight="600" fontFamily="Inter, sans-serif">
-            CRYPTO
-          </text>
+          <line x1="130" y1="87" x2="130" y2="114" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+          <line x1="142" y1="87" x2="142" y2="114" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+          <circle cx="210" cy="100" r="21" fill="#0f172a" stroke="url(#shop-logo-crypto-universal-sol)" strokeWidth="3.2" />
+          <g transform="translate(193 88)">
+            <rect x="0" y="0" width="34" height="5.7" rx="2.85" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-18)" />
+            <rect x="0" y="9" width="34" height="5.7" rx="2.85" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-18)" />
+            <rect x="0" y="18" width="34" height="5.7" rx="2.85" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-18)" />
+          </g>
+          <circle cx="284" cy="100" r="21" fill="#26a17b" />
+          <rect x="269" y="87" width="30" height="5.8" rx="2.9" fill="#fff" />
+          <rect x="281" y="92" width="7.2" height="17" rx="3.6" fill="#fff" />
+          <ellipse cx="284" cy="100" rx="14" ry="4.8" fill="none" stroke="#fff" strokeWidth="4.2" />
         </svg>
       );
     case "USDT TRC20":
@@ -15695,13 +15709,24 @@ export default function App() {
               myCasePackDeleteConfirmKey &&
               createMatchDialogRef.current &&
               createPortal(
-                <div
+                <motion.div
+                  key="my-packs-delete-dialog"
                   className="absolute inset-0 z-[420] flex items-center justify-center p-3 sm:p-5"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
                   onMouseDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="absolute inset-0 rounded-[inherit] bg-black/72" />
-                  <div className="relative z-[421] w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
+                  <motion.div
+                    className="relative z-[421] w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4"
+                    initial={{ opacity: 0, y: 18, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 14, scale: 0.97 }}
+                    transition={{ duration: 0.22, ease: "easeOut" }}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="text-lg font-semibold text-zinc-100">Удалить пак?</div>
@@ -15740,8 +15765,8 @@ export default function App() {
                         {myCasePackDeleteKey ? "Удаляем..." : "Удалить пак"}
                       </Button>
                     </div>
-                  </div>
-                </div>,
+                  </motion.div>
+                </motion.div>,
                 createMatchDialogRef.current,
               )}
             <Dialog
@@ -16114,54 +16139,57 @@ export default function App() {
                                                     />
                                                   </div>
                                                 ) : method.id === 13 ? (
-                                                  <div className="relative flex h-[80px] w-[148px] items-center justify-center sm:h-[98px] sm:w-[182px]">
+                                                  <div className="relative flex h-[84px] w-[152px] items-center justify-center sm:h-[102px] sm:w-[188px]">
                                                     <svg
                                                       viewBox="0 0 512 320"
                                                       aria-hidden="true"
                                                       className="pointer-events-none absolute inset-0 h-full w-full"
                                                     >
                                                       <defs>
-                                                        <linearGradient id="multi-crypto-card-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-                                                          <stop offset="0%" stopColor="#331417" />
-                                                          <stop offset="38%" stopColor="#222534" />
-                                                          <stop offset="72%" stopColor="#151924" />
-                                                          <stop offset="100%" stopColor="#0f1118" />
-                                                        </linearGradient>
-                                                        <linearGradient id="multi-crypto-card-shine" x1="0%" y1="0%" x2="100%" y2="0%">
-                                                          <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.24" />
-                                                          <stop offset="50%" stopColor="#ffffff" stopOpacity="0.1" />
-                                                          <stop offset="100%" stopColor="#34d399" stopOpacity="0.2" />
+                                                        <radialGradient id="multi-crypto-bg" cx="18%" cy="10%" r="120%">
+                                                          <stop offset="0%" stopColor="rgba(239,68,68,0.22)" />
+                                                          <stop offset="50%" stopColor="rgba(30,41,59,0.24)" />
+                                                          <stop offset="100%" stopColor="rgba(2,6,23,0.85)" />
+                                                        </radialGradient>
+                                                        <linearGradient id="multi-crypto-grid" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                          <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.34" />
+                                                          <stop offset="100%" stopColor="#34d399" stopOpacity="0.3" />
                                                         </linearGradient>
                                                         <linearGradient id="sol-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
                                                           <stop offset="0%" stopColor="#8b5cf6" />
                                                           <stop offset="100%" stopColor="#22d3ee" />
                                                         </linearGradient>
                                                       </defs>
-                                                      <rect x="18" y="22" width="476" height="276" rx="34" fill="url(#multi-crypto-card-bg)" stroke="#ef4444" strokeOpacity="0.24" strokeWidth="9" />
-                                                      <rect x="30" y="34" width="452" height="252" rx="27" fill="none" stroke="url(#multi-crypto-card-shine)" strokeOpacity="0.45" strokeWidth="5" />
-                                                      <rect x="58" y="62" width="128" height="22" rx="11" fill="#ffffff" fillOpacity="0.07" />
-                                                      <rect x="58" y="96" width="96" height="16" rx="8" fill="#ffffff" fillOpacity="0.06" />
-                                                      <rect x="58" y="214" width="160" height="18" rx="9" fill="#ffffff" fillOpacity="0.08" />
-                                                      <rect x="58" y="244" width="112" height="16" rx="8" fill="#ffffff" fillOpacity="0.05" />
+                                                      <ellipse cx="256" cy="164" rx="154" ry="108" fill="url(#multi-crypto-bg)" opacity="0.62" />
+                                                      <circle cx="256" cy="164" r="100" fill="none" stroke="url(#multi-crypto-grid)" strokeWidth="6" strokeOpacity="0.66" />
+                                                      <ellipse cx="256" cy="164" rx="100" ry="40" fill="none" stroke="#93c5fd" strokeOpacity="0.5" strokeWidth="4" />
+                                                      <ellipse cx="256" cy="164" rx="100" ry="66" fill="none" stroke="#6ee7b7" strokeOpacity="0.35" strokeWidth="3" />
+                                                      <path d="M156 164h200" fill="none" stroke="#cbd5e1" strokeOpacity="0.4" strokeWidth="3" />
+                                                      <path d="M256 64v200" fill="none" stroke="#cbd5e1" strokeOpacity="0.35" strokeWidth="3" />
+                                                      <path d="M189 95c30-18 109-18 139 0" fill="none" stroke="#60a5fa" strokeOpacity="0.34" strokeWidth="2.4" />
+                                                      <path d="M189 233c30 18 109 18 139 0" fill="none" stroke="#34d399" strokeOpacity="0.34" strokeWidth="2.4" />
+                                                      <circle cx="184" cy="124" r="4.5" fill="#60a5fa" />
+                                                      <circle cx="332" cy="204" r="4.5" fill="#34d399" />
+                                                      <circle cx="292" cy="104" r="4.5" fill="#f87171" />
 
-                                                      <circle cx="140" cy="168" r="40" fill="#f7931a" />
-                                                      <text x="140" y="180" textAnchor="middle" fill="#fff" fontSize="42" fontWeight="800" fontFamily="Arial Black,Segoe UI,Arial,sans-serif">
+                                                      <circle cx="144" cy="166" r="38" fill="#f7931a" stroke="#fff" strokeOpacity="0.14" strokeWidth="2" />
+                                                      <text x="144" y="177" textAnchor="middle" fill="#fff" fontSize="40" fontWeight="800" fontFamily="Arial Black,Segoe UI,Arial,sans-serif">
                                                         B
                                                       </text>
-                                                      <line x1="130" y1="143" x2="130" y2="193" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
-                                                      <line x1="150" y1="143" x2="150" y2="193" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+                                                      <line x1="134" y1="143" x2="134" y2="191" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+                                                      <line x1="154" y1="143" x2="154" y2="191" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
 
-                                                      <circle cx="256" cy="168" r="40" fill="#0f172a" stroke="url(#sol-gradient)" strokeWidth="5" />
-                                                      <g transform="translate(224 145)">
+                                                      <circle cx="256" cy="166" r="38" fill="#0f172a" stroke="url(#sol-gradient)" strokeWidth="5" />
+                                                      <g transform="translate(224 144)">
                                                         <rect x="0" y="0" width="62" height="10" rx="5" fill="url(#sol-gradient)" transform="skewX(-18)" />
                                                         <rect x="0" y="18" width="62" height="10" rx="5" fill="url(#sol-gradient)" transform="skewX(-18)" />
                                                         <rect x="0" y="36" width="62" height="10" rx="5" fill="url(#sol-gradient)" transform="skewX(-18)" />
                                                       </g>
 
-                                                      <circle cx="372" cy="168" r="40" fill="#26a17b" />
-                                                      <rect x="346" y="145" width="52" height="10" rx="5" fill="#fff" />
-                                                      <rect x="366" y="153" width="12" height="32" rx="6" fill="#fff" />
-                                                      <ellipse cx="372" cy="168" rx="24" ry="8" fill="none" stroke="#fff" strokeWidth="7" />
+                                                      <circle cx="368" cy="166" r="38" fill="#26a17b" stroke="#fff" strokeOpacity="0.14" strokeWidth="2" />
+                                                      <rect x="342" y="143" width="52" height="10" rx="5" fill="#fff" />
+                                                      <rect x="362" y="151" width="12" height="32" rx="6" fill="#fff" />
+                                                      <ellipse cx="368" cy="166" rx="24" ry="8" fill="none" stroke="#fff" strokeWidth="7" />
                                                     </svg>
                                                   </div>
                                                 ) : (
