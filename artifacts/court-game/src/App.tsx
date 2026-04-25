@@ -15656,11 +15656,12 @@ export default function App() {
             {createPackCatalogOpen &&
               createPackCatalogView === "my_packs" &&
               sharePackDialogOpen &&
-              createMatchDialogRef.current &&
+              typeof document !== "undefined" &&
+              document.body &&
               createPortal(
                 <motion.div
                   key="my-packs-share-dialog"
-                  className="absolute inset-0 z-[420] flex items-start justify-center overflow-hidden p-2 pt-3 sm:items-center sm:p-5"
+                  className="fixed inset-0 z-[520] flex items-center justify-center overflow-hidden p-2 sm:p-5"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -15668,9 +15669,9 @@ export default function App() {
                   onMouseDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <div className="absolute inset-0 rounded-[inherit] bg-black/72" />
+                  <div className="absolute inset-0 bg-black/72" />
                   <motion.div
-                    className="relative z-[421] w-[calc(100%-0.25rem)] max-w-[560px] max-h-[calc(100%-0.5rem)] overflow-y-auto rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:w-full sm:max-h-[calc(100%-2rem)] sm:overflow-y-visible sm:p-5"
+                    className="relative z-[521] w-[calc(100%-1rem)] max-w-[560px] overflow-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:w-full sm:p-5"
                     initial={{ opacity: 0, y: 18, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 14, scale: 0.97 }}
@@ -15760,16 +15761,17 @@ export default function App() {
                     </div>
                   </motion.div>
                 </motion.div>,
-                createMatchDialogRef.current,
+                document.body,
               )}
             {createPackCatalogOpen &&
               createPackCatalogView === "my_packs" &&
               myCasePackDeleteConfirmKey &&
-              createMatchDialogRef.current &&
+              typeof document !== "undefined" &&
+              document.body &&
               createPortal(
                 <motion.div
                   key="my-packs-delete-dialog"
-                  className="absolute inset-0 z-[420] flex items-center justify-center p-3 sm:p-5"
+                  className="fixed inset-0 z-[520] flex items-center justify-center p-3 sm:p-5"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -15777,9 +15779,9 @@ export default function App() {
                   onMouseDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <div className="absolute inset-0 rounded-[inherit] bg-black/72" />
+                  <div className="absolute inset-0 bg-black/72" />
                   <motion.div
-                    className="relative z-[421] w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4"
+                    className="relative z-[521] w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4"
                     initial={{ opacity: 0, y: 18, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 14, scale: 0.97 }}
@@ -15825,7 +15827,7 @@ export default function App() {
                     </div>
                   </motion.div>
                 </motion.div>,
-                createMatchDialogRef.current,
+                document.body,
               )}
             <Dialog
               open={joinPasswordDialogOpen}
@@ -16615,7 +16617,7 @@ export default function App() {
         >
           <DialogContent
             overlayClassName="z-[288] bg-black/86 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
-            className="z-[289] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg overflow-x-hidden rounded-2xl sm:rounded-2xl border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-3 sm:p-6 text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
+            className="z-[289] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !w-[calc(100%-1rem)] !max-w-[min(32rem,calc(100%-1rem))] sm:!w-full sm:!max-w-lg overflow-x-hidden rounded-2xl sm:rounded-2xl border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-3 sm:p-6 text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
           >
             <DialogHeader className="text-left">
               <DialogTitle className="flex flex-wrap items-center gap-2 pr-8 text-left leading-tight">
