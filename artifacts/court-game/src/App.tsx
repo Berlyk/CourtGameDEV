@@ -666,28 +666,28 @@ function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
               <stop offset="100%" stopColor="#22d3ee" />
             </linearGradient>
           </defs>
-          <ellipse cx="210" cy="100" rx="118" ry="66" fill="url(#shop-logo-crypto-universal-bg)" opacity="0.58" />
-          <circle cx="210" cy="100" r="62" fill="none" stroke="url(#shop-logo-crypto-universal-net)" strokeWidth="4.2" />
-          <ellipse cx="210" cy="100" rx="62" ry="24" fill="none" stroke="#93c5fd" strokeOpacity="0.48" strokeWidth="2.8" />
-          <ellipse cx="210" cy="100" rx="62" ry="41" fill="none" stroke="#6ee7b7" strokeOpacity="0.3" strokeWidth="2.3" />
-          <path d="M148 100h124" fill="none" stroke="#cbd5e1" strokeOpacity="0.36" strokeWidth="2.3" />
-          <path d="M210 38v124" fill="none" stroke="#cbd5e1" strokeOpacity="0.32" strokeWidth="2.3" />
-          <circle cx="136" cy="100" r="21" fill="#f7931a" />
-          <text x="136" y="106" textAnchor="middle" fill="#ffffff" fontSize="22" fontWeight="800" fontFamily="Arial Black, Segoe UI, Arial, sans-serif">
+          <ellipse cx="210" cy="100" rx="126" ry="72" fill="url(#shop-logo-crypto-universal-bg)" opacity="0.62" />
+          <circle cx="210" cy="100" r="70" fill="none" stroke="url(#shop-logo-crypto-universal-net)" strokeWidth="4.6" />
+          <ellipse cx="210" cy="100" rx="70" ry="27" fill="none" stroke="#93c5fd" strokeOpacity="0.5" strokeWidth="2.9" />
+          <ellipse cx="210" cy="100" rx="70" ry="46" fill="none" stroke="#6ee7b7" strokeOpacity="0.32" strokeWidth="2.5" />
+          <path d="M140 100h140" fill="none" stroke="#cbd5e1" strokeOpacity="0.36" strokeWidth="2.5" />
+          <path d="M210 30v140" fill="none" stroke="#cbd5e1" strokeOpacity="0.32" strokeWidth="2.5" />
+          <circle cx="122" cy="100" r="24" fill="#f7931a" />
+          <text x="122" y="108" textAnchor="middle" fill="#ffffff" fontSize="24" fontWeight="800" fontFamily="Arial Black, Segoe UI, Arial, sans-serif">
             B
           </text>
-          <line x1="130" y1="87" x2="130" y2="114" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
-          <line x1="142" y1="87" x2="142" y2="114" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
-          <circle cx="210" cy="100" r="21" fill="#0f172a" stroke="url(#shop-logo-crypto-universal-sol)" strokeWidth="3.2" />
-          <g transform="translate(193 88)">
-            <rect x="0" y="0" width="34" height="5.7" rx="2.85" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-18)" />
-            <rect x="0" y="9" width="34" height="5.7" rx="2.85" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-18)" />
-            <rect x="0" y="18" width="34" height="5.7" rx="2.85" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-18)" />
+          <line x1="115" y1="84" x2="115" y2="116" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" />
+          <line x1="129" y1="84" x2="129" y2="116" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" />
+          <circle cx="210" cy="100" r="24" fill="#0f172a" stroke="url(#shop-logo-crypto-universal-sol)" strokeWidth="3.3" />
+          <g transform="translate(190 84)">
+            <rect x="0" y="0" width="40" height="6.4" rx="3.2" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-22)" />
+            <rect x="0" y="11" width="40" height="6.4" rx="3.2" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-22)" />
+            <rect x="0" y="22" width="40" height="6.4" rx="3.2" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-22)" />
           </g>
-          <circle cx="284" cy="100" r="21" fill="#26a17b" />
-          <rect x="269" y="87" width="30" height="5.8" rx="2.9" fill="#fff" />
-          <rect x="281" y="92" width="7.2" height="17" rx="3.6" fill="#fff" />
-          <ellipse cx="284" cy="100" rx="14" ry="4.8" fill="none" stroke="#fff" strokeWidth="4.2" />
+          <circle cx="298" cy="100" r="24" fill="#26a17b" />
+          <rect x="282" y="86" width="32" height="6.4" rx="3.2" fill="#fff" />
+          <rect x="295" y="92" width="6.8" height="20" rx="3.4" fill="#fff" />
+          <ellipse cx="298" cy="100" rx="14.5" ry="5.2" fill="none" stroke="#fff" strokeWidth="4.3" />
         </svg>
       );
     case "USDT TRC20":
@@ -16139,7 +16139,7 @@ export default function App() {
                                                     />
                                                   </div>
                                                 ) : method.id === 13 ? (
-                                                  <div className="relative flex h-[84px] w-[152px] items-center justify-center sm:h-[102px] sm:w-[188px]">
+                                                  <div className="relative flex h-[96px] w-[172px] items-center justify-center sm:h-[112px] sm:w-[204px]">
                                                     <svg
                                                       viewBox="0 0 512 320"
                                                       aria-hidden="true"
@@ -16160,36 +16160,36 @@ export default function App() {
                                                           <stop offset="100%" stopColor="#22d3ee" />
                                                         </linearGradient>
                                                       </defs>
-                                                      <ellipse cx="256" cy="164" rx="154" ry="108" fill="url(#multi-crypto-bg)" opacity="0.62" />
-                                                      <circle cx="256" cy="164" r="100" fill="none" stroke="url(#multi-crypto-grid)" strokeWidth="6" strokeOpacity="0.66" />
-                                                      <ellipse cx="256" cy="164" rx="100" ry="40" fill="none" stroke="#93c5fd" strokeOpacity="0.5" strokeWidth="4" />
-                                                      <ellipse cx="256" cy="164" rx="100" ry="66" fill="none" stroke="#6ee7b7" strokeOpacity="0.35" strokeWidth="3" />
-                                                      <path d="M156 164h200" fill="none" stroke="#cbd5e1" strokeOpacity="0.4" strokeWidth="3" />
-                                                      <path d="M256 64v200" fill="none" stroke="#cbd5e1" strokeOpacity="0.35" strokeWidth="3" />
-                                                      <path d="M189 95c30-18 109-18 139 0" fill="none" stroke="#60a5fa" strokeOpacity="0.34" strokeWidth="2.4" />
-                                                      <path d="M189 233c30 18 109 18 139 0" fill="none" stroke="#34d399" strokeOpacity="0.34" strokeWidth="2.4" />
+                                                      <ellipse cx="256" cy="164" rx="166" ry="116" fill="url(#multi-crypto-bg)" opacity="0.64" />
+                                                      <circle cx="256" cy="164" r="108" fill="none" stroke="url(#multi-crypto-grid)" strokeWidth="6.5" strokeOpacity="0.66" />
+                                                      <ellipse cx="256" cy="164" rx="108" ry="43" fill="none" stroke="#93c5fd" strokeOpacity="0.5" strokeWidth="4.2" />
+                                                      <ellipse cx="256" cy="164" rx="108" ry="72" fill="none" stroke="#6ee7b7" strokeOpacity="0.35" strokeWidth="3.2" />
+                                                      <path d="M148 164h216" fill="none" stroke="#cbd5e1" strokeOpacity="0.4" strokeWidth="3.2" />
+                                                      <path d="M256 56v216" fill="none" stroke="#cbd5e1" strokeOpacity="0.35" strokeWidth="3.2" />
+                                                      <path d="M184 94c33-20 121-20 154 0" fill="none" stroke="#60a5fa" strokeOpacity="0.34" strokeWidth="2.6" />
+                                                      <path d="M184 234c33 20 121 20 154 0" fill="none" stroke="#34d399" strokeOpacity="0.34" strokeWidth="2.6" />
                                                       <circle cx="184" cy="124" r="4.5" fill="#60a5fa" />
                                                       <circle cx="332" cy="204" r="4.5" fill="#34d399" />
                                                       <circle cx="292" cy="104" r="4.5" fill="#f87171" />
 
-                                                      <circle cx="144" cy="166" r="38" fill="#f7931a" stroke="#fff" strokeOpacity="0.14" strokeWidth="2" />
-                                                      <text x="144" y="177" textAnchor="middle" fill="#fff" fontSize="40" fontWeight="800" fontFamily="Arial Black,Segoe UI,Arial,sans-serif">
+                                                      <circle cx="138" cy="166" r="42" fill="#f7931a" stroke="#fff" strokeOpacity="0.14" strokeWidth="2.2" />
+                                                      <text x="138" y="178" textAnchor="middle" fill="#fff" fontSize="44" fontWeight="800" fontFamily="Arial Black,Segoe UI,Arial,sans-serif">
                                                         B
                                                       </text>
-                                                      <line x1="134" y1="143" x2="134" y2="191" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
-                                                      <line x1="154" y1="143" x2="154" y2="191" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+                                                      <line x1="130" y1="138" x2="130" y2="194" stroke="#fff" strokeWidth="4.2" strokeLinecap="round" />
+                                                      <line x1="146" y1="138" x2="146" y2="194" stroke="#fff" strokeWidth="4.2" strokeLinecap="round" />
 
-                                                      <circle cx="256" cy="166" r="38" fill="#0f172a" stroke="url(#sol-gradient)" strokeWidth="5" />
-                                                      <g transform="translate(224 144)">
-                                                        <rect x="0" y="0" width="62" height="10" rx="5" fill="url(#sol-gradient)" transform="skewX(-18)" />
-                                                        <rect x="0" y="18" width="62" height="10" rx="5" fill="url(#sol-gradient)" transform="skewX(-18)" />
-                                                        <rect x="0" y="36" width="62" height="10" rx="5" fill="url(#sol-gradient)" transform="skewX(-18)" />
+                                                      <circle cx="256" cy="166" r="42" fill="#0f172a" stroke="url(#sol-gradient)" strokeWidth="5.2" />
+                                                      <g transform="translate(225 145)">
+                                                        <rect x="0" y="0" width="62" height="9.2" rx="4.6" fill="url(#sol-gradient)" transform="skewX(-22)" />
+                                                        <rect x="0" y="16" width="62" height="9.2" rx="4.6" fill="url(#sol-gradient)" transform="skewX(-22)" />
+                                                        <rect x="0" y="32" width="62" height="9.2" rx="4.6" fill="url(#sol-gradient)" transform="skewX(-22)" />
                                                       </g>
 
-                                                      <circle cx="368" cy="166" r="38" fill="#26a17b" stroke="#fff" strokeOpacity="0.14" strokeWidth="2" />
-                                                      <rect x="342" y="143" width="52" height="10" rx="5" fill="#fff" />
-                                                      <rect x="362" y="151" width="12" height="32" rx="6" fill="#fff" />
-                                                      <ellipse cx="368" cy="166" rx="24" ry="8" fill="none" stroke="#fff" strokeWidth="7" />
+                                                      <circle cx="374" cy="166" r="42" fill="#26a17b" stroke="#fff" strokeOpacity="0.14" strokeWidth="2.2" />
+                                                      <rect x="346" y="144" width="56" height="10.4" rx="5.2" fill="#fff" />
+                                                      <rect x="368" y="154" width="12" height="33" rx="6" fill="#fff" />
+                                                      <ellipse cx="374" cy="166" rx="24" ry="8.2" fill="none" stroke="#fff" strokeWidth="7.2" />
                                                     </svg>
                                                   </div>
                                                 ) : (
