@@ -15678,8 +15678,8 @@ export default function App() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 space-y-1">
-                        <div className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
-                        <div className="text-zinc-400">Ссылка позволит добавить пак в «Мои паки».</div>
+                        <div className="text-lg font-semibold leading-none text-zinc-100 sm:text-2xl">Поделиться паком</div>
+                        <div className="text-sm text-zinc-400 sm:text-base">Ссылка позволит добавить пак в «Мои паки».</div>
                       </div>
                       <button
                         type="button"
