@@ -227,6 +227,14 @@ const MANUAL_BADGE_META: Record<
   string,
   { title: string; description: string }
 > = {
+  booster: {
+    title: "Бустер",
+    description: "За буст Discord-сервера CourtGame (временный бейдж).",
+  },
+  tournament_winner: {
+    title: "Победитель",
+    description: "За победу в официальном турнире (временный бейдж).",
+  },
   media: {
     title: "Медиа",
     description: "За медиа-статус и вклад в контент по CourtGame.",
@@ -279,6 +287,14 @@ const BADGE_PROMO_ALLOWED_KEYS = new Set<string>([
   ...Object.keys(ROLE_BADGE_META).map((key) => `role_${key}`),
   ...Object.values(SUBSCRIPTION_BADGE_META).map((entry) => entry.key),
 ]);
+const ADMIN_MANUAL_BADGE_ALLOWED_KEYS = new Set<string>([
+  "legend",
+  ...Object.keys(MANUAL_BADGE_META),
+]);
+const TEMPORARY_MANUAL_BADGE_DEFAULT_DURATION_DAYS: Record<string, number> = {
+  booster: 30,
+  tournament_winner: 30,
+};
 const PROTECTED_OWNER_LOGIN = "berly";
 
 function isProtectedOwnerLogin(loginRaw: string | null | undefined): boolean {
@@ -1095,9 +1111,14 @@ async function ensureTables(): Promise<void> {
           badge_key TEXT NOT NULL,
           is_active BOOLEAN NOT NULL DEFAULT TRUE,
           granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          expires_at TIMESTAMPTZ,
           granted_by UUID,
           PRIMARY KEY (user_id, badge_key)
         );
+      `);
+      await pool.query(`
+        ALTER TABLE auth_user_badges
+          ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
       `);
       // Cleanup deprecated badge "winner": remove issued records and detach from selected badge.
       await pool.query(`
@@ -2484,18 +2505,36 @@ async function getRoleStatsByUserId(userId: string): Promise<UserStatsSummary> {
 
 async function getManualBadgeMap(userId: string): Promise<Map<string, boolean>> {
   await ensureTables();
+  await pool.query(
+    `
+      UPDATE auth_user_badges
+      SET is_active = FALSE
+      WHERE user_id = $1
+        AND is_active = TRUE
+        AND expires_at IS NOT NULL
+        AND expires_at <= NOW()
+    `,
+    [userId],
+  );
   const result = await pool.query<{
     badge_key: string;
     is_active: boolean;
+    expires_at: Date | null;
   }>(
     `
-      SELECT badge_key, is_active
+      SELECT badge_key, is_active, expires_at
       FROM auth_user_badges
       WHERE user_id = $1
     `,
     [userId],
   );
-  return new Map(result.rows.map((row) => [row.badge_key, !!row.is_active]));
+  const nowMs = Date.now();
+  return new Map(
+    result.rows.map((row) => {
+      const notExpired = !row.expires_at || row.expires_at.getTime() > nowMs;
+      return [row.badge_key, !!row.is_active && notExpired] as const;
+    }),
+  );
 }
 
 async function getRankByUserId(userId: string): Promise<UserRankView> {
@@ -3821,21 +3860,115 @@ async function setManualBadgeActive(input: {
   userId: string;
   badgeKey: string;
   active: boolean;
+  expiresAt?: Date | null;
+  grantedByUserId?: string | null;
 }): Promise<void> {
   await pool.query(
     `
-      INSERT INTO auth_user_badges (user_id, badge_key, is_active, granted_at)
-      VALUES ($1, $2, $3, CASE WHEN $3 THEN NOW() ELSE NULL END)
+      INSERT INTO auth_user_badges (user_id, badge_key, is_active, granted_at, expires_at, granted_by)
+      VALUES ($1, $2, $3, CASE WHEN $3 THEN NOW() ELSE NULL END, CASE WHEN $3 THEN $4 ELSE NULL END, $5)
       ON CONFLICT (user_id, badge_key)
       DO UPDATE SET
         is_active = EXCLUDED.is_active,
         granted_at = CASE
           WHEN EXCLUDED.is_active THEN COALESCE(auth_user_badges.granted_at, NOW())
           ELSE auth_user_badges.granted_at
+        END,
+        expires_at = CASE
+          WHEN EXCLUDED.is_active THEN EXCLUDED.expires_at
+          ELSE NULL
+        END,
+        granted_by = CASE
+          WHEN EXCLUDED.is_active THEN COALESCE(EXCLUDED.granted_by, auth_user_badges.granted_by)
+          ELSE auth_user_badges.granted_by
         END
     `,
-    [input.userId, input.badgeKey, input.active],
+    [input.userId, input.badgeKey, input.active, input.expiresAt ?? null, input.grantedByUserId ?? null],
   );
+}
+
+function parseAdminBadgeExpiry(value: unknown): Date | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value : null;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const ms = value > 10_000_000_000 ? Math.floor(value) : Math.floor(value * 1000);
+    const date = new Date(ms);
+    return Number.isFinite(date.getTime()) ? date : null;
+  }
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    if (!Number.isFinite(parsed)) return null;
+    return new Date(parsed);
+  }
+  return null;
+}
+
+export async function updateUserBadgesByAdmin(input: {
+  userId: string;
+  grantedByUserId?: string | null;
+  updates: Array<{
+    badgeKey: string;
+    active: boolean;
+    expiresAt?: unknown;
+  }>;
+}): Promise<{ updated: number }> {
+  await ensureTables();
+  const userId = String(input.userId ?? "").trim();
+  if (!userId) {
+    throw new Error("Нужен userId.");
+  }
+  const updates = Array.isArray(input.updates) ? input.updates : [];
+  if (updates.length === 0) {
+    throw new Error("Нужны обновления бейджей.");
+  }
+  await pool.query("BEGIN");
+  try {
+    for (const entry of updates) {
+      const badgeKey = String(entry?.badgeKey ?? "").trim();
+      if (!badgeKey || !ADMIN_MANUAL_BADGE_ALLOWED_KEYS.has(badgeKey)) {
+        throw new Error(`Недопустимый бейдж: ${badgeKey || "—"}.`);
+      }
+      const active = !!entry?.active;
+      let expiresAt = active ? parseAdminBadgeExpiry(entry?.expiresAt) : null;
+      if (active && entry?.expiresAt !== undefined && entry?.expiresAt !== null && !expiresAt) {
+        throw new Error(`Неверная дата окончания для бейджа «${badgeKey}».`);
+      }
+      if (active && !expiresAt) {
+        const defaultDays = TEMPORARY_MANUAL_BADGE_DEFAULT_DURATION_DAYS[badgeKey];
+        if (defaultDays && Number.isFinite(defaultDays) && defaultDays > 0) {
+          expiresAt = new Date(Date.now() + defaultDays * 24 * 60 * 60 * 1000);
+        }
+      }
+      if (active && expiresAt && expiresAt.getTime() <= Date.now()) {
+        throw new Error(`Срок бейджа «${badgeKey}» должен быть в будущем.`);
+      }
+      await setManualBadgeActive({
+        userId,
+        badgeKey,
+        active,
+        expiresAt,
+        grantedByUserId: input.grantedByUserId ?? null,
+      });
+      if (!active) {
+        await pool.query(
+          `
+            UPDATE auth_users
+            SET selected_badge_key = NULL
+            WHERE id = $1
+              AND selected_badge_key = $2
+          `,
+          [userId, badgeKey],
+        );
+      }
+    }
+    await pool.query("COMMIT");
+    return { updated: updates.length };
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    throw error;
+  }
 }
 
 export async function getAdminStaffRoleByUserId(

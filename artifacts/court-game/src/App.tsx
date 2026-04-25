@@ -50,6 +50,8 @@ import {
   Swords,
   Gem,
   BookOpenText,
+  Rocket,
+  Trophy,
   Menu,
   X,
   List,
@@ -248,6 +250,7 @@ const USER_PACK_CASES_PER_MODE_LIMIT = 20;
 const USER_PACKS_TOTAL_LIMIT = 4;
 const USER_PACKS_CREATED_LIMIT = 2;
 const USER_PACKS_IMPORTED_LIMIT = 2;
+const CREATE_MATCH_STACK_RESET_DELAY_MS = 360;
 const USER_PACK_TEXT_LIMITS = {
   packTitle: 25,
   packDescription: 50,
@@ -503,6 +506,14 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     logoUrl: "https://upload.wikimedia.org/wikipedia/commons/3/39/PayPal_logo.svg",
   },
   {
+    id: 13,
+    category: "crypto",
+    providerCategory: "crypto",
+    title: "Универсальный крипто",
+    subtitle: "Универсальная крипто-оплата",
+    previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(99,102,241,0.36), rgba(99,102,241,0.02) 62%)",
+  },
+  {
     id: 15,
     category: "crypto",
     providerCategory: "crypto",
@@ -634,6 +645,34 @@ function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
           </text>
         </svg>
       );
+    case "Универсальный крипто":
+      return (
+        <svg viewBox="0 0 420 200" aria-hidden="true" className={commonClass}>
+          <defs>
+            <linearGradient id="shop-logo-crypto-universal" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#818CF8" />
+              <stop offset="55%" stopColor="#22D3EE" />
+              <stop offset="100%" stopColor="#14B8A6" />
+            </linearGradient>
+          </defs>
+          <rect x="34" y="24" width="352" height="152" rx="28" fill="rgba(24,24,27,0.55)" />
+          <circle cx="114" cy="100" r="44" fill="url(#shop-logo-crypto-universal)" />
+          <path
+            d="M114 72v56M95 90h38c8 0 14 6 14 13s-6 13-14 13H95"
+            fill="none"
+            stroke="#f8fafc"
+            strokeWidth="9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <text x="182" y="91" fill="#E4E4E7" fontSize="24" fontWeight="700" fontFamily="Inter, sans-serif">
+            UNIVERSAL
+          </text>
+          <text x="182" y="124" fill="#A1A1AA" fontSize="20" fontWeight="600" fontFamily="Inter, sans-serif">
+            CRYPTO
+          </text>
+        </svg>
+      );
     case "USDT TRC20":
       return (
         <svg viewBox="0 0 640 220" aria-hidden="true" className={commonClass}>
@@ -736,6 +775,8 @@ const ADMIN_BADGE_PROMO_OPTIONS: Array<{ key: string; label: string }> = [
   { key: "sub_practitioner", label: "Бейдж «Практик»" },
   { key: "sub_arbiter", label: "Бейдж «Арбитр»" },
   { key: "legend", label: "Бейдж «Легенда»" },
+  { key: "booster", label: "Бейдж «Бустер»" },
+  { key: "tournament_winner", label: "Бейдж «Победитель»" },
   { key: "media", label: "Бейдж «Медиа»" },
   { key: "host", label: "Бейдж «Ведущий»" },
   { key: "innovator", label: "Бейдж «Новатор»" },
@@ -1229,6 +1270,13 @@ function formatPromoDate(value: string | null): string {
   });
 }
 
+function buildDefaultTemporaryBadgeExpiryValue(days = 30): string {
+  const date = new Date(Date.now() + Math.max(1, days) * 24 * 60 * 60 * 1000);
+  const tzOffsetMinutes = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - tzOffsetMinutes * 60 * 1000);
+  return localDate.toISOString().slice(0, 16);
+}
+
 const BADGE_ICONS: Record<string, LucideIcon> = {
   plaintiff: Scale,
   defendant: Shield,
@@ -1237,6 +1285,8 @@ const BADGE_ICONS: Record<string, LucideIcon> = {
   prosecutor: ScrollText,
   judge: Gavel,
   legend: Crown,
+  booster: Rocket,
+  tournament_winner: Trophy,
   media: Camera,
   creator: Laptop,
   host: UserPlus,
@@ -1296,6 +1346,16 @@ const BADGE_THEME: Record<
     chip: "border-violet-500/65 bg-violet-500/25 text-violet-100",
     icon: "bg-violet-500/40 text-violet-100",
     iconOnly: "text-violet-200",
+  },
+  booster: {
+    chip: "border-transparent bg-[linear-gradient(120deg,rgba(34,211,238,0.24),rgba(99,102,241,0.26))] text-cyan-100 shadow-[0_0_16px_rgba(56,189,248,0.32)]",
+    icon: "bg-[linear-gradient(135deg,rgba(34,211,238,0.55),rgba(99,102,241,0.55))] text-white shadow-[0_0_12px_rgba(56,189,248,0.42)]",
+    iconOnly: "text-cyan-200 drop-shadow-[0_0_7px_rgba(34,211,238,0.58)]",
+  },
+  tournament_winner: {
+    chip: "border-transparent bg-[linear-gradient(120deg,rgba(251,191,36,0.24),rgba(244,63,94,0.24))] text-amber-100 shadow-[0_0_16px_rgba(251,191,36,0.3)]",
+    icon: "bg-[linear-gradient(135deg,rgba(251,191,36,0.55),rgba(244,63,94,0.55))] text-white shadow-[0_0_12px_rgba(251,191,36,0.42)]",
+    iconOnly: "text-amber-200 drop-shadow-[0_0_7px_rgba(251,191,36,0.58)]",
   },
   media: {
     chip: "border-cyan-500/55 bg-cyan-500/20 text-cyan-200",
@@ -2294,6 +2354,62 @@ const HELP_TOPICS_SOURCE: HelpTopicDraft[] = [
     content:
       "Частые ошибки это хаотичная речь без структуры, раннее раскрытие сильных фактов, слабое использование вопросов, бессмысленная трата карт механик и игнорирование своей роли в процессе. Чем лучше вы понимаете порядок этапов и логику суда, тем сильнее будет ваша игра.",
     keywords: ["ошибки", "частые ошибки", "советы", "новичок"],
+  },
+  {
+    id: "speech-judge-templates",
+    category: "Шаблоны речей",
+    title: "Шаблоны для судьи",
+    content:
+      "Судье полезно держать базовые формулировки: «Слушается дело...», «Стороны, соблюдаем порядок», «Переходим к следующему этапу», «Суд удаляется для вынесения вердикта». Используйте шаблон как каркас, но подстраивайте формулировки под конкретный матч, чтобы речь звучала живо и по делу.",
+    keywords: ["шаблон судьи", "вступительная речь судьи", "заключительная речь судьи", "фразы судьи"],
+  },
+  {
+    id: "speech-role-templates",
+    category: "Шаблоны речей",
+    title: "Шаблоны для сторон",
+    content:
+      "Для истца, ответчика, адвокатов и прокурора можно использовать мягкие заготовки: короткое вступление, 2-3 ключевых тезиса, усиление фактами и финальный вывод. Шаблон нужен как старт, но лучше адаптировать речь под ситуацию и стиль оппонента, а не читать текст по шаблону дословно.",
+    keywords: ["шаблоны речи", "шаблон истца", "шаблон ответчика", "шаблон прокурора", "как строить речь"],
+  },
+  {
+    id: "subs-role-selection",
+    category: "Подписка и функции",
+    title: "Выбор роли и предпочитаемая роль",
+    content:
+      "Функции выбора роли и предпочитаемой роли влияют на распределение участников в лобби, но не гарантируют стопроцентное получение роли в каждом матче. Итог зависит от состава комнаты, режима, решений ведущего и доступных ролей.",
+    keywords: ["предпочитаемая роль", "выбор роли", "подписка роли", "распределение ролей"],
+  },
+  {
+    id: "subs-rank-after-expire",
+    category: "Подписка и функции",
+    title: "Что будет с рангом после окончания подписки",
+    content:
+      "После окончания подписки накопленный ранг не пропадает и не откатывается. Ограничивается только дальнейшая прокачка ранга до повторного получения доступа к рейтинговой прогрессии.",
+    keywords: ["ранг после подписки", "прогресс ранга", "закончилась подписка ранг"],
+  },
+  {
+    id: "subs-pack-after-expire",
+    category: "Подписка и функции",
+    title: "Что будет с пользовательскими паками после окончания подписки",
+    content:
+      "Если подписка закончилась, уже сохраненные пользовательские паки остаются доступными для использования в матчах и для отправки по ссылке. Ограничиваются создание новых паков, импорт по ссылке и редактирование до повторной активации подписки «Арбитр».",
+    keywords: ["паки после подписки", "редактирование паков", "импорт паков", "арбитр паки"],
+  },
+  {
+    id: "system-legal-model",
+    category: "Система суда",
+    title: "Какой тип суда используется в CourtGame",
+    content:
+      "В основе ролевой логики CourtGame используется англо-саксонская (прецедентная) модель: большое значение имеет спор сторон, качество аргументации, перекрестные вопросы и убедительность позиции перед судьей. Акцент сделан на состязательность процесса.",
+    keywords: ["англо-саксонская система", "прецедентная система", "тип суда", "какая система суда"],
+  },
+  {
+    id: "system-california",
+    category: "Система суда",
+    title: "Где происходят события игры",
+    content:
+      "События матчей и кейсов внутри CourtGame разворачиваются в правовом сеттинге штата Калифорния. Это влияет на стиль формулировок, общий тон разбирательств и ролевой контекст отдельных дел.",
+    keywords: ["калифорния", "сеттинг игры", "где происходят события", "юрисдикция courtgame"],
   },
 ];
 
@@ -3785,7 +3901,17 @@ function getBadgeCategory(badge: {
   if (badge.key.startsWith("rank_")) return "rank";
   if (badge.key.startsWith("sub_")) return "subscription";
   if (
-    ["media", "creator", "host", "innovator", "moderator", "admin", "legend"].includes(
+    [
+      "media",
+      "creator",
+      "host",
+      "innovator",
+      "moderator",
+      "admin",
+      "legend",
+      "booster",
+      "tournament_winner",
+    ].includes(
       badge.key,
     )
   ) {
@@ -4182,6 +4308,14 @@ export default function App() {
   const [adminUserLookupResult, setAdminUserLookupResult] = useState<AdminLookupUserView | null>(null);
   const [adminModerationNickname, setAdminModerationNickname] = useState("");
   const [adminModerationLoading, setAdminModerationLoading] = useState(false);
+  const [adminBadgeModerationLoading, setAdminBadgeModerationLoading] = useState(false);
+  const [adminBadgeExpiryByKey, setAdminBadgeExpiryByKey] = useState<Record<string, string>>(() => {
+    const defaultExpiry = buildDefaultTemporaryBadgeExpiryValue(30);
+    return {
+      booster: defaultExpiry,
+      tournament_winner: defaultExpiry,
+    };
+  });
   const [adminStaffTargetUserId, setAdminStaffTargetUserId] = useState("");
   const [adminStaffTargetRole, setAdminStaffTargetRole] = useState<"moderator" | "administrator">(
     "moderator",
@@ -4509,6 +4643,10 @@ export default function App() {
     setUpsellModalOpen(false);
   }, [createMatchDialogOpen]);
 
+  const closeCreateMatchStack = useCallback(() => {
+    setCreateMatchDialogOpen(false);
+  }, []);
+
   useEffect(() => {
     const ownerKey = `${String(authUser?.id ?? "")}|${String(authToken ?? "")}`;
     if (myCasePacksOwnerRef.current === ownerKey) return;
@@ -4822,7 +4960,8 @@ export default function App() {
   const rawSubscriptionIsActive =
     rawSubscriptionActiveFlag === true ||
     (rawSubscriptionActiveFlag === null &&
-      (typeof rawSubscriptionEndAtMs === "number" ? rawSubscriptionEndAtMs > Date.now() : mySubscription.isActive));
+      typeof rawSubscriptionEndAtMs === "number" &&
+      rawSubscriptionEndAtMs > Date.now());
   const rawCanCreatePacksCapabilityNormalized = String(rawCanCreatePacksCapability ?? "")
     .trim()
     .toLowerCase();
@@ -5032,13 +5171,13 @@ export default function App() {
       setHomeTab("play");
     }
     if (createMatchDialogOpen) {
-      setCreateMatchDialogOpen(false);
+      closeCreateMatchStack();
     }
     if (room || game) {
       setRoom(null);
       setGame(null);
     }
-  }, [createMatchDialogOpen, game, homeTab, importPackPreviewDialogOpen, room, screen]);
+  }, [closeCreateMatchStack, createMatchDialogOpen, game, homeTab, importPackPreviewDialogOpen, room, screen]);
   useEffect(() => {
     if (!pendingImportShareCode) return;
     if (screen !== "home") return;
@@ -5105,7 +5244,7 @@ export default function App() {
   const canLetPlayersChooseRoles = hasCapability(myTier, "canLetPlayersChooseRoles");
   const canChooseRoleInOwnLobby = hasCapability(myTier, "canChooseRoleInOwnLobby");
   const canCreatePacks =
-    hasCapability(myTier, "canCreatePacks") || hasCreatePacksFromRawSubscription;
+    hasCapability(myTier, "canCreatePacks") || (hasCreatePacksFromRawSubscription && !!myProfile);
   const createPackOwnedCount = useMemo(
     () => myCasePacks.length,
     [myCasePacks.length],
@@ -5279,7 +5418,6 @@ export default function App() {
     createPackCatalogOpen &&
     createPackCatalogView === "my_packs" &&
     (sharePackDialogOpen || !!myCasePackDeleteConfirmKey);
-  const canRenderDom = typeof document !== "undefined";
   useEffect(() => {
     setMyCasePacksPage((prev) => Math.max(1, Math.min(prev, myCasePacksTotalPages)));
   }, [myCasePacksTotalPages]);
@@ -5386,7 +5524,7 @@ export default function App() {
     setShopPaymentError("");
     setShopPaymentLoading(false);
     setPromoDialogOpen(false);
-    setCreateMatchDialogOpen(false);
+    closeCreateMatchStack();
     setCreatePackCatalogOpen(false);
     setJoinPasswordDialogOpen(false);
     setJoinPasswordDialogMatch(null);
@@ -5398,7 +5536,7 @@ export default function App() {
     setObserverListDialogOpen(false);
     setHomeTab("shop");
     setScreen("home");
-  }, []);
+  }, [closeCreateMatchStack]);
   const resolvePathFromState = useCallback(() => {
     if (screen === "profile") return "/profile";
     if (screen === "room") {
@@ -5528,6 +5666,33 @@ export default function App() {
     setCreatePackActiveCaseId(firstCase.id);
     setCreatePackModeTab(firstCase.modePlayerCount);
   }, []);
+  const resetCreateMatchNestedPanels = useCallback(() => {
+    setCreateRoomPasswordVisible(false);
+    setCreatePackCatalogOpen(false);
+    setCreatePackCatalogView("catalog");
+    setSharePackDialogOpen(false);
+    setSharePackData(null);
+    setSharePackCopiedKind(null);
+    setMyCasePacksError("");
+    setMyCasePacksPage(1);
+    setMyCasePackDeleteKey(null);
+    setMyCasePackDeleteConfirmKey(null);
+    setCreatePackError("");
+    setCreatePackEditLoading(false);
+    setCreatePackEditKey(null);
+    setCreatePackCasesDialogOpen(false);
+    setCreatePackCasesDialogModeTab(createPackModeTab);
+    setCreatePackCasesPage(1);
+  }, [createPackModeTab]);
+  useEffect(() => {
+    if (createMatchDialogOpen) return;
+    const timer = window.setTimeout(() => {
+      resetCreateMatchNestedPanels();
+    }, CREATE_MATCH_STACK_RESET_DELAY_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [createMatchDialogOpen, resetCreateMatchNestedPanels]);
 
   const loadMyCasePacks = useCallback(async () => {
     if (!authToken) {
@@ -7151,6 +7316,86 @@ export default function App() {
     invalidateAdminSession,
     isAdminSessionError,
   ]);
+  const submitAdminTemporaryBadgeModeration = useCallback(
+    async (badgeKey: "booster" | "tournament_winner", active: boolean) => {
+      if (!authToken || !canSeeAdminButton || !adminCanModerateUsers) return;
+      const headers = await ensureAdminHeaders();
+      if (!headers) {
+        setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
+        return;
+      }
+      const userId = (adminStaffTargetUserId || adminSubscriptionUserId || adminBanUserId).trim();
+      if (!userId) {
+        setAdminPromoFeedback({ kind: "error", text: "Введите userId пользователя." });
+        return;
+      }
+      const rawExpiry = String(adminBadgeExpiryByKey[badgeKey] ?? "").trim();
+      if (active && !rawExpiry) {
+        setAdminPromoFeedback({
+          kind: "error",
+          text: "Укажите срок действия временного бейджа.",
+        });
+        return;
+      }
+      const parsedExpiryMs = rawExpiry ? Date.parse(rawExpiry) : Number.NaN;
+      if (active && !Number.isFinite(parsedExpiryMs)) {
+        setAdminPromoFeedback({
+          kind: "error",
+          text: "Неверный формат срока действия бейджа.",
+        });
+        return;
+      }
+      const expiryIso = active ? new Date(parsedExpiryMs).toISOString() : null;
+      setAdminBadgeModerationLoading(true);
+      setAdminPromoFeedback(null);
+      try {
+        await authRequest<{ ok: true; user: { id: string } }>("/auth/admin/user/moderate", {
+          method: "PATCH",
+          token: authToken,
+          headers,
+          body: {
+            userId,
+            badgeUpdates: [
+              {
+                badgeKey,
+                active,
+                expiresAt: expiryIso,
+              },
+            ],
+          },
+        });
+        setAdminPromoFeedback({
+          kind: "success",
+          text: active
+            ? `Бейдж «${badgeKey === "booster" ? "Бустер" : "Победитель"}» выдан.`
+            : `Бейдж «${badgeKey === "booster" ? "Бустер" : "Победитель"}» снят.`,
+        });
+      } catch (error) {
+        if (isAdminSessionError(error)) invalidateAdminSession();
+        setAdminPromoFeedback({
+          kind: "error",
+          text:
+            error instanceof Error
+              ? localizeAuthError(error.message)
+              : "Не удалось обновить временный бейдж.",
+        });
+      } finally {
+        setAdminBadgeModerationLoading(false);
+      }
+    },
+    [
+      authToken,
+      canSeeAdminButton,
+      adminCanModerateUsers,
+      ensureAdminHeaders,
+      adminStaffTargetUserId,
+      adminSubscriptionUserId,
+      adminBanUserId,
+      adminBadgeExpiryByKey,
+      invalidateAdminSession,
+      isAdminSessionError,
+    ],
+  );
   const clearAdminUserMedia = useCallback(
     async (target: "avatar" | "banner") => {
       if (!authToken || !canSeeAdminButton || !adminCanModerateUsers) return;
@@ -8014,7 +8259,7 @@ export default function App() {
     if (screen !== "home") {
       setScreen("home");
     }
-    setCreateMatchDialogOpen(false);
+    closeCreateMatchStack();
     setCreatePackCatalogOpen(false);
     setRoomManageOpen(false);
     setJoinPasswordDialogOpen(false);
@@ -8024,7 +8269,7 @@ export default function App() {
     setProfileMenuOpen(false);
     setAuthDialogOpen(false);
     setContextHelpOpen(false);
-  }, [isUserBanned, screen]);
+  }, [closeCreateMatchStack, isUserBanned, screen]);
 
   useEffect(() => {
     if (screen !== "profile") return;
@@ -11275,6 +11520,64 @@ export default function App() {
                           </Button>
                         </div>
                       </div>
+                      <div className="rounded-xl border border-zinc-700 bg-zinc-950/70 p-2.5">
+                        <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">
+                          Временные бейджи
+                        </div>
+                        <div className="mt-2 space-y-2">
+                          {[
+                            { key: "booster", label: "Бустер" },
+                            { key: "tournament_winner", label: "Победитель" },
+                          ].map((badge) => (
+                            <div
+                              key={`admin-temp-badge-${badge.key}`}
+                              className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-900/70 p-2 sm:grid-cols-[1fr_220px_auto_auto]"
+                            >
+                              <div className="self-center text-sm font-semibold text-zinc-100">
+                                {badge.label}
+                              </div>
+                              <Input
+                                type="datetime-local"
+                                value={adminBadgeExpiryByKey[badge.key] ?? ""}
+                                onChange={(event) =>
+                                  setAdminBadgeExpiryByKey((prev) => ({
+                                    ...prev,
+                                    [badge.key]: event.target.value,
+                                  }))
+                                }
+                                className="h-9 rounded-lg border-zinc-700 bg-zinc-950 text-zinc-100"
+                              />
+                              <Button
+                                type="button"
+                                onClick={() =>
+                                  void submitAdminTemporaryBadgeModeration(
+                                    badge.key as "booster" | "tournament_winner",
+                                    true,
+                                  )
+                                }
+                                disabled={adminBadgeModerationLoading}
+                                className="h-9 rounded-lg bg-red-600 text-white hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-300"
+                              >
+                                Выдать
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() =>
+                                  void submitAdminTemporaryBadgeModeration(
+                                    badge.key as "booster" | "tournament_winner",
+                                    false,
+                                  )
+                                }
+                                disabled={adminBadgeModerationLoading}
+                                className="h-9 rounded-lg border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                              >
+                                Снять
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                   {adminPanelSection === "staff" && adminCanManageStaff && (
@@ -14149,27 +14452,13 @@ export default function App() {
                 if (!open && myPacksNestedOverlayOpen) {
                   return;
                 }
-                setCreateMatchDialogOpen(open);
+                if (!open) {
+                  closeCreateMatchStack();
+                  return;
+                }
+                setCreateMatchDialogOpen(true);
                 if (open) {
                   setUpsellModalOpen(false);
-                }
-                if (!open) {
-                  setCreateRoomPasswordVisible(false);
-                  setCreatePackCatalogOpen(false);
-                  setCreatePackCatalogView("catalog");
-                  setSharePackDialogOpen(false);
-                  setSharePackData(null);
-                  setSharePackCopiedKind(null);
-                  setMyCasePacksError("");
-                  setMyCasePacksPage(1);
-                  setMyCasePackDeleteKey(null);
-                  setMyCasePackDeleteConfirmKey(null);
-                  setCreatePackError("");
-                  setCreatePackEditLoading(false);
-                  setCreatePackEditKey(null);
-                  setCreatePackCasesDialogOpen(false);
-                  setCreatePackCasesDialogModeTab(createPackModeTab);
-                  setCreatePackCasesPage(1);
                 }
               }}
             >
@@ -14190,9 +14479,6 @@ export default function App() {
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-[380] rounded-[inherit] bg-black/58" />
-                )}
-                {myPacksNestedOverlayOpen && (
-                  <div className="pointer-events-none absolute inset-0 z-[390] rounded-[inherit] bg-black/62" />
                 )}
                 <div className="relative">
                 <DialogHeader className="space-y-1">
@@ -15177,7 +15463,7 @@ export default function App() {
                                 <div className="text-sm font-semibold text-zinc-100">
                                   {getCasePackTitleDisplay(selectedCreatePack?.title) ?? "Пак не выбран"}
                                 </div>
-                                <div className="inline-flex items-center rounded-full border border-red-400/50 bg-red-500/20 px-2 py-0.5 text-[11px] font-semibold text-red-100">
+                                <div className="inline-flex items-center rounded-full border border-zinc-600/80 bg-zinc-900/85 px-2 py-0.5 text-[11px] font-semibold text-zinc-100">
                                   {availableCreateCaseCount} дел
                                 </div>
                               </div>
@@ -15308,23 +15594,24 @@ export default function App() {
                 </div>
               </DialogContent>
             </Dialog>
-            {canRenderDom &&
-              createPackCatalogOpen &&
+            {createPackCatalogOpen &&
               createPackCatalogView === "my_packs" &&
               sharePackDialogOpen &&
+              createMatchDialogRef.current &&
               createPortal(
                 <motion.div
                   key="my-packs-share-dialog"
-                  className="fixed inset-0 z-[470] flex items-center justify-center p-3 sm:p-5"
-                  style={{ zIndex: 2147483000, pointerEvents: "auto" }}
+                  className="absolute inset-0 z-[420] flex items-center justify-center p-3 sm:p-5"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2, ease: "easeOut" }}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
                 >
+                  <div className="absolute inset-0 rounded-[inherit] bg-black/72" />
                   <motion.div
-                    className="w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5"
-                    style={{ pointerEvents: "auto" }}
+                    className="relative z-[421] w-full max-w-[560px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:p-5"
                     initial={{ opacity: 0, y: 18, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 14, scale: 0.97 }}
@@ -15414,21 +15701,20 @@ export default function App() {
                     </div>
                   </motion.div>
                 </motion.div>,
-                document.body,
+                createMatchDialogRef.current,
               )}
-            {canRenderDom &&
-              createPackCatalogOpen &&
+            {createPackCatalogOpen &&
               createPackCatalogView === "my_packs" &&
               myCasePackDeleteConfirmKey &&
+              createMatchDialogRef.current &&
               createPortal(
                 <div
-                  className="fixed inset-0 z-[470] flex items-center justify-center p-3 sm:p-5"
-                  style={{ zIndex: 2147483000, pointerEvents: "auto" }}
+                  className="absolute inset-0 z-[420] flex items-center justify-center p-3 sm:p-5"
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
                 >
-                  <div
-                    className="w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4"
-                    style={{ pointerEvents: "auto" }}
-                  >
+                  <div className="absolute inset-0 rounded-[inherit] bg-black/72" />
+                  <div className="relative z-[421] w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="text-lg font-semibold text-zinc-100">Удалить пак?</div>
@@ -15469,7 +15755,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>,
-                document.body,
+                createMatchDialogRef.current,
               )}
             <Dialog
               open={joinPasswordDialogOpen}
@@ -16611,7 +16897,7 @@ export default function App() {
                             isLocked
                               ? "border-zinc-700/90 bg-zinc-950/70 text-zinc-500"
                               : (room.casePackKey ?? "classic") === pack.key
-                                ? "border-red-500/80 bg-red-600/20 text-zinc-100 shadow-[0_0_0_1px_rgba(248,113,113,0.25),0_0_16px_rgba(239,68,68,0.18)]"
+                                ? "border-zinc-400/85 bg-zinc-800/85 text-zinc-100 shadow-[0_0_0_1px_rgba(244,244,245,0.18),0_0_14px_rgba(255,255,255,0.1)]"
                                 : "border-zinc-700/90 bg-zinc-950/80 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900"
                           }`}
                         >
