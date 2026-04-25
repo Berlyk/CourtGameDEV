@@ -16653,14 +16653,8 @@ export default function App() {
                     const previewChip = getCustomPackCountChipVisual(importPackPreviewData.color);
                     return (
                       <>
-                        <span
-                          className={`absolute right-3 top-3 shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${previewChip.className}`}
-                          style={previewChip.style}
-                        >
-                          {importPackPreviewData.caseCount} дел
-                        </span>
-                        <div className="flex items-start gap-2">
-                          <div className="min-w-0 pr-[80px] sm:pr-[82px]">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1 sm:pr-[82px]">
                             <div className="flex items-center">
                               <div className="truncate text-base font-semibold text-zinc-100">
                                 {importPackPreviewData.title}
@@ -16669,15 +16663,21 @@ export default function App() {
                             <div className="mt-1 text-sm text-zinc-300 break-words">
                               {importPackPreviewData.description || "Описание не указано."}
                             </div>
-                            <div className="mt-1.5 min-w-0 truncate pr-[86px] sm:pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                            <div className="mt-1.5 min-w-0 truncate text-[11px] uppercase tracking-[0.24em] text-zinc-500 sm:pr-[110px]">
                               Пользовательский пак
                             </div>
                           </div>
+                          <span
+                            className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] sm:absolute sm:right-3 sm:top-3 ${previewChip.className}`}
+                            style={previewChip.style}
+                          >
+                            {importPackPreviewData.caseCount} дел
+                          </span>
                         </div>
                       </>
                     );
                   })()}
-                  <div className="pointer-events-none absolute bottom-3 right-3 max-w-[56%] truncate text-right text-[11px] text-zinc-400 sm:right-4">
+                  <div className="pointer-events-none mt-1.5 text-right text-[11px] text-zinc-400 sm:absolute sm:bottom-3 sm:right-4 sm:mt-0 sm:max-w-[56%] sm:truncate">
                     Автор: {resolvePackCreatorNickname(importPackPreviewData)}
                   </div>
                 </div>
