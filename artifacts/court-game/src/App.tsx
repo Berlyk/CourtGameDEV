@@ -14766,14 +14766,14 @@ export default function App() {
                                 >
                                   <div className="grid h-full grid-cols-1 gap-2 lg:grid-cols-[1fr_auto] lg:items-start">
                                     <span
-                                      className={`absolute right-3 top-3 rounded-full border px-2 py-0.5 text-[11px] sm:right-4 sm:top-4 ${myPackCountChipVisual.className}`}
+                                      className={`absolute right-3 top-3 rounded-full border px-2 py-0.5 text-[11px] sm:hidden ${myPackCountChipVisual.className}`}
                                       style={myPackCountChipVisual.style}
                                     >
                                       {pack.caseCount ?? 0} дел
                                     </span>
                                     <div className="min-w-0">
                                       <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0 pr-[78px] sm:pr-[84px]">
+                                        <div className="min-w-0 pr-[78px] sm:pr-0">
                                           <div className="flex items-center">
                                             <div className="truncate text-base font-semibold text-zinc-100">{pack.title}</div>
                                           </div>
@@ -14785,7 +14785,14 @@ export default function App() {
                                           </div>
                                         </div>
                                       </div>
-                                      <div className="mt-1.5 flex items-center" />
+                                      <div className="mt-1.5 hidden items-center sm:flex">
+                                        <span
+                                          className={`rounded-full border px-2 py-0.5 text-[11px] ${myPackCountChipVisual.className}`}
+                                          style={myPackCountChipVisual.style}
+                                        >
+                                          {pack.caseCount ?? 0} дел
+                                        </span>
+                                      </div>
                                     </div>
                                     <div className="pointer-events-none mt-1 text-[11px] text-zinc-400 lg:absolute lg:bottom-3 lg:right-4 lg:mt-0 lg:max-w-[55%] lg:truncate lg:text-right">
                                       Автор: {resolvePackCreatorNickname(pack)}
@@ -15653,7 +15660,7 @@ export default function App() {
               createPortal(
                 <motion.div
                   key="my-packs-share-dialog"
-                  className="absolute inset-0 z-[420] flex items-start justify-center overflow-y-auto p-2 pt-3 sm:items-center sm:p-5"
+                  className="absolute inset-0 z-[420] flex items-start justify-center overflow-hidden p-2 pt-3 sm:items-center sm:p-5"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -15663,7 +15670,7 @@ export default function App() {
                 >
                   <div className="absolute inset-0 rounded-[inherit] bg-black/72" />
                   <motion.div
-                    className="relative z-[421] w-[calc(100%-0.25rem)] max-w-[560px] max-h-[calc(100vh-1rem)] overflow-y-auto rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:w-full sm:max-h-[calc(90vh-1rem)] sm:p-5"
+                    className="relative z-[421] w-[calc(100%-0.25rem)] max-w-[560px] max-h-[calc(100%-0.5rem)] overflow-y-auto rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:w-full sm:max-h-[calc(100%-2rem)] sm:overflow-y-visible sm:p-5"
                     initial={{ opacity: 0, y: 18, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 14, scale: 0.97 }}
@@ -15693,7 +15700,7 @@ export default function App() {
                         );
                         return (
                           <div
-                            className="relative min-h-[112px] rounded-2xl border px-3 py-3"
+                            className="relative min-h-[112px] overflow-hidden rounded-2xl border px-3 py-3"
                             style={{
                               borderColor: hexToRgba(normalizePackColor(sharePackData?.color), 0.52),
                               backgroundImage: `radial-gradient(120% 130% at 0% 0%, ${hexToRgba(normalizePackColor(sharePackData?.color), 0.22)}, transparent 60%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
@@ -15706,7 +15713,7 @@ export default function App() {
                               {Math.max(0, Number(sharePackData?.caseCount ?? 0) || 0)} дел
                             </span>
                             <div className="flex items-start gap-2">
-                              <div className="min-w-0 pr-[82px]">
+                              <div className="min-w-0 pr-[80px] sm:pr-[82px]">
                                 <div className="flex items-center">
                                   <div className="truncate text-base font-semibold text-zinc-100">
                                     {sharePackData?.title ?? "Пак"}
@@ -15715,12 +15722,12 @@ export default function App() {
                                 <div className="mt-1 max-h-[2.5rem] overflow-hidden break-all text-[12px] leading-5 text-zinc-300">
                                   {sharePackData?.description || "Описание не указано."}
                                 </div>
-                                <div className="mt-1.5 min-w-0 truncate pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                                <div className="mt-1.5 min-w-0 truncate pr-[86px] sm:pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
                                   Пользовательский пак
                                 </div>
                               </div>
                             </div>
-                            <div className="pointer-events-none absolute bottom-3 right-3 max-w-[58%] truncate text-right text-[11px] text-zinc-400 sm:right-4">
+                            <div className="pointer-events-none absolute bottom-3 right-3 max-w-[56%] truncate text-right text-[11px] text-zinc-400 sm:right-4">
                               Автор: {sharePackData?.creatorNickname || "Игрок"}
                             </div>
                           </div>
@@ -16608,7 +16615,7 @@ export default function App() {
         >
           <DialogContent
             overlayClassName="z-[288] bg-black/86 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
-            className="z-[289] max-w-lg rounded-2xl sm:rounded-2xl border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
+            className="z-[289] w-[calc(100vw-1rem)] max-w-lg rounded-2xl sm:rounded-2xl border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-3 sm:p-6 text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
           >
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -16634,7 +16641,7 @@ export default function App() {
                 </div>
               ) : importPackPreviewData ? (
                 <div
-                  className="relative rounded-2xl border px-4 py-3 min-h-[112px]"
+                  className="relative min-h-[112px] overflow-hidden rounded-2xl border px-3 py-3 sm:px-4"
                   style={{
                     borderColor: hexToRgba(importPackPreviewData.color, 0.52),
                     backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${hexToRgba(importPackPreviewData.color, 0.2)}, transparent 58%), linear-gradient(145deg, rgba(24,24,27,0.95), rgba(39,39,42,0.82))`,
@@ -16651,7 +16658,7 @@ export default function App() {
                           {importPackPreviewData.caseCount} дел
                         </span>
                         <div className="flex items-start gap-2">
-                          <div className="min-w-0 pr-[82px]">
+                          <div className="min-w-0 pr-[80px] sm:pr-[82px]">
                             <div className="flex items-center">
                               <div className="truncate text-base font-semibold text-zinc-100">
                                 {importPackPreviewData.title}
@@ -16660,7 +16667,7 @@ export default function App() {
                             <div className="mt-1 text-sm text-zinc-300 break-words">
                               {importPackPreviewData.description || "Описание не указано."}
                             </div>
-                            <div className="mt-1.5 min-w-0 truncate pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                            <div className="mt-1.5 min-w-0 truncate pr-[86px] sm:pr-[110px] text-[11px] uppercase tracking-[0.24em] text-zinc-500">
                               Пользовательский пак
                             </div>
                           </div>
@@ -16668,7 +16675,7 @@ export default function App() {
                       </>
                     );
                   })()}
-                  <div className="pointer-events-none absolute bottom-3 right-3 max-w-[58%] truncate text-right text-[11px] text-zinc-400 sm:right-4">
+                  <div className="pointer-events-none absolute bottom-3 right-3 max-w-[56%] truncate text-right text-[11px] text-zinc-400 sm:right-4">
                     Автор: {resolvePackCreatorNickname(importPackPreviewData)}
                   </div>
                 </div>
