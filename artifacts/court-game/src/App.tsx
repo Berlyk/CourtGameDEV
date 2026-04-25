@@ -681,19 +681,24 @@ function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
             height="40"
             preserveAspectRatio="xMidYMid meet"
           />
-          <circle cx="210" cy="100" r="24" fill="#0f172a" stroke="url(#shop-logo-crypto-universal-sol)" strokeWidth="3.3" />
+          <circle cx="210" cy="100" r="27" fill="#0f172a" stroke="url(#shop-logo-crypto-universal-sol)" strokeWidth="3.5" />
           <image
             href="https://solana.com/src/img/branding/solanaLogoMark.svg"
-            x="189"
-            y="79"
-            width="42"
-            height="42"
+            x="187"
+            y="77"
+            width="46"
+            height="46"
             preserveAspectRatio="xMidYMid meet"
           />
-          <circle cx="298" cy="100" r="24" fill="#26a17b" />
-          <rect x="282" y="86" width="32" height="6.4" rx="3.2" fill="#fff" />
-          <rect x="295" y="92" width="6.8" height="20" rx="3.4" fill="#fff" />
-          <ellipse cx="298" cy="100" rx="14.5" ry="5.2" fill="none" stroke="#fff" strokeWidth="4.3" />
+          <circle cx="298" cy="100" r="24" fill="#1b1f2a" />
+          <image
+            href="https://upload.wikimedia.org/wikipedia/commons/0/01/USDT_Logo.png"
+            x="276"
+            y="78"
+            width="44"
+            height="44"
+            preserveAspectRatio="xMidYMid meet"
+          />
         </svg>
       );
     case "USDT TRC20":
@@ -16188,20 +16193,25 @@ export default function App() {
                                                         preserveAspectRatio="xMidYMid meet"
                                                       />
 
-                                                      <circle cx="256" cy="166" r="42" fill="#0f172a" stroke="url(#sol-gradient)" strokeWidth="5.2" />
+                                                      <circle cx="256" cy="166" r="48" fill="#0f172a" stroke="url(#sol-gradient)" strokeWidth="5.6" />
                                                       <image
                                                         href="https://solana.com/src/img/branding/solanaLogoMark.svg"
-                                                        x="219"
-                                                        y="129"
-                                                        width="74"
-                                                        height="74"
+                                                        x="213"
+                                                        y="123"
+                                                        width="86"
+                                                        height="86"
                                                         preserveAspectRatio="xMidYMid meet"
                                                       />
 
-                                                      <circle cx="374" cy="166" r="42" fill="#26a17b" stroke="#fff" strokeOpacity="0.14" strokeWidth="2.2" />
-                                                      <rect x="346" y="144" width="56" height="10.4" rx="5.2" fill="#fff" />
-                                                      <rect x="368" y="154" width="12" height="33" rx="6" fill="#fff" />
-                                                      <ellipse cx="374" cy="166" rx="24" ry="8.2" fill="none" stroke="#fff" strokeWidth="7.2" />
+                                                      <circle cx="374" cy="166" r="42" fill="#1b1f2a" stroke="#fff" strokeOpacity="0.12" strokeWidth="2.2" />
+                                                      <image
+                                                        href="https://upload.wikimedia.org/wikipedia/commons/0/01/USDT_Logo.png"
+                                                        x="334"
+                                                        y="126"
+                                                        width="80"
+                                                        height="80"
+                                                        preserveAspectRatio="xMidYMid meet"
+                                                      />
                                                     </svg>
                                                   </div>
                                                 ) : (
