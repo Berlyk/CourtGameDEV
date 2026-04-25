@@ -681,22 +681,20 @@ function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
             height="40"
             preserveAspectRatio="xMidYMid meet"
           />
-          <circle cx="210" cy="100" r="27" fill="#0f172a" stroke="url(#shop-logo-crypto-universal-sol)" strokeWidth="3.5" />
           <image
             href="https://solana.com/src/img/branding/solanaLogoMark.svg"
-            x="187"
-            y="77"
-            width="46"
-            height="46"
+            x="184"
+            y="74"
+            width="52"
+            height="52"
             preserveAspectRatio="xMidYMid meet"
           />
-          <circle cx="298" cy="100" r="24" fill="#1b1f2a" />
           <image
             href="https://upload.wikimedia.org/wikipedia/commons/0/01/USDT_Logo.png"
-            x="276"
-            y="78"
-            width="44"
-            height="44"
+            x="272"
+            y="74"
+            width="52"
+            height="52"
             preserveAspectRatio="xMidYMid meet"
           />
         </svg>
@@ -16193,23 +16191,21 @@ export default function App() {
                                                         preserveAspectRatio="xMidYMid meet"
                                                       />
 
-                                                      <circle cx="256" cy="166" r="48" fill="#0f172a" stroke="url(#sol-gradient)" strokeWidth="5.6" />
                                                       <image
                                                         href="https://solana.com/src/img/branding/solanaLogoMark.svg"
-                                                        x="213"
-                                                        y="123"
-                                                        width="86"
-                                                        height="86"
+                                                        x="206"
+                                                        y="116"
+                                                        width="100"
+                                                        height="100"
                                                         preserveAspectRatio="xMidYMid meet"
                                                       />
 
-                                                      <circle cx="374" cy="166" r="42" fill="#1b1f2a" stroke="#fff" strokeOpacity="0.12" strokeWidth="2.2" />
                                                       <image
                                                         href="https://upload.wikimedia.org/wikipedia/commons/0/01/USDT_Logo.png"
-                                                        x="334"
-                                                        y="126"
-                                                        width="80"
-                                                        height="80"
+                                                        x="339"
+                                                        y="131"
+                                                        width="70"
+                                                        height="70"
                                                         preserveAspectRatio="xMidYMid meet"
                                                       />
                                                     </svg>
