@@ -673,17 +673,23 @@ function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
           <path d="M140 100h140" fill="none" stroke="#cbd5e1" strokeOpacity="0.36" strokeWidth="2.5" />
           <path d="M210 30v140" fill="none" stroke="#cbd5e1" strokeOpacity="0.32" strokeWidth="2.5" />
           <circle cx="122" cy="100" r="24" fill="#f7931a" />
-          <text x="122" y="108" textAnchor="middle" fill="#ffffff" fontSize="24" fontWeight="800" fontFamily="Arial Black, Segoe UI, Arial, sans-serif">
-            B
-          </text>
-          <line x1="115" y1="84" x2="115" y2="116" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" />
-          <line x1="129" y1="84" x2="129" y2="116" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" />
+          <image
+            href="https://upload.wikimedia.org/wikipedia/commons/4/46/Bitcoin.svg"
+            x="102"
+            y="80"
+            width="40"
+            height="40"
+            preserveAspectRatio="xMidYMid meet"
+          />
           <circle cx="210" cy="100" r="24" fill="#0f172a" stroke="url(#shop-logo-crypto-universal-sol)" strokeWidth="3.3" />
-          <g transform="translate(190 84)">
-            <rect x="0" y="0" width="40" height="6.4" rx="3.2" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-22)" />
-            <rect x="0" y="11" width="40" height="6.4" rx="3.2" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-22)" />
-            <rect x="0" y="22" width="40" height="6.4" rx="3.2" fill="url(#shop-logo-crypto-universal-sol)" transform="skewX(-22)" />
-          </g>
+          <image
+            href="https://solana.com/src/img/branding/solanaLogoMark.svg"
+            x="189"
+            y="79"
+            width="42"
+            height="42"
+            preserveAspectRatio="xMidYMid meet"
+          />
           <circle cx="298" cy="100" r="24" fill="#26a17b" />
           <rect x="282" y="86" width="32" height="6.4" rx="3.2" fill="#fff" />
           <rect x="295" y="92" width="6.8" height="20" rx="3.4" fill="#fff" />
@@ -16139,7 +16145,7 @@ export default function App() {
                                                     />
                                                   </div>
                                                 ) : method.id === 13 ? (
-                                                  <div className="relative flex h-[96px] w-[172px] items-center justify-center sm:h-[112px] sm:w-[204px]">
+                                                  <div className="relative flex h-[106px] w-[186px] items-center justify-center sm:h-[124px] sm:w-[224px]">
                                                     <svg
                                                       viewBox="0 0 512 320"
                                                       aria-hidden="true"
@@ -16173,18 +16179,24 @@ export default function App() {
                                                       <circle cx="292" cy="104" r="4.5" fill="#f87171" />
 
                                                       <circle cx="138" cy="166" r="42" fill="#f7931a" stroke="#fff" strokeOpacity="0.14" strokeWidth="2.2" />
-                                                      <text x="138" y="178" textAnchor="middle" fill="#fff" fontSize="44" fontWeight="800" fontFamily="Arial Black,Segoe UI,Arial,sans-serif">
-                                                        B
-                                                      </text>
-                                                      <line x1="130" y1="138" x2="130" y2="194" stroke="#fff" strokeWidth="4.2" strokeLinecap="round" />
-                                                      <line x1="146" y1="138" x2="146" y2="194" stroke="#fff" strokeWidth="4.2" strokeLinecap="round" />
+                                                      <image
+                                                        href="https://upload.wikimedia.org/wikipedia/commons/4/46/Bitcoin.svg"
+                                                        x="103"
+                                                        y="131"
+                                                        width="70"
+                                                        height="70"
+                                                        preserveAspectRatio="xMidYMid meet"
+                                                      />
 
                                                       <circle cx="256" cy="166" r="42" fill="#0f172a" stroke="url(#sol-gradient)" strokeWidth="5.2" />
-                                                      <g transform="translate(225 145)">
-                                                        <rect x="0" y="0" width="62" height="9.2" rx="4.6" fill="url(#sol-gradient)" transform="skewX(-22)" />
-                                                        <rect x="0" y="16" width="62" height="9.2" rx="4.6" fill="url(#sol-gradient)" transform="skewX(-22)" />
-                                                        <rect x="0" y="32" width="62" height="9.2" rx="4.6" fill="url(#sol-gradient)" transform="skewX(-22)" />
-                                                      </g>
+                                                      <image
+                                                        href="https://solana.com/src/img/branding/solanaLogoMark.svg"
+                                                        x="219"
+                                                        y="129"
+                                                        width="74"
+                                                        height="74"
+                                                        preserveAspectRatio="xMidYMid meet"
+                                                      />
 
                                                       <circle cx="374" cy="166" r="42" fill="#26a17b" stroke="#fff" strokeOpacity="0.14" strokeWidth="2.2" />
                                                       <rect x="346" y="144" width="56" height="10.4" rx="5.2" fill="#fff" />
