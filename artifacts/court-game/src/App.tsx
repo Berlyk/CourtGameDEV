@@ -14501,7 +14501,7 @@ export default function App() {
                     event.preventDefault();
                   }
                 }}
-                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
+                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${sharePackDialogOpen || !!myCasePackDeleteConfirmKey ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-[380] rounded-[inherit] bg-black/58" />
@@ -16617,7 +16617,7 @@ export default function App() {
         >
           <DialogContent
             overlayClassName="z-[288] bg-black/86 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
-            className="z-[289] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !w-[calc(100%-1rem)] !max-w-[min(32rem,calc(100%-1rem))] sm:!w-full sm:!max-w-lg overflow-x-hidden rounded-2xl sm:rounded-2xl border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-3 sm:p-6 text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
+            className="z-[289] !top-1/2 !-translate-y-1/2 !left-2 !right-2 !translate-x-0 !w-auto !max-w-none sm:!left-1/2 sm:!right-auto sm:!-translate-x-1/2 sm:!w-full sm:!max-w-lg overflow-x-hidden rounded-2xl sm:rounded-2xl border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.2),transparent_56%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-2.5 sm:p-6 text-zinc-100 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-2"
           >
             <DialogHeader className="text-left">
               <DialogTitle className="flex flex-wrap items-center gap-2 pr-8 text-left leading-tight">
