@@ -15656,12 +15656,11 @@ export default function App() {
             {createPackCatalogOpen &&
               createPackCatalogView === "my_packs" &&
               sharePackDialogOpen &&
-              typeof document !== "undefined" &&
-              document.body &&
+              createMatchDialogRef.current &&
               createPortal(
                 <motion.div
                   key="my-packs-share-dialog"
-                  className="fixed inset-0 z-[520] flex items-center justify-center overflow-hidden p-2 sm:p-5"
+                  className="absolute inset-0 z-[420] flex items-center justify-center overflow-hidden p-2 sm:p-5"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -15669,9 +15668,9 @@ export default function App() {
                   onMouseDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <div className="absolute inset-0 bg-black/72" />
+                  <div className="absolute inset-0 rounded-[inherit] bg-black/55" />
                   <motion.div
-                    className="relative z-[521] w-[calc(100%-1rem)] max-w-[560px] overflow-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:w-full sm:p-5"
+                    className="relative z-[421] w-[calc(100%-1rem)] max-w-[560px] overflow-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:w-full sm:p-5"
                     initial={{ opacity: 0, y: 18, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 14, scale: 0.97 }}
@@ -15761,17 +15760,16 @@ export default function App() {
                     </div>
                   </motion.div>
                 </motion.div>,
-                document.body,
+                createMatchDialogRef.current,
               )}
             {createPackCatalogOpen &&
               createPackCatalogView === "my_packs" &&
               myCasePackDeleteConfirmKey &&
-              typeof document !== "undefined" &&
-              document.body &&
+              createMatchDialogRef.current &&
               createPortal(
                 <motion.div
                   key="my-packs-delete-dialog"
-                  className="fixed inset-0 z-[520] flex items-center justify-center p-3 sm:p-5"
+                  className="absolute inset-0 z-[420] flex items-center justify-center p-3 sm:p-5"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -15779,9 +15777,9 @@ export default function App() {
                   onMouseDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <div className="absolute inset-0 bg-black/72" />
+                  <div className="absolute inset-0 rounded-[inherit] bg-black/55" />
                   <motion.div
-                    className="relative z-[521] w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4"
+                    className="relative z-[421] w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4"
                     initial={{ opacity: 0, y: 18, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 14, scale: 0.97 }}
@@ -15827,7 +15825,7 @@ export default function App() {
                     </div>
                   </motion.div>
                 </motion.div>,
-                document.body,
+                createMatchDialogRef.current,
               )}
             <Dialog
               open={joinPasswordDialogOpen}
