@@ -2359,22 +2359,6 @@ const HELP_TOPICS_SOURCE: HelpTopicDraft[] = [
     keywords: ["ошибки", "частые ошибки", "советы", "новичок"],
   },
   {
-    id: "speech-judge-templates",
-    category: "Шаблоны речей",
-    title: "Шаблоны для судьи",
-    content:
-      "Вступление: «Слушается дело №{номер}. Стороны готовы к началу?». Перед фактами: «Слово предоставляется {роль}. Просьба говорить по существу». Перед вопросами: «Переходим к перекрёстным вопросам, по одному вопросу за раз». Перед вердиктом: «Суд заслушал позиции сторон, удаляюсь для принятия решения». Оглашение: «По результатам рассмотрения дела суд выносит вердикт: {вердикт}. Краткое обоснование: {1-2 ключевые причины}».",
-    keywords: ["шаблон судьи", "вступительная речь судьи", "заключительная речь судьи", "фразы судьи"],
-  },
-  {
-    id: "speech-role-templates",
-    category: "Шаблоны речей",
-    title: "Шаблоны для сторон",
-    content:
-      "Истец: «Прошу суд признать требования обоснованными, потому что {тезис 1} и {тезис 2}». Ответчик: «Считаю иск необоснованным, так как {контртезис 1} и {контртезис 2}». Адвокат: «Поддерживаю позицию доверителя и обращаю внимание суда на {ключевой факт}». Прокурор: «Прошу суд оценить действия через состав правонарушения: {элемент 1}, {элемент 2}, {элемент 3}». Шаблоны используйте как опору; в реальном матче лучше говорить своими словами и под конкретную ситуацию.",
-    keywords: ["шаблоны речи", "шаблон истца", "шаблон ответчика", "шаблон прокурора", "как строить речь"],
-  },
-  {
     id: "subs-role-selection",
     category: "Подписка и функции",
     title: "Выбор роли и предпочитаемая роль",
@@ -16130,8 +16114,55 @@ export default function App() {
                                                     />
                                                   </div>
                                                 ) : method.id === 13 ? (
-                                                  <div className="flex h-full w-full items-center justify-center">
-                                                    {renderShopPaymentLogo(method)}
+                                                  <div className="relative flex h-[80px] w-[148px] items-center justify-center sm:h-[98px] sm:w-[182px]">
+                                                    <svg
+                                                      viewBox="0 0 512 320"
+                                                      aria-hidden="true"
+                                                      className="pointer-events-none absolute inset-0 h-full w-full"
+                                                    >
+                                                      <defs>
+                                                        <linearGradient id="multi-crypto-card-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                          <stop offset="0%" stopColor="#331417" />
+                                                          <stop offset="38%" stopColor="#222534" />
+                                                          <stop offset="72%" stopColor="#151924" />
+                                                          <stop offset="100%" stopColor="#0f1118" />
+                                                        </linearGradient>
+                                                        <linearGradient id="multi-crypto-card-shine" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                          <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.24" />
+                                                          <stop offset="50%" stopColor="#ffffff" stopOpacity="0.1" />
+                                                          <stop offset="100%" stopColor="#34d399" stopOpacity="0.2" />
+                                                        </linearGradient>
+                                                        <linearGradient id="sol-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                          <stop offset="0%" stopColor="#8b5cf6" />
+                                                          <stop offset="100%" stopColor="#22d3ee" />
+                                                        </linearGradient>
+                                                      </defs>
+                                                      <rect x="18" y="22" width="476" height="276" rx="34" fill="url(#multi-crypto-card-bg)" stroke="#ef4444" strokeOpacity="0.24" strokeWidth="9" />
+                                                      <rect x="30" y="34" width="452" height="252" rx="27" fill="none" stroke="url(#multi-crypto-card-shine)" strokeOpacity="0.45" strokeWidth="5" />
+                                                      <rect x="58" y="62" width="128" height="22" rx="11" fill="#ffffff" fillOpacity="0.07" />
+                                                      <rect x="58" y="96" width="96" height="16" rx="8" fill="#ffffff" fillOpacity="0.06" />
+                                                      <rect x="58" y="214" width="160" height="18" rx="9" fill="#ffffff" fillOpacity="0.08" />
+                                                      <rect x="58" y="244" width="112" height="16" rx="8" fill="#ffffff" fillOpacity="0.05" />
+
+                                                      <circle cx="140" cy="168" r="40" fill="#f7931a" />
+                                                      <text x="140" y="180" textAnchor="middle" fill="#fff" fontSize="42" fontWeight="800" fontFamily="Arial Black,Segoe UI,Arial,sans-serif">
+                                                        B
+                                                      </text>
+                                                      <line x1="130" y1="143" x2="130" y2="193" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+                                                      <line x1="150" y1="143" x2="150" y2="193" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+
+                                                      <circle cx="256" cy="168" r="40" fill="#0f172a" stroke="url(#sol-gradient)" strokeWidth="5" />
+                                                      <g transform="translate(224 145)">
+                                                        <rect x="0" y="0" width="62" height="10" rx="5" fill="url(#sol-gradient)" transform="skewX(-18)" />
+                                                        <rect x="0" y="18" width="62" height="10" rx="5" fill="url(#sol-gradient)" transform="skewX(-18)" />
+                                                        <rect x="0" y="36" width="62" height="10" rx="5" fill="url(#sol-gradient)" transform="skewX(-18)" />
+                                                      </g>
+
+                                                      <circle cx="372" cy="168" r="40" fill="#26a17b" />
+                                                      <rect x="346" y="145" width="52" height="10" rx="5" fill="#fff" />
+                                                      <rect x="366" y="153" width="12" height="32" rx="6" fill="#fff" />
+                                                      <ellipse cx="372" cy="168" rx="24" ry="8" fill="none" stroke="#fff" strokeWidth="7" />
+                                                    </svg>
                                                   </div>
                                                 ) : (
                                                   <img
