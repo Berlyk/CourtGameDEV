@@ -15665,16 +15665,26 @@ export default function App() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2, ease: "easeOut" }}
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onClick={(event) => event.stopPropagation()}
+                  style={{ pointerEvents: "none" }}
                 >
-                  <div className="absolute inset-0 rounded-[inherit] bg-black/55" />
+                  <div
+                    className="absolute inset-0 rounded-[inherit] bg-black/40"
+                    style={{ pointerEvents: "auto" }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={() => {
+                      setSharePackDialogOpen(false);
+                      setSharePackCopiedKind(null);
+                    }}
+                  />
                   <motion.div
                     className="relative z-[421] w-[calc(100%-1rem)] max-w-[560px] overflow-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] p-3 sm:w-full sm:p-5"
                     initial={{ opacity: 0, y: 18, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 14, scale: 0.97 }}
                     transition={{ duration: 0.22, ease: "easeOut" }}
+                    style={{ pointerEvents: "auto" }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 space-y-1">
@@ -15774,16 +15784,23 @@ export default function App() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2, ease: "easeOut" }}
-                  onMouseDown={(event) => event.stopPropagation()}
-                  onClick={(event) => event.stopPropagation()}
+                  style={{ pointerEvents: "none" }}
                 >
-                  <div className="absolute inset-0 rounded-[inherit] bg-black/55" />
+                  <div
+                    className="absolute inset-0 rounded-[inherit] bg-black/40"
+                    style={{ pointerEvents: "auto" }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={() => setMyCasePackDeleteConfirmKey(null)}
+                  />
                   <motion.div
                     className="relative z-[421] w-full max-w-[460px] rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.99),rgba(8,8,11,0.99))] p-4"
                     initial={{ opacity: 0, y: 18, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 14, scale: 0.97 }}
                     transition={{ duration: 0.22, ease: "easeOut" }}
+                    style={{ pointerEvents: "auto" }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
