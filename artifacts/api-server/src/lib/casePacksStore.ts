@@ -892,9 +892,7 @@ export async function pickCaseForRoom(
   const rawPackKey = String(packKeyInput ?? "").trim().toLowerCase();
   if (rawPackKey.startsWith("custom_")) {
     const customCase = await pickUserCasePackForRoom(rawPackKey, modePlayerCount);
-    if (customCase) {
-      return customCase;
-    }
+    return customCase ?? null;
   }
 
   const requestedKey = normalizeCasePackKey(packKeyInput);

@@ -29,6 +29,7 @@ import {
   setAdminStaffRoleByUserId,
   setUserBanByAdmin,
   upsertPromoCodeByAdmin,
+  updateUserBadgesByAdmin,
   updateUserModerationByAdmin,
   updateProfileByToken,
 } from "../lib/authStore.js";
@@ -132,7 +133,10 @@ function canManageUserCasePacks(user: {
             return Number.isFinite(parsed) ? parsed : null;
           })()
         : null;
-  if (isActiveExplicit === false) {
+  if (
+    isActiveExplicit === false &&
+    !(typeof endAtMs === "number" && endAtMs > Date.now())
+  ) {
     return false;
   }
   if (isActiveExplicit === null && typeof endAtMs === "number" && endAtMs <= Date.now()) {
@@ -1878,6 +1882,29 @@ authRouter.patch("/auth/admin/user/moderate", async (req, res) => {
   }
 
   try {
+    const badgeUpdates = Array.isArray(req.body?.badgeUpdates)
+      ? req.body.badgeUpdates
+          .map((entry: unknown) => {
+            if (!entry || typeof entry !== "object") return null;
+            const row = entry as {
+              badgeKey?: unknown;
+              active?: unknown;
+              expiresAt?: unknown;
+            };
+            const badgeKey = String(row.badgeKey ?? "").trim();
+            if (!badgeKey) return null;
+            return {
+              badgeKey,
+              active: !!row.active,
+              expiresAt: row.expiresAt,
+            };
+          })
+          .filter(
+            (
+              entry,
+            ): entry is { badgeKey: string; active: boolean; expiresAt?: unknown } => !!entry,
+          )
+      : [];
     const user = await updateUserModerationByAdmin({
       userId,
       nickname: typeof req.body?.nickname === "string" ? req.body.nickname : undefined,
@@ -1886,6 +1913,13 @@ authRouter.patch("/auth/admin/user/moderate", async (req, res) => {
     });
     if (!user) {
       return res.status(404).json({ message: "Пользователь не найден." });
+    }
+    if (badgeUpdates.length > 0) {
+      await updateUserBadgesByAdmin({
+        userId,
+        grantedByUserId: auth.adminUser.id,
+        updates: badgeUpdates,
+      });
     }
     const publicProfile = await getPublicUserProfileById(user.id).catch(() => null);
     syncUserProfileInActiveRooms({

@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import { pool } from "@workspace/db";
 import { roleOrderByCount } from "./roleOrderConfig.js";
 
@@ -22,34 +22,34 @@ const ROLE_KEYS: CaseRoleKey[] = [
 ];
 
 const ROLE_TITLES: Record<CaseRoleKey, string> = {
-  judge: "Судья",
-  plaintiff: "Истец",
-  defendant: "Ответчик",
-  prosecutor: "Прокурор",
-  defenseLawyer: "Адвокат ответчика",
-  plaintiffLawyer: "Адвокат истца",
+  judge: "РЎСѓРґСЊСЏ",
+  plaintiff: "РСЃС‚РµС†",
+  defendant: "РћС‚РІРµС‚С‡РёРє",
+  prosecutor: "РџСЂРѕРєСѓСЂРѕСЂ",
+  defenseLawyer: "РђРґРІРѕРєР°С‚ РѕС‚РІРµС‚С‡РёРєР°",
+  plaintiffLawyer: "РђРґРІРѕРєР°С‚ РёСЃС‚С†Р°",
 };
 
 const ROLE_GOALS: Record<CaseRoleKey, string> = {
   judge:
-    "Вынести максимально точный вердикт на основе представленных улик и раскрытых фактов.",
+    "Р’С‹РЅРµСЃС‚Рё РјР°РєСЃРёРјР°Р»СЊРЅРѕ С‚РѕС‡РЅС‹Р№ РІРµСЂРґРёРєС‚ РЅР° РѕСЃРЅРѕРІРµ РїСЂРµРґСЃС‚Р°РІР»РµРЅРЅС‹С… СѓР»РёРє Рё СЂР°СЃРєСЂС‹С‚С‹С… С„Р°РєС‚РѕРІ.",
   plaintiff:
-    "Доказать, что его требования обоснованы и добиться решения суда в свою пользу.",
+    "Р”РѕРєР°Р·Р°С‚СЊ, С‡С‚Рѕ РµРіРѕ С‚СЂРµР±РѕРІР°РЅРёСЏ РѕР±РѕСЃРЅРѕРІР°РЅС‹ Рё РґРѕР±РёС‚СЊСЃСЏ СЂРµС€РµРЅРёСЏ СЃСѓРґР° РІ СЃРІРѕСЋ РїРѕР»СЊР·Сѓ.",
   defendant:
-    "Опровергнуть обвинения и добиться полного или частичного оправдания.",
+    "РћРїСЂРѕРІРµСЂРіРЅСѓС‚СЊ РѕР±РІРёРЅРµРЅРёСЏ Рё РґРѕР±РёС‚СЊСЃСЏ РїРѕР»РЅРѕРіРѕ РёР»Рё С‡Р°СЃС‚РёС‡РЅРѕРіРѕ РѕРїСЂР°РІРґР°РЅРёСЏ.",
   prosecutor:
-    "Доказать виновность ответчика и убедить суд в необходимости наказания.",
+    "Р”РѕРєР°Р·Р°С‚СЊ РІРёРЅРѕРІРЅРѕСЃС‚СЊ РѕС‚РІРµС‚С‡РёРєР° Рё СѓР±РµРґРёС‚СЊ СЃСѓРґ РІ РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё РЅР°РєР°Р·Р°РЅРёСЏ.",
   defenseLawyer:
-    "Защитить ответчика, опровергнуть доводы обвинения и добиться оправдания или смягчения решения.",
+    "Р—Р°С‰РёС‚РёС‚СЊ РѕС‚РІРµС‚С‡РёРєР°, РѕРїСЂРѕРІРµСЂРіРЅСѓС‚СЊ РґРѕРІРѕРґС‹ РѕР±РІРёРЅРµРЅРёСЏ Рё РґРѕР±РёС‚СЊСЃСЏ РѕРїСЂР°РІРґР°РЅРёСЏ РёР»Рё СЃРјСЏРіС‡РµРЅРёСЏ СЂРµС€РµРЅРёСЏ.",
   plaintiffLawyer:
-    "Усилить позицию истца, доказать обоснованность требований и склонить суд к решению в его пользу.",
+    "РЈСЃРёР»РёС‚СЊ РїРѕР·РёС†РёСЋ РёСЃС‚С†Р°, РґРѕРєР°Р·Р°С‚СЊ РѕР±РѕСЃРЅРѕРІР°РЅРЅРѕСЃС‚СЊ С‚СЂРµР±РѕРІР°РЅРёР№ Рё СЃРєР»РѕРЅРёС‚СЊ СЃСѓРґ Рє СЂРµС€РµРЅРёСЋ РІ РµРіРѕ РїРѕР»СЊР·Сѓ.",
 };
 
 const MODE_TITLE_BY_PLAYERS: Record<CaseModePlayerCount, string> = {
-  3: "Гражданский спор / Трудовой спор",
-  4: "Уголовное дело",
-  5: "Уголовное дело",
-  6: "Суд на компанию",
+  3: "Р“СЂР°Р¶РґР°РЅСЃРєРёР№ СЃРїРѕСЂ / РўСЂСѓРґРѕРІРѕР№ СЃРїРѕСЂ",
+  4: "РЈРіРѕР»РѕРІРЅРѕРµ РґРµР»Рѕ",
+  5: "РЈРіРѕР»РѕРІРЅРѕРµ РґРµР»Рѕ",
+  6: "РЎСѓРґ РЅР° РєРѕРјРїР°РЅРёСЋ",
 };
 
 const DEFAULT_PACK_COLOR = "#ef4444";
@@ -92,6 +92,7 @@ export interface UserCasePackInfo {
   isAdult: false;
   createdAt: number;
   creatorNickname: string;
+  sourcePackId: string | null;
 }
 
 export interface UserCasePackImportPreview {
@@ -158,32 +159,32 @@ function sanitizeLegacyCaseText(value: unknown, field: "description" | "truth"):
   if (!safe) return "";
   const normalized = safe
     .toLowerCase()
-    .replace(/ё/g, "е")
+    .replace(/С‘/g, "Рµ")
     .replace(/["'`]/g, "")
     .replace(/\s+/g, " ")
     .trim();
   const compact = normalized
-    .replace(/[.,!?;:()[\]{}«»]/g, "")
+    .replace(/[.,!?;:()[\]{}В«В»]/g, "")
     .replace(/\s+/g, " ")
     .trim();
   if (field === "description") {
     if (
-      compact === "описание недоступно" ||
-      compact === "описнаие недоступно" ||
-      compact === "описание не указано" ||
-      compact.startsWith("описание недоступно ") ||
-      compact.startsWith("описнаие недоступно ") ||
-      compact.startsWith("описание не указано ")
+      compact === "РѕРїРёСЃР°РЅРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ" ||
+      compact === "РѕРїРёСЃРЅР°РёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ" ||
+      compact === "РѕРїРёСЃР°РЅРёРµ РЅРµ СѓРєР°Р·Р°РЅРѕ" ||
+      compact.startsWith("РѕРїРёСЃР°РЅРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ ") ||
+      compact.startsWith("РѕРїРёСЃРЅР°РёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ ") ||
+      compact.startsWith("РѕРїРёСЃР°РЅРёРµ РЅРµ СѓРєР°Р·Р°РЅРѕ ")
     ) {
       return "";
     }
     return safe;
   }
   if (
-    compact === "истина недоступна" ||
-    compact === "истина не указана" ||
-    compact.startsWith("истина недоступна ") ||
-    compact.startsWith("истина не указана ")
+    compact === "РёСЃС‚РёРЅР° РЅРµРґРѕСЃС‚СѓРїРЅР°" ||
+    compact === "РёСЃС‚РёРЅР° РЅРµ СѓРєР°Р·Р°РЅР°" ||
+    compact.startsWith("РёСЃС‚РёРЅР° РЅРµРґРѕСЃС‚СѓРїРЅР° ") ||
+    compact.startsWith("РёСЃС‚РёРЅР° РЅРµ СѓРєР°Р·Р°РЅР° ")
   ) {
     return "";
   }
@@ -212,9 +213,9 @@ function normalizeExpectedVerdict(value: unknown, truth: string): CaseVerdictKey
   if (value === "guilty" || value === "not_guilty" || value === "partial_guilty") {
     return value;
   }
-  const normalizedTruth = String(truth ?? "").toLowerCase().replace(/ё/g, "е");
-  if (normalizedTruth.includes("не винов")) return "not_guilty";
-  if (normalizedTruth.includes("частично винов")) return "partial_guilty";
+  const normalizedTruth = String(truth ?? "").toLowerCase().replace(/С‘/g, "Рµ");
+  if (normalizedTruth.includes("РЅРµ РІРёРЅРѕРІ")) return "not_guilty";
+  if (normalizedTruth.includes("С‡Р°СЃС‚РёС‡РЅРѕ РІРёРЅРѕРІ")) return "partial_guilty";
   return "guilty";
 }
 
@@ -223,7 +224,7 @@ function normalizeModePlayerCount(value: unknown): CaseModePlayerCount {
   if (numeric === 3 || numeric === 4 || numeric === 5 || numeric === 6) {
     return numeric;
   }
-  throw new Error("Режим дела должен быть 3, 4, 5 или 6 игроков.");
+  throw new Error("Р РµР¶РёРј РґРµР»Р° РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ 3, 4, 5 РёР»Рё 6 РёРіСЂРѕРєРѕРІ.");
 }
 
 function normalizeEvidence(value: unknown): string[] {
@@ -268,7 +269,7 @@ function normalizeFactsByRole(
 
   for (const roleKey of requiredRoles) {
     if ((next[roleKey] ?? []).length < 4) {
-      throw new Error(`Для роли «${ROLE_TITLES[roleKey]}» нужно минимум 4 факта.`);
+      throw new Error(`Р”Р»СЏ СЂРѕР»Рё В«${ROLE_TITLES[roleKey]}В» РЅСѓР¶РЅРѕ РјРёРЅРёРјСѓРј 4 С„Р°РєС‚Р°.`);
     }
   }
 
@@ -309,7 +310,7 @@ function normalizeFactsByRoleForEditor(
 
   for (const roleKey of requiredRoles) {
     if ((next[roleKey] ?? []).length < 1) {
-      throw new Error(`Для роли «${ROLE_TITLES[roleKey]}» нужен минимум 1 факт.`);
+      throw new Error(`Р”Р»СЏ СЂРѕР»Рё В«${ROLE_TITLES[roleKey]}В» РЅСѓР¶РµРЅ РјРёРЅРёРјСѓРј 1 С„Р°РєС‚.`);
     }
   }
 
@@ -323,7 +324,7 @@ function validateCasesPerModeLimit(
   for (const item of cases) counts[item.modePlayerCount] += 1;
   for (const mode of [3, 4, 5, 6] as const) {
     if (counts[mode] > MAX_CASES_PER_MODE) {
-      throw new Error(`Для режима ${mode} игроков можно добавить максимум ${MAX_CASES_PER_MODE} дел.`);
+      throw new Error(`Р”Р»СЏ СЂРµР¶РёРјР° ${mode} РёРіСЂРѕРєРѕРІ РјРѕР¶РЅРѕ РґРѕР±Р°РІРёС‚СЊ РјР°РєСЃРёРјСѓРј ${MAX_CASES_PER_MODE} РґРµР».`);
     }
   }
 }
@@ -432,7 +433,7 @@ async function ensureTablesInternal(): Promise<void> {
 
   await pool.query(`
     UPDATE user_case_packs p
-    SET original_creator_nickname = COALESCE(NULLIF(TRIM(p.original_creator_nickname), ''), u.nickname, 'Игрок')
+    SET original_creator_nickname = COALESCE(NULLIF(TRIM(p.original_creator_nickname), ''), u.nickname, 'РРіСЂРѕРє')
     FROM auth_users u
     WHERE u.id = p.original_creator_user_id
       AND NULLIF(TRIM(p.original_creator_nickname), '') IS NULL;
@@ -440,7 +441,7 @@ async function ensureTablesInternal(): Promise<void> {
 
   await pool.query(`
     UPDATE user_case_packs
-    SET original_creator_nickname = COALESCE(NULLIF(TRIM(original_creator_nickname), ''), 'Игрок')
+    SET original_creator_nickname = COALESCE(NULLIF(TRIM(original_creator_nickname), ''), 'РРіСЂРѕРє')
     WHERE NULLIF(TRIM(original_creator_nickname), '') IS NULL;
   `);
 
@@ -471,8 +472,8 @@ async function ensureTablesInternal(): Promise<void> {
   await pool.query(`
     UPDATE user_case_pack_cases
     SET expected_verdict = CASE
-      WHEN LOWER(COALESCE(truth, '')) LIKE '%не винов%' THEN 'not_guilty'
-      WHEN LOWER(COALESCE(truth, '')) LIKE '%частично винов%' THEN 'partial_guilty'
+      WHEN LOWER(COALESCE(truth, '')) LIKE '%РЅРµ РІРёРЅРѕРІ%' THEN 'not_guilty'
+      WHEN LOWER(COALESCE(truth, '')) LIKE '%С‡Р°СЃС‚РёС‡РЅРѕ РІРёРЅРѕРІ%' THEN 'partial_guilty'
       ELSE 'guilty'
     END
     WHERE expected_verdict IS NULL OR expected_verdict NOT IN ('guilty','not_guilty','partial_guilty');
@@ -503,6 +504,7 @@ function mapRowToPackInfo(row: {
   case_count: number;
   created_at: Date | string;
   original_creator_nickname?: string | null;
+  source_pack_id?: string | null;
 }): UserCasePackInfo {
   const createdAt =
     row.created_at instanceof Date
@@ -511,8 +513,8 @@ function mapRowToPackInfo(row: {
   return {
     id: row.id,
     key: row.key,
-    title: normalizePackTitle(row.title, "Пользовательский пак"),
-    description: normalizePackDescription(row.description, "Пользовательский пак дел."),
+    title: normalizePackTitle(row.title, "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РїР°Рє"),
+    description: normalizePackDescription(row.description, "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РїР°Рє РґРµР»."),
     color: normalizeColor(row.color),
     shareCode: row.share_code,
     caseCount: Math.max(0, Number(row.case_count ?? 0) || 0),
@@ -520,7 +522,8 @@ function mapRowToPackInfo(row: {
     isCustom: true,
     isAdult: false,
     createdAt,
-    creatorNickname: String(row.original_creator_nickname ?? "").trim() || "Игрок",
+    creatorNickname: String(row.original_creator_nickname ?? "").trim() || "РРіСЂРѕРє",
+    sourcePackId: row.source_pack_id ? String(row.source_pack_id) : null,
   };
 }
 
@@ -535,6 +538,7 @@ async function fetchPackInfoById(packId: string): Promise<UserCasePackInfo> {
     case_count: number;
     created_at: Date;
     original_creator_nickname: string | null;
+    source_pack_id: string | null;
   }>(
     `
       SELECT
@@ -544,6 +548,7 @@ async function fetchPackInfoById(packId: string): Promise<UserCasePackInfo> {
         p.description,
         p.color,
         p.share_code,
+        p.source_pack_id,
         p.original_creator_nickname,
         COUNT(c.id)::int AS case_count,
         p.created_at
@@ -556,7 +561,7 @@ async function fetchPackInfoById(packId: string): Promise<UserCasePackInfo> {
   );
 
   if (!result.rowCount) {
-    throw new Error("Пак не найден.");
+    throw new Error("РџР°Рє РЅРµ РЅР°Р№РґРµРЅ.");
   }
   return mapRowToPackInfo(result.rows[0]);
 }
@@ -567,7 +572,7 @@ export async function getUserCasePackImportPreviewByShareCode(
   await ensureUserCasePacksStorage();
   const shareCode = String(shareCodeInput ?? "").trim().toUpperCase();
   if (!shareCode) {
-    throw new Error("Введите ключ пака.");
+    throw new Error("Р’РІРµРґРёС‚Рµ РєР»СЋС‡ РїР°РєР°.");
   }
   const result = await pool.query<{
     title: string;
@@ -594,16 +599,16 @@ export async function getUserCasePackImportPreviewByShareCode(
     [shareCode],
   );
   if (!result.rowCount) {
-    throw new Error("Пак с таким ключом не найден.");
+    throw new Error("РџР°Рє СЃ С‚Р°РєРёРј РєР»СЋС‡РѕРј РЅРµ РЅР°Р№РґРµРЅ.");
   }
   const row = result.rows[0];
   return {
-    title: normalizePackTitle(row.title, "Пользовательский пак"),
-    description: normalizePackDescription(row.description, "Пользовательский пак дел."),
+    title: normalizePackTitle(row.title, "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РїР°Рє"),
+    description: normalizePackDescription(row.description, "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РїР°Рє РґРµР»."),
     color: normalizeColor(row.color),
     shareCode: String(row.share_code ?? "").trim().toUpperCase(),
     caseCount: Math.max(0, Number(row.case_count ?? 0) || 0),
-    creatorNickname: String(row.original_creator_nickname ?? "").trim() || "Игрок",
+    creatorNickname: String(row.original_creator_nickname ?? "").trim() || "РРіСЂРѕРє",
   };
 }
 
@@ -654,6 +659,7 @@ export async function listUserCasePacks(userId: string): Promise<UserCasePackInf
     case_count: number;
     created_at: Date;
     original_creator_nickname: string | null;
+    source_pack_id: string | null;
   }>(
     `
       SELECT
@@ -663,6 +669,7 @@ export async function listUserCasePacks(userId: string): Promise<UserCasePackInf
         p.description,
         p.color,
         p.share_code,
+        p.source_pack_id,
         p.original_creator_nickname,
         COUNT(c.id)::int AS case_count,
         p.created_at
@@ -697,7 +704,7 @@ function normalizeCaseInput(
       ? (value as Record<string, unknown>)
       : {};
   const modePlayerCount = normalizeModePlayerCount(source.modePlayerCount);
-  const title = normalizeTitle(source.title, `Дело ${index + 1}`);
+  const title = normalizeTitle(source.title, `Р”РµР»Рѕ ${index + 1}`);
   const description = normalizeCaseDescription(source.description);
   const truth = normalizeTruthOptional(source.truth);
   const expectedVerdict = normalizeExpectedVerdict(source.expectedVerdict, truth);
@@ -725,18 +732,18 @@ export async function createUserCasePack(
   await ensureUserCasePacksStorage();
   const safeUserId = String(userId ?? "").trim();
   if (!safeUserId) {
-    throw new Error("Не удалось определить владельца пака.");
+    throw new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ РІР»Р°РґРµР»СЊС†Р° РїР°РєР°.");
   }
 
   const title = normalizePackTitle(input?.title, "");
   if (!title) {
-    throw new Error("Введите название пака.");
+    throw new Error("Р’РІРµРґРёС‚Рµ РЅР°Р·РІР°РЅРёРµ РїР°РєР°.");
   }
-  const description = normalizePackDescription(input?.description, "Пользовательский пак дел.");
+  const description = normalizePackDescription(input?.description, "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РїР°Рє РґРµР».");
   const color = normalizeColor(input?.color);
   const rawCases = Array.isArray(input?.cases) ? input.cases : [];
   if (rawCases.length === 0) {
-    throw new Error("Добавьте хотя бы одно дело в пак.");
+    throw new Error("Р”РѕР±Р°РІСЊС‚Рµ С…РѕС‚СЏ Р±С‹ РѕРґРЅРѕ РґРµР»Рѕ РІ РїР°Рє.");
   }
 
   const normalizedCases = rawCases.map((row, index) => normalizeCaseInput(row, index));
@@ -753,7 +760,7 @@ export async function createUserCasePack(
       `,
       [safeUserId],
     );
-    const ownerNickname = String(ownerResult.rows[0]?.nickname ?? "").trim() || "Игрок";
+    const ownerNickname = String(ownerResult.rows[0]?.nickname ?? "").trim() || "РРіСЂРѕРє";
     const packId = crypto.randomUUID();
     const packKey = generatePackKey();
     const shareCode = generateShareCode();
@@ -815,6 +822,7 @@ export async function createUserCasePack(
       case_count: number;
       created_at: Date;
       original_creator_nickname: string | null;
+      source_pack_id: string | null;
     }>(
       `
         SELECT
@@ -824,6 +832,7 @@ export async function createUserCasePack(
           p.description,
           p.color,
           p.share_code,
+          p.source_pack_id,
           p.original_creator_nickname,
           COUNT(c.id)::int AS case_count,
           p.created_at
@@ -836,7 +845,7 @@ export async function createUserCasePack(
     );
 
     if (!created.rowCount) {
-      throw new Error("Пак создан, но не удалось получить его данные.");
+      throw new Error("РџР°Рє СЃРѕР·РґР°РЅ, РЅРѕ РЅРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РµРіРѕ РґР°РЅРЅС‹Рµ.");
     }
     return mapRowToPackInfo(created.rows[0]);
   } catch (error) {
@@ -852,11 +861,11 @@ export async function importUserCasePackByShareCode(
   await ensureUserCasePacksStorage();
   const safeUserId = String(userId ?? "").trim();
   if (!safeUserId) {
-    throw new Error("Не удалось определить пользователя.");
+    throw new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.");
   }
   const shareCode = String(shareCodeInput ?? "").trim().toUpperCase();
   if (!shareCode) {
-    throw new Error("Введите ключ пака.");
+    throw new Error("Р’РІРµРґРёС‚Рµ РєР»СЋС‡ РїР°РєР°.");
   }
 
   await pool.query("BEGIN");
@@ -879,15 +888,15 @@ export async function importUserCasePackByShareCode(
       [shareCode],
     );
     if (!sourcePackResult.rowCount) {
-      throw new Error("Пак с таким ключом не найден.");
+      throw new Error("РџР°Рє СЃ С‚Р°РєРёРј РєР»СЋС‡РѕРј РЅРµ РЅР°Р№РґРµРЅ.");
     }
     const sourcePack = sourcePackResult.rows[0];
     const originCreatorUserId = String(
       sourcePack.original_creator_user_id ?? sourcePack.user_id ?? "",
     ).trim();
-    const originCreatorNickname = String(sourcePack.original_creator_nickname ?? "").trim() || "Игрок";
+    const originCreatorNickname = String(sourcePack.original_creator_nickname ?? "").trim() || "РРіСЂРѕРє";
     if (sourcePack.user_id === safeUserId) {
-      throw new Error("Этот пак уже принадлежит вам.");
+      throw new Error("Р­С‚РѕС‚ РїР°Рє СѓР¶Рµ РїСЂРёРЅР°РґР»РµР¶РёС‚ РІР°Рј.");
     }
 
     const alreadyImportedResult = await pool.query<{ id: string }>(
@@ -901,7 +910,7 @@ export async function importUserCasePackByShareCode(
       [safeUserId, sourcePack.id],
     );
     if (alreadyImportedResult.rowCount) {
-      throw new Error("Пак уже есть в ваших паках.");
+      throw new Error("РџР°Рє СѓР¶Рµ РµСЃС‚СЊ РІ РІР°С€РёС… РїР°РєР°С….");
     }
 
     const sourceCases = await pool.query<{
@@ -947,8 +956,8 @@ export async function importUserCasePackByShareCode(
         newPackId,
         safeUserId,
         newPackKey,
-        normalizePackTitle(sourcePack.title, "Пользовательский пак"),
-        normalizePackDescription(sourcePack.description, "Пользовательский пак дел."),
+        normalizePackTitle(sourcePack.title, "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РїР°Рє"),
+        normalizePackDescription(sourcePack.description, "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РїР°Рє РґРµР»."),
         normalizeColor(sourcePack.color),
         newShareCode,
         sourcePack.id,
@@ -982,7 +991,7 @@ export async function importUserCasePackByShareCode(
           newPackId,
           `${sourceCase.case_key}_${crypto.randomUUID().slice(0, 6)}`.slice(0, 120),
           normalizeModePlayerCount(sourceCase.mode_player_count),
-          normalizeTitle(sourceCase.title, "Дело"),
+          normalizeTitle(sourceCase.title, "Р”РµР»Рѕ"),
           normalizeCaseDescription(sourceCase.description),
           normalizeTruth(sourceCase.truth),
           normalizeExpectedVerdict(sourceCase.expected_verdict, sourceCase.truth),
@@ -1005,6 +1014,7 @@ export async function importUserCasePackByShareCode(
       case_count: number;
       created_at: Date;
       original_creator_nickname: string | null;
+      source_pack_id: string | null;
     }>(
       `
         SELECT
@@ -1014,6 +1024,7 @@ export async function importUserCasePackByShareCode(
           p.description,
           p.color,
           p.share_code,
+          p.source_pack_id,
           p.original_creator_nickname,
           COUNT(c.id)::int AS case_count,
           p.created_at
@@ -1026,7 +1037,7 @@ export async function importUserCasePackByShareCode(
     );
 
     if (!created.rowCount) {
-      throw new Error("Пак импортирован, но не удалось получить его данные.");
+      throw new Error("РџР°Рє РёРјРїРѕСЂС‚РёСЂРѕРІР°РЅ, РЅРѕ РЅРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РµРіРѕ РґР°РЅРЅС‹Рµ.");
     }
     return mapRowToPackInfo(created.rows[0]);
   } catch (error) {
@@ -1042,11 +1053,11 @@ export async function getUserCasePackDetails(
   await ensureUserCasePacksStorage();
   const safeUserId = String(userId ?? "").trim();
   if (!safeUserId) {
-    throw new Error("Не удалось определить пользователя.");
+    throw new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.");
   }
   const packKey = String(packKeyInput ?? "").trim().toLowerCase();
   if (!packKey) {
-    throw new Error("Ключ пака не указан.");
+    throw new Error("РљР»СЋС‡ РїР°РєР° РЅРµ СѓРєР°Р·Р°РЅ.");
   }
 
   const packResult = await pool.query<{ id: string }>(
@@ -1060,7 +1071,7 @@ export async function getUserCasePackDetails(
     [safeUserId, packKey],
   );
   if (!packResult.rowCount) {
-    throw new Error("Пак не найден.");
+    throw new Error("РџР°Рє РЅРµ РЅР°Р№РґРµРЅ.");
   }
 
   const packId = packResult.rows[0].id;
@@ -1098,7 +1109,7 @@ export async function getUserCasePackDetails(
   const cases: UserCasePackCaseDetails[] = casesResult.rows.map((row) => ({
     caseKey: String(row.case_key ?? ""),
     modePlayerCount: normalizeModePlayerCount(row.mode_player_count),
-    title: normalizeTitle(row.title, "Дело"),
+    title: normalizeTitle(row.title, "Р”РµР»Рѕ"),
     description: String(row.description ?? "").trim().slice(0, CASE_DESCRIPTION_LIMIT),
     truth: normalizeTruthOptional(row.truth),
     expectedVerdict: normalizeExpectedVerdict(row.expected_verdict, row.truth),
@@ -1118,22 +1129,22 @@ export async function updateUserCasePack(
   await ensureUserCasePacksStorage();
   const safeUserId = String(userId ?? "").trim();
   if (!safeUserId) {
-    throw new Error("Не удалось определить пользователя.");
+    throw new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.");
   }
   const packKey = String(packKeyInput ?? "").trim().toLowerCase();
   if (!packKey) {
-    throw new Error("Ключ пака не указан.");
+    throw new Error("РљР»СЋС‡ РїР°РєР° РЅРµ СѓРєР°Р·Р°РЅ.");
   }
 
   const title = normalizePackTitle(input?.title, "");
   if (!title) {
-    throw new Error("Введите название пака.");
+    throw new Error("Р’РІРµРґРёС‚Рµ РЅР°Р·РІР°РЅРёРµ РїР°РєР°.");
   }
-  const description = normalizePackDescription(input?.description, "Пользовательский пак дел.");
+  const description = normalizePackDescription(input?.description, "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РїР°Рє РґРµР».");
   const color = normalizeColor(input?.color);
   const rawCases = Array.isArray(input?.cases) ? input.cases : [];
   if (rawCases.length === 0) {
-    throw new Error("Добавьте хотя бы одно дело в пак.");
+    throw new Error("Р”РѕР±Р°РІСЊС‚Рµ С…РѕС‚СЏ Р±С‹ РѕРґРЅРѕ РґРµР»Рѕ РІ РїР°Рє.");
   }
   const normalizedCases = rawCases.map((row, index) => normalizeCaseInput(row, index));
   validateCasesPerModeLimit(normalizedCases);
@@ -1151,7 +1162,7 @@ export async function updateUserCasePack(
       [safeUserId, packKey],
     );
     if (!packResult.rowCount) {
-      throw new Error("Пак не найден.");
+      throw new Error("РџР°Рє РЅРµ РЅР°Р№РґРµРЅ.");
     }
     const packId = packResult.rows[0].id;
 
@@ -1218,11 +1229,11 @@ export async function deleteUserCasePack(userId: string, packKeyInput: string): 
   await ensureUserCasePacksStorage();
   const safeUserId = String(userId ?? "").trim();
   if (!safeUserId) {
-    throw new Error("Не удалось определить пользователя.");
+    throw new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.");
   }
   const packKey = String(packKeyInput ?? "").trim().toLowerCase();
   if (!packKey) {
-    throw new Error("Ключ пака не указан.");
+    throw new Error("РљР»СЋС‡ РїР°РєР° РЅРµ СѓРєР°Р·Р°РЅ.");
   }
   const result = await pool.query<{ id: string }>(
     `
@@ -1234,7 +1245,7 @@ export async function deleteUserCasePack(userId: string, packKeyInput: string): 
     [safeUserId, packKey],
   );
   if (!result.rowCount) {
-    throw new Error("Пак не найден.");
+    throw new Error("РџР°Рє РЅРµ РЅР°Р№РґРµРЅ.");
   }
 }
 
@@ -1284,15 +1295,15 @@ export async function pickUserCasePackForRoom(
   const expectedVerdict = normalizeExpectedVerdict(row.expected_verdict, row.truth);
   const expectedVerdictLabel =
     expectedVerdict === "not_guilty"
-      ? "Не виновен"
+      ? "РќРµ РІРёРЅРѕРІРµРЅ"
       : expectedVerdict === "partial_guilty"
-        ? "Частично виновен"
-        : "Виновен";
+        ? "Р§Р°СЃС‚РёС‡РЅРѕ РІРёРЅРѕРІРµРЅ"
+        : "Р’РёРЅРѕРІРµРЅ";
 
   return {
     id: row.case_key,
     mode: MODE_TITLE_BY_PLAYERS[modeCount],
-    title: normalizeTitle(row.title, "Дело"),
+    title: normalizeTitle(row.title, "Р”РµР»Рѕ"),
     description: String(row.description ?? "").trim().slice(0, CASE_DESCRIPTION_LIMIT),
     truth: normalizeTruthOptional(row.truth),
     expectedVerdict: expectedVerdictLabel,
@@ -1300,3 +1311,4 @@ export async function pickUserCasePackForRoom(
     roles: buildRolesFromFacts(factsByRole),
   };
 }
+

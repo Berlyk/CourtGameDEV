@@ -39,6 +39,7 @@ import {
   markMissingSocketPlayersDisconnected,
   type AssignableRole,
   type CreateRoomOptions,
+  type RoomModeKey,
 } from "./roomManager.js";
 import {
   getBanMessageForClient,
@@ -150,15 +151,39 @@ type CanonicalRole =
   | "witness"
   | "observer";
 
-function resolveExpectedVerdictFromTruth(truthRaw: string | undefined): string {
-  const truth = (truthRaw ?? "").toLowerCase().replace(/ё/g, "е");
-  if (truth.includes("не винов") || truth.includes("не виноват")) {
-    return "Не виновен";
-  }
-  if (truth.includes("частично винов")) {
-    return "Частично виновен";
-  }
-  return "Виновен";
+function resolveExpectedVerdictLabel(caseData: any): string {
+  const normalize = (value: string | undefined | null): string | null => {
+    if (typeof value !== "string") return null;
+    const raw = value.trim().toLowerCase().replace(/ё/g, "е");
+    if (!raw) return null;
+
+    if (
+      raw.includes("not_guilty") ||
+      raw.includes("not guilty") ||
+      raw.includes("не винов")
+    ) {
+      return "Не виновен";
+    }
+    if (
+      raw.includes("partial_guilty") ||
+      raw.includes("partially guilty") ||
+      raw.includes("частично винов")
+    ) {
+      return "Частично виновен";
+    }
+    if (raw.includes("guilty") || raw.includes("винов")) {
+      return "Виновен";
+    }
+    return null;
+  };
+
+  const explicit = normalize(caseData?.expectedVerdict);
+  if (explicit) return explicit;
+
+  const byTruth = normalize(caseData?.truth);
+  if (byTruth) return byTruth;
+
+  return "Частично виновен";
 }
 
 function normalizeRoleKey(roleKey: string | undefined): CanonicalRole | null {
@@ -477,6 +502,47 @@ function getPackAccessFailureMessage(pack: { key?: string; title?: string; isAdu
   if (canAccessCasePack(tier, pack)) return null;
   const requiredTier = getRequiredTierForCasePack(pack);
   return `Этот пак доступен с подписки «${getSubscriptionTierLabel(requiredTier)}».`;
+}
+
+const ROOM_MODE_PLAYER_COUNTS: Record<RoomModeKey, Array<3 | 4 | 5 | 6>> = {
+  quick_flex: [3, 4, 5, 6],
+  civil_3: [3],
+  criminal_4: [4],
+  criminal_5: [5],
+  company_6: [6],
+};
+
+function resolveModeKeyForPackValidation(modeKey: RoomModeKey | undefined): RoomModeKey {
+  if (!modeKey) return "quick_flex";
+  return ROOM_MODE_PLAYER_COUNTS[modeKey] ? modeKey : "quick_flex";
+}
+
+async function getPackMissingPlayerCountsForMode(
+  packKeyInput: string | undefined,
+  modeKey: RoomModeKey,
+): Promise<Array<3 | 4 | 5 | 6>> {
+  const countsToCheck = ROOM_MODE_PLAYER_COUNTS[modeKey] ?? [3];
+  const missing: Array<3 | 4 | 5 | 6> = [];
+  for (const count of countsToCheck) {
+    const hasCase = await pickCaseForRoom(packKeyInput, count);
+    if (!hasCase) {
+      missing.push(count);
+    }
+  }
+  return missing;
+}
+
+async function resolvePackModeMismatchMessage(
+  packKeyInput: string | undefined,
+  modeKey: RoomModeKey,
+): Promise<string | null> {
+  const missingCounts = await getPackMissingPlayerCountsForMode(packKeyInput, modeKey);
+  if (!missingCounts.length) return null;
+  if (modeKey === "quick_flex") {
+    return "Для быстрой комнаты в выбранном паке должны быть дела для 3, 4, 5 и 6 игроков.";
+  }
+  const targetCount = missingCounts[0];
+  return `В выбранном паке нет дел для режима на ${targetCount} игроков.`;
 }
 
 interface LawyerChatMessage {
@@ -1332,6 +1398,15 @@ export function setupSocket(httpServer: HttpServer) {
               socket.emit("error", { message: packAccessMessage });
             }
           }
+          const createModeKey = resolveModeKeyForPackValidation(nextOptions.modeKey);
+          const modeMismatchMessage = await resolvePackModeMismatchMessage(
+            nextOptions.casePackKey ?? "classic",
+            createModeKey,
+          );
+          if (modeMismatchMessage) {
+            socket.emit("error", { message: modeMismatchMessage });
+            return;
+          }
           nextOptions.hostSubscriptionTier = subscriptionTier;
           nextOptions.isPromoted = hasCapability(subscriptionTier, "canHighlightHostedMatch");
           const normalizedPlayerName = authUser
@@ -1974,6 +2049,18 @@ export function setupSocket(httpServer: HttpServer) {
             socket.emit("error", { message: packAccessMessage });
             return;
           }
+        }
+        const targetModeKey = resolveModeKeyForPackValidation(
+          (patch?.modeKey as RoomModeKey | undefined) ?? (room.modeKey as RoomModeKey | undefined),
+        );
+        const targetPackKey =
+          typeof patch?.casePackKey === "string" && patch.casePackKey.trim()
+            ? patch.casePackKey
+            : room.casePackKey;
+        const modeMismatchMessage = await resolvePackModeMismatchMessage(targetPackKey, targetModeKey);
+        if (modeMismatchMessage) {
+          socket.emit("error", { message: modeMismatchMessage });
+          return;
         }
         const result = updateRoomManagement(roomCode, patch ?? {});
         if (!result) return;
@@ -3045,9 +3132,7 @@ export function setupSocket(httpServer: HttpServer) {
 
       const updatedRoom = setVerdict(roomCode, verdict);
       if (!updatedRoom) return;
-      const expectedVerdict = resolveExpectedVerdictFromTruth(
-        updatedRoom.game?.caseData?.truth,
-      );
+      const expectedVerdict = resolveExpectedVerdictLabel(updatedRoom.game?.caseData);
       void recordMatchOutcome({
         roomCode,
         verdict,

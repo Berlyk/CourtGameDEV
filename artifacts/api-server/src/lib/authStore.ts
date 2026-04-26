@@ -229,11 +229,11 @@ const MANUAL_BADGE_META: Record<
 > = {
   booster: {
     title: "Бустер",
-    description: "За буст Discord-сервера CourtGame (временный бейдж).",
+    description: "За буст Discord-сервера CourtGame.",
   },
   tournament_winner: {
     title: "Победитель",
-    description: "За победу в официальном турнире (временный бейдж).",
+    description: "За победу в официальном турнире.",
   },
   media: {
     title: "Медиа",

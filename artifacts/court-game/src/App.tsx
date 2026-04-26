@@ -7359,7 +7359,7 @@ export default function App() {
       if (active && !rawExpiry) {
         setAdminPromoFeedback({
           kind: "error",
-          text: "Укажите срок действия временного бейджа.",
+          text: "Укажите срок действия бейджа.",
         });
         return;
       }
@@ -7403,7 +7403,7 @@ export default function App() {
           text:
             error instanceof Error
               ? localizeAuthError(error.message)
-              : "Не удалось обновить временный бейдж.",
+              : "Не удалось обновить бейдж.",
         });
       } finally {
         setAdminBadgeModerationLoading(false);
@@ -8572,7 +8572,7 @@ export default function App() {
           setAdminHostSessionToken(sessionToken);
           localStorage.setItem("court_admin_host_token", sessionToken);
         }
-        if (sharedAvatar) {
+        if (!authToken && sharedAvatar) {
           socket.emit("update_avatar", {
             code: state.code,
             sessionToken,
@@ -8597,9 +8597,7 @@ export default function App() {
           setRoom({
             ...roomState,
             lobbyChat: (roomState.lobbyChat ?? []).slice(-MAX_LIVE_LOBBY_CHAT_MESSAGES),
-            players: roomState.players.map((p) =>
-              p.id === playerId && avatar ? { ...p, avatar } : p,
-            ),
+            players: roomState.players,
           });
           setLobbyChatMessages((roomState.lobbyChat ?? []).slice(-MAX_LIVE_LOBBY_CHAT_MESSAGES));
           setIsHostJudge(state.isHostJudge ?? false);
@@ -8629,13 +8627,8 @@ export default function App() {
           rememberKnownUserIds(gameState.players);
           setGame({
             ...gameState,
-            players: gameState.players.map((p) =>
-              p.id === playerId && avatar ? { ...p, avatar } : p,
-            ),
-            me:
-              gameState.me && avatar
-                ? { ...gameState.me, avatar }
-                : gameState.me,
+            players: gameState.players,
+            me: gameState.me,
           });
           setRoom(null);
           setLobbyChatMessages([]);
@@ -8695,8 +8688,10 @@ export default function App() {
             const prevPlayer = prev.players.find((p) => p.id === nextPlayer.id);
             return {
               ...nextPlayer,
-              avatar: nextPlayer.avatar ?? prevPlayer?.avatar,
-              banner: nextPlayer.banner ?? prevPlayer?.banner,
+              avatar:
+                nextPlayer.avatar !== undefined ? nextPlayer.avatar : prevPlayer?.avatar,
+              banner:
+                nextPlayer.banner !== undefined ? nextPlayer.banner : prevPlayer?.banner,
             };
           });
           return {
@@ -8738,8 +8733,10 @@ export default function App() {
           const prevPlayer = prev.players.find((p) => p.id === nextPlayer.id);
           return {
             ...nextPlayer,
-            avatar: nextPlayer.avatar ?? prevPlayer?.avatar,
-            banner: nextPlayer.banner ?? prevPlayer?.banner,
+            avatar:
+              nextPlayer.avatar !== undefined ? nextPlayer.avatar : prevPlayer?.avatar,
+            banner:
+              nextPlayer.banner !== undefined ? nextPlayer.banner : prevPlayer?.banner,
           };
         });
 
@@ -8754,8 +8751,10 @@ export default function App() {
           me: updatedSelf
             ? {
                 ...prev.me,
-                avatar: updatedSelf.avatar ?? prev.me.avatar,
-                banner: updatedSelf.banner ?? prev.me.banner,
+                avatar:
+                  updatedSelf.avatar !== undefined ? updatedSelf.avatar : prev.me.avatar,
+                banner:
+                  updatedSelf.banner !== undefined ? updatedSelf.banner : prev.me.banner,
                 roleKey: updatedSelf.roleKey ?? prev.me.roleKey,
                 roleTitle: updatedSelf.roleTitle ?? prev.me.roleTitle,
               }
@@ -11548,7 +11547,7 @@ export default function App() {
                       </div>
                       <div className="rounded-xl border border-zinc-700 bg-zinc-950/70 p-2.5">
                         <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">
-                          Временные бейджи
+                          Выдаваемые бейджи
                         </div>
                         <div className="mt-2 space-y-2">
                           {[
@@ -14501,7 +14500,7 @@ export default function App() {
                     event.preventDefault();
                   }
                 }}
-                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[1080px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${sharePackDialogOpen || !!myCasePackDeleteConfirmKey ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
+                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[980px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${sharePackDialogOpen || !!myCasePackDeleteConfirmKey ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-[380] rounded-[inherit] bg-black/58" />
@@ -14539,7 +14538,7 @@ export default function App() {
                             return;
                           }
                           if (createPackCatalogView === "create_pack") {
-                            setCreatePackCatalogView("my_packs");
+                            setCreatePackCatalogView(createPackOwnedCount > 0 ? "my_packs" : "catalog");
                             setCreatePackError("");
                             return;
                           }
@@ -14550,7 +14549,9 @@ export default function App() {
                         {createPackCatalogView === "catalog"
                           ? "Назад"
                           : createPackCatalogView === "create_pack"
-                            ? "К моим пакам"
+                            ? createPackOwnedCount > 0
+                              ? "К моим пакам"
+                              : "К каталогу"
                             : "К каталогу"}
                       </Button>
 
@@ -14882,11 +14883,11 @@ export default function App() {
                         transition={{ duration: 0.22, ease: "easeOut" }}
                         style={{ transformOrigin: "center top" }}
                       >
-                      <div className="relative mx-auto max-w-[980px] min-w-0 space-y-3 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-3">
+                      <div className="relative mx-auto max-w-[920px] min-w-0 space-y-2.5 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-2.5">
                         {createPackCasesDialogOpen && (
                           <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
                         )}
-                        <div className="rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_56%),linear-gradient(140deg,rgba(24,24,27,0.94),rgba(39,39,42,0.82))] p-4">
+                        <div className="rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_56%),linear-gradient(140deg,rgba(24,24,27,0.94),rgba(39,39,42,0.82))] p-3">
                           <div className="space-y-1">
                             <div className="text-base font-semibold text-zinc-100">
                               {createPackEditKey ? "Редактирование пользовательского пака" : "Новый пользовательский пак"}
@@ -14897,7 +14898,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/55 p-4 space-y-3">
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/55 p-3 space-y-2.5">
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between gap-2">
                               <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Название пака</label>
@@ -14961,12 +14962,12 @@ export default function App() {
                               maxLength={USER_PACK_TEXT_LIMITS.packDescription}
                               placeholder="Коротко опишите стиль и тематику пака."
                               style={{ resize: "none" }}
-                              className="min-h-[90px] max-h-[160px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500 overflow-y-auto"
+                              className="min-h-[74px] max-h-[140px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500 overflow-y-auto"
                             />
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/65 p-4 space-y-3 min-w-0 overflow-x-hidden">
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/65 p-3 space-y-2.5 min-w-0 overflow-x-hidden">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-xs text-zinc-300">
                               Дела в паке
@@ -15365,7 +15366,7 @@ export default function App() {
                                             />
                                           </button>
                                           {isExpanded && (
-                                            <div className="flex w-full flex-wrap items-center justify-end gap-1.5 sm:w-auto sm:flex-nowrap">
+                                            <div className="flex w-full flex-wrap items-center justify-center gap-1.5 sm:w-auto sm:flex-nowrap sm:justify-end">
                                               <button
                                                 type="button"
                                                 onClick={() =>
