@@ -303,8 +303,13 @@ function getActiveLobbyPlayers(room: Room): Player[] {
 
 function promoteSupportPlayersIfSlotsAvailable(room: Room) {
   if (room.started) return;
-  const activePlayers = getActiveLobbyPlayers(room);
-  const freeSlots = Math.max(0, room.maxPlayers - activePlayers.length);
+  const connectedActivePlayers = room.players.filter(
+    (player) =>
+      player.connected !== false &&
+      player.roleKey !== "witness" &&
+      player.roleKey !== "observer",
+  );
+  const freeSlots = Math.max(0, room.maxPlayers - connectedActivePlayers.length);
   if (freeSlots <= 0) return;
 
   const supportPlayers = room.players
@@ -314,6 +319,9 @@ function promoteSupportPlayersIfSlotsAvailable(room: Room) {
         (player.roleKey === "witness" || player.roleKey === "observer"),
     )
     .sort((a, b) => {
+      const rankA = a.roleKey === "observer" ? 0 : 1;
+      const rankB = b.roleKey === "observer" ? 0 : 1;
+      if (rankA !== rankB) return rankA - rankB;
       if (a.id === room.hostId) return -1;
       if (b.id === room.hostId) return 1;
       return 0;
@@ -324,6 +332,26 @@ function promoteSupportPlayersIfSlotsAvailable(room: Room) {
     player.roleKey = undefined;
     player.roleTitle = undefined;
     player.goal = undefined;
+    player.facts = [];
+    player.cards = [];
+    clearLobbyRoleState(player);
+  }
+
+  const canUseWitnessRole = room.modeKey === "quick_flex" || room.allowWitnesses;
+  if (!canUseWitnessRole) return;
+  const connectedWitnessCount = room.players.filter(
+    (player) => player.connected !== false && player.roleKey === "witness",
+  ).length;
+  const availableWitnessSlots = Math.max(0, MAX_WITNESS_PLAYERS - connectedWitnessCount);
+  if (availableWitnessSlots <= 0) return;
+
+  const observers = room.players.filter(
+    (player) => player.connected !== false && player.roleKey === "observer",
+  );
+  for (const player of observers.slice(0, availableWitnessSlots)) {
+    player.roleKey = "witness";
+    player.roleTitle = getWitnessRoleTitle(room);
+    player.goal = "Наблюдать за процессом суда и, по требованию судьи, давать показания.";
     player.facts = [];
     player.cards = [];
     clearLobbyRoleState(player);

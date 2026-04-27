@@ -3990,10 +3990,17 @@ function PlayerCard({
         : player.roleKey === "observer"
           ? "Наблюдатель"
           : "Игрок";
-  const isTwoLineLawyerRole =
-    playerRoleLabel === "Адвокат истца" || playerRoleLabel === "Адвокат ответчика";
+  const isPlaintiffLawyerRole =
+    player.lobbyAssignedRole === "plaintiffLawyer" ||
+    player.roleKey === "plaintiffLawyer" ||
+    playerRoleLabel === "Адвокат истца";
+  const isDefendantLawyerRole =
+    player.lobbyAssignedRole === "defenseLawyer" ||
+    player.roleKey === "defenseLawyer" ||
+    playerRoleLabel === "Адвокат ответчика";
+  const isTwoLineLawyerRole = isPlaintiffLawyerRole || isDefendantLawyerRole;
   const playerRoleLabelNode =
-    playerRoleLabel === "Адвокат истца"
+    isPlaintiffLawyerRole
       ? (
           <>
             Адвокат
@@ -4001,7 +4008,7 @@ function PlayerCard({
             истца
           </>
         )
-      : playerRoleLabel === "Адвокат ответчика"
+      : isDefendantLawyerRole
         ? (
             <>
               Адвокат
@@ -4070,7 +4077,7 @@ function PlayerCard({
               </div>
             </div>
           </button>
-          <div className="relative z-10 flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
+          <div className="relative z-10 flex min-w-0 w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
             {rolePickerButton ? (
               <Button
                 type="button"
@@ -11816,8 +11823,8 @@ export default function App() {
                   )}
 
                   <div className="relative z-10 w-full md:hidden">
-                    <div className="pt-7 h-full flex flex-col justify-between">
-                      <div className="flex items-center gap-2.5">
+                    <div className="h-full pt-4 flex flex-col justify-end">
+                      <div className="flex items-end gap-2.5">
                         <div
                           className="relative shrink-0 cursor-pointer group/avatar"
                           onClick={(e) => {
@@ -11825,14 +11832,14 @@ export default function App() {
                             avatarInputRef.current?.click();
                           }}
                         >
-                          <Avatar src={profileAvatarDraft} name={playerName || "?"} size={72} />
+                          <Avatar src={profileAvatarDraft} name={playerName || "?"} size={76} />
                           <div className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
                             <Camera className="w-4 h-4 text-white" />
                           </div>
                         </div>
-                        <div className="min-w-0 flex-1 pr-1">
+                        <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <div className="max-w-full truncate text-[21px] font-bold leading-none">
+                            <div className="max-w-full truncate text-[30px] font-bold leading-none">
                               {playerName || "Игрок"}
                             </div>
                             {selectedBadgeKey && (
@@ -11865,7 +11872,7 @@ export default function App() {
                       <div className="mt-2">
                         <Button
                           variant="outline"
-                          className="h-8 w-full rounded-xl border-zinc-500/70 bg-black/30 text-sm text-zinc-100 hover:bg-black/50 hover:text-zinc-100"
+                          className="h-9 w-full rounded-xl border-zinc-500/70 bg-black/30 text-sm text-zinc-100 hover:bg-black/50 hover:text-zinc-100"
                           onClick={(e) => {
                             e.stopPropagation();
                             void resetProfileMedia();
@@ -13324,20 +13331,20 @@ export default function App() {
                     className="md:hidden fixed inset-0 z-[240] flex items-center justify-center px-4 py-4"
                   >
                     <div className="w-full max-h-[92vh] overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950/98 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
-                    <div className="mb-1 flex items-end justify-between">
+                    <div className="relative mb-3 pr-12">
                       <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
+                      <div className="mt-2 text-sm text-zinc-400">
+                        Быстрые переходы по разделам сайта и личному кабинету.
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="h-10 w-10 rounded-xl border-zinc-700 bg-zinc-900/80 p-0 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        className="absolute right-0 top-0 h-10 w-10 rounded-xl border-zinc-700 bg-zinc-900/80 p-0 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                         aria-label="Закрыть меню"
                       >
                         <X className="h-5 w-5" />
                       </Button>
-                    </div>
-                    <div className="mb-4 text-sm text-zinc-400">
-                      Быстрые переходы по разделам сайта и личному кабинету.
                     </div>
                     <div className="mb-8 flex justify-center">
                       {isAuthenticated ? (
@@ -17348,7 +17355,19 @@ export default function App() {
             animate="animate"
           >
             <Card className="rounded-[28px] shadow-sm bg-zinc-900/95 border-zinc-800 text-zinc-100">
-              <CardContent className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <CardContent className="relative p-4 sm:p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  {lobbyObservers.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setObserverListDialogOpen(true)}
+                      aria-label="Открыть список наблюдателей"
+                      className="absolute right-4 top-4 h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 sm:hidden"
+                    >
+                      <Eye className="h-4 w-4" />
+                      {lobbyObservers.length}
+                    </Button>
+                  )}
                   <div className="relative w-full space-y-2 pr-12 sm:pr-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm text-zinc-400">
@@ -17356,18 +17375,6 @@ export default function App() {
                         Код комнаты
                       </div>
                     </div>
-                    {lobbyObservers.length > 0 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setObserverListDialogOpen(true)}
-                        aria-label="Открыть список наблюдателей"
-                        className="absolute right-0 top-0 h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 sm:hidden"
-                      >
-                        <Eye className="h-4 w-4" />
-                        {lobbyObservers.length}
-                      </Button>
-                    )}
                   {room.roomName && (
                     <div className="text-base font-semibold text-zinc-100">
                       {room.roomName}
@@ -17537,7 +17544,7 @@ export default function App() {
                     </div>
                     {hasRoomHostControl && (
                       <Button
-                        className="mt-3 h-10 rounded-xl gap-2 bg-red-600 hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
+                        className="mt-3 h-12 w-full justify-center rounded-xl gap-2 bg-red-600 text-base hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500 sm:h-10 sm:w-auto sm:text-sm"
                         onClick={startGame}
                         disabled={startGameLoading || !canStartRoomNow}
                       >
@@ -18181,7 +18188,19 @@ export default function App() {
           </AnimatePresence>
 
           <Card className="rounded-[28px] shadow-sm border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 text-zinc-100">
-            <CardContent className="p-8 space-y-6">
+            <CardContent className="relative p-4 sm:p-6 md:p-8 space-y-6">
+              {gameObservers.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setObserverListDialogOpen(true)}
+                  aria-label="Открыть список наблюдателей"
+                  className="absolute right-4 top-4 h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 sm:hidden"
+                >
+                  <Eye className="h-4 w-4" />
+                  {gameObservers.length}
+                </Button>
+              )}
               <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
                 <div className="relative w-full max-w-3xl space-y-2 pr-12 sm:pr-0">
                   <div className="flex items-start justify-between gap-3">
@@ -18193,19 +18212,7 @@ export default function App() {
                       <span className="text-zinc-600 break-words">• Комната {game.code}</span>
                     </div>
                   </div>
-                  {gameObservers.length > 0 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setObserverListDialogOpen(true)}
-                      aria-label="Открыть список наблюдателей"
-                      className="absolute right-0 top-0 h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 sm:hidden"
-                    >
-                      <Eye className="h-4 w-4" />
-                      {gameObservers.length}
-                    </Button>
-                  )}
-                  <h1 className="text-3xl md:text-4xl font-bold">
+                  <h1 className="text-2xl leading-[1.12] sm:text-3xl md:text-4xl font-bold">
                     {game.caseData.description}
                   </h1>
                 </div>
@@ -19025,7 +19032,7 @@ export default function App() {
             </InfoBlock>
           </div>
           {matchExpiresAt !== null && !game.finished && (
-            <div className="fixed right-5 bottom-[0.55rem] sm:bottom-[0.65rem] left-auto z-30 h-11 rounded-2xl px-3.5 inline-flex items-center gap-2 border border-zinc-700 bg-zinc-900/90 text-zinc-100 backdrop-blur-md shadow-[0_12px_30px_rgba(0,0,0,0.45)]">
+            <div className="fixed left-1/2 bottom-3 z-30 -translate-x-1/2 h-11 w-[calc(100vw-1.25rem)] max-w-[430px] rounded-2xl px-3.5 inline-flex items-center justify-center gap-2 border border-zinc-700 bg-zinc-900/90 text-zinc-100 backdrop-blur-md shadow-[0_12px_30px_rgba(0,0,0,0.45)] sm:left-auto sm:right-5 sm:bottom-[0.65rem] sm:w-auto sm:max-w-none sm:translate-x-0 sm:justify-start">
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-900/50">
                 <Clock3 className="h-3.5 w-3.5" />
               </span>
@@ -19042,7 +19049,7 @@ export default function App() {
             onOpenChange={setContextHelpOpen}
             query={contextHelpQuery}
             onQueryChange={setContextHelpQuery}
-            floatingOffsetClass="bottom-[5.35rem] sm:bottom-[5.55rem]"
+            floatingOffsetClass="bottom-[5.85rem] sm:bottom-[5.55rem]"
           />
         </div>
         {renderPublicProfileDialog()}
