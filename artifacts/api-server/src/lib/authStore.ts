@@ -289,11 +289,12 @@ const BADGE_PROMO_ALLOWED_KEYS = new Set<string>([
 ]);
 const ADMIN_MANUAL_BADGE_ALLOWED_KEYS = new Set<string>([
   "legend",
-  ...Object.keys(MANUAL_BADGE_META),
+  ...Object.keys(MANUAL_BADGE_META).filter(
+    (key) => key !== "booster" && key !== "tournament_winner",
+  ),
 ]);
-const TEMPORARY_MANUAL_BADGE_DEFAULT_DURATION_DAYS: Record<string, number> = {
+const PROMO_BADGE_DURATION_DAYS: Record<string, number> = {
   booster: 30,
-  tournament_winner: 30,
 };
 const PROTECTED_OWNER_LOGIN = "berly";
 
@@ -3421,16 +3422,22 @@ export async function applyPromoCodeByToken(
     }
     if (promoBadgeKeys.length > 0) {
       for (const badge of promoBadgeKeys) {
+        const promoBadgeDurationDays = PROMO_BADGE_DURATION_DAYS[badge];
+        const badgeExpiresAt =
+          promoBadgeDurationDays && Number.isFinite(promoBadgeDurationDays) && promoBadgeDurationDays > 0
+            ? new Date(startAt.getTime() + promoBadgeDurationDays * 24 * 60 * 60 * 1000)
+            : null;
         await client.query(
           `
-            INSERT INTO auth_user_badges (user_id, badge_key, is_active, granted_at)
-            VALUES ($1, $2, TRUE, NOW())
+            INSERT INTO auth_user_badges (user_id, badge_key, is_active, granted_at, expires_at)
+            VALUES ($1, $2, TRUE, NOW(), $3)
             ON CONFLICT (user_id, badge_key)
             DO UPDATE SET
               is_active = TRUE,
-              granted_at = NOW()
+              granted_at = NOW(),
+              expires_at = EXCLUDED.expires_at
           `,
-          [user.id, badge],
+          [user.id, badge, badgeExpiresAt],
         );
       }
       await client.query(
@@ -3934,12 +3941,6 @@ export async function updateUserBadgesByAdmin(input: {
       let expiresAt = active ? parseAdminBadgeExpiry(entry?.expiresAt) : null;
       if (active && entry?.expiresAt !== undefined && entry?.expiresAt !== null && !expiresAt) {
         throw new Error(`Неверная дата окончания для бейджа «${badgeKey}».`);
-      }
-      if (active && !expiresAt) {
-        const defaultDays = TEMPORARY_MANUAL_BADGE_DEFAULT_DURATION_DAYS[badgeKey];
-        if (defaultDays && Number.isFinite(defaultDays) && defaultDays > 0) {
-          expiresAt = new Date(Date.now() + defaultDays * 24 * 60 * 60 * 1000);
-        }
       }
       if (active && expiresAt && expiresAt.getTime() <= Date.now()) {
         throw new Error(`Срок бейджа «${badgeKey}» должен быть в будущем.`);

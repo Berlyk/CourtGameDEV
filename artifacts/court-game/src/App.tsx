@@ -1296,13 +1296,6 @@ function formatPromoDate(value: string | null): string {
   });
 }
 
-function buildDefaultTemporaryBadgeExpiryValue(days = 30): string {
-  const date = new Date(Date.now() + Math.max(1, days) * 24 * 60 * 60 * 1000);
-  const tzOffsetMinutes = date.getTimezoneOffset();
-  const localDate = new Date(date.getTime() - tzOffsetMinutes * 60 * 1000);
-  return localDate.toISOString().slice(0, 16);
-}
-
 const BADGE_ICONS: Record<string, LucideIcon> = {
   plaintiff: Scale,
   defendant: Shield,
@@ -2777,6 +2770,7 @@ interface CasePackInfo {
   isAdult?: boolean;
   sortOrder?: number;
   caseCount?: number;
+  modeCounts?: Partial<Record<UserPackCaseMode, number>>;
   isCustom?: boolean;
   shareCode?: string;
   color?: string;
@@ -2790,6 +2784,7 @@ interface ImportPackPreviewData {
   color: string;
   shareCode: string;
   caseCount: number;
+  modeCounts?: Partial<Record<UserPackCaseMode, number>>;
   creatorNickname?: string;
 }
 
@@ -4044,7 +4039,7 @@ function PlayerCard({
                 ) : null}
               </div>
               <div
-                className="text-sm text-zinc-200"
+                className="text-[12px] leading-tight text-zinc-200 sm:text-sm"
                 style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85), 0 0 10px rgba(0,0,0,0.45)" }}
               >
                 {playerRoleLabel}
@@ -4334,14 +4329,6 @@ export default function App() {
   const [adminUserLookupResult, setAdminUserLookupResult] = useState<AdminLookupUserView | null>(null);
   const [adminModerationNickname, setAdminModerationNickname] = useState("");
   const [adminModerationLoading, setAdminModerationLoading] = useState(false);
-  const [adminBadgeModerationLoading, setAdminBadgeModerationLoading] = useState(false);
-  const [adminBadgeExpiryByKey, setAdminBadgeExpiryByKey] = useState<Record<string, string>>(() => {
-    const defaultExpiry = buildDefaultTemporaryBadgeExpiryValue(30);
-    return {
-      booster: defaultExpiry,
-      tournament_winner: defaultExpiry,
-    };
-  });
   const [adminStaffTargetUserId, setAdminStaffTargetUserId] = useState("");
   const [adminStaffTargetRole, setAdminStaffTargetRole] = useState<"moderator" | "administrator">(
     "moderator",
@@ -4601,8 +4588,9 @@ export default function App() {
   const [importPackPreviewError, setImportPackPreviewError] = useState("");
   const [importPackPreviewData, setImportPackPreviewData] = useState<ImportPackPreviewData | null>(null);
   const [importPackPreviewAlreadyAdded, setImportPackPreviewAlreadyAdded] = useState(false);
+  const [importPackPreviewSyncAvailable, setImportPackPreviewSyncAvailable] = useState(false);
   const [importPackPreviewServerBlockReason, setImportPackPreviewServerBlockReason] = useState<
-    "none" | "no_access" | "limit" | "already_added"
+    "none" | "no_access" | "limit" | "already_added" | "sync_available"
   >("none");
   const [importPackPreviewServerBlockMessage, setImportPackPreviewServerBlockMessage] = useState("");
   const [createPackSaving, setCreatePackSaving] = useState(false);
@@ -5183,6 +5171,7 @@ export default function App() {
     setImportPackPreviewError("");
     setImportPackPreviewData(null);
     setImportPackPreviewAlreadyAdded(false);
+    setImportPackPreviewSyncAvailable(false);
     setImportPackPreviewServerBlockReason("none");
     setImportPackPreviewServerBlockMessage("");
     setPendingImportShareCode(null);
@@ -5214,13 +5203,15 @@ export default function App() {
     setImportPackPreviewError("");
     setImportPackPreviewData(null);
     setImportPackPreviewAlreadyAdded(false);
+    setImportPackPreviewSyncAvailable(false);
     setImportPackPreviewServerBlockReason("none");
     setImportPackPreviewServerBlockMessage("");
     void authRequest<{
       ok: true;
       preview: ImportPackPreviewData;
       alreadyAdded?: boolean;
-      blockReason?: "none" | "no_access" | "limit" | "already_added";
+      syncAvailable?: boolean;
+      blockReason?: "none" | "no_access" | "limit" | "already_added" | "sync_available";
       blockMessage?: string;
     }>(
       `/auth/case-packs/import-preview?shareCode=${encodeURIComponent(pendingImportShareCode)}`,
@@ -5232,13 +5223,18 @@ export default function App() {
         if (cancelled) return;
         setImportPackPreviewData(payload?.preview ?? null);
         const serverReason = payload?.blockReason ?? "none";
+        const serverSyncAvailable = !!payload?.syncAvailable || serverReason === "sync_available";
         setImportPackPreviewServerBlockReason(serverReason);
         setImportPackPreviewServerBlockMessage(String(payload?.blockMessage ?? "").trim());
-        setImportPackPreviewAlreadyAdded(serverReason === "already_added" || !!payload?.alreadyAdded);
+        setImportPackPreviewSyncAvailable(serverSyncAvailable);
+        setImportPackPreviewAlreadyAdded(
+          (serverReason === "already_added" || !!payload?.alreadyAdded) && !serverSyncAvailable,
+        );
       })
       .catch((error) => {
         if (cancelled) return;
         setImportPackPreviewAlreadyAdded(false);
+        setImportPackPreviewSyncAvailable(false);
         setImportPackPreviewServerBlockReason("none");
         setImportPackPreviewServerBlockMessage("");
         const message =
@@ -5338,12 +5334,23 @@ export default function App() {
     () => [...catalogBuiltinPacks, ...catalogCustomPacks],
     [catalogBuiltinPacks, catalogCustomPacks],
   );
+  const getPackModeCaseCount = useCallback((pack: CasePackInfo | undefined, playerCount: number) => {
+    if (!pack) return 1;
+    const normalizedCount = [3, 4, 5, 6].includes(Number(playerCount))
+      ? (Number(playerCount) as UserPackCaseMode)
+      : 3;
+    const modeCount = Number(pack?.modeCounts?.[normalizedCount] ?? 0);
+    if (Number.isFinite(modeCount) && modeCount > 0) return modeCount;
+    if (!pack?.modeCounts && Math.max(0, Number(pack?.caseCount ?? 0) || 0) > 0) return 1;
+    return 0;
+  }, []);
   const normalizedImportPackPreviewError = useMemo(
     () => importPackPreviewError.toLowerCase().replace(/ё/g, "е"),
     [importPackPreviewError],
   );
   const importPackPreviewBlockingState = useMemo(() => {
     if (importPackPreviewLoading) return null;
+    if (importPackPreviewServerBlockReason === "sync_available") return null;
     if (importPackPreviewServerBlockReason === "limit") {
       return {
         title: "Лимит паков достигнут",
@@ -6061,7 +6068,6 @@ export default function App() {
     try {
       const imported = await importPackByShareCode(pendingImportShareCode, {
         silent: true,
-        switchToMyPacks: true,
       });
       if (!imported) {
         setImportPackPreviewError("Не удалось забрать пак по ссылке.");
@@ -6069,8 +6075,6 @@ export default function App() {
       }
       setImportPackPreviewError("");
       closeImportPackPreviewDialog();
-      setCreatePackCatalogOpen(true);
-      setCreatePackCatalogView("my_packs");
     } catch (error) {
       const message =
         error instanceof Error && error.message.trim()
@@ -6088,6 +6092,48 @@ export default function App() {
     importPackPreviewAlreadyAdded,
     importPackPreviewServerBlockReason,
     pendingImportShareCode,
+  ]);
+
+  const syncImportPackFromPreview = useCallback(async () => {
+    if (!pendingImportShareCode || importPackLoading || !authToken) return;
+    if (!importPackPreviewSyncAvailable) {
+      setImportPackPreviewError("Этот пак уже добавлен в «Мои паки».");
+      return;
+    }
+    setImportPackLoading(true);
+    try {
+      const payload = await authRequest<{ ok: true; pack: CasePackInfo }>(
+        "/auth/case-packs/import/sync",
+        {
+          method: "POST",
+          token: authToken,
+          body: { shareCode: pendingImportShareCode },
+        },
+      );
+      setImportPackPreviewError("");
+      closeImportPackPreviewDialog();
+      await loadMyCasePacks();
+      requestCasePacks();
+      if (payload?.pack?.key) {
+        setCreateRoomPackKey(payload.pack.key);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Не удалось синхронизировать пак.";
+      setImportPackPreviewError(message);
+    } finally {
+      setImportPackLoading(false);
+    }
+  }, [
+    authToken,
+    closeImportPackPreviewDialog,
+    importPackLoading,
+    importPackPreviewSyncAvailable,
+    loadMyCasePacks,
+    pendingImportShareCode,
+    requestCasePacks,
   ]);
 
   const dropUntouchedAutoDraftsForMode = useCallback(
@@ -7342,86 +7388,6 @@ export default function App() {
     invalidateAdminSession,
     isAdminSessionError,
   ]);
-  const submitAdminTemporaryBadgeModeration = useCallback(
-    async (badgeKey: "booster" | "tournament_winner", active: boolean) => {
-      if (!authToken || !canSeeAdminButton || !adminCanModerateUsers) return;
-      const headers = await ensureAdminHeaders();
-      if (!headers) {
-        setAdminPromoFeedback({ kind: "error", text: "Доступ к админ-панели не подтвержден." });
-        return;
-      }
-      const userId = (adminStaffTargetUserId || adminSubscriptionUserId || adminBanUserId).trim();
-      if (!userId) {
-        setAdminPromoFeedback({ kind: "error", text: "Введите userId пользователя." });
-        return;
-      }
-      const rawExpiry = String(adminBadgeExpiryByKey[badgeKey] ?? "").trim();
-      if (active && !rawExpiry) {
-        setAdminPromoFeedback({
-          kind: "error",
-          text: "Укажите срок действия бейджа.",
-        });
-        return;
-      }
-      const parsedExpiryMs = rawExpiry ? Date.parse(rawExpiry) : Number.NaN;
-      if (active && !Number.isFinite(parsedExpiryMs)) {
-        setAdminPromoFeedback({
-          kind: "error",
-          text: "Неверный формат срока действия бейджа.",
-        });
-        return;
-      }
-      const expiryIso = active ? new Date(parsedExpiryMs).toISOString() : null;
-      setAdminBadgeModerationLoading(true);
-      setAdminPromoFeedback(null);
-      try {
-        await authRequest<{ ok: true; user: { id: string } }>("/auth/admin/user/moderate", {
-          method: "PATCH",
-          token: authToken,
-          headers,
-          body: {
-            userId,
-            badgeUpdates: [
-              {
-                badgeKey,
-                active,
-                expiresAt: expiryIso,
-              },
-            ],
-          },
-        });
-        setAdminPromoFeedback({
-          kind: "success",
-          text: active
-            ? `Бейдж «${badgeKey === "booster" ? "Бустер" : "Победитель"}» выдан.`
-            : `Бейдж «${badgeKey === "booster" ? "Бустер" : "Победитель"}» снят.`,
-        });
-      } catch (error) {
-        if (isAdminSessionError(error)) invalidateAdminSession();
-        setAdminPromoFeedback({
-          kind: "error",
-          text:
-            error instanceof Error
-              ? localizeAuthError(error.message)
-              : "Не удалось обновить бейдж.",
-        });
-      } finally {
-        setAdminBadgeModerationLoading(false);
-      }
-    },
-    [
-      authToken,
-      canSeeAdminButton,
-      adminCanModerateUsers,
-      ensureAdminHeaders,
-      adminStaffTargetUserId,
-      adminSubscriptionUserId,
-      adminBanUserId,
-      adminBadgeExpiryByKey,
-      invalidateAdminSession,
-      isAdminSessionError,
-    ],
-  );
   const clearAdminUserMedia = useCallback(
     async (target: "avatar" | "banner") => {
       if (!authToken || !canSeeAdminButton || !adminCanModerateUsers) return;
@@ -8064,7 +8030,9 @@ export default function App() {
         }}
       >
         <DialogContent
-          overlayClassName={profileMatchesOpen ? "bg-transparent backdrop-blur-0" : undefined}
+          overlayClassName={
+            profileMatchesOpen || observerListDialogOpen ? "bg-transparent backdrop-blur-0" : undefined
+          }
           className="max-w-[520px] overflow-visible border-zinc-800 bg-zinc-950 text-zinc-100"
         >
           <DialogHeader>
@@ -9239,13 +9207,14 @@ export default function App() {
       avatar?: string;
       banner?: string;
       authToken?: string;
-      options: { visibility: "public"; modeKey: "quick_flex" };
+      options: { visibility: "public"; modeKey: "quick_flex"; casePackKey: string };
     } = {
       playerName: name,
       authToken: authToken || undefined,
       options: {
         visibility: "public",
         modeKey: "quick_flex",
+        casePackKey: createRoomPackKey || "classic",
       },
     };
     if (!authToken && sharedAvatar) {
@@ -9256,7 +9225,7 @@ export default function App() {
     }
     beginRoomActionPending("create");
     socket.emit("create_room", payload);
-  }, [socket, playerName, sharedAvatar, sharedBanner, authToken, roomActionPending, beginRoomActionPending, isUserBanned]);
+  }, [socket, playerName, sharedAvatar, sharedBanner, authToken, createRoomPackKey, roomActionPending, beginRoomActionPending, isUserBanned]);
 
   const createRoomFromPanel = useCallback(() => {
     if (isUserBanned) return false;
@@ -11545,64 +11514,6 @@ export default function App() {
                           </Button>
                         </div>
                       </div>
-                      <div className="rounded-xl border border-zinc-700 bg-zinc-950/70 p-2.5">
-                        <div className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">
-                          Выдаваемые бейджи
-                        </div>
-                        <div className="mt-2 space-y-2">
-                          {[
-                            { key: "booster", label: "Бустер" },
-                            { key: "tournament_winner", label: "Победитель" },
-                          ].map((badge) => (
-                            <div
-                              key={`admin-temp-badge-${badge.key}`}
-                              className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-900/70 p-2 sm:grid-cols-[1fr_220px_auto_auto]"
-                            >
-                              <div className="self-center text-sm font-semibold text-zinc-100">
-                                {badge.label}
-                              </div>
-                              <Input
-                                type="datetime-local"
-                                value={adminBadgeExpiryByKey[badge.key] ?? ""}
-                                onChange={(event) =>
-                                  setAdminBadgeExpiryByKey((prev) => ({
-                                    ...prev,
-                                    [badge.key]: event.target.value,
-                                  }))
-                                }
-                                className="h-9 rounded-lg border-zinc-700 bg-zinc-950 text-zinc-100"
-                              />
-                              <Button
-                                type="button"
-                                onClick={() =>
-                                  void submitAdminTemporaryBadgeModeration(
-                                    badge.key as "booster" | "tournament_winner",
-                                    true,
-                                  )
-                                }
-                                disabled={adminBadgeModerationLoading}
-                                className="h-9 rounded-lg bg-red-600 text-white hover:bg-red-500 disabled:bg-zinc-700 disabled:text-zinc-300"
-                              >
-                                Выдать
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() =>
-                                  void submitAdminTemporaryBadgeModeration(
-                                    badge.key as "booster" | "tournament_winner",
-                                    false,
-                                  )
-                                }
-                                disabled={adminBadgeModerationLoading}
-                                className="h-9 rounded-lg border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                              >
-                                Снять
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   )}
                   {adminPanelSection === "staff" && adminCanManageStaff && (
@@ -11897,33 +11808,22 @@ export default function App() {
                         </div>
                         <div className="min-w-0 flex-1 pr-1">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <div className="max-w-full truncate text-[18px] font-bold leading-none">
+                            <div className="max-w-full truncate text-[21px] font-bold leading-none">
                               {playerName || "Игрок"}
                             </div>
                             {selectedBadgeKey && (
                               <span
-                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${
+                                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] ${
                                   getBadgeTheme(selectedBadgeKey).chip
                                 }`}
                               >
                                 <BadgeGlyph
                                   badgeKey={selectedBadgeKey}
-                                  className={`h-3 w-3 ${getBadgeTheme(selectedBadgeKey).iconOnly ?? "text-zinc-300"}`}
+                                  className={`h-3.5 w-3.5 ${getBadgeTheme(selectedBadgeKey).iconOnly ?? "text-zinc-300"}`}
                                 />
                                 {getBadgeTitleByKey(selectedBadgeKey, badges)}
                               </span>
                             )}
-                          </div>
-                          <div className="mt-1.5 flex flex-wrap gap-1 text-[9px]">
-                            <span className="inline-flex h-5 items-center rounded-full border border-zinc-600 bg-black/35 px-1.5 whitespace-nowrap">
-                              Возраст: {ageLabel}
-                            </span>
-                            <span className="inline-flex h-5 items-center rounded-full border border-zinc-600 bg-black/35 px-1.5 whitespace-nowrap">
-                              Пол: {genderLabel}
-                            </span>
-                            <span className="inline-flex h-5 items-center rounded-full border border-zinc-600 bg-black/35 px-1.5 whitespace-nowrap">
-                              С нами с: {registeredAtLabel}
-                            </span>
                           </div>
                         </div>
                       </div>
@@ -12015,6 +11915,18 @@ export default function App() {
                 className="hidden"
                 onChange={handleAvatarChange}
               />
+
+              <div className="grid grid-cols-3 gap-1.5 text-[10px] md:hidden">
+                <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
+                  Возраст: {ageLabel}
+                </span>
+                <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
+                  Пол: {genderLabel}
+                </span>
+                <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
+                  С нами с: {registeredAtLabel}
+                </span>
+              </div>
 
               <div className="grid items-start gap-4 xl:grid-cols-[1.35fr_1fr]">
                 <div className="space-y-4">
@@ -15366,7 +15278,7 @@ export default function App() {
                                             />
                                           </button>
                                           {isExpanded && (
-                                            <div className="flex w-full flex-wrap items-center justify-center gap-1.5 sm:w-auto sm:flex-nowrap sm:justify-end">
+                                            <div className="flex w-full flex-wrap items-center justify-start gap-1.5 sm:w-auto sm:flex-nowrap sm:justify-end">
                                               <button
                                                 type="button"
                                                 onClick={() =>
@@ -16645,13 +16557,17 @@ export default function App() {
                     <span className="min-w-0 break-words">{importPackPreviewBlockingState.title}</span>
                   </>
                 ) : (
-                  <span className="min-w-0 break-words">Добавление пака</span>
+                  <span className="min-w-0 break-words">
+                    {importPackPreviewSyncAvailable ? "Синхронизация пака" : "Добавление пака"}
+                  </span>
                 )}
               </DialogTitle>
               <DialogDescription className="break-words pr-8 text-left text-zinc-400">
                 {importPackPreviewBlockingState
                   ? importPackPreviewBlockingState.description
-                  : "Проверьте данные пака и добавьте его в «Мои паки»."}
+                  : importPackPreviewSyncAvailable
+                    ? "Владелец обновил пак. Можно обновить вашу импортированную копию."
+                    : "Проверьте данные пака и добавьте его в «Мои паки»."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -16713,12 +16629,22 @@ export default function App() {
                     <Button
                       type="button"
                       onClick={() => {
+                        if (importPackPreviewSyncAvailable) {
+                          void syncImportPackFromPreview();
+                          return;
+                        }
                         void submitImportPackFromPreview();
                       }}
                       disabled={importPackLoading}
                       className="h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0"
                     >
-                      {importPackLoading ? "Добавляем..." : "Добавить"}
+                      {importPackLoading
+                        ? importPackPreviewSyncAvailable
+                          ? "Синхронизируем..."
+                          : "Добавляем..."
+                        : importPackPreviewSyncAvailable
+                          ? "Синхронизировать"
+                          : "Добавить"}
                     </Button>
                     <Button
                       type="button"
@@ -16878,7 +16804,7 @@ export default function App() {
       >
         <CourtAtmosphereBackground />
         {lobbyObservers.length > 0 && (
-          <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-6">
+          <div className="absolute left-4 top-4 z-20 hidden sm:block sm:left-6 sm:top-6">
             <Button
               type="button"
               variant="outline"
@@ -17009,21 +16935,42 @@ export default function App() {
                 <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/55 p-3 xl:col-span-2">
                   <div className="text-xs font-semibold tracking-[0.2em] uppercase text-zinc-500">Режим</div>
                   <div className="mt-2 grid grid-cols-2 gap-2 lg:grid-cols-4">
-                    {ROOM_MODE_OPTIONS.map((mode) => (
-                      <button
-                        key={`manage-mode-${mode.key}`}
-                        type="button"
-                        onClick={() => updateRoomManagementSettings({ modeKey: mode.key })}
-                        className={`rounded-xl border px-3 py-2 text-left text-xs transition ${
-                          room.modeKey === mode.key
-                            ? "border-red-500/80 bg-red-600/20 text-zinc-100 shadow-[0_0_0_1px_rgba(248,113,113,0.25),0_0_16px_rgba(239,68,68,0.2)]"
-                            : "border-zinc-700/90 bg-zinc-950/80 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900"
-                        }`}
-                      >
-                        <div className="font-semibold leading-tight">{mode.title}</div>
-                        <div className="mt-1 text-[11px] text-zinc-500">На {mode.maxPlayers} игроков</div>
-                      </button>
-                    ))}
+                    {ROOM_MODE_OPTIONS.map((mode) => {
+                      const isModeLocked = getPackModeCaseCount(roomPackMeta, mode.maxPlayers) <= 0;
+                      return (
+                        <button
+                          key={`manage-mode-${mode.key}`}
+                          type="button"
+                          disabled={isModeLocked}
+                          onClick={() => {
+                            if (isModeLocked) return;
+                            updateRoomManagementSettings({ modeKey: mode.key });
+                          }}
+                          className={`relative overflow-hidden rounded-xl border px-3 py-2 pr-9 text-left text-xs transition ${
+                            isModeLocked
+                              ? "cursor-not-allowed border-zinc-700/90 bg-zinc-950/70 text-zinc-500"
+                              : room.modeKey === mode.key
+                                ? "border-red-500/80 bg-red-600/20 text-zinc-100 shadow-[0_0_0_1px_rgba(248,113,113,0.25),0_0_16px_rgba(239,68,68,0.2)]"
+                                : "border-zinc-700/90 bg-zinc-950/80 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900"
+                          }`}
+                        >
+                          <div className="font-semibold leading-tight">{mode.title}</div>
+                          <div className="mt-1 text-[11px] text-zinc-500">На {mode.maxPlayers} игроков</div>
+                          {isModeLocked && (
+                            <>
+                              <div className="pointer-events-none absolute inset-0 rounded-xl border border-zinc-600/55 bg-zinc-950/40" />
+                              <Lock className="pointer-events-none absolute left-2 bottom-2 h-3.5 w-3.5 text-zinc-500" />
+                              <span
+                                title="В выбранном паке нет дел для этого режима"
+                                className="absolute right-2 top-2 z-10 inline-flex h-5 w-5 items-center justify-center rounded-full border border-zinc-600 bg-zinc-900/90 text-zinc-400"
+                              >
+                                <CircleHelp className="h-3.5 w-3.5" />
+                              </span>
+                            </>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/55 p-3 xl:col-span-2">
@@ -17381,11 +17328,24 @@ export default function App() {
           >
             <Card className="rounded-[28px] shadow-sm bg-zinc-900/95 border-zinc-800 text-zinc-100">
               <CardContent className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <Scale className="w-4 h-4" />
-                    Код комнаты
-                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 text-sm text-zinc-400">
+                        <Scale className="w-4 h-4" />
+                        Код комнаты
+                      </div>
+                      {lobbyObservers.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setObserverListDialogOpen(true)}
+                          className="h-8 rounded-lg border-zinc-700 bg-zinc-900/85 px-2.5 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 gap-1.5 sm:hidden"
+                        >
+                          <Eye className="h-4 w-4" />
+                          {lobbyObservers.length}
+                        </Button>
+                      )}
+                    </div>
                   {room.roomName && (
                     <div className="text-base font-semibold text-zinc-100">
                       {room.roomName}
@@ -17824,7 +17784,7 @@ export default function App() {
       >
         <CourtAtmosphereBackground />
         {gameObservers.length > 0 && (
-          <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-6">
+          <div className="absolute left-4 top-4 z-20 hidden sm:block sm:left-6 sm:top-6">
             <Button
               type="button"
               variant="outline"
@@ -18202,12 +18162,25 @@ export default function App() {
             <CardContent className="p-8 space-y-6">
               <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
                 <div className="space-y-2 max-w-3xl">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-zinc-400 min-w-0">
-                    <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
-                      {game.caseData.mode}
-                    </Badge>
-                    <span className="min-w-0 break-words [text-wrap:balance]">{game.caseData.title}</span>
-                    <span className="text-zinc-600 break-words">• Комната {game.code}</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-zinc-400">
+                      <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
+                        {game.caseData.mode}
+                      </Badge>
+                      <span className="min-w-0 break-words [text-wrap:balance]">{game.caseData.title}</span>
+                      <span className="text-zinc-600 break-words">• Комната {game.code}</span>
+                    </div>
+                    {gameObservers.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setObserverListDialogOpen(true)}
+                        className="h-8 shrink-0 rounded-lg border-zinc-700 bg-zinc-900/85 px-2.5 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 gap-1.5 sm:hidden"
+                      >
+                        <Eye className="h-4 w-4" />
+                        {gameObservers.length}
+                      </Button>
+                    )}
                   </div>
                   <h1 className="text-3xl md:text-4xl font-bold">
                     {game.caseData.description}

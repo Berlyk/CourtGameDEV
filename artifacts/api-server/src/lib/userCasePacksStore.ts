@@ -91,6 +91,8 @@ export interface UserCasePackInfo {
   isCustom: true;
   isAdult: false;
   createdAt: number;
+  updatedAt: number;
+  modeCounts: Record<CaseModePlayerCount, number>;
   creatorNickname: string;
   sourcePackId: string | null;
 }
@@ -101,6 +103,7 @@ export interface UserCasePackImportPreview {
   color: string;
   shareCode: string;
   caseCount: number;
+  modeCounts: Record<CaseModePlayerCount, number>;
   creatorNickname: string;
 }
 
@@ -502,7 +505,12 @@ function mapRowToPackInfo(row: {
   color: string;
   share_code: string;
   case_count: number;
+  mode_count_3?: number;
+  mode_count_4?: number;
+  mode_count_5?: number;
+  mode_count_6?: number;
   created_at: Date | string;
+  updated_at?: Date | string;
   original_creator_nickname?: string | null;
   source_pack_id?: string | null;
 }): UserCasePackInfo {
@@ -510,6 +518,10 @@ function mapRowToPackInfo(row: {
     row.created_at instanceof Date
       ? row.created_at.getTime()
       : Date.parse(String(row.created_at ?? "")) || Date.now();
+  const updatedAt =
+    row.updated_at instanceof Date
+      ? row.updated_at.getTime()
+      : Date.parse(String(row.updated_at ?? "")) || createdAt;
   return {
     id: row.id,
     key: row.key,
@@ -522,6 +534,13 @@ function mapRowToPackInfo(row: {
     isCustom: true,
     isAdult: false,
     createdAt,
+    updatedAt,
+    modeCounts: {
+      3: Math.max(0, Number(row.mode_count_3 ?? 0) || 0),
+      4: Math.max(0, Number(row.mode_count_4 ?? 0) || 0),
+      5: Math.max(0, Number(row.mode_count_5 ?? 0) || 0),
+      6: Math.max(0, Number(row.mode_count_6 ?? 0) || 0),
+    },
     creatorNickname: String(row.original_creator_nickname ?? "").trim() || "РРіСЂРѕРє",
     sourcePackId: row.source_pack_id ? String(row.source_pack_id) : null,
   };
@@ -536,7 +555,12 @@ async function fetchPackInfoById(packId: string): Promise<UserCasePackInfo> {
     color: string;
     share_code: string;
     case_count: number;
+    mode_count_3: number;
+    mode_count_4: number;
+    mode_count_5: number;
+    mode_count_6: number;
     created_at: Date;
+    updated_at: Date;
     original_creator_nickname: string | null;
     source_pack_id: string | null;
   }>(
@@ -551,7 +575,12 @@ async function fetchPackInfoById(packId: string): Promise<UserCasePackInfo> {
         p.source_pack_id,
         p.original_creator_nickname,
         COUNT(c.id)::int AS case_count,
-        p.created_at
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 3)::int AS mode_count_3,
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 4)::int AS mode_count_4,
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 5)::int AS mode_count_5,
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 6)::int AS mode_count_6,
+        p.created_at,
+        p.updated_at
       FROM user_case_packs p
       LEFT JOIN user_case_pack_cases c ON c.pack_id = p.id
       WHERE p.id = $1
@@ -580,6 +609,10 @@ export async function getUserCasePackImportPreviewByShareCode(
     color: string;
     share_code: string;
     case_count: number;
+    mode_count_3: number;
+    mode_count_4: number;
+    mode_count_5: number;
+    mode_count_6: number;
     original_creator_nickname: string | null;
   }>(
     `
@@ -589,7 +622,11 @@ export async function getUserCasePackImportPreviewByShareCode(
         p.color,
         p.share_code,
         p.original_creator_nickname,
-        COUNT(c.id)::int AS case_count
+        COUNT(c.id)::int AS case_count,
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 3)::int AS mode_count_3,
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 4)::int AS mode_count_4,
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 5)::int AS mode_count_5,
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 6)::int AS mode_count_6
       FROM user_case_packs p
       LEFT JOIN user_case_pack_cases c ON c.pack_id = p.id
       WHERE p.share_code = $1
@@ -608,6 +645,12 @@ export async function getUserCasePackImportPreviewByShareCode(
     color: normalizeColor(row.color),
     shareCode: String(row.share_code ?? "").trim().toUpperCase(),
     caseCount: Math.max(0, Number(row.case_count ?? 0) || 0),
+    modeCounts: {
+      3: Math.max(0, Number(row.mode_count_3 ?? 0) || 0),
+      4: Math.max(0, Number(row.mode_count_4 ?? 0) || 0),
+      5: Math.max(0, Number(row.mode_count_5 ?? 0) || 0),
+      6: Math.max(0, Number(row.mode_count_6 ?? 0) || 0),
+    },
     creatorNickname: String(row.original_creator_nickname ?? "").trim() || "РРіСЂРѕРє",
   };
 }
@@ -644,6 +687,135 @@ export async function isUserCasePackAlreadyAddedByShareCode(
   return !!result.rows[0]?.already_added;
 }
 
+async function getPackContentFingerprint(packId: string): Promise<string> {
+  const packResult = await pool.query<{
+    title: string;
+    description: string;
+    color: string;
+  }>(
+    `
+      SELECT title, description, color
+      FROM user_case_packs
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [packId],
+  );
+  if (!packResult.rowCount) {
+    throw new Error("РџР°Рє РЅРµ РЅР°Р№РґРµРЅ.");
+  }
+
+  const casesResult = await pool.query<{
+    mode_player_count: number;
+    title: string;
+    description: string;
+    truth: string;
+    expected_verdict: string;
+    evidence_json: unknown;
+    facts_json: unknown;
+    sort_order: number;
+  }>(
+    `
+      SELECT
+        mode_player_count,
+        title,
+        description,
+        truth,
+        expected_verdict,
+        evidence_json,
+        facts_json,
+        sort_order
+      FROM user_case_pack_cases
+      WHERE pack_id = $1
+      ORDER BY sort_order ASC, created_at ASC, case_key ASC
+    `,
+    [packId],
+  );
+
+  const pack = packResult.rows[0];
+  const snapshot = {
+    title: normalizePackTitle(pack.title, ""),
+    description: normalizePackDescription(pack.description),
+    color: normalizeColor(pack.color),
+    cases: casesResult.rows.map((row) => ({
+      modePlayerCount: normalizeModePlayerCount(row.mode_player_count),
+      title: normalizeTitle(row.title, "Р”РµР»Рѕ"),
+      description: normalizeCaseDescription(row.description),
+      truth: normalizeTruthOptional(row.truth),
+      expectedVerdict: normalizeExpectedVerdict(row.expected_verdict, row.truth),
+      evidence: normalizeEvidence(row.evidence_json),
+      factsByRole: cloneFacts(row.facts_json),
+      sortOrder: Math.max(1, Number(row.sort_order ?? 0) || 1),
+    })),
+  };
+
+  return crypto.createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+}
+
+export async function getUserCasePackImportStatusByShareCode(
+  userId: string,
+  shareCodeInput: string,
+): Promise<{
+  alreadyAdded: boolean;
+  syncAvailable: boolean;
+  existingPackKey: string | null;
+}> {
+  await ensureUserCasePacksStorage();
+  const safeUserId = String(userId ?? "").trim();
+  const shareCode = String(shareCodeInput ?? "").trim().toUpperCase();
+  if (!safeUserId || !shareCode) {
+    return { alreadyAdded: false, syncAvailable: false, existingPackKey: null };
+  }
+
+  const result = await pool.query<{
+    source_id: string;
+    source_user_id: string;
+    existing_id: string | null;
+    existing_key: string | null;
+  }>(
+    `
+      WITH source AS (
+        SELECT id, user_id
+        FROM user_case_packs
+        WHERE share_code = $1
+        LIMIT 1
+      )
+      SELECT
+        s.id AS source_id,
+        s.user_id AS source_user_id,
+        p.id AS existing_id,
+        p.key AS existing_key
+      FROM source s
+      LEFT JOIN user_case_packs p
+        ON p.user_id = $2
+       AND (p.id = s.id OR p.source_pack_id = s.id)
+      LIMIT 1
+    `,
+    [shareCode, safeUserId],
+  );
+  const row = result.rows[0];
+  if (!row) {
+    return { alreadyAdded: false, syncAvailable: false, existingPackKey: null };
+  }
+  if (!row.existing_id) {
+    return { alreadyAdded: false, syncAvailable: false, existingPackKey: null };
+  }
+  const ownsSource = row.source_user_id === safeUserId || row.existing_id === row.source_id;
+  if (ownsSource) {
+    return { alreadyAdded: true, syncAvailable: false, existingPackKey: row.existing_key ?? null };
+  }
+
+  const [sourceHash, existingHash] = await Promise.all([
+    getPackContentFingerprint(row.source_id),
+    getPackContentFingerprint(row.existing_id),
+  ]);
+  return {
+    alreadyAdded: true,
+    syncAvailable: sourceHash !== existingHash,
+    existingPackKey: row.existing_key ?? null,
+  };
+}
+
 export async function listUserCasePacks(userId: string): Promise<UserCasePackInfo[]> {
   await ensureUserCasePacksStorage();
   const safeUserId = String(userId ?? "").trim();
@@ -657,7 +829,12 @@ export async function listUserCasePacks(userId: string): Promise<UserCasePackInf
     color: string;
     share_code: string;
     case_count: number;
+    mode_count_3: number;
+    mode_count_4: number;
+    mode_count_5: number;
+    mode_count_6: number;
     created_at: Date;
+    updated_at: Date;
     original_creator_nickname: string | null;
     source_pack_id: string | null;
   }>(
@@ -672,7 +849,12 @@ export async function listUserCasePacks(userId: string): Promise<UserCasePackInf
         p.source_pack_id,
         p.original_creator_nickname,
         COUNT(c.id)::int AS case_count,
-        p.created_at
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 3)::int AS mode_count_3,
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 4)::int AS mode_count_4,
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 5)::int AS mode_count_5,
+        COUNT(c.id) FILTER (WHERE c.mode_player_count = 6)::int AS mode_count_6,
+        p.created_at,
+        p.updated_at
       FROM user_case_packs p
       LEFT JOIN user_case_pack_cases c ON c.pack_id = p.id
       WHERE p.user_id = $1
@@ -820,7 +1002,12 @@ export async function createUserCasePack(
       color: string;
       share_code: string;
       case_count: number;
+      mode_count_3: number;
+      mode_count_4: number;
+      mode_count_5: number;
+      mode_count_6: number;
       created_at: Date;
+      updated_at: Date;
       original_creator_nickname: string | null;
       source_pack_id: string | null;
     }>(
@@ -835,7 +1022,12 @@ export async function createUserCasePack(
           p.source_pack_id,
           p.original_creator_nickname,
           COUNT(c.id)::int AS case_count,
-          p.created_at
+          COUNT(c.id) FILTER (WHERE c.mode_player_count = 3)::int AS mode_count_3,
+          COUNT(c.id) FILTER (WHERE c.mode_player_count = 4)::int AS mode_count_4,
+          COUNT(c.id) FILTER (WHERE c.mode_player_count = 5)::int AS mode_count_5,
+          COUNT(c.id) FILTER (WHERE c.mode_player_count = 6)::int AS mode_count_6,
+          p.created_at,
+          p.updated_at
         FROM user_case_packs p
         LEFT JOIN user_case_pack_cases c ON c.pack_id = p.id
         WHERE p.id = $1
@@ -1012,7 +1204,12 @@ export async function importUserCasePackByShareCode(
       color: string;
       share_code: string;
       case_count: number;
+      mode_count_3: number;
+      mode_count_4: number;
+      mode_count_5: number;
+      mode_count_6: number;
       created_at: Date;
+      updated_at: Date;
       original_creator_nickname: string | null;
       source_pack_id: string | null;
     }>(
@@ -1027,7 +1224,12 @@ export async function importUserCasePackByShareCode(
           p.source_pack_id,
           p.original_creator_nickname,
           COUNT(c.id)::int AS case_count,
-          p.created_at
+          COUNT(c.id) FILTER (WHERE c.mode_player_count = 3)::int AS mode_count_3,
+          COUNT(c.id) FILTER (WHERE c.mode_player_count = 4)::int AS mode_count_4,
+          COUNT(c.id) FILTER (WHERE c.mode_player_count = 5)::int AS mode_count_5,
+          COUNT(c.id) FILTER (WHERE c.mode_player_count = 6)::int AS mode_count_6,
+          p.created_at,
+          p.updated_at
         FROM user_case_packs p
         LEFT JOIN user_case_pack_cases c ON c.pack_id = p.id
         WHERE p.id = $1
@@ -1040,6 +1242,166 @@ export async function importUserCasePackByShareCode(
       throw new Error("РџР°Рє РёРјРїРѕСЂС‚РёСЂРѕРІР°РЅ, РЅРѕ РЅРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РµРіРѕ РґР°РЅРЅС‹Рµ.");
     }
     return mapRowToPackInfo(created.rows[0]);
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    throw error;
+  }
+}
+
+export async function syncImportedUserCasePackByShareCode(
+  userId: string,
+  shareCodeInput: string,
+): Promise<UserCasePackInfo> {
+  await ensureUserCasePacksStorage();
+  const safeUserId = String(userId ?? "").trim();
+  if (!safeUserId) {
+    throw new Error("РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.");
+  }
+  const shareCode = String(shareCodeInput ?? "").trim().toUpperCase();
+  if (!shareCode) {
+    throw new Error("Р’РІРµРґРёС‚Рµ РєР»СЋС‡ РїР°РєР°.");
+  }
+
+  await pool.query("BEGIN");
+  try {
+    const sourcePackResult = await pool.query<{
+      id: string;
+      user_id: string;
+      title: string;
+      description: string;
+      color: string;
+      original_creator_user_id: string | null;
+      original_creator_nickname: string | null;
+    }>(
+      `
+        SELECT id, user_id, title, description, color, original_creator_user_id, original_creator_nickname
+        FROM user_case_packs
+        WHERE share_code = $1
+        LIMIT 1
+      `,
+      [shareCode],
+    );
+    if (!sourcePackResult.rowCount) {
+      throw new Error("РџР°Рє СЃ С‚Р°РєРёРј РєР»СЋС‡РѕРј РЅРµ РЅР°Р№РґРµРЅ.");
+    }
+    const sourcePack = sourcePackResult.rows[0];
+    if (sourcePack.user_id === safeUserId) {
+      throw new Error("Р­С‚РѕС‚ РїР°Рє СѓР¶Рµ РїСЂРёРЅР°РґР»РµР¶РёС‚ РІР°Рј.");
+    }
+
+    const importedResult = await pool.query<{ id: string }>(
+      `
+        SELECT id
+        FROM user_case_packs
+        WHERE user_id = $1
+          AND source_pack_id = $2
+        LIMIT 1
+      `,
+      [safeUserId, sourcePack.id],
+    );
+    if (!importedResult.rowCount) {
+      throw new Error("РЎРЅР°С‡Р°Р»Р° РёРјРїРѕСЂС‚РёСЂСѓР№С‚Рµ СЌС‚РѕС‚ РїР°Рє.");
+    }
+    const importedPackId = importedResult.rows[0].id;
+
+    const [sourceHash, importedHash] = await Promise.all([
+      getPackContentFingerprint(sourcePack.id),
+      getPackContentFingerprint(importedPackId),
+    ]);
+    if (sourceHash === importedHash) {
+      throw new Error("РџР°Рє СѓР¶Рµ СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅ.");
+    }
+
+    const sourceCases = await pool.query<{
+      case_key: string;
+      mode_player_count: number;
+      title: string;
+      description: string;
+      truth: string;
+      expected_verdict: string;
+      evidence_json: unknown;
+      facts_json: unknown;
+      sort_order: number;
+    }>(
+      `
+        SELECT
+          case_key,
+          mode_player_count,
+          title,
+          description,
+          truth,
+          expected_verdict,
+          evidence_json,
+          facts_json,
+          sort_order
+        FROM user_case_pack_cases
+        WHERE pack_id = $1
+        ORDER BY sort_order ASC, created_at ASC
+      `,
+      [sourcePack.id],
+    );
+
+    await pool.query(
+      `
+        UPDATE user_case_packs
+        SET
+          title = $1,
+          description = $2,
+          color = $3,
+          original_creator_user_id = $4,
+          original_creator_nickname = $5,
+          updated_at = NOW()
+        WHERE id = $6
+      `,
+      [
+        normalizePackTitle(sourcePack.title, "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РїР°Рє"),
+        normalizePackDescription(sourcePack.description, "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРёР№ РїР°Рє РґРµР»."),
+        normalizeColor(sourcePack.color),
+        sourcePack.original_creator_user_id ?? sourcePack.user_id,
+        String(sourcePack.original_creator_nickname ?? "").trim() || "РРіСЂРѕРє",
+        importedPackId,
+      ],
+    );
+    await pool.query(`DELETE FROM user_case_pack_cases WHERE pack_id = $1`, [importedPackId]);
+
+    for (const sourceCase of sourceCases.rows) {
+      await pool.query(
+        `
+          INSERT INTO user_case_pack_cases (
+            id,
+            pack_id,
+            case_key,
+            mode_player_count,
+            title,
+            description,
+            truth,
+            expected_verdict,
+            evidence_json,
+            facts_json,
+            sort_order,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, NOW(), NOW())
+        `,
+        [
+          crypto.randomUUID(),
+          importedPackId,
+          `${sourceCase.case_key}_${crypto.randomUUID().slice(0, 6)}`.slice(0, 120),
+          normalizeModePlayerCount(sourceCase.mode_player_count),
+          normalizeTitle(sourceCase.title, "Р”РµР»Рѕ"),
+          normalizeCaseDescription(sourceCase.description),
+          normalizeTruth(sourceCase.truth),
+          normalizeExpectedVerdict(sourceCase.expected_verdict, sourceCase.truth),
+          JSON.stringify(normalizeEvidence(sourceCase.evidence_json)),
+          JSON.stringify(cloneFacts(sourceCase.facts_json)),
+          Math.max(1, Number(sourceCase.sort_order ?? 0) || 1),
+        ],
+      );
+    }
+
+    await pool.query("COMMIT");
+    return await fetchPackInfoById(importedPackId);
   } catch (error) {
     await pool.query("ROLLBACK");
     throw error;

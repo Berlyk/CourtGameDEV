@@ -512,6 +512,13 @@ const ROOM_MODE_PLAYER_COUNTS: Record<RoomModeKey, Array<3 | 4 | 5 | 6>> = {
   company_6: [6],
 };
 
+const ROOM_MODE_BY_PLAYER_COUNT: Record<3 | 4 | 5 | 6, RoomModeKey> = {
+  3: "civil_3",
+  4: "criminal_4",
+  5: "criminal_5",
+  6: "company_6",
+};
+
 function resolveModeKeyForPackValidation(modeKey: RoomModeKey | undefined): RoomModeKey {
   if (!modeKey) return "quick_flex";
   return ROOM_MODE_PLAYER_COUNTS[modeKey] ? modeKey : "quick_flex";
@@ -543,6 +550,30 @@ async function resolvePackModeMismatchMessage(
   }
   const targetCount = missingCounts[0];
   return `В выбранном паке нет дел для режима на ${targetCount} игроков.`;
+}
+
+async function getPackAvailablePlayerCounts(
+  packKeyInput: string | undefined,
+): Promise<Array<3 | 4 | 5 | 6>> {
+  const counts: Array<3 | 4 | 5 | 6> = [];
+  for (const count of [3, 4, 5, 6] as const) {
+    const hasCase = await pickCaseForRoom(packKeyInput, count);
+    if (hasCase) counts.push(count);
+  }
+  return counts;
+}
+
+async function resolveCompatibleModeForPack(
+  packKeyInput: string | undefined,
+  requestedModeKey: RoomModeKey,
+): Promise<RoomModeKey | null> {
+  const availableCounts = await getPackAvailablePlayerCounts(packKeyInput);
+  if (!availableCounts.length) return null;
+  const requestedCounts = ROOM_MODE_PLAYER_COUNTS[requestedModeKey] ?? [3];
+  const requestedIsAvailable = requestedCounts.every((count) => availableCounts.includes(count));
+  if (requestedIsAvailable) return requestedModeKey;
+  const nextCount = availableCounts[0];
+  return ROOM_MODE_BY_PLAYER_COUNT[nextCount] ?? null;
 }
 
 interface LawyerChatMessage {
@@ -1399,13 +1430,21 @@ export function setupSocket(httpServer: HttpServer) {
             }
           }
           const createModeKey = resolveModeKeyForPackValidation(nextOptions.modeKey);
-          const modeMismatchMessage = await resolvePackModeMismatchMessage(
-            nextOptions.casePackKey ?? "classic",
-            createModeKey,
-          );
+          const createPackKey = nextOptions.casePackKey ?? "classic";
+          const modeMismatchMessage = await resolvePackModeMismatchMessage(createPackKey, createModeKey);
           if (modeMismatchMessage) {
-            socket.emit("error", { message: modeMismatchMessage });
-            return;
+            if (createModeKey === "quick_flex" && String(createPackKey).trim().toLowerCase().startsWith("custom_")) {
+              const compatibleMode = await resolveCompatibleModeForPack(createPackKey, createModeKey);
+              if (compatibleMode) {
+                nextOptions.modeKey = compatibleMode;
+              } else {
+                socket.emit("error", { message: "Для выбранного пользовательского пака не найдено подходящих дел." });
+                return;
+              }
+            } else {
+              socket.emit("error", { message: modeMismatchMessage });
+              return;
+            }
           }
           nextOptions.hostSubscriptionTier = subscriptionTier;
           nextOptions.isPromoted = hasCapability(subscriptionTier, "canHighlightHostedMatch");
@@ -2059,8 +2098,13 @@ export function setupSocket(httpServer: HttpServer) {
             : room.casePackKey;
         const modeMismatchMessage = await resolvePackModeMismatchMessage(targetPackKey, targetModeKey);
         if (modeMismatchMessage) {
-          socket.emit("error", { message: modeMismatchMessage });
-          return;
+          if (typeof patch?.casePackKey === "string" && patch.casePackKey.trim()) {
+            const compatibleMode = await resolveCompatibleModeForPack(targetPackKey, targetModeKey);
+            if (!compatibleMode) return;
+            patch.modeKey = compatibleMode;
+          } else {
+            return;
+          }
         }
         const result = updateRoomManagement(roomCode, patch ?? {});
         if (!result) return;

@@ -39,9 +39,10 @@ import {
   deleteUserCasePack,
   getUserCasePackImportPreviewByShareCode,
   getUserCasePackDetails,
+  getUserCasePackImportStatusByShareCode,
   importUserCasePackByShareCode,
-  isUserCasePackAlreadyAddedByShareCode,
   listUserCasePacks,
+  syncImportedUserCasePackByShareCode,
   updateUserCasePack,
 } from "../lib/userCasePacksStore.js";
 
@@ -1084,7 +1085,8 @@ authRouter.get("/auth/case-packs/import-preview", async (req, res) => {
       typeof req.query?.shareCode === "string" ? req.query.shareCode : String(req.query?.shareCode ?? "");
     const preview = await getUserCasePackImportPreviewByShareCode(shareCode);
     let alreadyAdded = false;
-    let blockReason: "none" | "no_access" | "limit" | "already_added" = "none";
+    let syncAvailable = false;
+    let blockReason: "none" | "no_access" | "limit" | "already_added" | "sync_available" = "none";
     let blockMessage = "";
     const token = getRequestToken(req.headers as Record<string, unknown>);
     if (!token) {
@@ -1096,23 +1098,28 @@ authRouter.get("/auth/case-packs/import-preview", async (req, res) => {
         blockReason = "no_access";
         blockMessage = "Импорт пака по ссылке открыт только для подписки «Арбитр».";
       } else {
-        const existingPacks = await listUserCasePacks(user.id);
-        const stats = getUserCasePacksStats(existingPacks);
-        if (stats.total >= USER_CASE_PACKS_LIMIT) {
-          blockReason = "limit";
-          blockMessage = getUserCasePackLimitMessage("total");
-        } else if (stats.imported >= USER_CASE_PACKS_IMPORTED_LIMIT) {
-          blockReason = "limit";
-          blockMessage = getUserCasePackLimitMessage("imported");
-        }
-        alreadyAdded = await isUserCasePackAlreadyAddedByShareCode(user.id, shareCode);
+        const importStatus = await getUserCasePackImportStatusByShareCode(user.id, shareCode);
+        alreadyAdded = importStatus.alreadyAdded;
+        syncAvailable = importStatus.syncAvailable;
         if (alreadyAdded) {
-          blockReason = "already_added";
-          blockMessage = "Этот пак уже добавлен в «Мои паки».";
+          blockReason = syncAvailable ? "sync_available" : "already_added";
+          blockMessage = syncAvailable
+            ? "Владелец обновил пак. Можно синхронизировать вашу копию."
+            : "Этот пак уже добавлен в «Мои паки».";
+        } else {
+          const existingPacks = await listUserCasePacks(user.id);
+          const stats = getUserCasePacksStats(existingPacks);
+          if (stats.total >= USER_CASE_PACKS_LIMIT) {
+            blockReason = "limit";
+            blockMessage = getUserCasePackLimitMessage("total");
+          } else if (stats.imported >= USER_CASE_PACKS_IMPORTED_LIMIT) {
+            blockReason = "limit";
+            blockMessage = getUserCasePackLimitMessage("imported");
+          }
         }
       }
     }
-    return res.status(200).json({ ok: true, preview, alreadyAdded, blockReason, blockMessage });
+    return res.status(200).json({ ok: true, preview, alreadyAdded, syncAvailable, blockReason, blockMessage });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось загрузить предпросмотр пака.";
     return res.status(400).json({ message });
@@ -1233,6 +1240,30 @@ authRouter.post("/auth/case-packs/import", async (req, res) => {
     return res.status(200).json({ ok: true, pack });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось импортировать пак.";
+    return res.status(400).json({ message });
+  }
+});
+
+authRouter.post("/auth/case-packs/import/sync", async (req, res) => {
+  const token = getRequestToken(req.headers as Record<string, unknown>);
+  if (!token) {
+    return res.status(401).json({ message: "Не авторизован." });
+  }
+  const user = await getUserByToken(token, resolveClientIp(req));
+  if (!user) {
+    return res.status(401).json({ message: "Сессия недействительна." });
+  }
+  if (!canManageUserCasePacks(user)) {
+    return res.status(403).json({
+      message: "Синхронизация пользовательских паков доступна только для подписки «Арбитр».",
+    });
+  }
+  try {
+    const shareCode = String(req.body?.shareCode ?? "").trim();
+    const pack = await syncImportedUserCasePackByShareCode(user.id, shareCode);
+    return res.status(200).json({ ok: true, pack });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось синхронизировать пак.";
     return res.status(400).json({ message });
   }
 });

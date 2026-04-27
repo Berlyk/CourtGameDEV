@@ -14,6 +14,7 @@ export interface CasePackInfo {
   isAdult: boolean;
   sortOrder: number;
   caseCount: number;
+  modeCounts?: Record<3 | 4 | 5 | 6, number>;
   isCustom?: boolean;
   shareCode?: string;
   color?: string;
@@ -288,6 +289,12 @@ function listCasePacksFromCache(): CasePackInfo[] {
         pack.casesByPlayers[4].length +
         pack.casesByPlayers[5].length +
         pack.casesByPlayers[6].length,
+      modeCounts: {
+        3: pack.casesByPlayers[3].length,
+        4: pack.casesByPlayers[4].length,
+        5: pack.casesByPlayers[5].length,
+        6: pack.casesByPlayers[6].length,
+      },
     }))
     .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"));
 }
