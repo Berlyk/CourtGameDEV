@@ -861,11 +861,12 @@ async function pickCaseFromPackDb(
       ? result.rows.filter((row) => (row.case_pack_id ?? "").trim() === packId)
       : [];
     const legacyRows = result.rows.filter((row) => {
-      const key = normalizeCasePackKey(row.pack_key_raw ?? row.case_pack_key_raw);
+      const rawKey = (row.pack_key_raw ?? row.case_pack_key_raw ?? "").trim();
+      if (!rawKey) return false;
+      const key = resolveKnownPackKey(rawKey);
       return key === packKey;
     });
-    const selectedPool =
-      legacyRows.length > linkedRows.length ? legacyRows : linkedRows.length > 0 ? linkedRows : legacyRows;
+    const selectedPool = linkedRows.length > 0 ? linkedRows : legacyRows;
 
     if (selectedPool.length === 0) {
       return pickCaseFromCache(packKey, safeCount);

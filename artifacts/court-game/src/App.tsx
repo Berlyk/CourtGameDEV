@@ -3984,7 +3984,7 @@ function PlayerCard({
       ? ASSIGNABLE_ROLE_TITLES[player.lobbyAssignedRole]
       : "Случайная"
     : isHost
-      ? "Ведущий комнаты"
+      ? "Ведущий"
       : player.roleKey === "witness"
         ? "Свидетель"
         : player.roleKey === "observer"
@@ -4039,7 +4039,7 @@ function PlayerCard({
                 ) : null}
               </div>
               <div
-                className="text-[12px] leading-tight text-zinc-200 sm:text-sm"
+                className="max-w-[160px] truncate whitespace-nowrap text-[11px] leading-tight text-zinc-200 sm:max-w-[220px] sm:text-[13px]"
                 style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85), 0 0 10px rgba(0,0,0,0.45)" }}
               >
                 {playerRoleLabel}
@@ -11827,6 +11827,17 @@ export default function App() {
                           </div>
                         </div>
                       </div>
+                      <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px]">
+                        <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
+                          Возраст: {ageLabel}
+                        </span>
+                        <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
+                          Пол: {genderLabel}
+                        </span>
+                        <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
+                          С нами с: {registeredAtLabel}
+                        </span>
+                      </div>
                       <div className="mt-2">
                         <Button
                           variant="outline"
@@ -11915,18 +11926,6 @@ export default function App() {
                 className="hidden"
                 onChange={handleAvatarChange}
               />
-
-              <div className="grid grid-cols-3 gap-1.5 text-[10px] md:hidden">
-                <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
-                  Возраст: {ageLabel}
-                </span>
-                <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
-                  Пол: {genderLabel}
-                </span>
-                <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
-                  С нами с: {registeredAtLabel}
-                </span>
-              </div>
 
               <div className="grid items-start gap-4 xl:grid-cols-[1.35fr_1fr]">
                 <div className="space-y-4">
@@ -13301,8 +13300,8 @@ export default function App() {
                     className="md:hidden fixed inset-0 z-[240] flex items-center justify-center px-4 py-4"
                   >
                     <div className="w-full max-h-[92vh] overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950/98 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
-                    <div className="mb-6 flex items-center justify-between">
-                      <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
+                    <div className="mb-3 flex items-start justify-between">
+                      <div className="pt-2 text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
                       <Button
                         type="button"
                         variant="outline"
@@ -13313,7 +13312,7 @@ export default function App() {
                         <X className="h-5 w-5" />
                       </Button>
                     </div>
-                    <div className="mb-5 text-sm text-zinc-400">
+                    <div className="mb-4 text-sm text-zinc-400">
                       Быстрые переходы по разделам сайта и личному кабинету.
                     </div>
                     <div className="mb-8 flex justify-center">
@@ -14412,7 +14411,7 @@ export default function App() {
                     event.preventDefault();
                   }
                 }}
-                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[980px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${sharePackDialogOpen || !!myCasePackDeleteConfirmKey ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
+                className={`!fixed relative z-[240] !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 rounded-2xl sm:rounded-2xl w-[calc(100vw-1.15rem)] sm:w-[calc(100vw-2rem)] ${createPackCatalogOpen ? createPackCatalogView === "create_pack" ? "max-w-[920px]" : "max-w-[860px]" : "max-w-[780px]"} max-h-[90vh] ${sharePackDialogOpen || !!myCasePackDeleteConfirmKey ? "overflow-hidden" : "overflow-y-auto"} overflow-x-hidden [scrollbar-gutter:stable] !border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.98),rgba(8,8,11,0.98))] text-zinc-100 p-4 sm:p-6 ${HIDE_SCROLLBAR_CLASS}`}
               >
                 {upsellModalOpen && createMatchDialogOpen && (
                   <div className="pointer-events-none absolute inset-0 z-[380] rounded-[inherit] bg-black/58" />
@@ -14795,11 +14794,11 @@ export default function App() {
                         transition={{ duration: 0.22, ease: "easeOut" }}
                         style={{ transformOrigin: "center top" }}
                       >
-                      <div className="relative mx-auto max-w-[920px] min-w-0 space-y-2.5 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-2.5">
+                      <div className="relative mx-auto max-w-[900px] min-w-0 space-y-2 overflow-x-hidden rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.12),transparent_58%),linear-gradient(145deg,rgba(13,13,17,0.96),rgba(8,8,11,0.96))] p-2">
                         {createPackCasesDialogOpen && (
                           <div className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-black/45" />
                         )}
-                        <div className="rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_56%),linear-gradient(140deg,rgba(24,24,27,0.94),rgba(39,39,42,0.82))] p-3">
+                        <div className="rounded-2xl border border-zinc-800 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(239,68,68,0.16),transparent_56%),linear-gradient(140deg,rgba(24,24,27,0.94),rgba(39,39,42,0.82))] p-2.5">
                           <div className="space-y-1">
                             <div className="text-base font-semibold text-zinc-100">
                               {createPackEditKey ? "Редактирование пользовательского пака" : "Новый пользовательский пак"}
@@ -14810,7 +14809,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/55 p-3 space-y-2.5">
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/55 p-2.5 space-y-2">
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between gap-2">
                               <label className="text-xs uppercase tracking-[0.12em] text-zinc-500">Название пака</label>
@@ -14825,11 +14824,11 @@ export default function App() {
                               }
                               maxLength={USER_PACK_TEXT_LIMITS.packTitle}
                               placeholder="Например: Ночной суд"
-                              className="h-11 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
+                              className="h-10 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 placeholder:text-zinc-500"
                             />
                           </div>
 
-                          <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3 space-y-3">
+                          <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-2.5 space-y-2.5">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="space-y-0.5">
                                 <div className="text-xs uppercase tracking-[0.12em] text-zinc-500">Цвет темы</div>
@@ -14845,7 +14844,7 @@ export default function App() {
                                     type="button"
                                     aria-label={`Выбрать цвет ${color}`}
                                     onClick={() => setCreatePackColor(color)}
-                                    className={`h-8 rounded-full border transition-all hover:brightness-110 ${
+                                    className={`h-7 rounded-full border transition-all hover:brightness-110 ${
                                       isActive
                                         ? "border-white ring-2 ring-white/30 scale-[1.02]"
                                         : "border-zinc-700"
@@ -14874,12 +14873,12 @@ export default function App() {
                               maxLength={USER_PACK_TEXT_LIMITS.packDescription}
                               placeholder="Коротко опишите стиль и тематику пака."
                               style={{ resize: "none" }}
-                              className="min-h-[74px] max-h-[140px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500 overflow-y-auto"
+                              className="min-h-[64px] max-h-[120px] w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition-colors focus:border-zinc-500 overflow-y-auto"
                             />
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/65 p-3 space-y-2.5 min-w-0 overflow-x-hidden">
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/65 p-2.5 space-y-2 min-w-0 overflow-x-hidden">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/80 px-3 py-1 text-xs text-zinc-300">
                               Дела в паке
@@ -14892,7 +14891,7 @@ export default function App() {
                                 type="button"
                                 variant="outline"
                                 onClick={() => setCreatePackCasesDialogOpen(true)}
-                                className="h-9 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800"
+                                className="h-8 rounded-xl border-zinc-700 bg-zinc-900 px-3 text-zinc-100 hover:bg-zinc-800"
                               >
                                 <List className="h-4 w-4" />
                                 <span className="ml-2">Список дел</span>
@@ -14901,7 +14900,7 @@ export default function App() {
                                 type="button"
                                 variant="outline"
                                 onClick={addCreatePackCase}
-                                className="h-9 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+                                className="h-8 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
                               >
                                 Добавить дело
                               </Button>
@@ -16941,14 +16940,14 @@ export default function App() {
                         <button
                           key={`manage-mode-${mode.key}`}
                           type="button"
-                          disabled={isModeLocked}
+                          aria-disabled={isModeLocked}
                           onClick={() => {
                             if (isModeLocked) return;
                             updateRoomManagementSettings({ modeKey: mode.key });
                           }}
                           className={`relative overflow-hidden rounded-xl border px-3 py-2 pr-9 text-left text-xs transition ${
                             isModeLocked
-                              ? "cursor-not-allowed border-zinc-700/90 bg-zinc-950/70 text-zinc-500"
+                              ? "border-zinc-700/90 bg-zinc-950/70 text-zinc-500"
                               : room.modeKey === mode.key
                                 ? "border-red-500/80 bg-red-600/20 text-zinc-100 shadow-[0_0_0_1px_rgba(248,113,113,0.25),0_0_16px_rgba(239,68,68,0.2)]"
                                 : "border-zinc-700/90 bg-zinc-950/80 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900"
@@ -16959,10 +16958,14 @@ export default function App() {
                           {isModeLocked && (
                             <>
                               <div className="pointer-events-none absolute inset-0 rounded-xl border border-zinc-600/55 bg-zinc-950/40" />
-                              <Lock className="pointer-events-none absolute left-2 bottom-2 h-3.5 w-3.5 text-zinc-500" />
+                              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-500/75 bg-zinc-950/92 text-zinc-200 shadow-[0_0_14px_rgba(0,0,0,0.45)]">
+                                  <Lock className="h-4 w-4" />
+                                </span>
+                              </div>
                               <span
                                 title="В выбранном паке нет дел для этого режима"
-                                className="absolute right-2 top-2 z-10 inline-flex h-5 w-5 items-center justify-center rounded-full border border-zinc-600 bg-zinc-900/90 text-zinc-400"
+                                className="absolute right-2 top-2 z-10 inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-zinc-600 bg-zinc-900/90 text-zinc-400"
                               >
                                 <CircleHelp className="h-3.5 w-3.5" />
                               </span>
@@ -17328,24 +17331,25 @@ export default function App() {
           >
             <Card className="rounded-[28px] shadow-sm bg-zinc-900/95 border-zinc-800 text-zinc-100">
               <CardContent className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="space-y-2">
+                  <div className="relative space-y-2 pr-12 sm:pr-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm text-zinc-400">
                         <Scale className="w-4 h-4" />
                         Код комнаты
                       </div>
-                      {lobbyObservers.length > 0 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setObserverListDialogOpen(true)}
-                          className="h-8 rounded-lg border-zinc-700 bg-zinc-900/85 px-2.5 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 gap-1.5 sm:hidden"
-                        >
-                          <Eye className="h-4 w-4" />
-                          {lobbyObservers.length}
-                        </Button>
-                      )}
                     </div>
+                    {lobbyObservers.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setObserverListDialogOpen(true)}
+                        aria-label="Открыть список наблюдателей"
+                        className="absolute right-0 top-0 h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 sm:hidden"
+                      >
+                        <Eye className="h-4 w-4" />
+                        {lobbyObservers.length}
+                      </Button>
+                    )}
                   {room.roomName && (
                     <div className="text-base font-semibold text-zinc-100">
                       {room.roomName}
@@ -18161,7 +18165,7 @@ export default function App() {
           <Card className="rounded-[28px] shadow-sm border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 text-zinc-100">
             <CardContent className="p-8 space-y-6">
               <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-                <div className="space-y-2 max-w-3xl">
+                <div className="relative max-w-3xl space-y-2 pr-12 sm:pr-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-zinc-400">
                       <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
@@ -18170,18 +18174,19 @@ export default function App() {
                       <span className="min-w-0 break-words [text-wrap:balance]">{game.caseData.title}</span>
                       <span className="text-zinc-600 break-words">• Комната {game.code}</span>
                     </div>
-                    {gameObservers.length > 0 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setObserverListDialogOpen(true)}
-                        className="h-8 shrink-0 rounded-lg border-zinc-700 bg-zinc-900/85 px-2.5 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 gap-1.5 sm:hidden"
-                      >
-                        <Eye className="h-4 w-4" />
-                        {gameObservers.length}
-                      </Button>
-                    )}
                   </div>
+                  {gameObservers.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setObserverListDialogOpen(true)}
+                      aria-label="Открыть список наблюдателей"
+                      className="absolute right-0 top-0 h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 sm:hidden"
+                    >
+                      <Eye className="h-4 w-4" />
+                      {gameObservers.length}
+                    </Button>
+                  )}
                   <h1 className="text-3xl md:text-4xl font-bold">
                     {game.caseData.description}
                   </h1>
