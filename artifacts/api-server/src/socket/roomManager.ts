@@ -301,6 +301,35 @@ function getActiveLobbyPlayers(room: Room): Player[] {
   );
 }
 
+function promoteSupportPlayersIfSlotsAvailable(room: Room) {
+  if (room.started) return;
+  const activePlayers = getActiveLobbyPlayers(room);
+  const freeSlots = Math.max(0, room.maxPlayers - activePlayers.length);
+  if (freeSlots <= 0) return;
+
+  const supportPlayers = room.players
+    .filter(
+      (player) =>
+        player.connected !== false &&
+        (player.roleKey === "witness" || player.roleKey === "observer"),
+    )
+    .sort((a, b) => {
+      if (a.id === room.hostId) return -1;
+      if (b.id === room.hostId) return 1;
+      return 0;
+    });
+  if (!supportPlayers.length) return;
+
+  for (const player of supportPlayers.slice(0, freeSlots)) {
+    player.roleKey = undefined;
+    player.roleTitle = undefined;
+    player.goal = undefined;
+    player.facts = [];
+    player.cards = [];
+    clearLobbyRoleState(player);
+  }
+}
+
 function getRequiredRolesForRoom(room: Room): AssignableRole[] {
   const activePlayers = getActiveLobbyPlayers(room);
   const count =
@@ -327,6 +356,7 @@ function assignLobbyRole(
 }
 
 function rebalanceLobbyRoleAssignments(room: Room) {
+  promoteSupportPlayersIfSlotsAvailable(room);
   if (!room.started && room.modeKey === "quick_flex") {
     const activePlayers = getActiveLobbyPlayers(room);
     if (activePlayers.length > room.maxPlayers) {

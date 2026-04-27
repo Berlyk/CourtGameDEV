@@ -3990,6 +3990,26 @@ function PlayerCard({
         : player.roleKey === "observer"
           ? "Наблюдатель"
           : "Игрок";
+  const isTwoLineLawyerRole =
+    playerRoleLabel === "Адвокат истца" || playerRoleLabel === "Адвокат ответчика";
+  const playerRoleLabelNode =
+    playerRoleLabel === "Адвокат истца"
+      ? (
+          <>
+            Адвокат
+            <br />
+            истца
+          </>
+        )
+      : playerRoleLabel === "Адвокат ответчика"
+        ? (
+            <>
+              Адвокат
+              <br />
+              ответчика
+            </>
+          )
+        : playerRoleLabel;
   const disconnectProgress = isDisconnected
     ? 1 - Math.min(1, disconnectRemainingMs / RECONNECT_GRACE_MS)
     : 1;
@@ -4000,7 +4020,7 @@ function PlayerCard({
   return (
     <motion.div variants={cardVariants} initial="initial" animate="animate">
       <Card className="rounded-2xl shadow-sm bg-zinc-900/90 text-zinc-100 border-zinc-800">
-        <CardContent className="relative overflow-hidden p-4 pt-5 flex items-center justify-between gap-3">
+        <CardContent className="relative overflow-hidden p-4 pt-5 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div
             className="pointer-events-none absolute inset-[6px] rounded-[16px] opacity-85"
             style={getBannerStyle(player.banner, player.avatar, player.name)}
@@ -4020,7 +4040,7 @@ function PlayerCard({
                 selectedBadgeKey: player.selectedBadgeKey,
               })
             }
-            className={`relative z-10 flex items-center gap-3 min-w-0 text-left ${
+            className={`relative z-10 flex w-full items-center gap-3 min-w-0 text-left sm:w-auto ${
               canOpenProfile
                 ? "cursor-pointer transition-colors hover:text-zinc-100"
                 : "cursor-default"
@@ -4039,21 +4059,25 @@ function PlayerCard({
                 ) : null}
               </div>
               <div
-                className="max-w-[160px] truncate whitespace-nowrap text-[11px] leading-tight text-zinc-200 sm:max-w-[220px] sm:text-[13px]"
+                className={
+                  isTwoLineLawyerRole
+                    ? "max-w-[160px] whitespace-normal break-words text-[11px] leading-[1.05] text-zinc-200 sm:max-w-[220px] sm:text-[13px]"
+                    : "max-w-[160px] truncate whitespace-nowrap text-[11px] leading-tight text-zinc-200 sm:max-w-[220px] sm:text-[13px]"
+                }
                 style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85), 0 0 10px rgba(0,0,0,0.45)" }}
               >
-                {playerRoleLabel}
+                {playerRoleLabelNode}
               </div>
             </div>
           </button>
-          <div className="relative z-10 flex items-center gap-2">
+          <div className="relative z-10 flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
             {rolePickerButton ? (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 title={rolePickerButton.hint}
-                className={`h-8 rounded-full border px-3 text-zinc-100 transition ${
+                className={`h-7 rounded-full border px-2.5 text-[11px] text-zinc-100 transition sm:h-8 sm:px-3 sm:text-sm ${
                   rolePickerButton.locked
                     ? "border-zinc-700 bg-zinc-900/75 text-zinc-300 hover:bg-zinc-800"
                     : "border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800"
@@ -4085,7 +4109,7 @@ function PlayerCard({
             {canKick && onKick && (
               <Button
                 size="sm"
-                className="h-8 rounded-full px-3 gap-1.5 bg-red-600/90 hover:bg-red-500 text-white border-0 shadow-sm shadow-red-900/30"
+                className="h-7 rounded-full px-2.5 gap-1.5 bg-red-600/90 hover:bg-red-500 text-[11px] text-white border-0 shadow-sm shadow-red-900/30 sm:h-8 sm:px-3 sm:text-sm"
                 onClick={onKick}
               >
                 <UserX className="w-3.5 h-3.5" />
@@ -11825,18 +11849,18 @@ export default function App() {
                               </span>
                             )}
                           </div>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px]">
+                            <span className="inline-flex h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 text-zinc-100 whitespace-nowrap">
+                              Возраст: {ageLabel}
+                            </span>
+                            <span className="inline-flex h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 text-zinc-100 whitespace-nowrap">
+                              Пол: {genderLabel}
+                            </span>
+                            <span className="inline-flex h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 text-zinc-100 whitespace-nowrap">
+                              С нами с: {registeredAtLabel}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px]">
-                        <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
-                          Возраст: {ageLabel}
-                        </span>
-                        <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
-                          Пол: {genderLabel}
-                        </span>
-                        <span className="inline-flex min-h-8 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/80 px-1.5 text-center text-zinc-200">
-                          С нами с: {registeredAtLabel}
-                        </span>
                       </div>
                       <div className="mt-2">
                         <Button
@@ -13300,8 +13324,8 @@ export default function App() {
                     className="md:hidden fixed inset-0 z-[240] flex items-center justify-center px-4 py-4"
                   >
                     <div className="w-full max-h-[92vh] overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950/98 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
-                    <div className="mb-3 flex items-start justify-between">
-                      <div className="pt-2 text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
+                    <div className="mb-1 flex items-end justify-between">
+                      <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
                       <Button
                         type="button"
                         variant="outline"
@@ -16945,7 +16969,7 @@ export default function App() {
                             if (isModeLocked) return;
                             updateRoomManagementSettings({ modeKey: mode.key });
                           }}
-                          className={`relative overflow-hidden rounded-xl border px-3 py-2 pr-9 text-left text-xs transition ${
+                          className={`relative overflow-hidden rounded-xl border px-3 py-2 text-left text-xs transition ${
                             isModeLocked
                               ? "border-zinc-700/90 bg-zinc-950/70 text-zinc-500"
                               : room.modeKey === mode.key
@@ -16963,12 +16987,6 @@ export default function App() {
                                   <Lock className="h-4 w-4" />
                                 </span>
                               </div>
-                              <span
-                                title="В выбранном паке нет дел для этого режима"
-                                className="absolute right-2 top-2 z-10 inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-zinc-600 bg-zinc-900/90 text-zinc-400"
-                              >
-                                <CircleHelp className="h-3.5 w-3.5" />
-                              </span>
                             </>
                           )}
                         </button>
@@ -17331,7 +17349,7 @@ export default function App() {
           >
             <Card className="rounded-[28px] shadow-sm bg-zinc-900/95 border-zinc-800 text-zinc-100">
               <CardContent className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="relative space-y-2 pr-12 sm:pr-0">
+                  <div className="relative w-full space-y-2 pr-12 sm:pr-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm text-zinc-400">
                         <Scale className="w-4 h-4" />
@@ -18165,7 +18183,7 @@ export default function App() {
           <Card className="rounded-[28px] shadow-sm border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 text-zinc-100">
             <CardContent className="p-8 space-y-6">
               <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-                <div className="relative max-w-3xl space-y-2 pr-12 sm:pr-0">
+                <div className="relative w-full max-w-3xl space-y-2 pr-12 sm:pr-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-zinc-400">
                       <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
