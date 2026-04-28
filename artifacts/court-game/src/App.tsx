@@ -3999,6 +3999,7 @@ function PlayerCard({
     player.roleKey === "defenseLawyer" ||
     playerRoleLabel === "Адвокат ответчика";
   const isTwoLineLawyerRole = isPlaintiffLawyerRole || isDefendantLawyerRole;
+  const hasRolePickerButton = !!rolePickerButton;
   const playerRoleLabelNode =
     isPlaintiffLawyerRole
       ? (
@@ -4120,7 +4121,9 @@ function PlayerCard({
                 onClick={onKick}
               >
                 <UserX className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Kick</span>
+                {!hasRolePickerButton && (
+                  <span>Kick</span>
+                )}
               </Button>
             )}
           </div>
@@ -17541,9 +17544,9 @@ export default function App() {
                       })()}
                     </div>
                     {hasRoomHostControl && (
-                      <div className="mt-3 flex justify-center sm:justify-start">
+                      <div className="mt-3 flex justify-center">
                         <Button
-                          className="h-12 w-full justify-center rounded-xl gap-2 bg-red-600 px-6 text-base hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500 sm:h-10 sm:w-auto sm:min-w-[220px] sm:px-5 sm:text-sm"
+                          className="h-12 w-full max-w-[340px] justify-center rounded-xl gap-2 bg-red-600 px-8 text-lg font-semibold hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500 md:h-14 md:max-w-[360px] md:text-xl"
                           onClick={startGame}
                           disabled={startGameLoading || !canStartRoomNow}
                         >
@@ -17803,6 +17806,10 @@ export default function App() {
           : warningTargets.length === 4
             ? "max-h-[41vh] xl:max-h-[400px]"
             : "max-h-[46vh] xl:max-h-[460px]";
+    const isLargeRosterGame = game.players.length >= 8;
+    const lawyerChatHeightClass = isLargeRosterGame
+      ? "h-[330px] sm:h-[390px] xl:h-[460px]"
+      : "h-[360px] sm:h-[420px] xl:h-[500px]";
     return (
       <motion.div
         key="game"
@@ -17812,19 +17819,6 @@ export default function App() {
         className="relative isolate min-h-screen overflow-x-hidden bg-[#0b0b0f] text-zinc-100 p-4 sm:p-6 md:p-10"
       >
         <CourtAtmosphereBackground />
-        {gameObservers.length > 0 && (
-          <div className="absolute left-4 top-4 z-20 hidden lg:block lg:left-6 lg:top-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setObserverListDialogOpen(true)}
-              className="h-11 rounded-xl border-zinc-600 bg-zinc-900/92 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 gap-2 px-4 text-sm"
-            >
-              <Eye className="h-4.5 w-4.5" />
-              {gameObservers.length}
-            </Button>
-          </div>
-        )}
         {game.venueUrl && (
           <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
             <Button
@@ -18195,7 +18189,7 @@ export default function App() {
                   variant="outline"
                   onClick={() => setObserverListDialogOpen(true)}
                   aria-label="Открыть список наблюдателей"
-                  className="absolute !left-auto !right-2 top-2 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:hidden"
+                  className="absolute right-2 top-2 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:left-4 lg:right-auto lg:top-4 lg:h-10 lg:min-w-[56px] lg:px-3"
                 >
                   <Eye className="h-4 w-4" />
                   {gameObservers.length}
@@ -18431,7 +18425,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`h-[360px] sm:h-[420px] xl:h-[540px] rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`${lawyerChatHeightClass} rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
@@ -18475,7 +18469,7 @@ export default function App() {
                         placeholder={
                           isLawyerRole ? "Сообщение клиенту..." : "Сообщение адвокату..."
                         }
-                        className="h-14 sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
+                        className="h-16 sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
                       />
                       <Button
                         className="h-12 sm:h-10 rounded-xl border-0 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 sm:px-5"
