@@ -303,38 +303,41 @@ function getActiveLobbyPlayers(room: Room): Player[] {
 
 function promoteSupportPlayersIfSlotsAvailable(room: Room) {
   if (room.started) return;
-  const connectedActivePlayers = room.players.filter(
-    (player) =>
-      player.connected !== false &&
-      player.roleKey !== "witness" &&
-      player.roleKey !== "observer",
-  );
-  const freeSlots = Math.max(0, room.maxPlayers - connectedActivePlayers.length);
-  if (freeSlots <= 0) return;
-
-  const supportPlayers = room.players
-    .filter(
+  const getConnectedActiveCount = () =>
+    room.players.filter(
       (player) =>
         player.connected !== false &&
-        (player.roleKey === "witness" || player.roleKey === "observer"),
-    )
-    .sort((a, b) => {
-      const rankA = a.roleKey === "observer" ? 0 : 1;
-      const rankB = b.roleKey === "observer" ? 0 : 1;
-      if (rankA !== rankB) return rankA - rankB;
-      if (a.id === room.hostId) return -1;
-      if (b.id === room.hostId) return 1;
-      return 0;
-    });
-  if (!supportPlayers.length) return;
+        player.roleKey !== "witness" &&
+        player.roleKey !== "observer",
+    ).length;
 
-  for (const player of supportPlayers.slice(0, freeSlots)) {
-    player.roleKey = undefined;
-    player.roleTitle = undefined;
-    player.goal = undefined;
-    player.facts = [];
-    player.cards = [];
-    clearLobbyRoleState(player);
+  let freeSlots = Math.max(0, room.maxPlayers - getConnectedActiveCount());
+  if (freeSlots > 0) {
+    const supportPlayers = room.players
+      .filter(
+        (player) =>
+          player.connected !== false &&
+          (player.roleKey === "witness" || player.roleKey === "observer"),
+      )
+      .sort((a, b) => {
+        const rankA = a.roleKey === "witness" ? 0 : 1;
+        const rankB = b.roleKey === "witness" ? 0 : 1;
+        if (rankA !== rankB) return rankA - rankB;
+        if (a.id === room.hostId) return 1;
+        if (b.id === room.hostId) return -1;
+        return 0;
+      });
+
+    for (const player of supportPlayers) {
+      if (freeSlots <= 0) break;
+      player.roleKey = undefined;
+      player.roleTitle = undefined;
+      player.goal = undefined;
+      player.facts = [];
+      player.cards = [];
+      clearLobbyRoleState(player);
+      freeSlots -= 1;
+    }
   }
 
   const canUseWitnessRole = room.modeKey === "quick_flex" || room.allowWitnesses;
