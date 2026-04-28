@@ -8101,7 +8101,7 @@ export default function App() {
                   <div className="absolute inset-0 rounded-3xl bg-gradient-to-t from-black/75 via-black/35 to-black/10" />
                   <div className="relative z-10 flex min-w-0 items-center gap-3">
                     <Avatar src={viewPlayerProfile.avatar ?? null} name={viewPlayerProfile.nickname} size={82} />
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
                       <div className="text-xl font-bold leading-none truncate max-w-[240px] sm:max-w-[320px]">
                         {viewPlayerProfile.nickname}
                       </div>
@@ -8112,7 +8112,7 @@ export default function App() {
                             onClick={() =>
                               setViewProfileBadgeHintOpen((prev) => !prev)
                             }
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors shadow-[0_10px_28px_rgba(0,0,0,0.72)] drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ${
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors shadow-[0_6px_16px_rgba(0,0,0,0.45)] drop-shadow-[0_1px_4px_rgba(0,0,0,0.45)] ${
                               getBadgeTheme(viewPlayerProfile.selectedBadgeKey).chip
                             }`}
                           >
@@ -8137,7 +8137,7 @@ export default function App() {
                           ) : null}
                         </div>
                       ) : null}
-                      <div className="mt-2 text-xs text-zinc-300">
+                      <div className="mt-2 text-xs text-zinc-300 [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
                         Профиль с {createdAtLabel || "неизвестной даты"}
                       </div>
                     </div>
@@ -11746,11 +11746,11 @@ export default function App() {
       (preferredRoleDraft || "") !== (authUser?.preferredRole || "");
     const requestLeaveProfile = async () => {
       if (profileActionLoading) return;
-      if (!hasUnsavedProfileChanges) {
-        setScreen("home");
-        return;
+      if (hasUnsavedProfileChanges) {
+        const ok = await saveExtendedProfile();
+        if (!ok) return;
       }
-      setProfileExitConfirmOpen(true);
+      setScreen("home");
     };
 
     return (
@@ -11789,6 +11789,15 @@ export default function App() {
                     Управляйте профилем, безопасностью и личной статистикой.
                   </p>
                 </div>
+                <Button
+                  variant="outline"
+                  className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                  onClick={() => {
+                    void requestLeaveProfile();
+                  }}
+                >
+                  Назад
+                </Button>
               </div>
               <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
                 <div
@@ -11829,14 +11838,14 @@ export default function App() {
                             <Camera className="w-4 h-4 text-white" />
                           </div>
                         </div>
-                        <div className="min-w-0 flex-1 pr-1">
+                        <div className="min-w-0 flex-1 pr-1 [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <div className="max-w-full truncate text-[18px] font-bold leading-none">
                               {playerName || "Игрок"}
                             </div>
                             {selectedBadgeKey && (
                               <span
-                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] shadow-[0_10px_26px_rgba(0,0,0,0.72)] drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ${
+                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] shadow-[0_6px_16px_rgba(0,0,0,0.45)] drop-shadow-[0_1px_4px_rgba(0,0,0,0.45)] ${
                                   getBadgeTheme(selectedBadgeKey).chip
                                 }`}
                               >
@@ -11848,7 +11857,7 @@ export default function App() {
                               </span>
                             )}
                           </div>
-                          <div className="mt-1.5 flex flex-wrap gap-1 text-[9px]">
+                          <div className="mt-1.5 flex flex-wrap gap-1 text-[9px] [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
                             <span className="inline-flex h-5 items-center rounded-full border border-zinc-600 bg-black/35 px-1.5 whitespace-nowrap">
                               Возраст: {ageLabel}
                             </span>
@@ -11890,12 +11899,12 @@ export default function App() {
                           <Camera className="w-6 h-6 text-white" />
                         </div>
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <div className="text-3xl font-bold leading-none">{playerName || "Игрок"}</div>
                           {selectedBadgeKey && (
                             <span
-                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs shadow-[0_10px_28px_rgba(0,0,0,0.72)] drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ${
+                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs shadow-[0_6px_16px_rgba(0,0,0,0.45)] drop-shadow-[0_1px_4px_rgba(0,0,0,0.45)] ${
                                 getBadgeTheme(selectedBadgeKey).chip
                               }`}
                             >
@@ -12127,15 +12136,6 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex justify-center">
-                      <Button
-                        onClick={saveExtendedProfile}
-                        disabled={profileActionLoading}
-                        className="h-14 w-full max-w-[420px] rounded-xl bg-red-600 px-6 text-xl font-semibold text-white border-0 hover:bg-red-500 sm:h-11 sm:w-auto sm:max-w-none sm:text-base"
-                      >
-                        Сохранить личные данные
-                      </Button>
-                    </div>
                   </div>
 
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5">
@@ -17328,19 +17328,17 @@ export default function App() {
           >
             <Card className="rounded-[28px] shadow-sm bg-zinc-900/95 border-zinc-800 text-zinc-100">
               <CardContent className="relative p-4 sm:p-6 md:p-7 flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
-                  {lobbyObservers.length > 0 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setObserverListDialogOpen(true)}
-                      aria-label="Открыть список наблюдателей"
-                      className="absolute !left-auto !right-3 !top-3 !bottom-auto z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:h-10 lg:min-w-[56px] lg:px-3"
-                      style={{ left: "auto", right: "0.75rem", top: "0.75rem", insetInlineStart: "auto", insetInlineEnd: "0.75rem" }}
-                    >
-                      <Eye className="h-4 w-4" />
-                      {lobbyObservers.length}
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setObserverListDialogOpen(true)}
+                    aria-label="Открыть список наблюдателей"
+                    className="absolute !left-auto !right-3 !top-3 !bottom-auto z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:h-10 lg:min-w-[56px] lg:px-3"
+                    style={{ left: "auto", right: "0.75rem", top: "0.75rem", insetInlineStart: "auto", insetInlineEnd: "0.75rem" }}
+                  >
+                    <Eye className="h-4 w-4" />
+                    {lobbyObservers.length}
+                  </Button>
                   <div className="relative w-full space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm text-zinc-400">
@@ -18155,19 +18153,17 @@ export default function App() {
 
           <Card className="rounded-[28px] shadow-sm border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 text-zinc-100">
             <CardContent className="relative p-4 sm:p-6 md:p-8 space-y-6">
-              {gameObservers.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setObserverListDialogOpen(true)}
-                  aria-label="Открыть список наблюдателей"
-                  className="absolute !left-auto !right-2 !top-2 !bottom-auto z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:!right-4 lg:!top-4 lg:h-10 lg:min-w-[56px] lg:px-3"
-                  style={{ left: "auto", right: "0.5rem", top: "0.5rem", insetInlineStart: "auto", insetInlineEnd: "0.5rem" }}
-                >
-                  <Eye className="h-4 w-4" />
-                  {gameObservers.length}
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setObserverListDialogOpen(true)}
+                aria-label="Открыть список наблюдателей"
+                className="absolute !left-auto !right-2 !top-2 !bottom-auto z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:!right-4 lg:!top-4 lg:h-10 lg:min-w-[56px] lg:px-3"
+                style={{ left: "auto", right: "0.5rem", top: "0.5rem", insetInlineStart: "auto", insetInlineEnd: "0.5rem" }}
+              >
+                <Eye className="h-4 w-4" />
+                {gameObservers.length}
+              </Button>
               <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
                 <div className="relative w-full max-w-3xl space-y-2">
                   <div className="flex items-start justify-between gap-3">
@@ -18177,7 +18173,6 @@ export default function App() {
                       </Badge>
                       <span className="order-2 w-full sm:order-none sm:w-auto min-w-0 break-words [text-wrap:balance]">{game.caseData.title}</span>
                       <span className="hidden sm:inline text-zinc-600 break-words">• Комната {game.code}</span>
-                      <span className="order-3 w-full sm:hidden text-zinc-600">Комната {game.code}</span>
                     </div>
                   </div>
                   <h1 className="text-xl leading-[1.22] sm:text-3xl md:text-4xl font-bold">
