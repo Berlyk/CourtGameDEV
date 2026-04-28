@@ -17785,7 +17785,7 @@ export default function App() {
     const lawyerChatHeightClass =
       warningTargets.length >= 7
         ? "max-h-[52vh] xl:max-h-[560px]"
-        : warningTargets.length >= 6
+        : warningTargets.length >= 5
           ? "max-h-[50vh] xl:max-h-[520px]"
           : warningTargets.length === 4
             ? "max-h-[41vh] xl:max-h-[400px]"
