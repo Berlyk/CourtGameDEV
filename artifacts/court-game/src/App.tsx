@@ -8112,7 +8112,7 @@ export default function App() {
                             onClick={() =>
                               setViewProfileBadgeHintOpen((prev) => !prev)
                             }
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors shadow-[0_10px_28px_rgba(0,0,0,0.72)] drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ${
                               getBadgeTheme(viewPlayerProfile.selectedBadgeKey).chip
                             }`}
                           >
@@ -11789,15 +11789,6 @@ export default function App() {
                     Управляйте профилем, безопасностью и личной статистикой.
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                  onClick={() => {
-                    void requestLeaveProfile();
-                  }}
-                >
-                  Назад
-                </Button>
               </div>
               <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
                 <div
@@ -11845,7 +11836,7 @@ export default function App() {
                             </div>
                             {selectedBadgeKey && (
                               <span
-                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${
+                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] shadow-[0_10px_26px_rgba(0,0,0,0.72)] drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ${
                                   getBadgeTheme(selectedBadgeKey).chip
                                 }`}
                               >
@@ -11904,7 +11895,7 @@ export default function App() {
                           <div className="text-3xl font-bold leading-none">{playerName || "Игрок"}</div>
                           {selectedBadgeKey && (
                             <span
-                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
+                              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs shadow-[0_10px_28px_rgba(0,0,0,0.72)] drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] ${
                                 getBadgeTheme(selectedBadgeKey).chip
                               }`}
                             >
@@ -12136,22 +12127,13 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="mt-4 flex justify-center">
                       <Button
                         onClick={saveExtendedProfile}
                         disabled={profileActionLoading}
-                        className="rounded-xl bg-red-600 hover:bg-red-500 text-white border-0"
+                        className="h-14 w-full max-w-[420px] rounded-xl bg-red-600 px-6 text-xl font-semibold text-white border-0 hover:bg-red-500 sm:h-11 sm:w-auto sm:max-w-none sm:text-base"
                       >
                         Сохранить личные данные
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                        onClick={() => {
-                          void requestLeaveProfile();
-                        }}
-                      >
-                        В главное меню
                       </Button>
                     </div>
                   </div>
@@ -16836,19 +16818,6 @@ export default function App() {
         className="relative isolate min-h-screen bg-[#0b0b0f] text-zinc-100 p-4 sm:p-6 md:p-10"
       >
         <CourtAtmosphereBackground />
-        {lobbyObservers.length > 0 && (
-          <div className="absolute left-4 top-4 z-20 hidden lg:block lg:left-6 lg:top-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setObserverListDialogOpen(true)}
-              className="h-11 rounded-xl border-zinc-600 bg-zinc-900/92 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 gap-2 px-4 text-sm"
-            >
-              <Eye className="h-4.5 w-4.5" />
-              {lobbyObservers.length}
-            </Button>
-          </div>
-        )}
         {canRenderRoleDialog && roleDialogTargetPlayer && (
           <Dialog
             open={lobbyRoleDialogOpen}
@@ -17365,8 +17334,8 @@ export default function App() {
                       variant="outline"
                       onClick={() => setObserverListDialogOpen(true)}
                       aria-label="Открыть список наблюдателей"
-                      className="absolute !left-auto !right-3 top-3 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:hidden"
-                      style={{ left: "auto", right: "0.75rem", top: "0.75rem" }}
+                      className="absolute !left-auto !right-3 !top-3 !bottom-auto z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:h-10 lg:min-w-[56px] lg:px-3"
+                      style={{ left: "auto", right: "0.75rem", top: "0.75rem", insetInlineStart: "auto", insetInlineEnd: "0.75rem" }}
                     >
                       <Eye className="h-4 w-4" />
                       {lobbyObservers.length}
@@ -17807,12 +17776,12 @@ export default function App() {
             : "max-h-[46vh] xl:max-h-[460px]";
     const lawyerChatHeightClass =
       warningTargets.length >= 7
-        ? "max-h-[52vh] xl:max-h-[560px]"
+        ? "h-[52vh] xl:h-[560px]"
         : warningTargets.length >= 6
-          ? "max-h-[50vh] xl:max-h-[520px]"
+          ? "h-[50vh] xl:h-[520px]"
           : warningTargets.length === 4
-            ? "max-h-[41vh] xl:max-h-[400px]"
-            : "max-h-[46vh] xl:max-h-[460px]";
+            ? "h-[41vh] xl:h-[400px]"
+            : "h-[46vh] xl:h-[460px]";
     return (
       <motion.div
         key="game"
@@ -18192,8 +18161,8 @@ export default function App() {
                   variant="outline"
                   onClick={() => setObserverListDialogOpen(true)}
                   aria-label="Открыть список наблюдателей"
-                  className="absolute !left-auto !right-2 top-2 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:!right-4 lg:top-4 lg:h-10 lg:min-w-[56px] lg:px-3"
-                  style={{ left: "auto", right: "0.5rem", top: "0.5rem" }}
+                  className="absolute !left-auto !right-2 !top-2 !bottom-auto z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:!right-4 lg:!top-4 lg:h-10 lg:min-w-[56px] lg:px-3"
+                  style={{ left: "auto", right: "0.5rem", top: "0.5rem", insetInlineStart: "auto", insetInlineEnd: "0.5rem" }}
                 >
                   <Eye className="h-4 w-4" />
                   {gameObservers.length}
@@ -18206,9 +18175,9 @@ export default function App() {
                       <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
                         {game.caseData.mode}
                       </Badge>
-                      <span className="w-full sm:w-auto min-w-0 break-words [text-wrap:balance]">{game.caseData.title}</span>
+                      <span className="order-2 w-full sm:order-none sm:w-auto min-w-0 break-words [text-wrap:balance]">{game.caseData.title}</span>
                       <span className="hidden sm:inline text-zinc-600 break-words">• Комната {game.code}</span>
-                      <span className="w-full sm:hidden text-zinc-600">Комната {game.code}</span>
+                      <span className="order-3 w-full sm:hidden text-zinc-600">Комната {game.code}</span>
                     </div>
                   </div>
                   <h1 className="text-xl leading-[1.22] sm:text-3xl md:text-4xl font-bold">
@@ -18472,12 +18441,12 @@ export default function App() {
                         onChange={(e) => setLawyerChatInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && sendLawyerChatMessage()}
                         placeholder={
-                          isLawyerRole ? "Сообщение клиенту..." : "Сообщение адвокату..."
+                          isLawyerRole ? "Сообщение клиенту" : "Сообщение адвокату"
                         }
-                        className="h-[74px] sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
+                        className="h-[82px] sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
                       />
                       <Button
-                        className="h-10 sm:h-10 rounded-xl border-0 bg-zinc-100 text-base font-medium text-zinc-950 hover:bg-zinc-200 sm:px-5"
+                        className="h-9 sm:h-10 rounded-xl border-0 bg-zinc-100 text-lg sm:text-base font-medium text-zinc-950 hover:bg-zinc-200 sm:px-5"
                         onClick={sendLawyerChatMessage}
                         disabled={!lawyerChatInput.trim()}
                       >
