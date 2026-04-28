@@ -17786,10 +17786,12 @@ export default function App() {
       warningTargets.length >= 7
         ? "h-[min(46vh,500px)]"
         : warningTargets.length >= 6
-          ? "h-[min(42vh,440px)]"
+          ? "h-[min(46vh,480px)]"
+          : warningTargets.length === 5
+            ? "h-[min(40vh,420px)]"
           : warningTargets.length === 4
             ? "h-[min(34vh,340px)]"
-            : "h-[min(32vh,340px)]";
+            : "h-[min(29vh,300px)]";
     return (
       <motion.div
         key="game"
@@ -18184,7 +18186,7 @@ export default function App() {
                     variant="ghost"
                     onClick={() => setObserverListDialogOpen(true)}
                     aria-label="Открыть список наблюдателей"
-                    className="h-7 min-w-[42px] rounded-bl-2xl rounded-tr-[20px] border border-r-0 border-t-0 border-zinc-700/65 bg-zinc-900/55 px-2 text-xs text-zinc-100 shadow-[0_10px_22px_rgba(0,0,0,0.18)] backdrop-blur hover:border-zinc-500/80 hover:bg-zinc-900/70 hover:text-zinc-100 gap-1 lg:h-10 lg:min-w-[56px] lg:rounded-xl lg:border-zinc-600 lg:bg-zinc-900/95 lg:px-3 lg:text-base lg:shadow-[0_0_0_1px_rgba(39,39,42,0.55)] lg:hover:border-zinc-400 lg:hover:bg-zinc-800/95 lg:gap-1.5"
+                    className="h-7 min-w-[42px] rounded-bl-2xl rounded-tr-[20px] border border-r-0 border-t-0 border-zinc-700/70 bg-zinc-900/70 px-2 text-xs text-zinc-100 shadow-[0_10px_22px_rgba(0,0,0,0.2)] backdrop-blur hover:border-zinc-500/80 hover:bg-zinc-900/80 hover:text-zinc-100 gap-1 lg:h-10 lg:min-w-[56px] lg:rounded-xl lg:border-zinc-600 lg:bg-zinc-900/95 lg:px-3 lg:text-base lg:shadow-[0_0_0_1px_rgba(39,39,42,0.55)] lg:hover:border-zinc-400 lg:hover:bg-zinc-800/95 lg:gap-1.5"
                   >
                     <Eye className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                     {gameObservers.length}
