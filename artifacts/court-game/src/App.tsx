@@ -11785,8 +11785,8 @@ export default function App() {
                 <div className="min-w-0 w-full">
                   <div className="text-sm uppercase tracking-[0.16em] text-zinc-500">Профиль</div>
                   <h2 className="mt-2 text-3xl font-bold">Личный кабинет</h2>
-                  <p className="mt-2 max-w-[310px] text-[15px] leading-6 text-zinc-400 sm:max-w-xl sm:text-base sm:leading-relaxed">
-                    Управляйте профилем, безопасностью и личной статистикой.
+                  <p className="mt-2 max-w-[232px] text-[15px] leading-6 text-zinc-400 sm:max-w-xl sm:text-base sm:leading-relaxed">
+                    Управляйте профилем,<br className="sm:hidden" /> безопасностью и личной статистикой.
                   </p>
                 </div>
                 <Button
@@ -17776,12 +17776,12 @@ export default function App() {
             : "max-h-[46vh] xl:max-h-[460px]";
     const lawyerChatHeightClass =
       warningTargets.length >= 7
-        ? "h-[clamp(280px,48vh,560px)]"
+        ? "max-h-[52vh] xl:max-h-[560px]"
         : warningTargets.length >= 6
-          ? "h-[clamp(270px,46vh,520px)]"
+          ? "max-h-[50vh] xl:max-h-[520px]"
           : warningTargets.length === 4
-            ? "h-[clamp(250px,40vh,440px)]"
-            : "h-[clamp(260px,42vh,480px)]";
+            ? "max-h-[41vh] xl:max-h-[400px]"
+            : "max-h-[46vh] xl:max-h-[460px]";
     return (
       <motion.div
         key="game"
@@ -18413,7 +18413,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`min-h-[220px] ${lawyerChatHeightClass} rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`min-h-[220px] flex-1 ${lawyerChatHeightClass} rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
