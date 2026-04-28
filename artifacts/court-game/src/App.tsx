@@ -17784,14 +17784,12 @@ export default function App() {
             : "max-h-[46vh] xl:max-h-[460px]";
     const lawyerChatHeightClass =
       warningTargets.length >= 7
-        ? "h-[min(44vh,470px)]"
+        ? "max-h-[52vh] xl:max-h-[560px]"
         : warningTargets.length >= 6
-          ? "h-[min(42vh,420px)]"
-          : warningTargets.length === 5
-            ? "h-[min(38vh,380px)]"
-            : warningTargets.length === 4
-              ? "h-[min(30vh,290px)]"
-              : "h-[min(29vh,300px)]";
+          ? "max-h-[50vh] xl:max-h-[520px]"
+          : warningTargets.length === 4
+            ? "max-h-[41vh] xl:max-h-[400px]"
+            : "max-h-[46vh] xl:max-h-[460px]";
     return (
       <motion.div
         key="game"
@@ -18423,7 +18421,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`${lawyerChatHeightClass} min-h-0 shrink-0 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`${lawyerChatHeightClass} min-h-0 flex-1 basis-0 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
