@@ -4121,9 +4121,7 @@ function PlayerCard({
                 onClick={onKick}
               >
                 <UserX className="w-3.5 h-3.5" />
-                {!hasRolePickerButton && (
-                  <span>Kick</span>
-                )}
+                {hasRolePickerButton ? <span className="hidden sm:inline">Кикнуть</span> : <span>Кикнуть</span>}
               </Button>
             )}
           </div>
@@ -17368,6 +17366,7 @@ export default function App() {
                       onClick={() => setObserverListDialogOpen(true)}
                       aria-label="Открыть список наблюдателей"
                       className="absolute !left-auto !right-3 top-3 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:hidden"
+                      style={{ left: "auto", right: "0.75rem", top: "0.75rem" }}
                     >
                       <Eye className="h-4 w-4" />
                       {lobbyObservers.length}
@@ -18193,7 +18192,7 @@ export default function App() {
                   variant="outline"
                   onClick={() => setObserverListDialogOpen(true)}
                   aria-label="Открыть список наблюдателей"
-                  className="absolute !left-auto !right-2 top-2 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:left-4 lg:!right-auto lg:top-4 lg:h-10 lg:min-w-[56px] lg:px-3"
+                  className="absolute !left-auto !right-2 top-2 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:!right-4 lg:top-4 lg:h-10 lg:min-w-[56px] lg:px-3"
                   style={{ left: "auto", right: "0.5rem", top: "0.5rem" }}
                 >
                   <Eye className="h-4 w-4" />
@@ -18207,7 +18206,7 @@ export default function App() {
                       <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700">
                         {game.caseData.mode}
                       </Badge>
-                      <span className="min-w-0 break-words [text-wrap:balance]">{game.caseData.title}</span>
+                      <span className="w-full sm:w-auto min-w-0 break-words [text-wrap:balance]">{game.caseData.title}</span>
                       <span className="hidden sm:inline text-zinc-600 break-words">• Комната {game.code}</span>
                       <span className="w-full sm:hidden text-zinc-600">Комната {game.code}</span>
                     </div>
@@ -18431,7 +18430,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`h-[300px] sm:h-[340px] ${lawyerChatHeightClass} min-h-0 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`min-h-[220px] flex-1 ${lawyerChatHeightClass} rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
@@ -18475,10 +18474,10 @@ export default function App() {
                         placeholder={
                           isLawyerRole ? "Сообщение клиенту..." : "Сообщение адвокату..."
                         }
-                        className="h-[64px] sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
+                        className="h-[74px] sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
                       />
                       <Button
-                        className="h-12 sm:h-10 rounded-xl border-0 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 sm:px-5"
+                        className="h-10 sm:h-10 rounded-xl border-0 bg-zinc-100 text-base font-medium text-zinc-950 hover:bg-zinc-200 sm:px-5"
                         onClick={sendLawyerChatMessage}
                         disabled={!lawyerChatInput.trim()}
                       >
