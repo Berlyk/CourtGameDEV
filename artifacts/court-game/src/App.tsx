@@ -11801,9 +11801,9 @@ export default function App() {
                   Назад
                 </Button>
               </div>
-              <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
                 <div
-                  className="relative h-[176px] md:min-h-[122px] p-3.5 md:p-6 flex items-start md:items-end cursor-pointer group/banner"
+                  className="relative h-[158px] md:min-h-[122px] p-3.5 md:p-6 flex items-start md:items-end cursor-pointer group/banner"
                   style={getBannerStyle(profileBannerDraft, profileAvatarDraft, playerName || "Игрок")}
                   onClick={() => {
                     if (profileBannerLocked) {
@@ -11826,7 +11826,7 @@ export default function App() {
                   )}
 
                   <div className="relative z-10 w-full md:hidden">
-                    <div className="pt-7 h-full flex flex-col justify-between">
+                    <div className="pt-5 h-full flex flex-col justify-between">
                       <div className="flex items-center gap-2.5">
                         <div
                           className="relative shrink-0 cursor-pointer group/avatar"
@@ -17546,7 +17546,7 @@ export default function App() {
                     {hasRoomHostControl && (
                       <div className="mt-3 flex justify-center">
                         <Button
-                          className="h-12 w-full max-w-[340px] justify-center rounded-xl gap-2 bg-red-600 px-8 text-lg font-semibold hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500 md:h-14 md:max-w-[360px] md:text-xl"
+                          className="h-12 w-full max-w-[340px] justify-center rounded-xl gap-2 bg-red-600 px-8 text-lg font-semibold hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500 md:h-16 md:max-w-[440px] md:px-10 md:text-2xl"
                           onClick={startGame}
                           disabled={startGameLoading || !canStartRoomNow}
                         >
@@ -17806,10 +17806,14 @@ export default function App() {
           : warningTargets.length === 4
             ? "max-h-[41vh] xl:max-h-[400px]"
             : "max-h-[46vh] xl:max-h-[460px]";
-    const isLargeRosterGame = game.players.length >= 8;
-    const lawyerChatHeightClass = isLargeRosterGame
-      ? "h-[330px] sm:h-[390px] xl:h-[460px]"
-      : "h-[360px] sm:h-[420px] xl:h-[500px]";
+    const lawyerChatHeightClass =
+      warningTargets.length >= 7
+        ? "max-h-[52vh] xl:max-h-[560px]"
+        : warningTargets.length >= 6
+          ? "max-h-[50vh] xl:max-h-[520px]"
+          : warningTargets.length === 4
+            ? "max-h-[41vh] xl:max-h-[400px]"
+            : "max-h-[46vh] xl:max-h-[460px]";
     return (
       <motion.div
         key="game"
@@ -18189,7 +18193,8 @@ export default function App() {
                   variant="outline"
                   onClick={() => setObserverListDialogOpen(true)}
                   aria-label="Открыть список наблюдателей"
-                  className="absolute right-2 top-2 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:left-4 lg:right-auto lg:top-4 lg:h-10 lg:min-w-[56px] lg:px-3"
+                  className="absolute !left-auto !right-2 top-2 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:left-4 lg:!right-auto lg:top-4 lg:h-10 lg:min-w-[56px] lg:px-3"
+                  style={{ left: "auto", right: "0.5rem", top: "0.5rem" }}
                 >
                   <Eye className="h-4 w-4" />
                   {gameObservers.length}
@@ -18203,7 +18208,8 @@ export default function App() {
                         {game.caseData.mode}
                       </Badge>
                       <span className="min-w-0 break-words [text-wrap:balance]">{game.caseData.title}</span>
-                      <span className="text-zinc-600 break-words">• Комната {game.code}</span>
+                      <span className="hidden sm:inline text-zinc-600 break-words">• Комната {game.code}</span>
+                      <span className="w-full sm:hidden text-zinc-600">Комната {game.code}</span>
                     </div>
                   </div>
                   <h1 className="text-xl leading-[1.22] sm:text-3xl md:text-4xl font-bold">
@@ -18425,7 +18431,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`${lawyerChatHeightClass} rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`h-[300px] sm:h-[340px] ${lawyerChatHeightClass} min-h-0 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
@@ -18469,7 +18475,7 @@ export default function App() {
                         placeholder={
                           isLawyerRole ? "Сообщение клиенту..." : "Сообщение адвокату..."
                         }
-                        className="h-16 sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
+                        className="h-[64px] sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
                       />
                       <Button
                         className="h-12 sm:h-10 rounded-xl border-0 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 sm:px-5"
