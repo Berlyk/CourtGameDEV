@@ -18184,9 +18184,9 @@ export default function App() {
                     variant="outline"
                     onClick={() => setObserverListDialogOpen(true)}
                     aria-label="Открыть список наблюдателей"
-                    className="h-7 min-w-[40px] rounded-lg border-zinc-600 bg-zinc-900/95 px-1.5 text-sm text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1 lg:h-10 lg:min-w-[56px] lg:rounded-xl lg:px-3 lg:text-base lg:gap-1.5"
+                    className="h-6 min-w-[36px] rounded-lg border-zinc-600 bg-zinc-900/95 px-1 text-xs text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1 lg:h-10 lg:min-w-[56px] lg:rounded-xl lg:px-3 lg:text-base lg:gap-1.5"
                   >
-                    <Eye className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
+                    <Eye className="h-3 w-3 lg:h-4 lg:w-4" />
                     {gameObservers.length}
                   </Button>
                 </div>
