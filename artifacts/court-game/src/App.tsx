@@ -4025,9 +4025,9 @@ function PlayerCard({
   const blue = Math.round(68 + (122 - 68) * disconnectProgress);
   const doorColor = `rgb(${red}, ${green}, ${blue})`;
   return (
-    <motion.div variants={cardVariants} initial="initial" animate="animate">
-      <Card className="rounded-2xl shadow-sm bg-zinc-900/90 text-zinc-100 border-zinc-800">
-        <CardContent className="relative overflow-hidden p-4 flex items-center justify-between gap-2 sm:pt-5 sm:gap-3">
+    <motion.div variants={cardVariants} initial="initial" animate="animate" className="min-w-0">
+      <Card className="w-full min-w-0 rounded-2xl shadow-sm bg-zinc-900/90 text-zinc-100 border-zinc-800">
+        <CardContent className="relative overflow-hidden p-3.5 sm:p-4 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:pt-5 sm:gap-3">
           <div
             className="pointer-events-none absolute inset-[6px] rounded-[16px] opacity-85"
             style={getBannerStyle(player.banner, player.avatar, player.name)}
@@ -4068,8 +4068,8 @@ function PlayerCard({
               <div
                 className={
                   isTwoLineLawyerRole
-                    ? "max-w-[140px] whitespace-normal break-words text-[10px] leading-[1.04] text-zinc-200 sm:max-w-[220px] sm:text-[13px]"
-                    : "max-w-[140px] truncate whitespace-nowrap text-[10px] leading-tight text-zinc-200 sm:max-w-[220px] sm:text-[13px]"
+                    ? "max-w-[132px] whitespace-normal break-words text-[11px] leading-[1.06] text-zinc-200 sm:max-w-[220px] sm:text-[13px]"
+                    : "max-w-[132px] truncate whitespace-nowrap text-[11px] leading-tight text-zinc-200 sm:max-w-[220px] sm:text-[13px]"
                 }
                 style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85), 0 0 10px rgba(0,0,0,0.45)" }}
               >
@@ -4077,14 +4077,14 @@ function PlayerCard({
               </div>
             </div>
           </button>
-          <div className="relative z-10 flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="relative z-10 ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             {rolePickerButton ? (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 title={rolePickerButton.hint}
-                className={`h-8 rounded-full border px-2.5 text-[11px] text-zinc-100 transition sm:h-8 sm:px-3 sm:text-sm ${
+                className={`h-8 max-w-[126px] rounded-full border px-2.5 text-[11px] text-zinc-100 transition sm:h-8 sm:max-w-none sm:px-3 sm:text-sm ${
                   rolePickerButton.locked
                     ? "border-zinc-700 bg-zinc-900/75 text-zinc-300 hover:bg-zinc-800"
                     : "border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800"
@@ -4092,7 +4092,7 @@ function PlayerCard({
                 onClick={rolePickerButton.onClick}
               >
                 {rolePickerButton.locked && <Lock className="mr-1 h-3.5 w-3.5" />}
-                {rolePickerButton.label}
+                <span className="truncate">{rolePickerButton.label}</span>
               </Button>
             ) : null}
             {(player.warningCount ?? 0) > 0 && (
@@ -4116,7 +4116,7 @@ function PlayerCard({
             {canKick && onKick && (
               <Button
                 size="sm"
-                className="h-8 rounded-full px-2.5 gap-1.5 bg-red-600/90 hover:bg-red-500 text-[11px] text-white border-0 shadow-sm shadow-red-900/30 sm:h-8 sm:px-3 sm:text-sm"
+                className="h-8 shrink-0 rounded-full px-2.5 gap-1.5 bg-red-600/90 hover:bg-red-500 text-[11px] text-white border-0 shadow-sm shadow-red-900/30 sm:h-8 sm:px-3 sm:text-sm"
                 onClick={onKick}
               >
                 <UserX className="w-3.5 h-3.5" />
@@ -16835,14 +16835,14 @@ export default function App() {
       >
         <CourtAtmosphereBackground />
         {lobbyObservers.length > 0 && (
-          <div className="absolute right-4 top-4 z-20 hidden sm:block sm:right-6 sm:top-6">
+          <div className="absolute left-4 top-4 z-20 hidden lg:block lg:left-6 lg:top-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => setObserverListDialogOpen(true)}
-              className="h-9 rounded-lg border-zinc-700 bg-zinc-900/85 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 gap-1.5 px-3"
+              className="h-11 rounded-xl border-zinc-600 bg-zinc-900/92 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 gap-2 px-4 text-sm"
             >
-              <Eye className="h-4 w-4" />
+              <Eye className="h-4.5 w-4.5" />
               {lobbyObservers.length}
             </Button>
           </div>
@@ -17356,14 +17356,14 @@ export default function App() {
             animate="animate"
           >
             <Card className="rounded-[28px] shadow-sm bg-zinc-900/95 border-zinc-800 text-zinc-100">
-              <CardContent className="relative p-4 sm:p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <CardContent className="relative p-4 sm:p-6 md:p-7 flex flex-col md:flex-row md:items-start justify-between gap-4">
                   {lobbyObservers.length > 0 && (
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => setObserverListDialogOpen(true)}
                       aria-label="Открыть список наблюдателей"
-                      className="absolute right-4 top-4 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 sm:hidden"
+                      className="absolute right-3 top-3 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:hidden"
                     >
                       <Eye className="h-4 w-4" />
                       {lobbyObservers.length}
@@ -17412,7 +17412,7 @@ export default function App() {
                     )}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex w-full md:w-auto flex-nowrap items-center gap-3 md:self-start">
                   <Button
                     variant="secondary"
                     className="rounded-xl gap-2 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
@@ -17539,14 +17539,13 @@ export default function App() {
                         );
                       })()}
                     </div>
-                    <div className="text-zinc-400 pt-2">
-                      Ведущий запускает игру, сайт случайно выбирает подходящее
-                      дело и распределяет роли.
+                    <div className="text-zinc-400 pt-1 leading-relaxed">
+                      Ведущий запускает матч. Система выбирает подходящее дело и распределяет роли.
                     </div>
                     {hasRoomHostControl && (
                       <div className="mt-3 flex justify-center sm:justify-start">
                         <Button
-                          className="h-12 min-w-[220px] justify-center rounded-xl gap-2 bg-red-600 px-6 text-base hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500 sm:h-10 sm:min-w-0 sm:px-4 sm:text-sm"
+                          className="h-12 w-full justify-center rounded-xl gap-2 bg-red-600 px-6 text-base hover:bg-red-500 text-white border-0 disabled:bg-zinc-800 disabled:text-zinc-500 sm:h-10 sm:w-auto sm:min-w-[220px] sm:px-5 sm:text-sm"
                           onClick={startGame}
                           disabled={startGameLoading || !canStartRoomNow}
                         >
@@ -17814,14 +17813,14 @@ export default function App() {
       >
         <CourtAtmosphereBackground />
         {gameObservers.length > 0 && (
-          <div className="absolute right-4 top-4 z-20 hidden sm:block sm:right-6 sm:top-6">
+          <div className="absolute left-4 top-4 z-20 hidden lg:block lg:left-6 lg:top-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => setObserverListDialogOpen(true)}
-              className="h-9 rounded-lg border-zinc-700 bg-zinc-900/85 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 gap-1.5 px-3"
+              className="h-11 rounded-xl border-zinc-600 bg-zinc-900/92 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 gap-2 px-4 text-sm"
             >
-              <Eye className="h-4 w-4" />
+              <Eye className="h-4.5 w-4.5" />
               {gameObservers.length}
             </Button>
           </div>
@@ -18196,7 +18195,7 @@ export default function App() {
                   variant="outline"
                   onClick={() => setObserverListDialogOpen(true)}
                   aria-label="Открыть список наблюдателей"
-                  className="absolute right-4 top-4 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 sm:hidden"
+                  className="absolute right-3 top-3 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:hidden"
                 >
                   <Eye className="h-4 w-4" />
                   {gameObservers.length}
@@ -18432,7 +18431,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`h-[320px] sm:h-[380px] rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`min-h-[240px] flex-1 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
@@ -19033,7 +19032,7 @@ export default function App() {
             </InfoBlock>
           </div>
           {matchExpiresAt !== null && !game.finished && (
-            <div className="mt-2 h-11 w-full rounded-2xl px-3.5 inline-flex items-center justify-center gap-2 border border-zinc-700 bg-zinc-900/90 text-zinc-100 shadow-[0_12px_30px_rgba(0,0,0,0.45)] sm:justify-start">
+            <div className="mt-2 h-11 w-full rounded-2xl px-3.5 inline-flex items-center justify-center gap-2 border border-zinc-700 bg-zinc-900/90 text-zinc-100 shadow-[0_12px_30px_rgba(0,0,0,0.45)] md:fixed md:right-5 md:bottom-[0.65rem] md:z-30 md:mt-0 md:w-auto md:max-w-none md:justify-start">
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-900/50">
                 <Clock3 className="h-3.5 w-3.5" />
               </span>
@@ -19050,7 +19049,7 @@ export default function App() {
             onOpenChange={setContextHelpOpen}
             query={contextHelpQuery}
             onQueryChange={setContextHelpQuery}
-            floatingOffsetClass="bottom-[5.85rem] sm:bottom-[5.55rem]"
+            floatingOffsetClass="bottom-3 md:bottom-[5.55rem]"
           />
         </div>
         {renderPublicProfileDialog()}
