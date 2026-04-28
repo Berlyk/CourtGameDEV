@@ -17784,11 +17784,11 @@ export default function App() {
             : "max-h-[46vh] xl:max-h-[460px]";
     const lawyerChatHeightClass =
       warningTargets.length >= 7
-        ? "h-[min(40vh,430px)]"
+        ? "h-[min(44vh,470px)]"
         : warningTargets.length >= 6
-          ? "h-[min(36vh,360px)]"
+          ? "h-[min(42vh,420px)]"
           : warningTargets.length === 5
-            ? "h-[min(34vh,330px)]"
+            ? "h-[min(38vh,380px)]"
             : warningTargets.length === 4
               ? "h-[min(30vh,290px)]"
               : "h-[min(29vh,300px)]";
