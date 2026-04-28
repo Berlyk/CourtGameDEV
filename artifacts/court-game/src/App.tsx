@@ -11791,7 +11791,7 @@ export default function App() {
                 </div>
                 <Button
                   variant="outline"
-                  className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                  className="h-11 rounded-xl border-zinc-700 bg-zinc-900 px-5 text-base font-semibold text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                   onClick={() => {
                     void requestLeaveProfile();
                   }}
@@ -11799,9 +11799,9 @@ export default function App() {
                   Назад
                 </Button>
               </div>
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
+              <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
                 <div
-                  className="relative h-[158px] md:min-h-[122px] p-3.5 md:p-6 flex items-start md:items-end cursor-pointer group/banner"
+                  className="relative h-[176px] md:min-h-[122px] p-3.5 md:p-6 flex items-start md:items-end cursor-pointer group/banner"
                   style={getBannerStyle(profileBannerDraft, profileAvatarDraft, playerName || "Игрок")}
                   onClick={() => {
                     if (profileBannerLocked) {
@@ -16818,6 +16818,19 @@ export default function App() {
         className="relative isolate min-h-screen bg-[#0b0b0f] text-zinc-100 p-4 sm:p-6 md:p-10"
       >
         <CourtAtmosphereBackground />
+        {lobbyObservers.length > 0 && (
+          <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setObserverListDialogOpen(true)}
+              className="h-10 min-w-[52px] rounded-xl border-zinc-600 bg-zinc-900/92 px-3 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              {lobbyObservers.length}
+            </Button>
+          </div>
+        )}
         {canRenderRoleDialog && roleDialogTargetPlayer && (
           <Dialog
             open={lobbyRoleDialogOpen}
@@ -17328,17 +17341,6 @@ export default function App() {
           >
             <Card className="rounded-[28px] shadow-sm bg-zinc-900/95 border-zinc-800 text-zinc-100">
               <CardContent className="relative p-4 sm:p-6 md:p-7 flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setObserverListDialogOpen(true)}
-                    aria-label="Открыть список наблюдателей"
-                    className="absolute !left-auto !right-3 !top-3 !bottom-auto z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:h-10 lg:min-w-[56px] lg:px-3"
-                    style={{ left: "auto", right: "0.75rem", top: "0.75rem", insetInlineStart: "auto", insetInlineEnd: "0.75rem" }}
-                  >
-                    <Eye className="h-4 w-4" />
-                    {lobbyObservers.length}
-                  </Button>
                   <div className="relative w-full space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm text-zinc-400">
@@ -17774,12 +17776,12 @@ export default function App() {
             : "max-h-[46vh] xl:max-h-[460px]";
     const lawyerChatHeightClass =
       warningTargets.length >= 7
-        ? "h-[52vh] xl:h-[560px]"
+        ? "max-h-[52vh] xl:max-h-[560px]"
         : warningTargets.length >= 6
-          ? "h-[50vh] xl:h-[520px]"
+          ? "max-h-[50vh] xl:max-h-[520px]"
           : warningTargets.length === 4
-            ? "h-[41vh] xl:h-[400px]"
-            : "h-[46vh] xl:h-[460px]";
+            ? "max-h-[41vh] xl:max-h-[400px]"
+            : "max-h-[46vh] xl:max-h-[460px]";
     return (
       <motion.div
         key="game"
@@ -18153,17 +18155,18 @@ export default function App() {
 
           <Card className="rounded-[28px] shadow-sm border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 text-zinc-100">
             <CardContent className="relative p-4 sm:p-6 md:p-8 space-y-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setObserverListDialogOpen(true)}
-                aria-label="Открыть список наблюдателей"
-                className="absolute !left-auto !right-2 !top-2 !bottom-auto z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:!right-4 lg:!top-4 lg:h-10 lg:min-w-[56px] lg:px-3"
-                style={{ left: "auto", right: "0.5rem", top: "0.5rem", insetInlineStart: "auto", insetInlineEnd: "0.5rem" }}
-              >
-                <Eye className="h-4 w-4" />
-                {gameObservers.length}
-              </Button>
+              <div className="absolute right-2 top-2 z-[2] lg:right-4 lg:top-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setObserverListDialogOpen(true)}
+                  aria-label="Открыть список наблюдателей"
+                  className="h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:h-10 lg:min-w-[56px] lg:px-3"
+                >
+                  <Eye className="h-4 w-4" />
+                  {gameObservers.length}
+                </Button>
+              </div>
               <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
                 <div className="relative w-full max-w-3xl space-y-2">
                   <div className="flex items-start justify-between gap-3">
