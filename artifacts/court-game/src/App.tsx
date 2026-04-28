@@ -3999,7 +3999,6 @@ function PlayerCard({
     player.roleKey === "defenseLawyer" ||
     playerRoleLabel === "Адвокат ответчика";
   const isTwoLineLawyerRole = isPlaintiffLawyerRole || isDefendantLawyerRole;
-  const stackRoleAndKickOnMobile = !!rolePickerButton && !!canKick && !!onKick;
   const playerRoleLabelNode =
     isPlaintiffLawyerRole
       ? (
@@ -4078,20 +4077,14 @@ function PlayerCard({
               </div>
             </div>
           </button>
-          <div
-            className={`relative z-10 ml-auto flex shrink-0 items-end gap-1.5 sm:items-center sm:flex-row sm:gap-2 ${
-              stackRoleAndKickOnMobile ? "flex-col" : "flex-row"
-            }`}
-          >
+          <div className="relative z-10 ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             {rolePickerButton ? (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 title={rolePickerButton.hint}
-                className={`h-7 max-w-[116px] rounded-full border px-2 text-[10px] text-zinc-100 transition sm:order-none sm:h-8 sm:max-w-none sm:px-3 sm:text-sm ${
-                  stackRoleAndKickOnMobile ? "order-2" : "order-none"
-                } ${
+                className={`h-7 max-w-[114px] rounded-full border px-2 text-[10px] text-zinc-100 transition sm:h-8 sm:max-w-none sm:px-3 sm:text-sm ${
                   rolePickerButton.locked
                     ? "border-zinc-700 bg-zinc-900/75 text-zinc-300 hover:bg-zinc-800"
                     : "border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800"
@@ -4121,15 +4114,13 @@ function PlayerCard({
               </motion.div>
             )}
             {canKick && onKick && (
-                <Button
-                  size="sm"
-                className={`h-7 shrink-0 rounded-full px-2 gap-1.5 bg-red-600/90 hover:bg-red-500 text-[10px] text-white border-0 shadow-sm shadow-red-900/30 sm:order-none sm:h-8 sm:px-3 sm:text-sm ${
-                  stackRoleAndKickOnMobile ? "order-1" : "order-none"
-                }`}
+              <Button
+                size="sm"
+                className="h-7 shrink-0 rounded-full px-2 gap-1.5 bg-red-600/90 hover:bg-red-500 text-[10px] text-white border-0 shadow-sm shadow-red-900/30 sm:h-8 sm:px-3 sm:text-sm"
                 onClick={onKick}
               >
                 <UserX className="w-3.5 h-3.5" />
-                Kick
+                <span className="hidden sm:inline">Kick</span>
               </Button>
             )}
           </div>
@@ -16833,6 +16824,7 @@ export default function App() {
     const neededPlayersForStart = isQuickRoomMode
       ? Math.max(0, 3 - activeLobbyPlayersCount)
       : Math.max(0, roomMaxPlayers - activeLobbyPlayersCount);
+    const hasCrowdedLobby = room.players.length >= 8;
     return (
       <motion.div
         key="room"
@@ -17372,8 +17364,7 @@ export default function App() {
                       variant="outline"
                       onClick={() => setObserverListDialogOpen(true)}
                       aria-label="Открыть список наблюдателей"
-                      className="absolute right-3 top-3 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:hidden"
-                      style={{ left: "auto" }}
+                      className="absolute !left-auto !right-3 top-3 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:hidden"
                     >
                       <Eye className="h-4 w-4" />
                       {lobbyObservers.length}
@@ -17422,7 +17413,7 @@ export default function App() {
                     )}
                   </div>
                 </div>
-                <div className="-mt-1 flex w-full md:w-auto flex-nowrap items-center gap-3 md:mt-0 md:self-center">
+                <div className="mt-1 flex w-full md:w-auto flex-nowrap items-center gap-3 md:mt-0 md:self-center">
                   <Button
                     variant="secondary"
                     className="rounded-xl gap-2 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
@@ -17494,7 +17485,7 @@ export default function App() {
                     </AnimatePresence>
                   </div>
                   {neededPlayersForStart > 0 && (
-                    <div className="mt-2 text-center text-sm text-zinc-500">
+                    <div className="mt-2 text-center text-xs text-zinc-500">
                       Ожидание игроков... (нужно ещё минимум {neededPlayersForStart})
                     </div>
                   )}
@@ -17549,9 +17540,6 @@ export default function App() {
                         );
                       })()}
                     </div>
-                    <div className="pt-1 text-[13px] leading-[1.45] text-zinc-400 sm:text-sm sm:leading-relaxed">
-                      Ведущий запускает матч. Система выбирает дело и роли.
-                    </div>
                     {hasRoomHostControl && (
                       <div className="mt-3 flex justify-center sm:justify-start">
                         <Button
@@ -17574,7 +17562,9 @@ export default function App() {
                   <div className="space-y-3">
                     <div
                       ref={lobbyChatScrollRef}
-                      className={`h-[360px] md:h-[420px] rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS} ${
+                        hasCrowdedLobby ? "h-[420px] md:h-[520px]" : "h-[360px] md:h-[420px]"
+                      }`}
                     >
                       <div className="space-y-2">
                         {lobbyChatMessages.length === 0 && (
@@ -18205,8 +18195,7 @@ export default function App() {
                   variant="outline"
                   onClick={() => setObserverListDialogOpen(true)}
                   aria-label="Открыть список наблюдателей"
-                  className="absolute right-2 top-2 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:hidden"
-                  style={{ left: "auto" }}
+                  className="absolute !left-auto !right-2 top-2 z-[2] h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:hidden"
                 >
                   <Eye className="h-4 w-4" />
                   {gameObservers.length}
@@ -18486,7 +18475,7 @@ export default function App() {
                         placeholder={
                           isLawyerRole ? "Сообщение клиенту..." : "Сообщение адвокату..."
                         }
-                        className="h-12 sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
+                        className="h-14 sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
                       />
                       <Button
                         className="h-12 sm:h-10 rounded-xl border-0 bg-zinc-100 text-zinc-950 hover:bg-zinc-200 sm:px-5"
@@ -19043,12 +19032,12 @@ export default function App() {
             </InfoBlock>
           </div>
           {matchExpiresAt !== null && !game.finished && (
-            <div className="mt-2 h-11 w-full rounded-2xl px-3.5 inline-flex items-center justify-center gap-2 border border-zinc-700 bg-zinc-900/90 text-zinc-100 shadow-[0_12px_30px_rgba(0,0,0,0.45)] md:fixed md:right-5 md:bottom-[0.65rem] md:z-30 md:mt-0 md:w-auto md:max-w-none md:justify-start">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-900/50">
-                <Clock3 className="h-3.5 w-3.5" />
+            <div className="mt-2 h-12 w-full rounded-2xl px-4 inline-flex items-center justify-center gap-3 border border-zinc-700 bg-zinc-900/90 text-zinc-100 shadow-[0_12px_30px_rgba(0,0,0,0.45)] md:fixed md:right-5 md:bottom-[0.65rem] md:z-30 md:mt-0 md:h-11 md:w-auto md:max-w-none md:gap-2 md:px-3.5 md:justify-start">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-900/50 md:h-6 md:w-6">
+                <Clock3 className="h-4 w-4 md:h-3.5 md:w-3.5" />
               </span>
-              <span className="text-sm font-semibold leading-none">До авто-закрытия:</span>
-              <span className="text-sm font-semibold text-red-300 leading-none">
+              <span className="text-base font-semibold leading-none md:text-sm">До авто-закрытия:</span>
+              <span className="text-base font-semibold text-red-300 leading-none md:text-sm">
                 {String(matchHoursLeft).padStart(2, "0")}:
                 {String(matchMinutesLeft).padStart(2, "0")}:
                 {String(matchSecondsLeft).padStart(2, "0")}
