@@ -17784,12 +17784,12 @@ export default function App() {
             : "max-h-[46vh] xl:max-h-[460px]";
     const lawyerChatHeightClass =
       warningTargets.length >= 7
-        ? "max-h-[52vh] xl:max-h-[560px]"
+        ? "h-[52vh] max-h-[52vh] xl:h-[560px] xl:max-h-[560px]"
         : warningTargets.length >= 6
-          ? "max-h-[50vh] xl:max-h-[520px]"
+          ? "h-[50vh] max-h-[50vh] xl:h-[520px] xl:max-h-[520px]"
           : warningTargets.length === 4
-            ? "max-h-[41vh] xl:max-h-[400px]"
-            : "max-h-[46vh] xl:max-h-[460px]";
+            ? "h-[41vh] max-h-[41vh] xl:h-[400px] xl:max-h-[400px]"
+            : "h-[46vh] max-h-[46vh] xl:h-[460px] xl:max-h-[460px]";
     return (
       <motion.div
         key="game"
@@ -18184,9 +18184,9 @@ export default function App() {
                     variant="outline"
                     onClick={() => setObserverListDialogOpen(true)}
                     aria-label="Открыть список наблюдателей"
-                    className="h-6 min-w-[36px] rounded-lg border-zinc-600 bg-zinc-900/95 px-1 text-xs text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1 lg:h-10 lg:min-w-[56px] lg:rounded-xl lg:px-3 lg:text-base lg:gap-1.5"
+                    className="h-[22px] min-w-[34px] rounded-md border-zinc-600 bg-zinc-900/95 px-1 text-[11px] text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-0.5 lg:h-10 lg:min-w-[56px] lg:rounded-xl lg:px-3 lg:text-base lg:gap-1.5"
                   >
-                    <Eye className="h-3 w-3 lg:h-4 lg:w-4" />
+                    <Eye className="h-2.5 w-2.5 lg:h-4 lg:w-4" />
                     {gameObservers.length}
                   </Button>
                 </div>
@@ -18421,7 +18421,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`min-h-[220px] flex-1 ${lawyerChatHeightClass} rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`min-h-[220px] ${lawyerChatHeightClass} rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
