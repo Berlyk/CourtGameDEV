@@ -11782,10 +11782,10 @@ export default function App() {
           <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100 overflow-visible">
             <CardContent className="p-6 md:p-8 space-y-6">
               <div className="relative flex items-start justify-between gap-4">
-                <div className="min-w-0 pr-24 sm:pr-0">
+                <div className="min-w-0 w-full">
                   <div className="text-sm uppercase tracking-[0.16em] text-zinc-500">Профиль</div>
                   <h2 className="mt-2 text-3xl font-bold">Личный кабинет</h2>
-                  <p className="mt-2 max-w-xl text-base leading-relaxed text-zinc-400">
+                  <p className="mt-2 max-w-[310px] text-[15px] leading-6 text-zinc-400 sm:max-w-xl sm:text-base sm:leading-relaxed">
                     Управляйте профилем, безопасностью и личной статистикой.
                   </p>
                 </div>
@@ -17776,12 +17776,12 @@ export default function App() {
             : "max-h-[46vh] xl:max-h-[460px]";
     const lawyerChatHeightClass =
       warningTargets.length >= 7
-        ? "max-h-[42vh] xl:max-h-[500px]"
+        ? "h-[clamp(280px,48vh,560px)]"
         : warningTargets.length >= 6
-          ? "max-h-[39vh] xl:max-h-[460px]"
+          ? "h-[clamp(270px,46vh,520px)]"
           : warningTargets.length === 4
-            ? "max-h-[34vh] xl:max-h-[380px]"
-            : "max-h-[36vh] xl:max-h-[400px]";
+            ? "h-[clamp(250px,40vh,440px)]"
+            : "h-[clamp(260px,42vh,480px)]";
     return (
       <motion.div
         key="game"
@@ -17791,6 +17791,20 @@ export default function App() {
         className="relative isolate min-h-screen overflow-x-hidden bg-[#0b0b0f] text-zinc-100 p-4 sm:p-6 md:p-10"
       >
         <CourtAtmosphereBackground />
+        {gameObservers.length > 0 && (
+          <div className="absolute left-4 top-4 z-20 hidden lg:block">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setObserverListDialogOpen(true)}
+              aria-label="Открыть список наблюдателей"
+              className="h-10 min-w-[56px] rounded-xl border-zinc-600 bg-zinc-900/95 px-3 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5"
+            >
+              <Eye className="h-4 w-4" />
+              {gameObservers.length}
+            </Button>
+          </div>
+        )}
         {game.venueUrl && (
           <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
             <Button
@@ -18156,7 +18170,7 @@ export default function App() {
           <Card className="rounded-[28px] shadow-sm border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 text-zinc-100">
             <CardContent className="relative p-4 sm:p-6 md:p-8 space-y-6">
               {gameObservers.length > 0 && (
-                <div className="absolute right-5 top-5 z-[2] lg:left-5 lg:right-auto lg:top-5">
+                <div className="absolute right-3 top-3 z-[2] lg:hidden">
                   <Button
                     type="button"
                     variant="outline"
@@ -18380,9 +18394,9 @@ export default function App() {
             </InfoBlock>
 
             <InfoBlock title="Влияние" icon={<Gavel className="w-5 h-5" />}>
-              <div className="flex min-h-[320px] min-w-0 flex-col gap-3 overflow-hidden md:min-h-[360px]">
+              <div className="flex h-full min-h-[320px] min-w-0 flex-col gap-3 overflow-hidden md:min-h-[360px]">
                 {influenceView === "chat" && lawyerChatPartner ? (
-                  <div className="flex min-h-0 min-w-0 flex-col gap-3">
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-zinc-300">
                         Чат с {lawyerChatPartner.name}
