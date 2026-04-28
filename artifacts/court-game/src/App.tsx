@@ -17782,7 +17782,14 @@ export default function App() {
           : warningTargets.length === 4
             ? "max-h-[41vh] xl:max-h-[400px]"
             : "max-h-[46vh] xl:max-h-[460px]";
-    const lawyerChatHeightClass = warningPanelListHeightClass;
+    const lawyerChatHeightClass =
+      warningTargets.length >= 7
+        ? "h-[min(52vh,560px)]"
+        : warningTargets.length >= 6
+          ? "h-[min(50vh,520px)]"
+          : warningTargets.length === 4
+            ? "h-[min(41vh,400px)]"
+            : "h-[min(46vh,460px)]";
     return (
       <motion.div
         key="game"
@@ -18171,15 +18178,15 @@ export default function App() {
           <Card className="rounded-[28px] shadow-sm border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 text-zinc-100">
             <CardContent className="relative p-4 sm:p-6 md:p-8 space-y-6">
               {gameObservers.length > 0 && (
-                <div className="absolute right-3 top-3 z-[2] lg:hidden">
+                <div className="absolute right-2 top-1.5 z-[2] lg:hidden">
                   <Button
                     type="button"
                     variant="ghost"
                     onClick={() => setObserverListDialogOpen(true)}
                     aria-label="Открыть список наблюдателей"
-                    className="h-5 min-w-0 rounded-none border-0 bg-transparent px-0 text-[11px] text-zinc-100 shadow-none hover:bg-transparent hover:text-zinc-100 gap-1 lg:h-10 lg:min-w-[56px] lg:rounded-xl lg:border-zinc-600 lg:bg-zinc-900/95 lg:px-3 lg:text-base lg:shadow-[0_0_0_1px_rgba(39,39,42,0.55)] lg:hover:border-zinc-400 lg:hover:bg-zinc-800/95 lg:gap-1.5"
+                    className="h-7 min-w-[42px] rounded-bl-2xl rounded-tr-[20px] border border-r-0 border-t-0 border-zinc-700/80 bg-zinc-950/70 px-2 text-xs text-zinc-100 shadow-[0_10px_22px_rgba(0,0,0,0.28)] backdrop-blur hover:border-zinc-500/90 hover:bg-zinc-900/75 hover:text-zinc-100 gap-1 lg:h-10 lg:min-w-[56px] lg:rounded-xl lg:border-zinc-600 lg:bg-zinc-900/95 lg:px-3 lg:text-base lg:shadow-[0_0_0_1px_rgba(39,39,42,0.55)] lg:hover:border-zinc-400 lg:hover:bg-zinc-800/95 lg:gap-1.5"
                   >
-                    <Eye className="h-2.5 w-2.5 lg:h-4 lg:w-4" />
+                    <Eye className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                     {gameObservers.length}
                   </Button>
                 </div>
@@ -18414,7 +18421,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`${lawyerChatHeightClass} min-h-0 flex-1 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`${lawyerChatHeightClass} min-h-0 shrink-0 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
