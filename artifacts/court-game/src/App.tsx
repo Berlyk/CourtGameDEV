@@ -11785,8 +11785,10 @@ export default function App() {
                 <div className="min-w-0 w-full">
                   <div className="text-sm uppercase tracking-[0.16em] text-zinc-500">Профиль</div>
                   <h2 className="mt-2 text-3xl font-bold">Личный кабинет</h2>
-                  <p className="mt-2 max-w-[232px] text-[15px] leading-6 text-zinc-400 sm:max-w-xl sm:text-base sm:leading-relaxed">
-                    Управляйте профилем,<br className="sm:hidden" /> безопасностью и личной статистикой.
+                  <p className="mt-2 max-w-[320px] text-[13px] leading-5 text-zinc-400 sm:max-w-xl sm:text-base sm:leading-relaxed">
+                    <span className="whitespace-nowrap">Управляйте профилем, безопасностью</span>
+                    <br className="sm:hidden" />
+                    <span className="whitespace-nowrap">и личной статистикой.</span>
                   </p>
                 </div>
                 <Button
