@@ -11781,17 +11781,17 @@ export default function App() {
         <div className="max-w-7xl mx-auto">
           <Card className="rounded-[28px] border-zinc-800 bg-zinc-900/95 text-zinc-100 overflow-visible">
             <CardContent className="p-6 md:p-8 space-y-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="min-w-0 pr-24 sm:pr-0">
                   <div className="text-sm uppercase tracking-[0.16em] text-zinc-500">Профиль</div>
                   <h2 className="mt-2 text-3xl font-bold">Личный кабинет</h2>
-                  <p className="mt-2 text-zinc-400">
+                  <p className="mt-2 max-w-xl text-base leading-relaxed text-zinc-400">
                     Управляйте профилем, безопасностью и личной статистикой.
                   </p>
                 </div>
                 <Button
                   variant="outline"
-                  className="h-11 rounded-xl border-zinc-700 bg-zinc-900 px-5 text-base font-semibold text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                  className="absolute right-0 top-0 h-12 rounded-xl border-zinc-700 bg-zinc-900 px-6 text-base font-semibold text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 sm:static"
                   onClick={() => {
                     void requestLeaveProfile();
                   }}
@@ -17776,12 +17776,12 @@ export default function App() {
             : "max-h-[46vh] xl:max-h-[460px]";
     const lawyerChatHeightClass =
       warningTargets.length >= 7
-        ? "max-h-[52vh] xl:max-h-[560px]"
+        ? "max-h-[42vh] xl:max-h-[500px]"
         : warningTargets.length >= 6
-          ? "max-h-[50vh] xl:max-h-[520px]"
+          ? "max-h-[39vh] xl:max-h-[460px]"
           : warningTargets.length === 4
-            ? "max-h-[41vh] xl:max-h-[400px]"
-            : "max-h-[46vh] xl:max-h-[460px]";
+            ? "max-h-[34vh] xl:max-h-[380px]"
+            : "max-h-[36vh] xl:max-h-[400px]";
     return (
       <motion.div
         key="game"
@@ -18155,18 +18155,20 @@ export default function App() {
 
           <Card className="rounded-[28px] shadow-sm border border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 text-zinc-100">
             <CardContent className="relative p-4 sm:p-6 md:p-8 space-y-6">
-              <div className="absolute right-2 top-2 z-[2] lg:right-4 lg:top-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setObserverListDialogOpen(true)}
-                  aria-label="Открыть список наблюдателей"
-                  className="h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:h-10 lg:min-w-[56px] lg:px-3"
-                >
-                  <Eye className="h-4 w-4" />
-                  {gameObservers.length}
-                </Button>
-              </div>
+              {gameObservers.length > 0 && (
+                <div className="absolute right-5 top-5 z-[2] lg:left-5 lg:right-auto lg:top-5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setObserverListDialogOpen(true)}
+                    aria-label="Открыть список наблюдателей"
+                    className="h-8 min-w-[44px] rounded-xl border-zinc-600 bg-zinc-900/95 px-2 text-zinc-100 shadow-[0_0_0_1px_rgba(39,39,42,0.55)] hover:border-zinc-400 hover:bg-zinc-800/95 hover:text-zinc-100 gap-1.5 lg:h-10 lg:min-w-[56px] lg:px-3"
+                  >
+                    <Eye className="h-4 w-4" />
+                    {gameObservers.length}
+                  </Button>
+                </div>
+              )}
               <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
                 <div className="relative w-full max-w-3xl space-y-2">
                   <div className="flex items-start justify-between gap-3">
@@ -18183,7 +18185,7 @@ export default function App() {
                   </h1>
                 </div>
 
-                <div className="min-w-[260px] space-y-3">
+                <div className="min-w-[260px] space-y-2 max-sm:-mt-2 sm:space-y-3 xl:min-w-[320px] xl:space-y-4">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={currentStage}
@@ -18191,21 +18193,21 @@ export default function App() {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -10 }}
                       transition={{ duration: 0.25 }}
-                      className="text-sm font-medium"
+                      className="text-sm font-medium xl:text-base"
                     >
                       Этап: {currentStage}
                     </motion.div>
                   </AnimatePresence>
                   <Progress
                     value={stageProgress}
-                    className="h-3 bg-zinc-800 [&>div]:bg-red-600 [&>div]:transition-all [&>div]:duration-500"
+                    className="h-3 bg-zinc-800 [&>div]:bg-red-600 [&>div]:transition-all [&>div]:duration-500 xl:h-4"
                   />
                   <div className="flex flex-wrap gap-3">
                     {(isHost || isJudge) && (
                       <>
                         <Button
                           variant="outline"
-                          className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-40"
+                          className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-40 xl:h-12 xl:px-5 xl:text-base"
                           onClick={retreatStage}
                           disabled={game.stageIndex <= 0 || game.finished}
                         >
@@ -18213,7 +18215,7 @@ export default function App() {
                         </Button>
                         <Button
                           variant="secondary"
-                          className="rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
+                          className="rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0 disabled:bg-zinc-800 disabled:text-zinc-500 xl:h-12 xl:px-5 xl:text-base"
                           onClick={advanceStage}
                           disabled={
                             game.stageIndex >= gameStages.length - 1 ||
@@ -18226,7 +18228,7 @@ export default function App() {
                     )}
                     <Button
                       variant="outline"
-                      className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                      className="rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 xl:h-12 xl:px-5 xl:text-base"
                       onClick={returnHomeWithSession}
                     >
                       Выйти
@@ -18378,9 +18380,9 @@ export default function App() {
             </InfoBlock>
 
             <InfoBlock title="Влияние" icon={<Gavel className="w-5 h-5" />}>
-              <div className="flex h-full min-h-[320px] min-w-0 flex-col gap-3 overflow-hidden md:min-h-[360px]">
+              <div className="flex min-h-[320px] min-w-0 flex-col gap-3 overflow-hidden md:min-h-[360px]">
                 {influenceView === "chat" && lawyerChatPartner ? (
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+                  <div className="flex min-h-0 min-w-0 flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <div className="text-sm text-zinc-300">
                         Чат с {lawyerChatPartner.name}
@@ -18397,7 +18399,7 @@ export default function App() {
                     </div>
                     <div
                       ref={lawyerChatScrollRef}
-                      className={`min-h-[220px] flex-1 ${lawyerChatHeightClass} rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
+                      className={`min-h-[220px] ${lawyerChatHeightClass} rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
                       <div className="space-y-2 min-w-0">
                         {lawyerChatMessages.length === 0 && (
