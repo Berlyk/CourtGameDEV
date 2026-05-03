@@ -682,7 +682,7 @@ function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
             preserveAspectRatio="xMidYMid meet"
           />
           <image
-            href="https://solana.com/src/img/branding/solanaLogoMark.svg"
+            href="https://upload.wikimedia.org/wikipedia/commons/archive/e/ef/20250913071644%21Solana-sol-logo-horizontal-2025.svg"
             x="184"
             y="74"
             width="52"
@@ -4000,24 +4000,7 @@ function PlayerCard({
     playerRoleLabel === "Адвокат ответчика";
   const isTwoLineLawyerRole = isPlaintiffLawyerRole || isDefendantLawyerRole;
   const hasRolePickerButton = !!rolePickerButton;
-  const playerRoleLabelNode =
-    isPlaintiffLawyerRole
-      ? (
-          <>
-            Адвокат
-            <br />
-            истца
-          </>
-        )
-      : isDefendantLawyerRole
-        ? (
-            <>
-              Адвокат
-              <br />
-              ответчика
-            </>
-          )
-        : playerRoleLabel;
+  const playerRoleLabelNode = playerRoleLabel;
   const disconnectProgress = isDisconnected
     ? 1 - Math.min(1, disconnectRemainingMs / RECONNECT_GRACE_MS)
     : 1;
@@ -4069,7 +4052,7 @@ function PlayerCard({
               <div
                 className={
                   isTwoLineLawyerRole
-                    ? "max-w-[132px] whitespace-normal break-words text-[11px] leading-[1.06] text-zinc-200 sm:max-w-[220px] sm:text-[13px]"
+                    ? "max-w-[132px] whitespace-normal break-words text-[11px] leading-[1.08] text-zinc-200 sm:max-w-none sm:whitespace-nowrap sm:break-normal sm:text-[13px]"
                     : "max-w-[132px] truncate whitespace-nowrap text-[11px] leading-tight text-zinc-200 sm:max-w-[220px] sm:text-[13px]"
                 }
                 style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85), 0 0 10px rgba(0,0,0,0.45)" }}
@@ -8137,12 +8120,12 @@ export default function App() {
                           ) : null}
                         </div>
                       ) : null}
-                      <div className="mt-2 text-xs text-zinc-300 [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
-                        Профиль с {createdAtLabel || "неизвестной даты"}
-                      </div>
                     </div>
                   </div>
                 </div>
+              </div>
+              <div className="px-1 text-xs text-zinc-400">
+                С нами с: {createdAtLabel || "неизвестной даты"}
               </div>
               {(viewPlayerProfile.gender || typeof viewPlayerProfile.age === "number") && (
                 <div className="grid grid-cols-1 gap-3 text-sm">
@@ -10246,12 +10229,6 @@ export default function App() {
       );
       return;
     }
-    if (!isHost && isSelf && !room.usePreferredRoles) {
-      const selfPlayer = room.players.find((player) => player.id === selfPlayerId);
-      if (selfPlayer?.roleAssignmentSource === "manual") {
-        return;
-      }
-    }
     socket.emit("choose_lobby_role", {
       code: room.code,
       sessionToken: roomControlSessionToken,
@@ -11803,7 +11780,7 @@ export default function App() {
               </div>
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 overflow-hidden">
                 <div
-                  className="relative h-[176px] md:min-h-[122px] p-3.5 md:p-6 flex items-start md:items-end cursor-pointer group/banner"
+                  className="relative h-[138px] p-3 md:h-auto md:min-h-[122px] md:p-6 flex items-start md:items-end cursor-pointer group/banner"
                   style={getBannerStyle(profileBannerDraft, profileAvatarDraft, playerName || "Игрок")}
                   onClick={() => {
                     if (profileBannerLocked) {
@@ -11819,14 +11796,14 @@ export default function App() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
                   <div className="absolute inset-0 opacity-0 group-hover/banner:opacity-100 transition-opacity bg-black/15" />
                   {profileBannerLocked && (
-                    <div className="pointer-events-none absolute right-2 top-2 inline-flex h-7 items-center gap-1.5 rounded-full border border-zinc-500/80 bg-zinc-900/80 px-2.5 text-[11px] font-semibold text-zinc-100 md:right-3 md:top-3 md:h-8 md:px-3 md:text-xs">
+                    <div className="pointer-events-none absolute right-2 top-2 inline-flex h-6 items-center gap-1 rounded-full border border-zinc-500/80 bg-zinc-900/80 px-2 text-[10px] font-semibold text-zinc-100 md:right-3 md:top-3 md:h-8 md:gap-1.5 md:px-3 md:text-xs">
                       <Lock className="h-3.5 w-3.5" />
                       <span>Баннер</span>
                     </div>
                   )}
 
                   <div className="relative z-10 w-full md:hidden">
-                    <div className="pt-5 h-full flex flex-col justify-between">
+                    <div className="pt-3 h-full flex flex-col justify-between">
                       <div className="flex items-center gap-2.5">
                         <div
                           className="relative shrink-0 cursor-pointer group/avatar"
@@ -11835,7 +11812,7 @@ export default function App() {
                             avatarInputRef.current?.click();
                           }}
                         >
-                          <Avatar src={profileAvatarDraft} name={playerName || "?"} size={72} />
+                          <Avatar src={profileAvatarDraft} name={playerName || "?"} size={64} />
                           <div className="absolute inset-0 rounded-full bg-black/55 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
                             <Camera className="w-4 h-4 text-white" />
                           </div>
@@ -11866,16 +11843,13 @@ export default function App() {
                             <span className="inline-flex h-5 items-center rounded-full border border-zinc-600 bg-black/35 px-1.5 whitespace-nowrap">
                               Пол: {genderLabel}
                             </span>
-                            <span className="inline-flex h-5 items-center rounded-full border border-zinc-600 bg-black/35 px-1.5 whitespace-nowrap">
-                              С нами с: {registeredAtLabel}
-                            </span>
                           </div>
                         </div>
                       </div>
                       <div className="mt-2">
                         <Button
                           variant="outline"
-                          className="h-8 w-full rounded-xl border-zinc-500/70 bg-black/30 text-sm text-zinc-100 hover:bg-black/50 hover:text-zinc-100"
+                          className="h-7 w-full rounded-xl border-zinc-500/70 bg-black/30 text-xs text-zinc-100 hover:bg-black/50 hover:text-zinc-100"
                           onClick={(e) => {
                             e.stopPropagation();
                             void resetProfileMedia();
@@ -11925,9 +11899,6 @@ export default function App() {
                           <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
                             Пол: {genderLabel}
                           </span>
-                          <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
-                            С нами с: {registeredAtLabel}
-                          </span>
                         </div>
                       </div>
                     </div>
@@ -11944,6 +11915,9 @@ export default function App() {
                       </Button>
                     </div>
                   </div>
+                </div>
+                <div className="px-3 py-2 text-xs text-zinc-400 md:px-4">
+                  С нами с: {registeredAtLabel}
                 </div>
               </div>
               <input
@@ -12242,9 +12216,6 @@ export default function App() {
                           </div>
                           <div className="pl-0.5 text-[15px] font-normal leading-[2.0] text-zinc-200 md:text-[15px]">
                             Рейтинг открывается с подпиской «Стажер».
-                          </div>
-                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/85 px-2.5 py-1 text-[13px] font-normal leading-[2.0] text-zinc-400">
-                            До активации подписки рейтинговая прогрессия недоступна.
                           </div>
                         </div>
                       ) : (
@@ -16190,7 +16161,7 @@ export default function App() {
                                                       />
 
                                                       <image
-                                                        href="https://solana.com/src/img/branding/solanaLogoMark.svg"
+                                                        href="https://upload.wikimedia.org/wikipedia/commons/archive/e/ef/20250913071644%21Solana-sol-logo-horizontal-2025.svg"
                                                         x="206"
                                                         y="116"
                                                         width="100"
@@ -16781,7 +16752,6 @@ export default function App() {
         };
       }
       if (!isSelf) return null;
-      if (!usePreferredRoles && player.roleAssignmentSource === "manual") return null;
       if (!usePreferredRoles && !canChooseRoleInOtherLobbiesInRoom) return null;
       return {
         label: "Выбрать роль",
@@ -16801,8 +16771,7 @@ export default function App() {
           ? usePreferredRoles || canChooseRoleInOwnLobby
           : !usePreferredRoles && canLetPlayersChooseRoles
         : roleDialogTargetPlayer.id === (myLobbyPlayer?.id ?? roomControlPlayerId ?? myId) &&
-          (usePreferredRoles || canChooseRoleInOtherLobbiesInRoom) &&
-          (usePreferredRoles || roleDialogTargetPlayer.roleAssignmentSource !== "manual"));
+          (usePreferredRoles || canChooseRoleInOtherLobbiesInRoom));
     const canStartRoomNow = isQuickRoomMode
       ? activeLobbyPlayersCount >= 3
       : activeLobbyPlayersCount === roomMaxPlayers;

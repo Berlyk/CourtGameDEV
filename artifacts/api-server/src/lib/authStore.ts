@@ -1131,6 +1131,25 @@ async function ensureTables(): Promise<void> {
         SET selected_badge_key = NULL
         WHERE selected_badge_key = 'winner';
       `);
+      await pool.query(`
+        DELETE FROM auth_user_badges b
+        USING auth_users u
+        WHERE b.user_id = u.id
+          AND b.badge_key LIKE 'rank_%'
+          AND COALESCE(u.subscription_tier, 'free') = 'free'
+          AND u.subscription_start_at IS NULL
+          AND u.subscription_end_at IS NULL
+          AND COALESCE(u.subscription_is_lifetime, FALSE) = FALSE;
+      `);
+      await pool.query(`
+        UPDATE auth_users
+        SET selected_badge_key = NULL
+        WHERE selected_badge_key LIKE 'rank_%'
+          AND COALESCE(subscription_tier, 'free') = 'free'
+          AND subscription_start_at IS NULL
+          AND subscription_end_at IS NULL
+          AND COALESCE(subscription_is_lifetime, FALSE) = FALSE;
+      `);
 
       await pool.query(`
         CREATE TABLE IF NOT EXISTS auth_user_match_history (
@@ -2621,48 +2640,43 @@ function buildBadgeList(input: {
   const isBerly = isProtectedOwnerLogin(user.login);
   const canUseRating = !!subscription.capabilities.canUseRating;
   const hasRatingHistory = hasRatingHistoryFromSubscription(subscription);
-  const shouldShowRankBadges =
-    hasRatingHistory ||
-    canUseRating ||
-    rank.points > 0 ||
-    stats.totalMatches > 0;
   const badges: UserBadgeView[] = [];
   const roleStatsMap = new Map(stats.roleStats.map((row) => [row.roleKey, row]));
 
-  if (shouldShowRankBadges) {
-    for (let i = 0; i < RANK_DEFINITIONS.length; i += 1) {
-      const rankDef = RANK_DEFINITIONS[i];
-      const nextRankDef = RANK_DEFINITIONS[i + 1];
-      const isCurrentRank = rank.key === rankDef.key;
-      const progressCurrent = isCurrentRank
-        ? rank.progressCurrent
-        : rank.points >= rankDef.minPoints
-          ? Math.max(
-              0,
-              (nextRankDef?.minPoints ?? rankDef.minPoints + 1) - rankDef.minPoints,
-            )
-          : Math.max(0, rank.points - rankDef.minPoints);
-      const progressTarget = Math.max(
-        1,
-        (nextRankDef?.minPoints ?? rankDef.minPoints + 1) - rankDef.minPoints,
-      );
-      badges.push({
-        key: `rank_${rankDef.key}`,
-        title: rankDef.title,
-        description: `Доступен при достижении ранга «${rankDef.title}».`,
-        category: "rank",
-        active: isCurrentRank,
-        progressCurrent,
-        progressTarget,
-        progressLabel: isCurrentRank
-          ? "Текущий ранг"
-          : canUseRating && rank.points >= rankDef.minPoints
-            ? "Пройден"
-            : canUseRating
-              ? `${Math.max(0, rank.points)}/${rankDef.minPoints}`
-              : "Открывается с подпиской «Стажер»",
-      });
-    }
+  for (let i = 0; i < RANK_DEFINITIONS.length; i += 1) {
+    const rankDef = RANK_DEFINITIONS[i];
+    const nextRankDef = RANK_DEFINITIONS[i + 1];
+    const isCurrentRank = hasRatingHistory && rank.key === rankDef.key;
+    const progressCurrent = isCurrentRank
+      ? rank.progressCurrent
+      : hasRatingHistory && rank.points >= rankDef.minPoints
+        ? Math.max(
+            0,
+            (nextRankDef?.minPoints ?? rankDef.minPoints + 1) - rankDef.minPoints,
+          )
+        : hasRatingHistory
+          ? Math.max(0, rank.points - rankDef.minPoints)
+          : 0;
+    const progressTarget = Math.max(
+      1,
+      (nextRankDef?.minPoints ?? rankDef.minPoints + 1) - rankDef.minPoints,
+    );
+    badges.push({
+      key: `rank_${rankDef.key}`,
+      title: rankDef.title,
+      description: `Доступен при достижении ранга «${rankDef.title}».`,
+      category: "rank",
+      active: isCurrentRank,
+      progressCurrent,
+      progressTarget,
+      progressLabel: isCurrentRank
+        ? "Текущий ранг"
+        : canUseRating && rank.points >= rankDef.minPoints
+          ? "Пройден"
+          : canUseRating
+            ? `${Math.max(0, rank.points)}/${rankDef.minPoints}`
+            : "Открывается с подпиской «Стажер»",
+    });
   }
 
   for (const [roleKey, meta] of Object.entries(ROLE_BADGE_META)) {
@@ -4258,7 +4272,11 @@ export async function recordMatchOutcome(input: {
     }),
   );
 
-  const matchParticipantIds = normalizedPlayers
+  const historyParticipants = normalizedPlayers.filter(
+    (player) => player.roleKey && player.roleKey !== "witness" && player.roleKey !== "observer",
+  );
+
+  const matchParticipantIds = historyParticipants
     .map((player) => player.userId)
     .filter((value): value is string => !!value)
     .sort();
@@ -4350,7 +4368,7 @@ export async function recordMatchOutcome(input: {
       [userId],
     );
     const canUseRating =
-      subscriptionRow.rowCount > 0
+      (subscriptionRow.rowCount ?? 0) > 0
         ? resolveSubscriptionView(subscriptionRow.rows[0]).capabilities.canUseRating
         : false;
     if (canUseRating) {
@@ -4368,7 +4386,7 @@ export async function recordMatchOutcome(input: {
       );
     }
 
-    const participants = normalizedPlayers.map((entry) => ({
+    const participants = historyParticipants.map((entry) => ({
       userId: entry.userId ?? undefined,
       nickname: entry.nickname,
       roleKey: entry.roleKey,

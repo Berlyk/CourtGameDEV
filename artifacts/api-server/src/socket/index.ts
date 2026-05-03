@@ -134,12 +134,43 @@ const PROTEST_COOLDOWN_MS = 30_000;
 const JUDGE_SILENCE_COOLDOWN_MS = 15_000;
 const INFLUENCE_ANNOUNCEMENT_DURATION_MS = 3_000;
 const SINGLETON_MATCH_CLOSE_MS = 5 * 60 * 1000;
+const SOCKET_CONNECTION_WINDOW_MS = 60_000;
+const SOCKET_CONNECTION_LIMIT_PER_IP = 45;
+const SOCKET_EVENT_WINDOW_MS = 10_000;
+const SOCKET_EVENT_LIMIT_PER_IP = 240;
+type SocketRateBucket = {
+  count: number;
+  resetAt: number;
+};
 type SpeechOwnerRole =
   | "plaintiff"
   | "defendant"
   | "plaintiffLawyer"
   | "defenseLawyer"
   | "prosecutor";
+
+function consumeSocketRateBucket(
+  buckets: Map<string, SocketRateBucket>,
+  key: string,
+  limit: number,
+  windowMs: number,
+): boolean {
+  const now = Date.now();
+  const bucket = buckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    buckets.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  bucket.count += 1;
+  return bucket.count <= limit;
+}
+
+function cleanupSocketRateBuckets(buckets: Map<string, SocketRateBucket>): void {
+  const now = Date.now();
+  for (const [key, bucket] of buckets.entries()) {
+    if (bucket.resetAt <= now) buckets.delete(key);
+  }
+}
 
 type CanonicalRole =
   | "plaintiff"
@@ -186,10 +217,11 @@ function resolveExpectedVerdictLabel(caseData: any): string {
   return "Частично виновен";
 }
 
-function normalizeRoleKey(roleKey: string | undefined): CanonicalRole | null {
-  if (!roleKey) return null;
-  const normalized = roleKey.trim();
+function normalizeRoleKey(roleKey: string | undefined, roleTitle?: string | undefined): CanonicalRole | null {
+  const normalized = (roleKey ?? "").trim();
   const compact = normalized.replace(/[^a-zA-Zа-яА-ЯёЁ]/g, "").toLowerCase();
+  const titleNormalized = (roleTitle ?? "").trim().toLowerCase().replace(/ё/g, "е");
+  const titleCompact = titleNormalized.replace(/[^a-zA-Zа-яА-ЯёЁ]/g, "");
   const alias: Record<string, CanonicalRole> = {
     plaintiff: "plaintiff",
     defendant: "defendant",
@@ -218,7 +250,17 @@ function normalizeRoleKey(roleKey: string | undefined): CanonicalRole | null {
     адвокатистца: "plaintiffLawyer",
     адвокатответчика: "defenseLawyer",
   };
-  return alias[normalized] ?? alias[compact] ?? null;
+  const direct = alias[normalized] ?? alias[compact] ?? alias[titleCompact];
+  if (direct) return direct;
+  if (titleNormalized.includes("адвокат") && titleNormalized.includes("истц")) return "plaintiffLawyer";
+  if (titleNormalized.includes("адвокат") && titleNormalized.includes("ответч")) return "defenseLawyer";
+  if (titleNormalized.includes("прокурор")) return "prosecutor";
+  if (titleNormalized.includes("судья")) return "judge";
+  if (titleNormalized.includes("свидетел")) return "witness";
+  if (titleNormalized.includes("наблюдател")) return "observer";
+  if (titleNormalized.includes("истец")) return "plaintiff";
+  if (titleNormalized.includes("ответчик")) return "defendant";
+  return null;
 }
 
 function resolveLawyerPartnerRole(role: CanonicalRole | null): CanonicalRole | null {
@@ -284,10 +326,10 @@ function resolveSpeechOwnerRole(stageName: string): SpeechOwnerRole | null {
   return null;
 }
 
-function isRoleSpeechStage(roleKey: string | undefined, stageName: string): boolean {
-  if (!roleKey || !stageName) return false;
+function isRoleSpeechStage(roleKey: string | undefined, stageName: string, roleTitle?: string): boolean {
+  if (!stageName) return false;
 
-  const canonicalRole = normalizeRoleKey(roleKey);
+  const canonicalRole = normalizeRoleKey(roleKey, roleTitle);
   if (!canonicalRole) return false;
   const speechOwnerRole = resolveSpeechOwnerRole(stageName);
   if (!speechOwnerRole || speechOwnerRole !== canonicalRole) return false;
@@ -297,17 +339,17 @@ function isRoleSpeechStage(roleKey: string | undefined, stageName: string): bool
   return isOpeningStage || isClosingStage;
 }
 
-function isRoleOpeningSpeechStage(roleKey: string | undefined, stageName: string): boolean {
-  if (!roleKey || !stageName) return false;
-  const canonicalRole = normalizeRoleKey(roleKey);
+function isRoleOpeningSpeechStage(roleKey: string | undefined, stageName: string, roleTitle?: string): boolean {
+  if (!stageName) return false;
+  const canonicalRole = normalizeRoleKey(roleKey, roleTitle);
   if (!canonicalRole) return false;
   const speechOwnerRole = resolveSpeechOwnerRole(stageName);
   return !!speechOwnerRole && speechOwnerRole === canonicalRole && isOpeningSpeechStage(stageName);
 }
 
-function canRoleRevealFactsAtStage(roleKey: string | undefined, stageName: string): boolean {
+function canRoleRevealFactsAtStage(roleKey: string | undefined, stageName: string, roleTitle?: string): boolean {
   if (isCrossExaminationStage(stageName)) return true;
-  return isRoleSpeechStage(roleKey, stageName);
+  return isRoleSpeechStage(roleKey, stageName, roleTitle);
 }
 
 function canPlayerRevealFactNow(room: any, playerId: string): boolean {
@@ -322,13 +364,14 @@ function canPlayerRevealFactNow(room: any, playerId: string): boolean {
   const currentPlayer = room.game.players.find((p: any) => p.id === playerId);
   if (!currentPlayer) return false;
 
-  if (!canRoleRevealFactsAtStage(currentPlayer.roleKey, currentStageName)) {
+  if (!canRoleRevealFactsAtStage(currentPlayer.roleKey, currentStageName, currentPlayer.roleTitle)) {
     return false;
   }
 
   const isCurrentPlayerOpeningSpeech = isRoleOpeningSpeechStage(
     currentPlayer.roleKey,
     currentStageName,
+    currentPlayer.roleTitle,
   );
   if (!isCurrentPlayerOpeningSpeech) return true;
 
@@ -822,6 +865,8 @@ export function setupSocket(httpServer: HttpServer) {
   const singletonMatchSinceByRoom = new Map<string, number>();
   const actionCooldowns = new Map<string, number>();
   const lawyerChats = new Map<string, LawyerChatMessage[]>();
+  const connectionRateBuckets = new Map<string, SocketRateBucket>();
+  const eventRateBuckets = new Map<string, SocketRateBucket>();
   const normalizeRoomCode = (code: string): string => code.trim().toUpperCase();
   const getReconnectKey = (roomCode: string, playerId: string) =>
     `${roomCode}:${playerId}`;
@@ -1272,12 +1317,47 @@ export function setupSocket(httpServer: HttpServer) {
     });
   }, 5_000);
 
+  setInterval(() => {
+    cleanupSocketRateBuckets(connectionRateBuckets);
+    cleanupSocketRateBuckets(eventRateBuckets);
+  }, 60_000).unref();
+
   io.on("connection", (socket) => {
     const socketIp = resolveSocketIp(
       socket.handshake.headers as Record<string, unknown>,
       socket.handshake.address,
     );
+    if (
+      !consumeSocketRateBucket(
+        connectionRateBuckets,
+        socketIp || "unknown",
+        SOCKET_CONNECTION_LIMIT_PER_IP,
+        SOCKET_CONNECTION_WINDOW_MS,
+      )
+    ) {
+      socket.emit("error", {
+        message: "Слишком много подключений. Попробуйте чуть позже.",
+      });
+      socket.disconnect(true);
+      return;
+    }
     socketIpById.set(socket.id, socketIp);
+    socket.use((packet, next) => {
+      const eventName = typeof packet[0] === "string" ? packet[0] : "event";
+      const rateKey = `${socketIp || "unknown"}:${eventName}`;
+      if (
+        consumeSocketRateBucket(
+          eventRateBuckets,
+          rateKey,
+          SOCKET_EVENT_LIMIT_PER_IP,
+          SOCKET_EVENT_WINDOW_MS,
+        )
+      ) {
+        next();
+        return;
+      }
+      next(new Error("rate_limited"));
+    });
     const emitCasePacksToSocket = async (authToken?: string) => {
       try {
         const basePacks = await listCasePacks();
@@ -3019,7 +3099,7 @@ export function setupSocket(httpServer: HttpServer) {
       const currentPlayer = room.game.players.find((p: any) => p.id === actorId);
       if (!currentPlayer) return;
 
-      if (!canRoleRevealFactsAtStage(currentPlayer.roleKey, currentStageName)) {
+      if (!canRoleRevealFactsAtStage(currentPlayer.roleKey, currentStageName, currentPlayer.roleTitle)) {
         socket.emit("error", {
           message:
             "Сейчас вы не можете раскрывать факты. Можно на своем этапе и на этапе «Перекрестный допрос».",
@@ -3030,6 +3110,7 @@ export function setupSocket(httpServer: HttpServer) {
       const isCurrentPlayerOpeningSpeech = isRoleOpeningSpeechStage(
         currentPlayer.roleKey,
         currentStageName,
+        currentPlayer.roleTitle,
       );
       if (isCurrentPlayerOpeningSpeech) {
         const revealedFactsOnThisOpeningStage = room.game.revealedFacts.filter(
@@ -3183,12 +3264,17 @@ export function setupSocket(httpServer: HttpServer) {
         expectedVerdict,
         matchStartedAt: updatedRoom.game?.matchStartedAt,
         matchFinishedAt: Date.now(),
-        players: (updatedRoom.game?.players ?? []).map((player: any) => ({
-          userId: player.userId,
-          roleKey: player.roleKey,
-          nickname: player.name,
-          roleTitle: player.roleTitle,
-        })),
+        players: (updatedRoom.game?.players ?? [])
+          .filter((player: any) => {
+            if (player.roleKey === "witness" || player.roleKey === "observer") return false;
+            return typeof player.socketId === "string" && player.socketId.trim().length > 0;
+          })
+          .map((player: any) => ({
+            userId: player.userId,
+            roleKey: player.roleKey,
+            nickname: player.name,
+            roleTitle: player.roleTitle,
+          })),
       }).catch((error) => {
         console.error("recordMatchOutcome failed", error);
       });

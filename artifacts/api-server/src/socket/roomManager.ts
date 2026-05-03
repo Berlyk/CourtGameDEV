@@ -997,9 +997,6 @@ export function chooseLobbyRole(
     if (!room.usePreferredRoles && !options?.allowNonHostChoiceInForeignLobby) {
       return { room, ok: false, reason: "Ведущий не разрешил выбор ролей для игроков." };
     }
-    if (!room.usePreferredRoles && player.roleAssignmentSource === "manual") {
-      return { room, ok: false, reason: "Ведущий зафиксировал вашу роль." };
-    }
   } else if (room.usePreferredRoles && actor.id !== player.id) {
     return { room, ok: false, reason: "При включенном выборе ролей игроки выбирают роль сами." };
   }
