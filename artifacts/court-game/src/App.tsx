@@ -420,6 +420,10 @@ function buildShopPaymentLogoFallbackDataUrl(title: string): string {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+const SOLANA_MARK_DATA_URL = buildShopPaymentLogoDataUrl(
+  `<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 508.07 398.17"><defs><style>.cls-1{fill:url(#linear-gradient);}.cls-2{fill:url(#linear-gradient-2);}.cls-3{fill:url(#linear-gradient-3);}</style><linearGradient id="linear-gradient" x1="463" y1="205.16" x2="182.39" y2="742.62" gradientTransform="translate(0 -198)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#00ffa3"/><stop offset="1" stop-color="#dc1fff"/></linearGradient><linearGradient id="linear-gradient-2" x1="340.31" y1="141.1" x2="59.71" y2="678.57" xlink:href="#linear-gradient"/><linearGradient id="linear-gradient-3" x1="401.26" y1="172.92" x2="120.66" y2="710.39" xlink:href="#linear-gradient"/></defs><path class="cls-1" d="M84.53,358.89A16.63,16.63,0,0,1,96.28,354H501.73a8.3,8.3,0,0,1,5.87,14.18l-80.09,80.09a16.61,16.61,0,0,1-11.75,4.86H10.31A8.31,8.31,0,0,1,4.43,439Z" transform="translate(-1.98 -55)"/><path class="cls-2" d="M84.53,59.85A17.08,17.08,0,0,1,96.28,55H501.73a8.3,8.3,0,0,1,5.87,14.18l-80.09,80.09a16.61,16.61,0,0,1-11.75,4.86H10.31A8.31,8.31,0,0,1,4.43,140Z" transform="translate(-1.98 -55)"/><path class="cls-3" d="M427.51,208.42a16.61,16.61,0,0,0-11.75-4.86H10.31a8.31,8.31,0,0,0-5.88,14.18l80.1,80.09a16.6,16.6,0,0,0,11.75,4.86H501.73a8.3,8.3,0,0,0,5.87-14.18Z" transform="translate(-1.98 -55)"/></svg>`,
+);
+
 const SHOP_PAYMENT_INLINE_LOGOS: Record<string, string> = {
   sbp: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="СБП"><defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2ec8ff"/><stop offset="100%" stop-color="#2f6bff"/></linearGradient></defs><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(30 30)"><polygon points="70,0 105,60 35,60" fill="#f6a623"/><polygon points="140,60 210,60 175,0" fill="#ef3d7f"/><polygon points="105,70 175,70 140,130" fill="#7047d5"/><polygon points="70,140 105,80 35,80" fill="#2f98ff"/><polygon points="140,140 210,140 175,200" fill="#1dcf72"/><polygon points="105,150 175,150 140,210" fill="#00c7c7"/></g><text x="270" y="120" fill="#f4f6ff" font-size="78" font-weight="700" font-family="Inter,Segoe UI,Arial,sans-serif">СБП</text></svg>`),
   visa: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="VISA"><rect width="640" height="220" rx="28" fill="transparent"/><text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" fill="#1a4dff" font-size="126" font-weight="800" letter-spacing="2" font-family="Arial Black,Segoe UI,Arial,sans-serif">VISA</text></svg>`),
@@ -682,7 +686,7 @@ function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
             preserveAspectRatio="xMidYMid meet"
           />
           <image
-            href="https://upload.wikimedia.org/wikipedia/commons/archive/e/ef/20250913071644%21Solana-sol-logo-horizontal-2025.svg"
+            href={SOLANA_MARK_DATA_URL}
             x="184"
             y="74"
             width="52"
@@ -3031,13 +3035,19 @@ function Avatar({
   src,
   name,
   size = 32,
+  staticIfAnimated = false,
 }: {
   src: string | null;
   name: string;
   size?: number;
+  staticIfAnimated?: boolean;
 }) {
   const gifMeta = parseGifCropMeta(src);
   const finalSrc = gifMeta?.src ?? src;
+  const initials = name ? name.slice(0, 2).toUpperCase() : "??";
+  if (staticIfAnimated && finalSrc && isAnimatedProfileMediaValue(src)) {
+    return <StaticAvatarCanvas src={finalSrc} name={name} size={size} gifMeta={gifMeta} initials={initials} />;
+  }
   if (finalSrc && gifMeta?.target === "avatar") {
     const hasPreciseRatios =
       typeof gifMeta.displayRatioX === "number" &&
@@ -3098,7 +3108,6 @@ function Avatar({
       />
     );
   }
-  const initials = name ? name.slice(0, 2).toUpperCase() : "??";
   return (
     <div
       className="rounded-full bg-zinc-700 text-zinc-200 flex items-center justify-center flex-shrink-0 text-xs font-bold border border-zinc-600"
@@ -3106,6 +3115,109 @@ function Avatar({
     >
       {initials}
     </div>
+  );
+}
+
+function StaticAvatarCanvas({
+  src,
+  name,
+  size,
+  gifMeta,
+  initials,
+}: {
+  src: string;
+  name: string;
+  size: number;
+  gifMeta: GifCropMeta | null;
+  initials: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => {
+      if (cancelled || !canvasRef.current) return;
+      const canvas = canvasRef.current;
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      canvas.width = Math.ceil(size * dpr);
+      canvas.height = Math.ceil(size * dpr);
+      canvas.style.width = `${size}px`;
+      canvas.style.height = `${size}px`;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, size, size);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.clip();
+
+      if (gifMeta?.target === "avatar") {
+        const hasPreciseRatios =
+          typeof gifMeta.displayRatioX === "number" &&
+          Number.isFinite(gifMeta.displayRatioX) &&
+          gifMeta.displayRatioX > 0 &&
+          typeof gifMeta.displayRatioY === "number" &&
+          Number.isFinite(gifMeta.displayRatioY) &&
+          gifMeta.displayRatioY > 0 &&
+          typeof gifMeta.offsetRatioX === "number" &&
+          Number.isFinite(gifMeta.offsetRatioX) &&
+          typeof gifMeta.offsetRatioY === "number" &&
+          Number.isFinite(gifMeta.offsetRatioY);
+        const mediaWidth = hasPreciseRatios ? size * (gifMeta.displayRatioX ?? 1) : size * gifMeta.zoom;
+        const mediaHeight = hasPreciseRatios ? size * (gifMeta.displayRatioY ?? 1) : size * gifMeta.zoom;
+        const offsetXPx = hasPreciseRatios ? size * (gifMeta.offsetRatioX ?? 0) : 0;
+        const offsetYPx = hasPreciseRatios ? size * (gifMeta.offsetRatioY ?? 0) : 0;
+        const drawX = size / 2 - mediaWidth / 2 + offsetXPx;
+        const drawY = size / 2 - mediaHeight / 2 + offsetYPx;
+        if (gifMeta.flipX) {
+          ctx.translate(size, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(image, size - drawX - mediaWidth, drawY, mediaWidth, mediaHeight);
+        } else {
+          ctx.drawImage(image, drawX, drawY, mediaWidth, mediaHeight);
+        }
+      } else {
+        const scale = Math.max(size / Math.max(1, image.naturalWidth), size / Math.max(1, image.naturalHeight));
+        const drawWidth = image.naturalWidth * scale;
+        const drawHeight = image.naturalHeight * scale;
+        ctx.drawImage(image, (size - drawWidth) / 2, (size - drawHeight) / 2, drawWidth, drawHeight);
+      }
+
+      ctx.restore();
+    };
+    image.onerror = () => {
+      if (!cancelled) setFailed(true);
+    };
+    image.src = src;
+    return () => {
+      cancelled = true;
+    };
+  }, [gifMeta, size, src]);
+
+  if (failed) {
+    return (
+      <div
+        className="rounded-full bg-zinc-700 text-zinc-200 flex items-center justify-center flex-shrink-0 text-xs font-bold border border-zinc-600"
+        style={{ width: size, height: size }}
+      >
+        {initials}
+      </div>
+    );
+  }
+
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-label={name}
+      role="img"
+      className="rounded-full object-cover flex-shrink-0 border border-zinc-700 bg-zinc-700"
+      style={{ width: size, height: size }}
+    />
   );
 }
 
@@ -8120,12 +8232,12 @@ export default function App() {
                           ) : null}
                         </div>
                       ) : null}
+                      <div className="mt-2 text-xs text-zinc-300 [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
+                        Профиль с {createdAtLabel || "неизвестной даты"}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              <div className="px-1 text-xs text-zinc-400">
-                С нами с: {createdAtLabel || "неизвестной даты"}
               </div>
               {(viewPlayerProfile.gender || typeof viewPlayerProfile.age === "number") && (
                 <div className="grid grid-cols-1 gap-3 text-sm">
@@ -11796,8 +11908,8 @@ export default function App() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/15" />
                   <div className="absolute inset-0 opacity-0 group-hover/banner:opacity-100 transition-opacity bg-black/15" />
                   {profileBannerLocked && (
-                    <div className="pointer-events-none absolute right-2 top-2 inline-flex h-6 items-center gap-1 rounded-full border border-zinc-500/80 bg-zinc-900/80 px-2 text-[10px] font-semibold text-zinc-100 md:right-3 md:top-3 md:h-8 md:gap-1.5 md:px-3 md:text-xs">
-                      <Lock className="h-3.5 w-3.5" />
+                    <div className="pointer-events-none absolute right-2 top-2 inline-flex h-5 items-center gap-1 rounded-full border border-zinc-500/80 bg-zinc-900/80 px-1.5 text-[9px] font-semibold text-zinc-100 md:right-3 md:top-3 md:h-8 md:gap-1.5 md:px-3 md:text-xs">
+                      <Lock className="h-3 w-3 md:h-3.5 md:w-3.5" />
                       <span>Баннер</span>
                     </div>
                   )}
@@ -11861,6 +11973,9 @@ export default function App() {
                     </div>
                   </div>
 
+                  <div className="pointer-events-none absolute bottom-4 left-5 z-10 hidden text-sm text-zinc-300 [text-shadow:0_1px_6px_rgba(0,0,0,0.75)] md:block">
+                    С нами с: {registeredAtLabel}
+                  </div>
                   <div className="relative z-10 hidden w-full md:flex md:items-center md:justify-between md:gap-4">
                     <div className="flex min-w-0 items-center gap-4 text-left">
                       <div
@@ -11916,7 +12031,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <div className="px-3 py-2 text-xs text-zinc-400 md:px-4">
+                <div className="px-3 py-2 text-center text-xs text-zinc-400 md:hidden">
                   С нами с: {registeredAtLabel}
                 </div>
               </div>
@@ -16161,7 +16276,7 @@ export default function App() {
                                                       />
 
                                                       <image
-                                                        href="https://upload.wikimedia.org/wikipedia/commons/archive/e/ef/20250913071644%21Solana-sol-logo-horizontal-2025.svg"
+                                                        href={SOLANA_MARK_DATA_URL}
                                                         x="206"
                                                         y="116"
                                                         width="100"
@@ -17530,6 +17645,7 @@ export default function App() {
                                 src={message.senderAvatar ?? null}
                                 name={message.senderName}
                                 size={30}
+                                staticIfAnimated
                               />
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2 text-zinc-400 text-xs">
@@ -17881,6 +17997,7 @@ export default function App() {
                                       src={ownerPlayer?.avatar ?? null}
                                       name={fact.owner}
                                       size={34}
+                                      staticIfAnimated
                                     />
                                     <div className="font-semibold text-base leading-none truncate">
                                       {fact.owner}
@@ -18779,6 +18896,7 @@ export default function App() {
                                   src={ownerPlayer?.avatar ?? null}
                                   name={fact.owner}
                                   size={34}
+                                  staticIfAnimated
                                 />
                                 <div className="font-semibold text-base leading-none truncate">
                                   {fact.owner}
@@ -18838,8 +18956,8 @@ export default function App() {
                               <Badge
                                 className={
                                   fact.revealed
-                                    ? "bg-red-600 text-white border-0"
-                                    : "bg-zinc-800 text-zinc-100 border border-zinc-700"
+                                    ? "bg-zinc-800 text-zinc-100 border border-zinc-700"
+                                    : "bg-red-600 text-white border-0"
                                 }
                               >
                                 {fact.revealed ? "Раскрыт" : "Скрыт"}
@@ -18961,6 +19079,7 @@ export default function App() {
                                   src={ownerPlayer?.avatar ?? null}
                                   name={entry.owner}
                                   size={30}
+                                  staticIfAnimated
                                 />
                                 <div className="font-semibold text-sm truncate">
                                   {entry.owner}
