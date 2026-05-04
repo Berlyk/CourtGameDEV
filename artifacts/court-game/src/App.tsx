@@ -8160,7 +8160,7 @@ export default function App() {
           overlayClassName={
             profileMatchesOpen || observerListDialogOpen ? "bg-transparent backdrop-blur-0" : undefined
           }
-          className="max-w-[520px] overflow-visible border-zinc-800 bg-zinc-950 text-zinc-100"
+          className="max-w-[520px] overflow-visible rounded-[28px] border-zinc-800 bg-zinc-950 text-zinc-100"
         >
           <DialogHeader>
             <DialogTitle>Профиль игрока</DialogTitle>
@@ -8232,29 +8232,21 @@ export default function App() {
                           ) : null}
                         </div>
                       ) : null}
-                      <div className="mt-2 text-xs text-zinc-300 [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
-                        Профиль с {createdAtLabel || "неизвестной даты"}
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] sm:gap-2 sm:text-xs">
+                        <span className="inline-flex h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 whitespace-nowrap sm:h-7 sm:px-2.5">
+                          Возраст: {ageLabel}
+                        </span>
+                        <span className="inline-flex h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 whitespace-nowrap sm:h-7 sm:px-2.5">
+                          Пол: {genderLabel}
+                        </span>
+                        <span className="inline-flex h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 whitespace-nowrap sm:h-7 sm:px-2.5">
+                          С нами с: {createdAtLabel || "неизвестной даты"}
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              {(viewPlayerProfile.gender || typeof viewPlayerProfile.age === "number") && (
-                <div className="grid grid-cols-1 gap-3 text-sm">
-                  {viewPlayerProfile.gender && (
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-                      <div className="text-zinc-500 text-xs">Пол</div>
-                      <div className="text-zinc-100 mt-1">{genderLabel}</div>
-                    </div>
-                  )}
-                  {typeof viewPlayerProfile.age === "number" && (
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-                      <div className="text-zinc-500 text-xs">Возраст</div>
-                      <div className="text-zinc-100 mt-1">{ageLabel}</div>
-                    </div>
-                  )}
-                </div>
-              )}
               {viewPlayerProfile.bio?.trim() && (
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
                   <div className="text-zinc-500 text-xs">О себе</div>
@@ -12031,7 +12023,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <div className="px-2 py-1.5 text-center text-[11px] text-zinc-400 md:hidden">
+                <div className="px-2 py-1 text-center text-[10px] text-zinc-400 md:hidden">
                   С нами с: {registeredAtLabel}
                 </div>
               </div>
@@ -18950,8 +18942,8 @@ export default function App() {
                           key={fact.id}
                           className="rounded-2xl bg-zinc-900/80 border-zinc-800 text-zinc-100"
                         >
-                          <CardContent className="flex min-h-[128px] flex-col justify-between gap-4 p-5">
-                            <div className="text-base leading-relaxed">{fact.text}</div>
+                          <CardContent className="flex min-h-[108px] flex-col justify-between gap-3 p-4">
+                            <div className="text-[15px] leading-relaxed">{fact.text}</div>
                             <div className="flex items-center justify-between gap-3">
                               <Badge
                                 className={
