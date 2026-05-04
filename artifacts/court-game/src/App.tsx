@@ -8160,7 +8160,7 @@ export default function App() {
           overlayClassName={
             profileMatchesOpen || observerListDialogOpen ? "bg-transparent backdrop-blur-0" : undefined
           }
-          className="max-w-[520px] overflow-visible rounded-[28px] border-zinc-800 bg-zinc-950 text-zinc-100"
+          className="max-w-[520px] overflow-visible !rounded-[32px] border-zinc-800 bg-zinc-950 text-zinc-100"
         >
           <DialogHeader>
             <DialogTitle>Профиль игрока</DialogTitle>
@@ -8239,13 +8239,16 @@ export default function App() {
                         <span className="inline-flex h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 whitespace-nowrap sm:h-7 sm:px-2.5">
                           Пол: {genderLabel}
                         </span>
-                        <span className="inline-flex h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 whitespace-nowrap sm:h-7 sm:px-2.5">
+                        <span className="hidden h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 whitespace-nowrap sm:inline-flex sm:h-7 sm:px-2.5">
                           С нами с: {createdAtLabel || "неизвестной даты"}
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
+              </div>
+              <div className="px-2 py-0.5 text-center text-[9px] text-zinc-400 sm:hidden">
+                С нами с: {createdAtLabel || "неизвестной даты"}
               </div>
               {viewPlayerProfile.bio?.trim() && (
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
@@ -12023,7 +12026,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <div className="px-2 py-1 text-center text-[10px] text-zinc-400 md:hidden">
+                <div className="px-2 py-0.5 text-center text-[9px] text-zinc-400 md:hidden">
                   С нами с: {registeredAtLabel}
                 </div>
               </div>
@@ -18942,8 +18945,8 @@ export default function App() {
                           key={fact.id}
                           className="rounded-2xl bg-zinc-900/80 border-zinc-800 text-zinc-100"
                         >
-                          <CardContent className="flex min-h-[108px] flex-col justify-between gap-3 p-4">
-                            <div className="text-[15px] leading-relaxed">{fact.text}</div>
+                          <CardContent className="p-4 flex flex-col gap-3">
+                            <div className="text-sm leading-relaxed">{fact.text}</div>
                             <div className="flex items-center justify-between gap-3">
                               <Badge
                                 className={
