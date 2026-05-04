@@ -11973,9 +11973,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="pointer-events-none absolute bottom-4 left-5 z-10 hidden text-sm text-zinc-300 [text-shadow:0_1px_6px_rgba(0,0,0,0.75)] md:block">
-                    С нами с: {registeredAtLabel}
-                  </div>
                   <div className="relative z-10 hidden w-full md:flex md:items-center md:justify-between md:gap-4">
                     <div className="flex min-w-0 items-center gap-4 text-left">
                       <div
@@ -12014,6 +12011,9 @@ export default function App() {
                           <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
                             Пол: {genderLabel}
                           </span>
+                          <span className="inline-flex h-8 items-center rounded-full border border-zinc-600 bg-black/35 px-3 whitespace-nowrap">
+                            С нами с: {registeredAtLabel}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -12031,7 +12031,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <div className="px-3 py-2 text-center text-xs text-zinc-400 md:hidden">
+                <div className="px-2 py-1.5 text-center text-[11px] text-zinc-400 md:hidden">
                   С нами с: {registeredAtLabel}
                 </div>
               </div>
@@ -18950,8 +18950,8 @@ export default function App() {
                           key={fact.id}
                           className="rounded-2xl bg-zinc-900/80 border-zinc-800 text-zinc-100"
                         >
-                          <CardContent className="p-4 flex flex-col gap-3">
-                            <div className="text-sm">{fact.text}</div>
+                          <CardContent className="flex min-h-[128px] flex-col justify-between gap-4 p-5">
+                            <div className="text-base leading-relaxed">{fact.text}</div>
                             <div className="flex items-center justify-between gap-3">
                               <Badge
                                 className={
@@ -18966,18 +18966,14 @@ export default function App() {
                                 whileHover={{ scale: 1.04 }}
                                 whileTap={{ scale: 0.96 }}
                               >
-                              <Button
+                                <Button
                                   size="sm"
-                                  variant="outline"
-                                  className={
-                                    canRevealThisFact
-                                      ? "rounded-xl !bg-red-600 hover:!bg-red-500 !text-white !border-red-500/70"
-                                      : "rounded-xl !bg-zinc-800 !text-zinc-500 !border-zinc-700 hover:!bg-zinc-800"
-                                  }
+                                  variant="secondary"
+                                  className="rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0 disabled:bg-zinc-800 disabled:text-zinc-500"
                                   onClick={() => revealFact(fact.id)}
                                   disabled={!canRevealThisFact}
                                 >
-                                  Раскрыть
+                                  {fact.revealed ? "Раскрыто" : "Раскрыть"}
                                 </Button>
                               </motion.div>
                             </div>
