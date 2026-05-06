@@ -8162,9 +8162,9 @@ export default function App() {
           }
           className="max-w-[520px] overflow-visible !rounded-[32px] border-zinc-800 bg-zinc-950 text-zinc-100"
         >
-          <DialogHeader className="sr-only">
+          <DialogHeader className="mb-2 pr-12">
             <DialogTitle>Профиль игрока</DialogTitle>
-            <DialogDescription>Публичная информация.</DialogDescription>
+            <DialogDescription className="sr-only">Публичная информация.</DialogDescription>
           </DialogHeader>
           {viewPlayerProfileLoading ? (
             <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
@@ -8181,7 +8181,7 @@ export default function App() {
               {viewPlayerProfileError}
             </div>
           ) : viewPlayerProfile ? (
-            <div className="space-y-4 pt-4">
+            <div className="space-y-4">
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70">
                 <div
                   className="relative min-h-[122px] rounded-t-3xl p-4 flex items-center overflow-visible"
@@ -8237,11 +8237,14 @@ export default function App() {
                         <span className="inline-flex h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 whitespace-nowrap sm:h-7 sm:px-2.5">
                           Пол: {genderLabel}
                         </span>
+                        <span className="hidden h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 whitespace-nowrap sm:inline-flex sm:h-7 sm:px-2.5">
+                          С нами с: {createdAtLabel || "неизвестной даты"}
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="px-2 py-0.5 text-center text-[10px] leading-3 text-zinc-400">
+                <div className="px-2 py-1 text-center text-[11px] leading-4 text-zinc-400 sm:hidden">
                   С нами с: {createdAtLabel || "неизвестной даты"}
                 </div>
               </div>
@@ -12021,7 +12024,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <div className="px-2 py-0.5 text-center text-[10px] leading-3 text-zinc-400 md:hidden">
+                <div className="px-2 py-1 text-center text-[11px] leading-4 text-zinc-400 md:hidden">
                   С нами с: {registeredAtLabel}
                 </div>
               </div>
@@ -13396,17 +13399,17 @@ export default function App() {
                         type="button"
                         variant="outline"
                         onClick={() => setMobileMenuOpen(false)}
-                        className="!absolute right-3 top-3 z-20 h-8 w-8 rounded-lg border-zinc-700 bg-zinc-900/80 p-0 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        className="!absolute right-3 top-3 z-20 h-7 w-7 rounded-lg border-zinc-700 bg-zinc-900/90 p-0 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                         aria-label="Закрыть меню"
                       >
                         <X className="h-4 w-4" />
                       </Button>
-                    <div className="mb-2 pr-10">
+                    <div className="mb-3 pr-10">
                       <div className="flex items-start gap-3">
                         <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
                       </div>
                     </div>
-                    <div className="mb-4 flex justify-center">
+                    <div className="mb-4 flex justify-center pr-8">
                       {isAuthenticated ? (
                         <Button
                           variant="outline"
@@ -13421,9 +13424,9 @@ export default function App() {
                           <span className="relative z-10">
                             <Avatar src={avatar} name={playerName || "Игрок"} size={34} />
                           </span>
-                          <span className="relative z-10 min-w-0 text-left [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
-                            <span className="block max-w-[220px] truncate text-base font-semibold">{playerName || "Игрок"}</span>
-                            <span className="block text-xs text-zinc-400">Личный кабинет</span>
+                          <span className="relative z-10 min-w-0 text-left [text-shadow:0_2px_8px_rgba(0,0,0,0.95)]">
+                            <span className="block max-w-[220px] truncate text-base font-semibold text-zinc-100">{playerName || "Игрок"}</span>
+                            <span className="block text-xs font-semibold text-zinc-200">Личный кабинет</span>
                           </span>
                         </Button>
                       ) : (
