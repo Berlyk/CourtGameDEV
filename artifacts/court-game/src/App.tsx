@@ -8181,17 +8181,17 @@ export default function App() {
               {viewPlayerProfileError}
             </div>
           ) : viewPlayerProfile ? (
-            <div className="space-y-4">
+            <div className="space-y-4 pt-4">
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70">
                 <div
-                  className="relative min-h-[122px] rounded-3xl p-4 flex items-center overflow-visible"
+                  className="relative min-h-[122px] rounded-t-3xl p-4 flex items-center overflow-visible"
                   style={getBannerStyle(
                     viewPlayerProfile.banner,
                     viewPlayerProfile.avatar,
                     viewPlayerProfile.nickname,
                   )}
                 >
-                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-t from-black/75 via-black/35 to-black/10" />
+                  <div className="absolute inset-0 rounded-t-3xl bg-gradient-to-t from-black/75 via-black/35 to-black/10" />
                   <div className="relative z-10 flex min-w-0 items-center gap-3">
                     <Avatar src={viewPlayerProfile.avatar ?? null} name={viewPlayerProfile.nickname} size={82} />
                     <div className="min-w-0 flex-1 [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
@@ -8221,7 +8221,7 @@ export default function App() {
                             </span>
                           </button>
                           {viewProfileBadgeHintOpen ? (
-                            <div className="absolute left-1/2 top-full z-30 mt-2 w-64 max-w-[calc(100vw-4rem)] -translate-x-1/2 rounded-xl border border-zinc-700 bg-zinc-900/95 px-3 py-2 text-sm leading-relaxed text-zinc-200 shadow-[0_10px_24px_rgba(0,0,0,0.45)] whitespace-pre-wrap break-words sm:left-0 sm:translate-x-0">
+                            <div className="absolute left-1/2 top-full z-30 mt-1.5 w-max min-w-[150px] max-w-[min(220px,calc(100vw-4rem))] -translate-x-1/2 rounded-lg border border-zinc-700 bg-zinc-900/95 px-2.5 py-1.5 text-xs leading-snug text-zinc-200 shadow-[0_10px_24px_rgba(0,0,0,0.45)] whitespace-normal break-words sm:left-0 sm:translate-x-0">
                               {findBadgeByKey(
                                 viewPlayerProfile.selectedBadgeKey,
                                 viewPlayerProfile.badges,
@@ -8241,9 +8241,9 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-              </div>
-              <div className="px-2 py-0.5 text-center text-[9px] leading-3 text-zinc-400">
-                С нами с: {createdAtLabel || "неизвестной даты"}
+                <div className="px-2 py-0.5 text-center text-[10px] leading-3 text-zinc-400">
+                  С нами с: {createdAtLabel || "неизвестной даты"}
+                </div>
               </div>
               {viewPlayerProfile.bio?.trim() && (
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
@@ -12021,7 +12021,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <div className="px-2 py-[1px] text-center text-[8px] leading-3 text-zinc-400 md:hidden">
+                <div className="px-2 py-0.5 text-center text-[10px] leading-3 text-zinc-400 md:hidden">
                   С нами с: {registeredAtLabel}
                 </div>
               </div>
@@ -13392,18 +13392,18 @@ export default function App() {
                     className="md:hidden fixed inset-0 z-[240] flex items-center justify-center px-3 py-3"
                   >
                     <div className="relative w-full max-h-[calc(100vh-1.5rem)] overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/98 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
-                    <div className="mb-3 pr-10">
-                      <div className="flex items-start justify-between gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="!absolute right-3 top-3 z-20 h-8 w-8 rounded-lg border-zinc-700 bg-zinc-900/80 p-0 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        aria-label="Закрыть меню"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    <div className="mb-2 pr-10">
+                      <div className="flex items-start gap-3">
                         <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setMobileMenuOpen(false)}
-                          className="absolute right-3 top-3 h-8 w-8 rounded-lg border-zinc-700 bg-zinc-900/80 p-0 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                          aria-label="Закрыть меню"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
                       </div>
                     </div>
                     <div className="mb-4 flex justify-center">
@@ -13414,10 +13414,14 @@ export default function App() {
                             setMobileMenuOpen(false);
                             openProfileScreen();
                           }}
-                          className="h-12 w-full max-w-[360px] rounded-2xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-3 gap-3 justify-start"
+                          className="relative h-16 w-full overflow-hidden rounded-2xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-3 gap-3 justify-start"
+                          style={getBannerStyle(banner, avatar, playerName || "Игрок")}
                         >
-                          <Avatar src={avatar} name={playerName || "Игрок"} size={30} />
-                          <span className="min-w-0 text-left">
+                          <span className="pointer-events-none absolute inset-0 bg-black/45" />
+                          <span className="relative z-10">
+                            <Avatar src={avatar} name={playerName || "Игрок"} size={34} />
+                          </span>
+                          <span className="relative z-10 min-w-0 text-left [text-shadow:0_1px_6px_rgba(0,0,0,0.75)]">
                             <span className="block max-w-[220px] truncate text-base font-semibold">{playerName || "Игрок"}</span>
                             <span className="block text-xs text-zinc-400">Личный кабинет</span>
                           </span>
@@ -18937,7 +18941,7 @@ export default function App() {
                           key={fact.id}
                           className="rounded-2xl bg-zinc-900/80 border-zinc-800 text-zinc-100"
                         >
-                          <CardContent className="p-4 flex flex-col gap-2.5">
+                          <CardContent className="flex min-h-[112px] flex-col gap-3 p-4">
                             <div className="text-base leading-relaxed">{fact.text}</div>
                             <div className="flex items-center justify-between gap-3">
                               <Badge
