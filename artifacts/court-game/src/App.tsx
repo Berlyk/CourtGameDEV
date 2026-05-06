@@ -8162,11 +8162,9 @@ export default function App() {
           }
           className="max-w-[520px] overflow-visible !rounded-[32px] border-zinc-800 bg-zinc-950 text-zinc-100"
         >
-          <DialogHeader>
+          <DialogHeader className="sr-only">
             <DialogTitle>Профиль игрока</DialogTitle>
-            <DialogDescription className="text-zinc-400">
-              Публичная информация.
-            </DialogDescription>
+            <DialogDescription>Публичная информация.</DialogDescription>
           </DialogHeader>
           {viewPlayerProfileLoading ? (
             <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
@@ -8239,15 +8237,12 @@ export default function App() {
                         <span className="inline-flex h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 whitespace-nowrap sm:h-7 sm:px-2.5">
                           Пол: {genderLabel}
                         </span>
-                        <span className="hidden h-6 items-center rounded-full border border-zinc-600 bg-black/35 px-2 whitespace-nowrap sm:inline-flex sm:h-7 sm:px-2.5">
-                          С нами с: {createdAtLabel || "неизвестной даты"}
-                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="px-2 py-0.5 text-center text-[9px] text-zinc-400 sm:hidden">
+              <div className="px-2 py-0.5 text-center text-[9px] leading-3 text-zinc-400">
                 С нами с: {createdAtLabel || "неизвестной даты"}
               </div>
               {viewPlayerProfile.bio?.trim() && (
@@ -12026,7 +12021,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <div className="px-2 py-0.5 text-center text-[9px] text-zinc-400 md:hidden">
+                <div className="px-2 py-[1px] text-center text-[8px] leading-3 text-zinc-400 md:hidden">
                   С нами с: {registeredAtLabel}
                 </div>
               </div>
@@ -13394,27 +13389,24 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.22 }}
-                    className="md:hidden fixed inset-0 z-[240] flex items-center justify-center px-4 py-4"
+                    className="md:hidden fixed inset-0 z-[240] flex items-center justify-center px-3 py-3"
                   >
-                    <div className="w-full max-h-[92vh] overflow-y-auto rounded-3xl border border-zinc-800 bg-zinc-950/98 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
-                    <div className="mb-3">
+                    <div className="relative w-full max-h-[calc(100vh-1.5rem)] overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/98 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
+                    <div className="mb-3 pr-10">
                       <div className="flex items-start justify-between gap-3">
                         <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => setMobileMenuOpen(false)}
-                          className="h-10 w-10 rounded-xl border-zinc-700 bg-zinc-900/80 p-0 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                          className="absolute right-3 top-3 h-8 w-8 rounded-lg border-zinc-700 bg-zinc-900/80 p-0 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                           aria-label="Закрыть меню"
                         >
-                          <X className="h-5 w-5" />
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
-                      <div className="mt-1 text-sm text-zinc-400">
-                        Быстрые переходы по разделам сайта и личному кабинету.
-                      </div>
                     </div>
-                    <div className="mb-8 flex justify-center">
+                    <div className="mb-4 flex justify-center">
                       {isAuthenticated ? (
                         <Button
                           variant="outline"
@@ -13422,9 +13414,9 @@ export default function App() {
                             setMobileMenuOpen(false);
                             openProfileScreen();
                           }}
-                          className="h-16 w-full max-w-[360px] rounded-2xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-3 gap-3 justify-start"
+                          className="h-12 w-full max-w-[360px] rounded-2xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-3 gap-3 justify-start"
                         >
-                          <Avatar src={avatar} name={playerName || "Игрок"} size={34} />
+                          <Avatar src={avatar} name={playerName || "Игрок"} size={30} />
                           <span className="min-w-0 text-left">
                             <span className="block max-w-[220px] truncate text-base font-semibold">{playerName || "Игрок"}</span>
                             <span className="block text-xs text-zinc-400">Личный кабинет</span>
@@ -13439,14 +13431,14 @@ export default function App() {
                             setAuthView("form");
                             setAuthDialogOpen(true);
                           }}
-                          className="h-16 w-full max-w-[360px] rounded-2xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center"
+                          className="h-12 w-full max-w-[360px] rounded-2xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100 px-4 gap-2 inline-flex items-center justify-center"
                         >
                           <LogIn className="w-4 h-4" />
                           Войти
                         </Button>
                       )}
                     </div>
-                    <div className="grid gap-4">
+                    <div className="grid gap-3">
                       <Button
                         variant={homeTab === "play" ? "default" : "outline"}
                         onClick={() => {
@@ -13454,7 +13446,7 @@ export default function App() {
                           setProfileMenuOpen(false);
                           setMobileMenuOpen(false);
                         }}
-                        className={homeTab === "play" ? "h-[52px] rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-[52px] rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
+                        className={homeTab === "play" ? "h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
                       >
                         <Gamepad2 className="w-4 h-4 mr-2" />
                         Играть
@@ -13466,7 +13458,7 @@ export default function App() {
                           setProfileMenuOpen(false);
                           setMobileMenuOpen(false);
                         }}
-                        className={homeTab === "shop" ? "h-[52px] rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-[52px] rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
+                        className={homeTab === "shop" ? "h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
                       >
                         <Crown className="w-4 h-4 mr-2" />
                         Магазин
@@ -13478,7 +13470,7 @@ export default function App() {
                           setProfileMenuOpen(false);
                           setMobileMenuOpen(false);
                         }}
-                        className={homeTab === "development" ? "h-[52px] rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-[52px] rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
+                        className={homeTab === "development" ? "h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
                       >
                         <Wrench className="w-4 h-4 mr-2" />
                         Разработка
@@ -13491,21 +13483,21 @@ export default function App() {
                           setProfileMenuOpen(false);
                           setMobileMenuOpen(false);
                         }}
-                        className={homeTab === "help" ? "h-[52px] rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-[52px] rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
+                        className={homeTab === "help" ? "h-11 rounded-xl bg-red-600 text-white hover:bg-red-500 border-0" : "h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"}
                       >
                         <CircleHelp className="w-4 h-4 mr-2" />
                         Помощь
                       </Button>
                     </div>
-                    <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+                    <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
                       <div className="text-xs uppercase tracking-[0.14em] text-zinc-500">Дополнительно</div>
-                      <div className="mt-2 text-sm text-zinc-300">
+                      <div className="mt-1 text-xs leading-5 text-zinc-300">
                         Поиск игроков и общение доступны в нашем Discord.
                       </div>
                       <Button
                         variant="outline"
                         onClick={() => window.open(DISCORD_INVITE_URL, "_blank", "noopener,noreferrer")}
-                        className="mt-3 h-11 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                        className="mt-2 h-10 w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
                       >
                         <DiscordLogoIcon className="mr-2 h-4 w-4" />
                         Перейти в Discord
@@ -18945,8 +18937,8 @@ export default function App() {
                           key={fact.id}
                           className="rounded-2xl bg-zinc-900/80 border-zinc-800 text-zinc-100"
                         >
-                          <CardContent className="p-4 flex flex-col gap-3">
-                            <div className="text-sm leading-relaxed">{fact.text}</div>
+                          <CardContent className="p-4 flex flex-col gap-2.5">
+                            <div className="text-base leading-relaxed">{fact.text}</div>
                             <div className="flex items-center justify-between gap-3">
                               <Badge
                                 className={
