@@ -1253,16 +1253,23 @@ export function joinRunningGameAsWitness(code: string, player: Player): Room | n
     cards: []
   };
 
-  room.players.push({
-    ...witnessPlayer,
-    facts: [],
-    cards: []
-  });
-  room.game.players.push({
-    ...witnessPlayer,
-    facts: [],
-    cards: []
-  });
+  room.players.push({ ...witnessPlayer, facts: [], cards: [] });
+  room.game.players.push({ ...witnessPlayer, facts: [], cards: [] });
+
+  if (supportRole === "witness") {
+    const WITNESS_STAGE = "Допрос свидетелей";
+    const hasStage = room.game.stages.includes(WITNESS_STAGE);
+    if (!hasStage) {
+      const firstCrossIdx = room.game.stages.findIndex((s) =>
+        s.toLowerCase().includes("перекрест"),
+      );
+      const insertAt = firstCrossIdx >= 0 ? firstCrossIdx : room.game.stages.length - 1;
+      room.game.stages.splice(insertAt, 0, WITNESS_STAGE);
+      if (room.game.stageIndex >= insertAt) {
+        room.game.stageIndex += 1;
+      }
+    }
+  }
 
   return room;
 }

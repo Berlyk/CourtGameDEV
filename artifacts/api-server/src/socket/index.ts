@@ -1830,6 +1830,10 @@ export function setupSocket(httpServer: HttpServer) {
           io.to(roomCode).emit("game_players_updated", {
             players: mapGamePlayers(updatedRoom.game.players)
           });
+          io.to(roomCode).emit("stage_updated", {
+            stageIndex: updatedRoom.game.stageIndex,
+            stages: updatedRoom.game.stages,
+          });
           emitPublicMatches(io);
           persistRoom(roomCode);
           return;
@@ -2928,7 +2932,7 @@ export function setupSocket(httpServer: HttpServer) {
           return;
         }
 
-        const normalizedText = (text ?? "").trim().slice(0, 600);
+        const normalizedText = (text ?? "").trim().slice(0, 100);
         if (!normalizedText) {
           socket.emit("error", { message: "Текст ходатайства не может быть пустым." });
           return;
@@ -2959,9 +2963,11 @@ export function setupSocket(httpServer: HttpServer) {
       ({
         code,
         sessionToken,
+        resolution,
       }: {
         code: string;
         sessionToken?: string;
+        resolution?: "accepted" | "rejected";
       }) => {
         const roomCode = normalizeRoomCode(code);
         const room = getRoom(roomCode);
@@ -2979,8 +2985,18 @@ export function setupSocket(httpServer: HttpServer) {
         const updatedRoom = dismissPetition(roomCode);
         if (!updatedRoom) return;
 
+        if (resolution) {
+          io.to(roomCode).emit("influence_announcement", {
+            id: crypto.randomUUID(),
+            kind: "petition",
+            title: resolution === "accepted" ? "ХОДАТАЙСТВО ПРИНЯТО" : "ХОДАТАЙСТВО ОТКЛОНЕНО",
+            durationMs: INFLUENCE_ANNOUNCEMENT_DURATION_MS,
+          });
+        }
+
+        const next = processNextPetitionFromQueue(roomCode);
         io.to(roomCode).emit("petition_state_updated", {
-          activePetition: updatedRoom.game?.activePetition ?? null,
+          activePetition: next?.game?.activePetition ?? updatedRoom.game?.activePetition ?? null,
         });
       },
     );

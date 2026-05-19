@@ -59,6 +59,7 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  Send,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getSocket } from "@/lib/socket";
@@ -2743,7 +2744,7 @@ interface LawyerChatPartner {
 
 interface InfluenceAnnouncement {
   id: string;
-  kind: "protest" | "silence" | "warning" | "card";
+  kind: "protest" | "silence" | "warning" | "card" | "petition";
   title: string;
   subtitle?: string;
   durationMs?: number;
@@ -4819,8 +4820,10 @@ export default function App() {
   const [influenceNotes, setInfluenceNotes] = useState("");
   const [lobbyReplyTo, setLobbyReplyTo] = useState<{ id: string; text: string; senderName: string } | null>(null);
   const [lobbyEmojiPickerOpen, setLobbyEmojiPickerOpen] = useState(false);
+  const [lobbyPendingImage, setLobbyPendingImage] = useState<string | null>(null);
   const [lawyerReplyTo, setLawyerReplyTo] = useState<{ id: string; text: string; senderName: string } | null>(null);
   const [lawyerEmojiPickerOpen, setLawyerEmojiPickerOpen] = useState(false);
+  const [lawyerPendingImage, setLawyerPendingImage] = useState<string | null>(null);
   const [petitionDialogOpen, setPetitionDialogOpen] = useState(false);
   const [petitionText, setPetitionText] = useState("");
   const [activePetition, setActivePetition] = useState<ActivePetition | null>(null);
@@ -9314,9 +9317,12 @@ export default function App() {
       );
     });
 
-    socket.on("stage_updated", ({ stageIndex }: { stageIndex: number }) => {
+    socket.on("stage_updated", ({ stageIndex, stages }: { stageIndex: number; stages?: string[] }) => {
       setPendingFactRevealIds([]);
-      setGame((prev) => (prev ? { ...prev, stageIndex } : prev));
+      setGame((prev) => {
+        if (!prev) return prev;
+        return { ...prev, stageIndex, ...(stages ? { stages } : {}) };
+      });
     });
 
     socket.on(
@@ -10042,19 +10048,20 @@ export default function App() {
     [openUserProfile],
   );
 
-  const sendLobbyChatMessage = useCallback((imageUrl?: string) => {
+  const sendLobbyChatMessage = useCallback(() => {
     const text = lobbyChatInput.trim();
-    if (!room || !mySessionToken || (!text && !imageUrl)) return;
+    if (!room || !mySessionToken || (!text && !lobbyPendingImage)) return;
     socket.emit("send_lobby_chat", {
       code: room.code,
       sessionToken: mySessionToken,
       text: text || " ",
-      ...(imageUrl ? { imageUrl } : {}),
+      ...(lobbyPendingImage ? { imageUrl: lobbyPendingImage } : {}),
       ...(lobbyReplyTo ? { replyToId: lobbyReplyTo.id, replyToText: lobbyReplyTo.text, replyToSenderName: lobbyReplyTo.senderName } : {}),
     });
     setLobbyChatInput("");
     setLobbyReplyTo(null);
-  }, [socket, room, mySessionToken, lobbyChatInput, lobbyReplyTo]);
+    setLobbyPendingImage(null);
+  }, [socket, room, mySessionToken, lobbyChatInput, lobbyReplyTo, lobbyPendingImage]);
 
   const joinPublicMatch = useCallback(
     (match: PublicMatchInfo) => {
@@ -10635,20 +10642,21 @@ export default function App() {
     });
   }, [game, mySessionToken, socket]);
 
-  const sendLawyerChatMessage = useCallback((imageUrl?: string) => {
+  const sendLawyerChatMessage = useCallback(() => {
     if (!game || !mySessionToken || !lawyerChatPartner) return;
     const text = lawyerChatInput.trim();
-    if (!text && !imageUrl) return;
+    if (!text && !lawyerPendingImage) return;
     socket.emit("send_lawyer_chat", {
       code: game.code,
       sessionToken: mySessionToken,
       text: text || " ",
-      ...(imageUrl ? { imageUrl } : {}),
+      ...(lawyerPendingImage ? { imageUrl: lawyerPendingImage } : {}),
       ...(lawyerReplyTo ? { replyToId: lawyerReplyTo.id, replyToText: lawyerReplyTo.text, replyToSenderName: lawyerReplyTo.senderName } : {}),
     });
     setLawyerChatInput("");
     setLawyerReplyTo(null);
-  }, [game, lawyerChatInput, lawyerChatPartner, mySessionToken, socket, lawyerReplyTo]);
+    setLawyerPendingImage(null);
+  }, [game, lawyerChatInput, lawyerChatPartner, mySessionToken, socket, lawyerReplyTo, lawyerPendingImage]);
 
   const returnHomeWithSession = useCallback(() => {
     const previousRank = myProfileRef.current?.rank;
@@ -13462,15 +13470,33 @@ export default function App() {
                 CourtGame
               </div>
             </div>
-            <Button
+            <button
               type="button"
-              variant="outline"
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="h-11 w-11 p-0 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-              aria-label="Открыть меню"
+              style={{ position: "relative", zIndex: mobileMenuOpen ? 250 : undefined }}
+              className="h-11 w-11 p-0 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 flex items-center justify-center"
+              aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
             >
-              <Menu className="h-5 w-5" />
-            </Button>
+              <div className="relative w-5 h-5 flex flex-col justify-center items-center gap-[4px]">
+                <motion.span
+                  animate={mobileMenuOpen ? { rotate: 45, y: 6, width: "100%" } : { rotate: 0, y: 0, width: "100%" }}
+                  transition={{ duration: 0.22 }}
+                  className="block h-[2px] rounded-full bg-current"
+                  style={{ transformOrigin: "center" }}
+                />
+                <motion.span
+                  animate={mobileMenuOpen ? { opacity: 0, scaleX: 0 } : { opacity: 1, scaleX: 1 }}
+                  transition={{ duration: 0.15 }}
+                  className="block h-[2px] w-full rounded-full bg-current"
+                />
+                <motion.span
+                  animate={mobileMenuOpen ? { rotate: -45, y: -6, width: "100%" } : { rotate: 0, y: 0, width: "100%" }}
+                  transition={{ duration: 0.22 }}
+                  className="block h-[2px] rounded-full bg-current"
+                  style={{ transformOrigin: "center" }}
+                />
+              </div>
+            </button>
           </div>
         </div>
 
@@ -17727,7 +17753,7 @@ export default function App() {
                         {lobbyChatMessages.map((message) => (
                           <div
                             key={message.id}
-                            className="group rounded-xl border border-zinc-800 bg-zinc-900/55 p-3"
+                            className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-3"
                           >
                             <div className="flex items-start gap-3 min-w-0">
                               <Avatar
@@ -17742,7 +17768,8 @@ export default function App() {
                                   <button
                                     type="button"
                                     onClick={() => setLobbyReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-zinc-300 text-xs px-1.5 py-0.5 rounded"
+                                    className="text-zinc-500 hover:text-zinc-200 text-base px-2 py-0.5 rounded hover:bg-zinc-800"
+                                    title="Ответить"
                                   >
                                     ↩
                                   </button>
@@ -17775,20 +17802,35 @@ export default function App() {
                           <button type="button" onClick={() => setLobbyReplyTo(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
                         </div>
                       )}
-                      {lobbyEmojiPickerOpen && (
-                        <div className="rounded-xl border border-zinc-700 bg-zinc-900 p-2 flex flex-wrap gap-1">
-                          {CHAT_EMOJIS.map((e) => (
-                            <button key={e} type="button" onClick={() => { setLobbyChatInput((v) => v + e); setLobbyEmojiPickerOpen(false); }} className="text-xl leading-none p-0.5 hover:bg-zinc-800 rounded">{e}</button>
-                          ))}
+                      {lobbyPendingImage && (
+                        <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-1.5">
+                          <img src={lobbyPendingImage} alt="" className="h-10 w-10 rounded object-cover shrink-0" />
+                          <span className="flex-1 text-xs text-zinc-400 truncate">Изображение прикреплено</span>
+                          <button type="button" onClick={() => setLobbyPendingImage(null)} className="text-zinc-500 hover:text-zinc-300 text-sm">✕</button>
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => { setLobbyEmojiPickerOpen((v) => !v); }}
-                          className="h-10 w-10 shrink-0 rounded-xl border border-zinc-700 bg-zinc-900 text-lg hover:bg-zinc-800 flex items-center justify-center"
-                          title="Эмодзи"
-                        >😊</button>
+                        <div
+                          className="relative shrink-0"
+                          onMouseEnter={() => setLobbyEmojiPickerOpen(true)}
+                          onMouseLeave={() => setLobbyEmojiPickerOpen(false)}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setLobbyEmojiPickerOpen((v) => !v)}
+                            className="h-10 w-10 rounded-xl border border-zinc-700 bg-zinc-900 text-lg hover:bg-zinc-800 flex items-center justify-center"
+                            title="Эмодзи"
+                          >😊</button>
+                          {lobbyEmojiPickerOpen && (
+                            <div className="absolute bottom-full left-0 mb-1 z-50 rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl p-2" style={{ width: 220 }}>
+                              <div className="flex flex-wrap gap-1 max-h-[110px] overflow-y-auto">
+                                {CHAT_EMOJIS.map((e) => (
+                                  <button key={e} type="button" onClick={() => { setLobbyChatInput((v) => v + e); setLobbyEmojiPickerOpen(false); }} className="text-xl leading-none p-0.5 hover:bg-zinc-800 rounded">{e}</button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={() => lobbyImageInputRef.current?.click()}
@@ -17808,7 +17850,7 @@ export default function App() {
                             e.target.value = "";
                             try {
                               const dataUrl = await compressChatImage(file);
-                              sendLobbyChatMessage(dataUrl);
+                              setLobbyPendingImage(dataUrl);
                             } catch {
                               // silently ignore
                             }
@@ -17822,11 +17864,11 @@ export default function App() {
                           className="h-10 flex-1 rounded-xl bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
                         />
                         <Button
-                          onClick={() => sendLobbyChatMessage()}
-                          className="h-10 rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
-                          disabled={!lobbyChatInput.trim()}
+                          onClick={sendLobbyChatMessage}
+                          className="h-10 w-10 shrink-0 rounded-xl bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border-0 p-0 flex items-center justify-center"
+                          disabled={!lobbyChatInput.trim() && !lobbyPendingImage}
                         >
-                          →
+                          <Send className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -17998,6 +18040,8 @@ export default function App() {
       influenceAnnouncement?.kind === "protest" && /ПРИНЯТ/i.test(announcementTitle);
     const isProtestRejectedAnnouncement =
       influenceAnnouncement?.kind === "protest" && /ОТКЛОНЕН/i.test(announcementTitle);
+    const isPetitionAnnouncement = influenceAnnouncement?.kind === "petition";
+    const isPetitionAcceptedAnnouncement = isPetitionAnnouncement && /ПРИНЯТО/i.test(announcementTitle);
     const warningTargets = game.players.filter(
       (player) =>
         player.id !== game.me!.id &&
@@ -18336,22 +18380,29 @@ export default function App() {
                 </div>
               </motion.div>
             )}
-            {activePetition && !hasActiveProtest && (
+            {activePetition && !hasActiveProtest && !influenceAnnouncement && (
               <motion.div
                 key={`active-petition-${activePetition.id}`}
-                initial={{ opacity: 0, scale: 0.88, y: 14 }}
+                initial={{ opacity: 0, scale: 0.86, y: 16 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 1.02, y: -8 }}
+                exit={{ opacity: 0, scale: 1.03, y: -10 }}
                 transition={{ duration: 0.24, ease: "easeOut" }}
-                className="fixed inset-0 z-[68] pointer-events-none flex items-end justify-center px-4 pb-8"
+                className="fixed inset-0 z-[68] pointer-events-none flex items-center justify-center px-4"
               >
-                <div className="w-full max-w-xl">
-                  <div className="inline-flex w-full flex-col rounded-2xl border border-amber-500/30 bg-zinc-950/92 px-5 py-4 shadow-[0_12px_48px_rgba(0,0,0,0.65)]">
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-300/80">
-                      Ходатайство · {activePetition.actorRoleTitle}
-                    </div>
-                    <div className="text-sm text-zinc-200 leading-relaxed break-words [overflow-wrap:anywhere]">
+                <div className="w-full max-w-3xl text-center">
+                  <div className="inline-flex max-w-full flex-col items-center rounded-2xl border border-zinc-700/70 bg-zinc-950/88 px-8 py-5 shadow-[0_18px_64px_rgba(0,0,0,0.7)]">
+                    <motion.div
+                      animate={{ textShadow: ["0 0 18px rgba(251,191,36,0.35)","0 0 34px rgba(251,191,36,0.85)","0 0 20px rgba(251,191,36,0.45)"] }}
+                      transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
+                      className="text-[clamp(2.1rem,7vw,4.9rem)] font-black tracking-[0.04em] whitespace-nowrap leading-none text-amber-400 uppercase"
+                    >
+                      ХОДАТАЙСТВО!
+                    </motion.div>
+                    <div className="mt-2 max-w-lg px-2 text-base text-zinc-200 leading-relaxed break-words [overflow-wrap:anywhere]">
                       {activePetition.text}
+                    </div>
+                    <div className="mt-3 rounded-lg border border-zinc-600/60 bg-black/30 px-4 py-2 text-base md:text-lg text-zinc-100 font-semibold">
+                      {activePetition.actorRoleTitle}
                     </div>
                   </div>
                 </div>
@@ -18382,31 +18433,21 @@ export default function App() {
                     <motion.div
                       animate={{
                         textShadow: isCardAnnouncement
-                          ? [
-                              "0 0 14px rgba(244,63,94,0.28)",
-                              "0 0 24px rgba(244,63,94,0.5)",
-                              "0 0 16px rgba(244,63,94,0.32)",
-                            ]
-                          : isProtestAcceptedAnnouncement
-                            ? [
-                                "0 0 18px rgba(16,185,129,0.35)",
-                                "0 0 34px rgba(16,185,129,0.85)",
-                                "0 0 20px rgba(16,185,129,0.45)",
-                              ]
-                          : [
-                              "0 0 18px rgba(239,68,68,0.35)",
-                              "0 0 34px rgba(239,68,68,0.85)",
-                              "0 0 20px rgba(239,68,68,0.45)",
-                            ],
+                          ? ["0 0 14px rgba(244,63,94,0.28)","0 0 24px rgba(244,63,94,0.5)","0 0 16px rgba(244,63,94,0.32)"]
+                          : isProtestAcceptedAnnouncement || isPetitionAcceptedAnnouncement
+                            ? ["0 0 18px rgba(16,185,129,0.35)","0 0 34px rgba(16,185,129,0.85)","0 0 20px rgba(16,185,129,0.45)"]
+                            : isPetitionAnnouncement
+                              ? ["0 0 18px rgba(251,191,36,0.35)","0 0 34px rgba(251,191,36,0.75)","0 0 20px rgba(251,191,36,0.45)"]
+                              : ["0 0 18px rgba(239,68,68,0.35)","0 0 34px rgba(239,68,68,0.85)","0 0 20px rgba(239,68,68,0.45)"],
                       }}
                       transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
                       className={`max-w-full break-words [text-wrap:balance] font-black uppercase ${
                         isCardAnnouncement
                           ? "text-[clamp(1.55rem,4.2vw,2.7rem)] tracking-[0.018em] leading-[0.98] text-rose-300"
-                          : isProtestAcceptedAnnouncement
+                          : isProtestAcceptedAnnouncement || isPetitionAcceptedAnnouncement
                             ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-emerald-400"
-                            : isProtestRejectedAnnouncement
-                              ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-red-500"
+                            : isPetitionAnnouncement
+                              ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-amber-400"
                               : "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-red-500"
                       }`}
                     >
@@ -18460,18 +18501,20 @@ export default function App() {
                 </div>
 
                 <div className="min-w-[260px] space-y-2 max-sm:-mt-2 sm:space-y-3 xl:min-w-[320px] xl:space-y-4">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={currentStage}
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -10 }}
-                      transition={{ duration: 0.25 }}
-                      className="text-sm font-medium xl:text-base"
-                    >
-                      Этап: {currentStage}
-                    </motion.div>
-                  </AnimatePresence>
+                  <div className="overflow-hidden">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={currentStage}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                        className="text-sm font-medium xl:text-base break-words [overflow-wrap:anywhere]"
+                      >
+                        Этап: {currentStage}
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
                   <Progress
                     value={stageProgress}
                     className="h-3 bg-zinc-800 [&>div]:bg-red-600 [&>div]:transition-all [&>div]:duration-500 xl:h-4"
@@ -18681,45 +18724,44 @@ export default function App() {
                             Пока нет сообщений.
                           </div>
                         )}
-                        {lawyerChatMessages.map((message) => {
-                          const own = message.senderId === myId;
-                          return (
-                            <div
-                              key={message.id}
-                              className={`group flex min-w-0 ${own ? "justify-end" : "justify-start"}`}
-                            >
-                              <div
-                                className={`max-w-full md:max-w-[85%] min-w-0 rounded-xl px-3 py-2 text-sm ${
-                                  own ? "bg-red-600 text-white" : "bg-zinc-800 text-zinc-200"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-[11px] opacity-75">{message.senderName} · {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setLawyerReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[11px] leading-none px-1 rounded hover:bg-black/20"
-                                  >↩</button>
+                        {lawyerChatMessages.map((message) => (
+                          <div
+                            key={message.id}
+                            className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-3"
+                          >
+                            <div className="flex items-start gap-2.5 min-w-0">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-sm font-semibold text-zinc-100">{message.senderName}</span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className="text-[11px] text-zinc-500">{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setLawyerReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
+                                      className="text-zinc-500 hover:text-zinc-200 text-base px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                                      title="Ответить"
+                                    >↩</button>
+                                  </div>
                                 </div>
                                 {message.replyToSenderName && (
-                                  <div className={`mb-1.5 rounded border-l-2 px-2 py-1 text-[11px] truncate ${own ? "border-red-300/60 bg-red-700/40 text-red-100" : "border-zinc-500 bg-zinc-700/60 text-zinc-400"}`}>
-                                    <span className="font-semibold">{message.replyToSenderName}:</span> {message.replyToText}
+                                  <div className="mt-1 rounded-lg border-l-2 border-zinc-600 bg-zinc-800/60 px-2 py-1 text-xs text-zinc-400 truncate">
+                                    <span className="font-semibold text-zinc-300">{message.replyToSenderName}:</span> {message.replyToText}
                                   </div>
                                 )}
                                 {message.imageUrl && (
-                                  <div className="mb-1.5 max-w-[200px]">
+                                  <div className="mt-2 max-w-[200px]">
                                     <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[160px] object-contain" />
                                   </div>
                                 )}
                                 {message.text.trim() && (
-                                  <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                                  <div className="mt-1 text-zinc-200 text-sm whitespace-pre-wrap break-all overflow-hidden">
                                     {message.text.trim()}
                                   </div>
                                 )}
                               </div>
                             </div>
-                          );
-                        })}
+                          </div>
+                        ))}
                       </div>
                     </div>
                     <div className="shrink-0 space-y-1.5">
@@ -18729,20 +18771,35 @@ export default function App() {
                           <button type="button" onClick={() => setLawyerReplyTo(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
                         </div>
                       )}
-                      {lawyerEmojiPickerOpen && (
-                        <div className="rounded-xl border border-zinc-700 bg-zinc-900 p-2 flex flex-wrap gap-1">
-                          {CHAT_EMOJIS.map((e) => (
-                            <button key={e} type="button" onClick={() => { setLawyerChatInput((v) => v + e); setLawyerEmojiPickerOpen(false); }} className="text-xl leading-none p-0.5 hover:bg-zinc-800 rounded">{e}</button>
-                          ))}
+                      {lawyerPendingImage && (
+                        <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-1.5">
+                          <img src={lawyerPendingImage} alt="" className="h-10 w-10 rounded object-cover shrink-0" />
+                          <span className="flex-1 text-xs text-zinc-400 truncate">Изображение прикреплено</span>
+                          <button type="button" onClick={() => setLawyerPendingImage(null)} className="text-zinc-500 hover:text-zinc-300 text-sm">✕</button>
                         </div>
                       )}
                       <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setLawyerEmojiPickerOpen((v) => !v)}
-                          className="h-10 w-10 shrink-0 rounded-xl border border-zinc-700 bg-zinc-900 text-lg hover:bg-zinc-800 flex items-center justify-center"
-                          title="Эмодзи"
-                        >😊</button>
+                        <div
+                          className="relative shrink-0"
+                          onMouseEnter={() => setLawyerEmojiPickerOpen(true)}
+                          onMouseLeave={() => setLawyerEmojiPickerOpen(false)}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setLawyerEmojiPickerOpen((v) => !v)}
+                            className="h-10 w-10 rounded-xl border border-zinc-700 bg-zinc-900 text-lg hover:bg-zinc-800 flex items-center justify-center"
+                            title="Эмодзи"
+                          >😊</button>
+                          {lawyerEmojiPickerOpen && (
+                            <div className="absolute bottom-full left-0 mb-1 z-50 rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl p-2" style={{ width: 220 }}>
+                              <div className="flex flex-wrap gap-1 max-h-[110px] overflow-y-auto">
+                                {CHAT_EMOJIS.map((e) => (
+                                  <button key={e} type="button" onClick={() => { setLawyerChatInput((v) => v + e); setLawyerEmojiPickerOpen(false); }} className="text-xl leading-none p-0.5 hover:bg-zinc-800 rounded">{e}</button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={() => lawyerImageInputRef.current?.click()}
@@ -18762,7 +18819,7 @@ export default function App() {
                             e.target.value = "";
                             try {
                               const dataUrl = await compressChatImage(file);
-                              sendLawyerChatMessage(dataUrl);
+                              setLawyerPendingImage(dataUrl);
                             } catch {
                               // silently ignore
                             }
@@ -18776,11 +18833,11 @@ export default function App() {
                           className="h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
                         />
                         <Button
-                          className="h-10 rounded-xl border-0 bg-zinc-100 font-medium text-zinc-950 hover:bg-zinc-200 px-3"
-                          onClick={() => sendLawyerChatMessage()}
-                          disabled={!lawyerChatInput.trim()}
+                          className="h-10 w-10 shrink-0 rounded-xl bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border-0 p-0 flex items-center justify-center"
+                          onClick={sendLawyerChatMessage}
+                          disabled={!lawyerChatInput.trim() && !lawyerPendingImage}
                         >
-                          →
+                          <Send className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -19016,20 +19073,35 @@ export default function App() {
                           </div>
                         )}
                         {activePetition && !hasActiveProtest && (
-                          <div className="rounded-xl border border-amber-500/35 bg-zinc-900/90 p-3.5 space-y-2.5">
+                          <div className="rounded-xl border border-amber-500/35 bg-zinc-900/90 p-3.5 space-y-2.5 shadow-[inset_0_1px_0_rgba(251,191,36,0.12)]">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200/90">
-                              Ходатайство
+                              Активное ходатайство
                             </div>
                             <div className="text-xs text-zinc-300 leading-relaxed break-words [overflow-wrap:anywhere]">
                               <span className="font-semibold text-zinc-100">{activePetition.actorRoleTitle}:</span> {activePetition.text}
                             </div>
-                            <Button
-                              variant="outline"
-                              className="w-full h-9 rounded-xl border-zinc-600 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-sm"
-                              onClick={dismissActivePetition}
-                            >
-                              Принято к сведению
-                            </Button>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Button
+                                variant="outline"
+                                className="h-10 rounded-xl border-emerald-500/50 bg-emerald-500/14 text-emerald-200 hover:bg-emerald-500/24 hover:text-emerald-100"
+                                onClick={() => {
+                                  if (!game || !mySessionToken) return;
+                                  socket.emit("dismiss_petition", { code: game.code, sessionToken: mySessionToken, resolution: "accepted" });
+                                }}
+                              >
+                                Принять
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="h-10 rounded-xl border-red-500/50 bg-red-500/14 text-red-200 hover:bg-red-500/24 hover:text-red-100"
+                                onClick={() => {
+                                  if (!game || !mySessionToken) return;
+                                  socket.emit("dismiss_petition", { code: game.code, sessionToken: mySessionToken, resolution: "rejected" });
+                                }}
+                              >
+                                Отклонить
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </>
@@ -19455,27 +19527,24 @@ export default function App() {
           <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
             <DialogHeader>
               <DialogTitle>Ходатайство</DialogTitle>
-              <DialogDescription className="text-zinc-400">
-                Опишите ваше ходатайство. Оно будет видно всем участникам.
-              </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
-              <textarea
-                value={petitionText}
-                onChange={(e) => setPetitionText(e.target.value.slice(0, 600))}
-                placeholder="Текст ходатайства..."
-                className={`w-full h-[120px] resize-none rounded-xl border border-zinc-700 bg-zinc-900 p-3 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:ring-1 focus:ring-red-500/60 ${HIDE_SCROLLBAR_CLASS}`}
-              />
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-zinc-500">{petitionText.length}/600</span>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100" onClick={() => { setPetitionDialogOpen(false); setPetitionText(""); }}>
-                    Отмена
-                  </Button>
-                  <Button className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0" onClick={submitPetition} disabled={!petitionText.trim()}>
-                    Отправить
-                  </Button>
-                </div>
+              <div className="relative">
+                <textarea
+                  value={petitionText}
+                  onChange={(e) => setPetitionText(e.target.value.slice(0, 100))}
+                  placeholder="Текст ходатайства..."
+                  className={`w-full h-[100px] resize-none rounded-xl border border-zinc-700 bg-zinc-900 p-3 pb-6 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:ring-1 focus:ring-amber-500/60 ${HIDE_SCROLLBAR_CLASS}`}
+                />
+                <span className="absolute bottom-2 right-3 text-xs text-zinc-500 pointer-events-none">{petitionText.length}/100</span>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100" onClick={() => { setPetitionDialogOpen(false); setPetitionText(""); }}>
+                  Отмена
+                </Button>
+                <Button className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0" onClick={submitPetition} disabled={!petitionText.trim()}>
+                  Отправить
+                </Button>
               </div>
             </div>
           </DialogContent>
