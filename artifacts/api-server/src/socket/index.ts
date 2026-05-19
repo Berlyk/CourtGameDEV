@@ -37,9 +37,13 @@ import {
   cleanupStaleRooms,
   restoreRoomsFromSnapshots,
   markMissingSocketPlayersDisconnected,
+  raisePetition,
+  dismissPetition,
+  processNextPetitionFromQueue,
   type AssignableRole,
   type CreateRoomOptions,
   type RoomModeKey,
+  type ActivePetition,
 } from "./roomManager.js";
 import {
   getBanMessageForClient,
@@ -295,6 +299,12 @@ function isCrossExaminationStage(stageName: string): boolean {
   return stageIncludesAll(normalizedStageName, CROSS_EXAMINATION_STAGE_MARKERS);
 }
 
+const WITNESS_INTERROGATION_MARKERS = ["допрос", "свидет"];
+function isWitnessInterrogationStage(stageName: string): boolean {
+  const n = normalizeStageName(stageName);
+  return stageIncludesAll(n, WITNESS_INTERROGATION_MARKERS) && !stageIncludesAll(n, CROSS_EXAMINATION_STAGE_MARKERS);
+}
+
 function isOpeningSpeechStage(stageName: string): boolean {
   const normalizedStageName = normalizeStageName(stageName);
   return OPENING_STAGE_MARKERS.some((marker) =>
@@ -349,6 +359,7 @@ function isRoleOpeningSpeechStage(roleKey: string | undefined, stageName: string
 
 function canRoleRevealFactsAtStage(roleKey: string | undefined, stageName: string, roleTitle?: string): boolean {
   if (isCrossExaminationStage(stageName)) return true;
+  if (isWitnessInterrogationStage(stageName)) return true;
   return isRoleSpeechStage(roleKey, stageName, roleTitle);
 }
 
@@ -675,6 +686,7 @@ function getRoomState(room: any, playerId: string) {
     revealedFacts: room.game.revealedFacts,
     usedCards: room.game.usedCards,
     activeProtest: room.game.activeProtest ?? null,
+    activePetition: room.game.activePetition ?? null,
     finished: room.game.finished,
     verdict: room.game.verdict,
     verdictEvaluation: room.game.verdictEvaluation,
@@ -2562,10 +2574,18 @@ export function setupSocket(httpServer: HttpServer) {
         code,
         text,
         sessionToken,
+        imageUrl,
+        replyToId,
+        replyToText,
+        replyToSenderName,
       }: {
         code: string;
         text: string;
         sessionToken?: string;
+        imageUrl?: string;
+        replyToId?: string;
+        replyToText?: string;
+        replyToSenderName?: string;
       }) => {
         const roomCode = normalizeRoomCode(code);
         const room = getRoom(roomCode);
@@ -2578,7 +2598,17 @@ export function setupSocket(httpServer: HttpServer) {
         });
         if (!actorId) return;
 
-        const updatedRoom = addLobbyChatMessage(roomCode, actorId, text);
+        const safeImageUrl =
+          typeof imageUrl === "string" && imageUrl.startsWith("data:image/") && imageUrl.length < 300_000
+            ? imageUrl
+            : undefined;
+
+        const updatedRoom = addLobbyChatMessage(roomCode, actorId, text ?? "", {
+          imageUrl: safeImageUrl,
+          replyToId: typeof replyToId === "string" ? replyToId : undefined,
+          replyToText: typeof replyToText === "string" ? replyToText : undefined,
+          replyToSenderName: typeof replyToSenderName === "string" ? replyToSenderName : undefined,
+        });
         if (!updatedRoom) return;
 
         const latestMessage = updatedRoom.lobbyChat[updatedRoom.lobbyChat.length - 1];
@@ -2629,10 +2659,18 @@ export function setupSocket(httpServer: HttpServer) {
         code,
         text,
         sessionToken,
+        imageUrl,
+        replyToId,
+        replyToText,
+        replyToSenderName,
       }: {
         code: string;
         text: string;
         sessionToken?: string;
+        imageUrl?: string;
+        replyToId?: string;
+        replyToText?: string;
+        replyToSenderName?: string;
       }) => {
         const roomCode = normalizeRoomCode(code);
         const room = getRoom(roomCode);
@@ -2650,16 +2688,28 @@ export function setupSocket(httpServer: HttpServer) {
         if (!pair) return;
 
         const normalizedText = (text ?? "").trim().slice(0, 500);
-        if (!normalizedText) return;
+        const safeImageUrl =
+          typeof imageUrl === "string" && imageUrl.startsWith("data:image/") && imageUrl.length < 300_000
+            ? imageUrl
+            : undefined;
+        if (!normalizedText && !safeImageUrl) return;
 
-        const messages = lawyerChats.get(pair.chatKey) ?? [];
-        messages.push({
+        const msg: any = {
           id: crypto.randomUUID(),
           senderId: actorId,
           senderName: pair.self.name,
           text: normalizedText,
           createdAt: Date.now(),
-        });
+        };
+        if (safeImageUrl) msg.imageUrl = safeImageUrl;
+        if (typeof replyToId === "string" && replyToId) {
+          msg.replyToId = replyToId;
+          msg.replyToText = (typeof replyToText === "string" ? replyToText : "").slice(0, 150);
+          msg.replyToSenderName = (typeof replyToSenderName === "string" ? replyToSenderName : "").slice(0, 50);
+        }
+
+        const messages = lawyerChats.get(pair.chatKey) ?? [];
+        messages.push(msg);
         if (messages.length > 150) {
           lawyerChats.set(pair.chatKey, messages.slice(-150));
         } else {
@@ -2843,8 +2893,98 @@ export function setupSocket(httpServer: HttpServer) {
               : "ПРОТЕСТ ОТКЛОНЕН",
           durationMs: INFLUENCE_ANNOUNCEMENT_DURATION_MS,
         });
+
+        const afterProtest = processNextPetitionFromQueue(roomCode);
+        if (afterProtest?.game?.activePetition) {
+          io.to(roomCode).emit("petition_state_updated", {
+            activePetition: afterProtest.game.activePetition,
+          });
+        }
       },
     );
+    socket.on(
+      "raise_petition",
+      ({
+        code,
+        text,
+        sessionToken,
+      }: {
+        code: string;
+        text: string;
+        sessionToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room?.game || room.game.finished) return;
+
+        const actorId = resolveActorId({ socketId: socket.id, roomCode, room, sessionToken });
+        if (!actorId) return;
+
+        const actor = room.game.players.find((p: any) => p.id === actorId);
+        if (!actor) return;
+        const actorRole = normalizeRoleKey(actor.roleKey);
+        if (actorRole === "observer") {
+          socket.emit("error", { message: "Наблюдатели не могут подавать ходатайства." });
+          return;
+        }
+
+        const normalizedText = (text ?? "").trim().slice(0, 600);
+        if (!normalizedText) {
+          socket.emit("error", { message: "Текст ходатайства не может быть пустым." });
+          return;
+        }
+
+        const petition: ActivePetition = {
+          id: crypto.randomUUID(),
+          actorId,
+          actorName: actor.name,
+          actorRoleTitle: actor.roleTitle ?? actor.roleKey ?? "",
+          text: normalizedText,
+          createdAt: Date.now(),
+        };
+
+        const result = raisePetition(roomCode, petition);
+        if (!result) return;
+
+        if (result.activated) {
+          io.to(roomCode).emit("petition_state_updated", { activePetition: result.room.game!.activePetition });
+        } else {
+          socket.emit("petition_queued", { position: result.room.game!.petitionQueue.length });
+        }
+      },
+    );
+
+    socket.on(
+      "dismiss_petition",
+      ({
+        code,
+        sessionToken,
+      }: {
+        code: string;
+        sessionToken?: string;
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room?.game || room.game.finished) return;
+
+        const actorId = resolveActorId({ socketId: socket.id, roomCode, room, sessionToken });
+        if (!actorId) return;
+
+        const judgePlayer = room.game.players.find((p: any) => p.roleKey === "judge");
+        if (actorId !== room.hostId && judgePlayer?.id !== actorId) {
+          socket.emit("error", { message: "Принять или отклонить ходатайство может только судья." });
+          return;
+        }
+
+        const updatedRoom = dismissPetition(roomCode);
+        if (!updatedRoom) return;
+
+        io.to(roomCode).emit("petition_state_updated", {
+          activePetition: updatedRoom.game?.activePetition ?? null,
+        });
+      },
+    );
+
     socket.on(
       "trigger_judge_silence",
       ({ code, sessionToken }: { code: string; sessionToken?: string }) => {

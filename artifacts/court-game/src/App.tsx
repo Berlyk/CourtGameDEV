@@ -108,6 +108,34 @@ const DEFAULT_GAME_STAGES = [
   "Решение судьи",
 ];
 
+const CHAT_EMOJIS = ["😀","😂","😍","🥰","😎","😢","😡","👍","👎","❤️","🔥","🎉","🤔","😮","😴","🙏","💪","👀","✅","❌","⚖️","📜","🔨","💡","🤝","👏","🫡","😤","🥳","💀"];
+
+async function compressChatImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 800;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("no_ctx")); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+      if (dataUrl.length > 290000) { reject(new Error("too_large")); return; }
+      resolve(dataUrl);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("load_error")); };
+    img.src = url;
+  });
+}
+
 const DiscordLogoIcon = ({ className }: { className?: string }) => (
   <svg
     viewBox="0 0 24 24"
@@ -542,8 +570,8 @@ const SHOP_PAYMENT_METHODS: ShopPaymentMethod[] = [
     providerCategory: "crypto",
     title: "TON",
     previewGradient: "radial-gradient(110% 120% at 0% 0%, rgba(59,130,246,0.34), rgba(59,130,246,0.02) 62%)",
-    logoUrl: "https://genuine-amusement-abf8b52228.media.strapiapp.com/icon_TON_color_3b00ec6622.svg",
-    logoFallbackUrl: "/payment-logos/ton.svg",
+    logoUrl: SHOP_PAYMENT_INLINE_LOGOS.ton,
+    logoFallbackUrl: SHOP_PAYMENT_INLINE_LOGOS.ton,
   },
 ];
 
@@ -2680,12 +2708,29 @@ interface LobbyChatMessage {
   senderAvatar?: string;
   text: string;
   createdAt: number;
+  imageUrl?: string;
+  replyToId?: string;
+  replyToText?: string;
+  replyToSenderName?: string;
 }
 
 interface LawyerChatMessage {
   id: string;
   senderId: string;
   senderName: string;
+  text: string;
+  createdAt: number;
+  imageUrl?: string;
+  replyToId?: string;
+  replyToText?: string;
+  replyToSenderName?: string;
+}
+
+interface ActivePetition {
+  id: string;
+  actorId: string;
+  actorName: string;
+  actorRoleTitle: string;
   text: string;
   createdAt: number;
 }
@@ -2972,6 +3017,7 @@ interface GameState {
   revealedFacts: RevealedFact[];
   usedCards: UsedCard[];
   activeProtest: ActiveProtest | null;
+  activePetition: ActivePetition | null;
   finished: boolean;
   verdict: string;
   verdictEvaluation: string;
@@ -4771,6 +4817,15 @@ export default function App() {
   const [lawyerChatInput, setLawyerChatInput] = useState("");
   const [lawyerChatUnreadCount, setLawyerChatUnreadCount] = useState(0);
   const [influenceNotes, setInfluenceNotes] = useState("");
+  const [lobbyReplyTo, setLobbyReplyTo] = useState<{ id: string; text: string; senderName: string } | null>(null);
+  const [lobbyEmojiPickerOpen, setLobbyEmojiPickerOpen] = useState(false);
+  const [lawyerReplyTo, setLawyerReplyTo] = useState<{ id: string; text: string; senderName: string } | null>(null);
+  const [lawyerEmojiPickerOpen, setLawyerEmojiPickerOpen] = useState(false);
+  const [petitionDialogOpen, setPetitionDialogOpen] = useState(false);
+  const [petitionText, setPetitionText] = useState("");
+  const [activePetition, setActivePetition] = useState<ActivePetition | null>(null);
+  const lobbyImageInputRef = useRef<HTMLInputElement>(null);
+  const lawyerImageInputRef = useRef<HTMLInputElement>(null);
   const [protestCooldownEndsAt, setProtestCooldownEndsAt] = useState(0);
   const [silenceCooldownEndsAt, setSilenceCooldownEndsAt] = useState(0);
   const [speechTimerDeadlineAt, setSpeechTimerDeadlineAt] = useState<number | null>(null);
@@ -8412,7 +8467,6 @@ export default function App() {
       setMyProfileLoading(false);
       return;
     }
-    if (screen !== "profile" && screen !== "home") return;
     let cancelled = false;
     setMyProfileLoading(true);
     authRequest<{ profile: PublicUserProfile }>("/auth/profile", { token: authToken })
@@ -9066,6 +9120,13 @@ export default function App() {
     );
 
     socket.on(
+      "petition_state_updated",
+      ({ activePetition: ap }: { activePetition: ActivePetition | null }) => {
+        setActivePetition(ap ?? null);
+      },
+    );
+
+    socket.on(
       "reconnect_available",
       ({
         code,
@@ -9316,6 +9377,7 @@ export default function App() {
       socket.off("influence_cooldown");
       socket.off("influence_announcement");
       socket.off("protest_state_updated");
+      socket.off("petition_state_updated");
       socket.off("reconnect_available");
       socket.off("rejoin_failed");
       socket.off("kicked");
@@ -9980,16 +10042,19 @@ export default function App() {
     [openUserProfile],
   );
 
-  const sendLobbyChatMessage = useCallback(() => {
+  const sendLobbyChatMessage = useCallback((imageUrl?: string) => {
     const text = lobbyChatInput.trim();
-    if (!room || !mySessionToken || !text) return;
+    if (!room || !mySessionToken || (!text && !imageUrl)) return;
     socket.emit("send_lobby_chat", {
       code: room.code,
       sessionToken: mySessionToken,
-      text,
+      text: text || " ",
+      ...(imageUrl ? { imageUrl } : {}),
+      ...(lobbyReplyTo ? { replyToId: lobbyReplyTo.id, replyToText: lobbyReplyTo.text, replyToSenderName: lobbyReplyTo.senderName } : {}),
     });
     setLobbyChatInput("");
-  }, [socket, room, mySessionToken, lobbyChatInput]);
+    setLobbyReplyTo(null);
+  }, [socket, room, mySessionToken, lobbyChatInput, lobbyReplyTo]);
 
   const joinPublicMatch = useCallback(
     (match: PublicMatchInfo) => {
@@ -10507,6 +10572,27 @@ export default function App() {
     [game, mySessionToken, socket],
   );
 
+  const submitPetition = useCallback(() => {
+    if (!game || !mySessionToken) return;
+    const text = petitionText.trim();
+    if (!text) return;
+    socket.emit("raise_petition", {
+      code: game.code,
+      sessionToken: mySessionToken,
+      text,
+    });
+    setPetitionText("");
+    setPetitionDialogOpen(false);
+  }, [game, mySessionToken, socket, petitionText]);
+
+  const dismissActivePetition = useCallback(() => {
+    if (!game || !mySessionToken) return;
+    socket.emit("dismiss_petition", {
+      code: game.code,
+      sessionToken: mySessionToken,
+    });
+  }, [game, mySessionToken, socket]);
+
   const triggerJudgeSilence = useCallback(() => {
     if (!game || !mySessionToken) return;
     socket.emit("trigger_judge_silence", {
@@ -10549,17 +10635,20 @@ export default function App() {
     });
   }, [game, mySessionToken, socket]);
 
-  const sendLawyerChatMessage = useCallback(() => {
+  const sendLawyerChatMessage = useCallback((imageUrl?: string) => {
     if (!game || !mySessionToken || !lawyerChatPartner) return;
     const text = lawyerChatInput.trim();
-    if (!text) return;
+    if (!text && !imageUrl) return;
     socket.emit("send_lawyer_chat", {
       code: game.code,
       sessionToken: mySessionToken,
-      text,
+      text: text || " ",
+      ...(imageUrl ? { imageUrl } : {}),
+      ...(lawyerReplyTo ? { replyToId: lawyerReplyTo.id, replyToText: lawyerReplyTo.text, replyToSenderName: lawyerReplyTo.senderName } : {}),
     });
     setLawyerChatInput("");
-  }, [game, lawyerChatInput, lawyerChatPartner, mySessionToken, socket]);
+    setLawyerReplyTo(null);
+  }, [game, lawyerChatInput, lawyerChatPartner, mySessionToken, socket, lawyerReplyTo]);
 
   const returnHomeWithSession = useCallback(() => {
     const previousRank = myProfileRef.current?.rank;
@@ -13376,7 +13465,7 @@ export default function App() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setMobileMenuOpen(true)}
+              onClick={() => setMobileMenuOpen((v) => !v)}
               className="h-11 w-11 p-0 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
               aria-label="Открыть меню"
             >
@@ -13410,17 +13499,7 @@ export default function App() {
                     className="md:hidden fixed inset-0 z-[240] flex items-center justify-center px-3 py-3"
                   >
                     <div className="relative w-full max-h-[calc(100vh-1.5rem)] overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/98 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.72)]">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="!absolute right-3 top-3 z-20 aspect-square !h-6 !w-6 !min-h-6 !min-w-6 !max-h-6 !max-w-6 shrink-0 rounded-md border-zinc-700 bg-zinc-900/90 p-0 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
-                        style={{ width: 24, height: 24, minWidth: 24, minHeight: 24 }}
-                        aria-label="Закрыть меню"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    <div className="mb-3 pr-10">
+                    <div className="mb-3">
                       <div className="flex items-start gap-3">
                         <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Навигация</div>
                       </div>
@@ -17648,7 +17727,7 @@ export default function App() {
                         {lobbyChatMessages.map((message) => (
                           <div
                             key={message.id}
-                            className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-3"
+                            className="group rounded-xl border border-zinc-800 bg-zinc-900/55 p-3"
                           >
                             <div className="flex items-start gap-3 min-w-0">
                               <Avatar
@@ -17658,42 +17737,98 @@ export default function App() {
                                 staticIfAnimated
                               />
                               <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2 text-zinc-400 text-xs">
-                                  <span className="text-sm font-semibold text-zinc-100">
-                                    {message.senderName}
-                                  </span>
-                                  <span>•</span>
-                                  <span>
-                                    {new Date(message.createdAt).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}
-                                  </span>
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-sm font-semibold text-zinc-100">{message.senderName}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setLobbyReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-zinc-300 text-xs px-1.5 py-0.5 rounded"
+                                  >
+                                    ↩
+                                  </button>
                                 </div>
-                                <div className="mt-1 text-zinc-200 text-sm whitespace-pre-wrap break-all overflow-hidden">
-                                  {message.text}
-                                </div>
+                                {message.replyToSenderName && (
+                                  <div className="mt-1 rounded-lg border-l-2 border-zinc-600 bg-zinc-800/60 px-2 py-1 text-xs text-zinc-400 truncate">
+                                    <span className="font-semibold text-zinc-300">{message.replyToSenderName}:</span> {message.replyToText}
+                                  </div>
+                                )}
+                                {message.imageUrl && (
+                                  <div className="mt-2 max-w-[240px]">
+                                    <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[200px] object-contain" />
+                                  </div>
+                                )}
+                                {message.text.trim() && (
+                                  <div className="mt-1 text-zinc-200 text-sm whitespace-pre-wrap break-all overflow-hidden">
+                                    {message.text.trim()}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Input
-                        value={lobbyChatInput}
-                        onChange={(e) => setLobbyChatInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && sendLobbyChatMessage()}
-                        placeholder="Сообщение в лобби..."
-                        className="h-10 rounded-xl bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
-                      />
-                      <Button
-                        onClick={sendLobbyChatMessage}
-                        className="h-10 rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
-                        disabled={!lobbyChatInput.trim()}
-                      >
-                        Отправить
-                      </Button>
+                    <div className="space-y-1.5">
+                      {lobbyReplyTo && (
+                        <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-xs text-zinc-400">
+                          <span className="flex-1 truncate"><span className="font-semibold text-zinc-300">{lobbyReplyTo.senderName}:</span> {lobbyReplyTo.text}</span>
+                          <button type="button" onClick={() => setLobbyReplyTo(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+                        </div>
+                      )}
+                      {lobbyEmojiPickerOpen && (
+                        <div className="rounded-xl border border-zinc-700 bg-zinc-900 p-2 flex flex-wrap gap-1">
+                          {CHAT_EMOJIS.map((e) => (
+                            <button key={e} type="button" onClick={() => { setLobbyChatInput((v) => v + e); setLobbyEmojiPickerOpen(false); }} className="text-xl leading-none p-0.5 hover:bg-zinc-800 rounded">{e}</button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setLobbyEmojiPickerOpen((v) => !v); }}
+                          className="h-10 w-10 shrink-0 rounded-xl border border-zinc-700 bg-zinc-900 text-lg hover:bg-zinc-800 flex items-center justify-center"
+                          title="Эмодзи"
+                        >😊</button>
+                        <button
+                          type="button"
+                          onClick={() => lobbyImageInputRef.current?.click()}
+                          className="h-10 w-10 shrink-0 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 flex items-center justify-center"
+                          title="Изображение"
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                        </button>
+                        <input
+                          ref={lobbyImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            e.target.value = "";
+                            try {
+                              const dataUrl = await compressChatImage(file);
+                              sendLobbyChatMessage(dataUrl);
+                            } catch {
+                              // silently ignore
+                            }
+                          }}
+                        />
+                        <Input
+                          value={lobbyChatInput}
+                          onChange={(e) => setLobbyChatInput(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && sendLobbyChatMessage()}
+                          placeholder="Сообщение в лобби..."
+                          className="h-10 flex-1 rounded-xl bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-500"
+                        />
+                        <Button
+                          onClick={() => sendLobbyChatMessage()}
+                          className="h-10 rounded-xl bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0"
+                          disabled={!lobbyChatInput.trim()}
+                        >
+                          →
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </InfoBlock>
@@ -18201,6 +18336,27 @@ export default function App() {
                 </div>
               </motion.div>
             )}
+            {activePetition && !hasActiveProtest && (
+              <motion.div
+                key={`active-petition-${activePetition.id}`}
+                initial={{ opacity: 0, scale: 0.88, y: 14 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 1.02, y: -8 }}
+                transition={{ duration: 0.24, ease: "easeOut" }}
+                className="fixed inset-0 z-[68] pointer-events-none flex items-end justify-center px-4 pb-8"
+              >
+                <div className="w-full max-w-xl">
+                  <div className="inline-flex w-full flex-col rounded-2xl border border-amber-500/30 bg-zinc-950/92 px-5 py-4 shadow-[0_12px_48px_rgba(0,0,0,0.65)]">
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-300/80">
+                      Ходатайство · {activePetition.actorRoleTitle}
+                    </div>
+                    <div className="text-sm text-zinc-200 leading-relaxed break-words [overflow-wrap:anywhere]">
+                      {activePetition.text}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
             {influenceAnnouncement && (
               <motion.div
                 key={`${influenceAnnouncement.id}-text`}
@@ -18530,46 +18686,103 @@ export default function App() {
                           return (
                             <div
                               key={message.id}
-                              className={`flex min-w-0 ${own ? "justify-end" : "justify-start"}`}
+                              className={`group flex min-w-0 ${own ? "justify-end" : "justify-start"}`}
                             >
                               <div
                                 className={`max-w-full md:max-w-[85%] min-w-0 rounded-xl px-3 py-2 text-sm ${
                                   own ? "bg-red-600 text-white" : "bg-zinc-800 text-zinc-200"
                                 }`}
                               >
-                                <div className="text-[11px] opacity-75 mb-1">
-                                  {message.senderName} ·{" "}
-                                  {new Date(message.createdAt).toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[11px] opacity-75">{message.senderName} · {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setLawyerReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[11px] leading-none px-1 rounded hover:bg-black/20"
+                                  >↩</button>
                                 </div>
-                                <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                                  {message.text}
-                                </div>
+                                {message.replyToSenderName && (
+                                  <div className={`mb-1.5 rounded border-l-2 px-2 py-1 text-[11px] truncate ${own ? "border-red-300/60 bg-red-700/40 text-red-100" : "border-zinc-500 bg-zinc-700/60 text-zinc-400"}`}>
+                                    <span className="font-semibold">{message.replyToSenderName}:</span> {message.replyToText}
+                                  </div>
+                                )}
+                                {message.imageUrl && (
+                                  <div className="mb-1.5 max-w-[200px]">
+                                    <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[160px] object-contain" />
+                                  </div>
+                                )}
+                                {message.text.trim() && (
+                                  <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                                    {message.text.trim()}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
                         })}
                       </div>
                     </div>
-                    <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-                      <Input
-                        value={lawyerChatInput}
-                        onChange={(e) => setLawyerChatInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && sendLawyerChatMessage()}
-                        placeholder={
-                          isLawyerRole ? "Сообщение клиенту" : "Сообщение адвокату"
-                        }
-                        className="h-[82px] sm:h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
-                      />
-                      <Button
-                        className="h-9 sm:h-10 rounded-xl border-0 bg-zinc-100 text-lg sm:text-base font-medium text-zinc-950 hover:bg-zinc-200 sm:px-5"
-                        onClick={sendLawyerChatMessage}
-                        disabled={!lawyerChatInput.trim()}
-                      >
-                        Отправить
-                      </Button>
+                    <div className="shrink-0 space-y-1.5">
+                      {lawyerReplyTo && (
+                        <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-xs text-zinc-400">
+                          <span className="flex-1 truncate"><span className="font-semibold text-zinc-300">{lawyerReplyTo.senderName}:</span> {lawyerReplyTo.text}</span>
+                          <button type="button" onClick={() => setLawyerReplyTo(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+                        </div>
+                      )}
+                      {lawyerEmojiPickerOpen && (
+                        <div className="rounded-xl border border-zinc-700 bg-zinc-900 p-2 flex flex-wrap gap-1">
+                          {CHAT_EMOJIS.map((e) => (
+                            <button key={e} type="button" onClick={() => { setLawyerChatInput((v) => v + e); setLawyerEmojiPickerOpen(false); }} className="text-xl leading-none p-0.5 hover:bg-zinc-800 rounded">{e}</button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setLawyerEmojiPickerOpen((v) => !v)}
+                          className="h-10 w-10 shrink-0 rounded-xl border border-zinc-700 bg-zinc-900 text-lg hover:bg-zinc-800 flex items-center justify-center"
+                          title="Эмодзи"
+                        >😊</button>
+                        <button
+                          type="button"
+                          onClick={() => lawyerImageInputRef.current?.click()}
+                          className="h-10 w-10 shrink-0 rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 flex items-center justify-center"
+                          title="Изображение"
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                        </button>
+                        <input
+                          ref={lawyerImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            e.target.value = "";
+                            try {
+                              const dataUrl = await compressChatImage(file);
+                              sendLawyerChatMessage(dataUrl);
+                            } catch {
+                              // silently ignore
+                            }
+                          }}
+                        />
+                        <Input
+                          value={lawyerChatInput}
+                          onChange={(e) => setLawyerChatInput(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && sendLawyerChatMessage()}
+                          placeholder={isLawyerRole ? "Сообщение клиенту" : "Сообщение адвокату"}
+                          className="h-10 flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
+                        />
+                        <Button
+                          className="h-10 rounded-xl border-0 bg-zinc-100 font-medium text-zinc-950 hover:bg-zinc-200 px-3"
+                          onClick={() => sendLawyerChatMessage()}
+                          disabled={!lawyerChatInput.trim()}
+                        >
+                          →
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : influenceView === "notes" ? (
@@ -18802,6 +19015,23 @@ export default function App() {
                             </div>
                           </div>
                         )}
+                        {activePetition && !hasActiveProtest && (
+                          <div className="rounded-xl border border-amber-500/35 bg-zinc-900/90 p-3.5 space-y-2.5">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200/90">
+                              Ходатайство
+                            </div>
+                            <div className="text-xs text-zinc-300 leading-relaxed break-words [overflow-wrap:anywhere]">
+                              <span className="font-semibold text-zinc-100">{activePetition.actorRoleTitle}:</span> {activePetition.text}
+                            </div>
+                            <Button
+                              variant="outline"
+                              className="w-full h-9 rounded-xl border-zinc-600 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-sm"
+                              onClick={dismissActivePetition}
+                            >
+                              Принято к сведению
+                            </Button>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <>
@@ -18819,6 +19049,15 @@ export default function App() {
                             {!hasActiveProtest && protestCooldownLeft > 0
                               ? ` (${protestCooldownLeft}s)`
                               : ""}
+                          </Button>
+                        )}
+                        {!isWitness && (
+                          <Button
+                            variant="outline"
+                            className="w-full h-12 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800 hover:text-zinc-100"
+                            onClick={() => setPetitionDialogOpen(true)}
+                          >
+                            Ходатайство
                           </Button>
                         )}
                         {lawyerChatPartner && (
@@ -19212,6 +19451,35 @@ export default function App() {
         {renderBanOverlay()}
         {renderMaintenanceOverlay()}
         <ScreenTransitionLoader open={safeGlobalBlockingLoading} />
+        <Dialog open={petitionDialogOpen} onOpenChange={(o) => { setPetitionDialogOpen(o); if (!o) setPetitionText(""); }}>
+          <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+            <DialogHeader>
+              <DialogTitle>Ходатайство</DialogTitle>
+              <DialogDescription className="text-zinc-400">
+                Опишите ваше ходатайство. Оно будет видно всем участникам.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <textarea
+                value={petitionText}
+                onChange={(e) => setPetitionText(e.target.value.slice(0, 600))}
+                placeholder="Текст ходатайства..."
+                className={`w-full h-[120px] resize-none rounded-xl border border-zinc-700 bg-zinc-900 p-3 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:ring-1 focus:ring-red-500/60 ${HIDE_SCROLLBAR_CLASS}`}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-zinc-500">{petitionText.length}/600</span>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100" onClick={() => { setPetitionDialogOpen(false); setPetitionText(""); }}>
+                    Отмена
+                  </Button>
+                  <Button className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0" onClick={submitPetition} disabled={!petitionText.trim()}>
+                    Отправить
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </motion.div>
     );
   }

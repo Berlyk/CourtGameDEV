@@ -12,62 +12,50 @@ function pickRandom<T>(array: T[], count = 1): T[] {
   return shuffle(array).slice(0, count);
 }
 
-function buildStagesByPlayerCount(playerCount: number): string[] {
-  switch (playerCount) {
-    case 4:
-      return [
-        "Подготовка",
-        "Выступление истца",
-        "Выступление ответчика",
-        "Выступление адвоката ответчика",
-        "Перекрестный допрос",
-        "Финальная речь истца",
-        "Финальная речь ответчика",
-        "Финальная речь адвоката ответчика",
-        "Решение судьи",
-      ];
-    case 5:
-      return [
-        "Подготовка",
-        "Выступление прокурора",
-        "Выступление истца",
-        "Выступление ответчика",
-        "Выступление адвоката ответчика",
-        "Перекрестный допрос",
-        "Финальная речь прокурора",
-        "Финальная речь истца",
-        "Финальная речь ответчика",
-        "Финальная речь адвоката ответчика",
-        "Решение судьи",
-      ];
-    case 6:
-      return [
-        "Подготовка",
-        "Выступление прокурора",
-        "Выступление истца",
-        "Выступление адвоката истца",
-        "Выступление ответчика",
-        "Выступление адвоката ответчика",
-        "Перекрестный допрос",
-        "Финальная речь прокурора",
-        "Финальная речь истца",
-        "Финальная речь адвоката истца",
-        "Финальная речь ответчика",
-        "Финальная речь адвоката ответчика",
-        "Решение судьи",
-      ];
-    case 3:
-    default:
-      return [
-        "Подготовка",
-        "Выступление истца",
-        "Выступление ответчика",
-        "Перекрестный допрос",
-        "Финальная речь истца",
-        "Финальная речь ответчика",
-        "Решение судьи",
-      ];
+const OPENING_SPEECH_ORDER: Array<{ key: string; label: string }> = [
+  { key: "prosecutor", label: "Выступление прокурора" },
+  { key: "plaintiff", label: "Выступление истца" },
+  { key: "plaintiffLawyer", label: "Выступление адвоката истца" },
+  { key: "defendant", label: "Выступление ответчика" },
+  { key: "defenseLawyer", label: "Выступление адвоката ответчика" },
+];
+
+const CROSS_EXAM_ORDER: Array<{ key: string; label: string }> = [
+  { key: "prosecutor", label: "Перекрестный допрос: прокурор" },
+  { key: "plaintiff", label: "Перекрестный допрос: истец" },
+  { key: "plaintiffLawyer", label: "Перекрестный допрос: адвокат истца" },
+  { key: "defendant", label: "Перекрестный допрос: ответчик" },
+  { key: "defenseLawyer", label: "Перекрестный допрос: адвокат ответчика" },
+];
+
+const CLOSING_SPEECH_ORDER: Array<{ key: string; label: string }> = [
+  { key: "prosecutor", label: "Финальная речь прокурора" },
+  { key: "plaintiff", label: "Финальная речь истца" },
+  { key: "plaintiffLawyer", label: "Финальная речь адвоката истца" },
+  { key: "defendant", label: "Финальная речь ответчика" },
+  { key: "defenseLawyer", label: "Финальная речь адвоката ответчика" },
+];
+
+function buildStagesForGame(assignedRoleKeys: string[], hasWitnesses: boolean): string[] {
+  const roleSet = new Set(assignedRoleKeys);
+  const stages: string[] = ["Подготовка"];
+
+  for (const { key, label } of OPENING_SPEECH_ORDER) {
+    if (roleSet.has(key)) stages.push(label);
   }
+
+  if (hasWitnesses) stages.push("Допрос свидетелей");
+
+  for (const { key, label } of CROSS_EXAM_ORDER) {
+    if (roleSet.has(key)) stages.push(label);
+  }
+
+  for (const { key, label } of CLOSING_SPEECH_ORDER) {
+    if (roleSet.has(key)) stages.push(label);
+  }
+
+  stages.push("Решение судьи");
+  return stages;
 }
 
 export interface PlayerCard {
@@ -133,6 +121,15 @@ export interface ActiveProtest {
   createdAt: number;
 }
 
+export interface ActivePetition {
+  id: string;
+  actorId: string;
+  actorName: string;
+  actorRoleTitle: string;
+  text: string;
+  createdAt: number;
+}
+
 export interface GameState {
   caseData: any;
   players: Player[];
@@ -141,6 +138,8 @@ export interface GameState {
   revealedFacts: RevealedFact[];
   usedCards: UsedCard[];
   activeProtest: ActiveProtest | null;
+  activePetition: ActivePetition | null;
+  petitionQueue: ActivePetition[];
   finished: boolean;
   verdict: string;
   verdictEvaluation: string;
@@ -1733,6 +1732,12 @@ export function addLobbyChatMessage(
   code: string,
   senderId: string,
   text: string,
+  extras?: {
+    imageUrl?: string;
+    replyToId?: string;
+    replyToText?: string;
+    replyToSenderName?: string;
+  },
 ): Room | null {
   const room = rooms.get(code);
   if (!room) return null;
@@ -1741,17 +1746,25 @@ export function addLobbyChatMessage(
     room.game?.players.find((p: any) => p.id === senderId);
   if (!sender) return null;
 
-  const normalizedText = text.trim().slice(0, 500);
-  if (!normalizedText) return room;
+  const normalizedText = (text ?? "").trim().slice(0, 500);
+  const hasImage = typeof extras?.imageUrl === "string" && extras.imageUrl.startsWith("data:");
+  if (!normalizedText && !hasImage) return room;
 
-  room.lobbyChat.push({
+  const msg: LobbyChatMessage = {
     id: crypto.randomUUID(),
     senderId,
     senderName: sender.name,
     senderAvatar: sender.avatar,
     text: normalizedText,
     createdAt: Date.now(),
-  });
+  };
+  if (hasImage) (msg as any).imageUrl = extras!.imageUrl;
+  if (extras?.replyToId) {
+    (msg as any).replyToId = extras.replyToId;
+    (msg as any).replyToText = (extras.replyToText ?? "").slice(0, 150);
+    (msg as any).replyToSenderName = (extras.replyToSenderName ?? "").slice(0, 50);
+  }
+  room.lobbyChat.push(msg);
 
   if (room.lobbyChat.length > 120) {
     room.lobbyChat = room.lobbyChat.slice(-120);
@@ -1889,7 +1902,6 @@ export function startGame(
 
   const count = mainPlayers.length;
   const baseRoleKeys = roleOrderByCount[count] as AssignableRole[];
-  const stages = buildStagesByPlayerCount(count);
 
   const roleByPlayerId = new Map<string, AssignableRole>();
   const remainingRoles = [...baseRoleKeys];
@@ -1931,6 +1943,10 @@ export function startGame(
     const role = remainingRoles[index];
     if (role) roleByPlayerId.set(player.id, role);
   });
+
+  const assignedRoleKeysForStages = [...roleByPlayerId.values()].filter((r) => r !== "judge");
+  const hasWitnessesInRoom = lobbyWitnesses.length > 0;
+  const stages = buildStagesForGame(assignedRoleKeysForStages, hasWitnessesInRoom);
 
   const assignedPlayers: Player[] = mainPlayers.map((player) => {
     const roleKey = roleByPlayerId.get(player.id) ?? "plaintiff";
@@ -1983,6 +1999,8 @@ export function startGame(
     revealedFacts: [],
     usedCards: [],
     activeProtest: null,
+    activePetition: null,
+    petitionQueue: [],
     finished: false,
     verdict: "",
     verdictEvaluation: "",
@@ -2120,6 +2138,42 @@ export function setVerdict(code: string, verdict: string): Room | null {
   room.game.verdictEvaluation = verdictEvaluation;
   room.game.finished = true;
 
+  return room;
+}
+
+export function raisePetition(
+  code: string,
+  petition: ActivePetition,
+): { room: Room; activated: boolean } | null {
+  const room = rooms.get(code);
+  if (!room?.game || room.game.finished) return null;
+
+  if (!room.game.activePetition && !room.game.activeProtest) {
+    room.game.activePetition = petition;
+    return { room, activated: true };
+  }
+
+  room.game.petitionQueue = [...(room.game.petitionQueue ?? []), petition];
+  return { room, activated: false };
+}
+
+export function dismissPetition(code: string): Room | null {
+  const room = rooms.get(code);
+  if (!room?.game) return null;
+
+  room.game.activePetition = null;
+  const next = (room.game.petitionQueue ?? []).shift() ?? null;
+  if (next) room.game.activePetition = next;
+  return room;
+}
+
+export function processNextPetitionFromQueue(code: string): Room | null {
+  const room = rooms.get(code);
+  if (!room?.game) return null;
+  if (room.game.activePetition) return room;
+
+  const next = (room.game.petitionQueue ?? []).shift() ?? null;
+  if (next) room.game.activePetition = next;
   return room;
 }
 
