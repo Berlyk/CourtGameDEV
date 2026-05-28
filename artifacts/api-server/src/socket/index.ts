@@ -636,6 +636,12 @@ interface LawyerChatMessage {
   senderName: string;
   text: string;
   createdAt: number;
+  imageUrl?: string;
+  replyToId?: string;
+  replyToText?: string;
+  replyToSenderName?: string;
+  reactions?: Record<string, string[]>;
+  deleted?: boolean;
 }
 
 function getRoomState(room: any, playerId: string) {
@@ -2746,6 +2752,123 @@ export function setupSocket(httpServer: HttpServer) {
             },
           });
         });
+      },
+    );
+
+    socket.on(
+      "react_chat_message",
+      ({
+        code,
+        sessionToken,
+        messageId,
+        emoji,
+        chatType,
+      }: {
+        code: string;
+        sessionToken?: string;
+        messageId: string;
+        emoji: string;
+        chatType: "lobby" | "lawyer";
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room) return;
+
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken,
+        });
+        if (!actorId) return;
+
+        const safeEmoji = typeof emoji === "string" ? emoji.trim().slice(0, 8) : "";
+        if (!safeEmoji) return;
+
+        if (chatType === "lobby") {
+          const msg = room.lobbyChat.find((m: any) => m.id === messageId);
+          if (!msg) return;
+          const reactions: Record<string, string[]> = (msg as any).reactions ?? {};
+          const ids: string[] = reactions[safeEmoji] ?? [];
+          if (ids.includes(actorId)) {
+            reactions[safeEmoji] = ids.filter((id) => id !== actorId);
+          } else {
+            reactions[safeEmoji] = [...ids, actorId];
+          }
+          (msg as any).reactions = reactions;
+          io.to(roomCode).emit("lobby_chat_reaction", { messageId, reactions });
+        } else if (chatType === "lawyer") {
+          const pair = resolveLawyerPair(room, actorId);
+          if (!pair) return;
+          const messages = lawyerChats.get(pair.chatKey) ?? [];
+          const msg = messages.find((m) => m.id === messageId);
+          if (!msg) return;
+          const reactions: Record<string, string[]> = (msg as any).reactions ?? {};
+          const ids: string[] = reactions[safeEmoji] ?? [];
+          if (ids.includes(actorId)) {
+            reactions[safeEmoji] = ids.filter((id) => id !== actorId);
+          } else {
+            reactions[safeEmoji] = [...ids, actorId];
+          }
+          (msg as any).reactions = reactions;
+          const targets = [pair.self, pair.partner]
+            .map((player: any) => player.socketId)
+            .filter((socketId: any) => typeof socketId === "string" && socketId.trim().length > 0);
+          targets.forEach((targetSocketId: string) => {
+            io.to(targetSocketId).emit("lawyer_chat_reaction", { messageId, reactions });
+          });
+        }
+      },
+    );
+
+    socket.on(
+      "delete_chat_message",
+      ({
+        code,
+        sessionToken,
+        messageId,
+        chatType,
+      }: {
+        code: string;
+        sessionToken?: string;
+        messageId: string;
+        chatType: "lobby" | "lawyer";
+      }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room) return;
+
+        const actorId = resolveActorId({
+          socketId: socket.id,
+          roomCode,
+          room,
+          sessionToken,
+        });
+        if (!actorId) return;
+
+        if (chatType === "lobby") {
+          const msg = room.lobbyChat.find((m: any) => m.id === messageId);
+          if (!msg || msg.senderId !== actorId) return;
+          (msg as any).deleted = true;
+          msg.text = "";
+          (msg as any).imageUrl = undefined;
+          io.to(roomCode).emit("lobby_chat_deleted", { messageId });
+        } else if (chatType === "lawyer") {
+          const pair = resolveLawyerPair(room, actorId);
+          if (!pair) return;
+          const messages = lawyerChats.get(pair.chatKey) ?? [];
+          const msg = messages.find((m) => m.id === messageId);
+          if (!msg || msg.senderId !== actorId) return;
+          (msg as any).deleted = true;
+          msg.text = "";
+          (msg as any).imageUrl = undefined;
+          const targets = [pair.self, pair.partner]
+            .map((player: any) => player.socketId)
+            .filter((socketId: any) => typeof socketId === "string" && socketId.trim().length > 0);
+          targets.forEach((targetSocketId: string) => {
+            io.to(targetSocketId).emit("lawyer_chat_deleted", { messageId });
+          });
+        }
       },
     );
 

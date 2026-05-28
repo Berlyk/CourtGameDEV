@@ -117,7 +117,8 @@ async function compressChatImage(file: File): Promise<string> {
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const MAX = 800;
+      const isPng = file.type === "image/png";
+      const MAX = isPng ? 600 : 800;
       let w = img.naturalWidth, h = img.naturalHeight;
       if (w > MAX || h > MAX) {
         if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
@@ -128,7 +129,9 @@ async function compressChatImage(file: File): Promise<string> {
       const ctx = canvas.getContext("2d");
       if (!ctx) { reject(new Error("no_ctx")); return; }
       ctx.drawImage(img, 0, 0, w, h);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+      const dataUrl = isPng
+        ? canvas.toDataURL("image/png")
+        : canvas.toDataURL("image/jpeg", 0.72);
       if (dataUrl.length > 290000) { reject(new Error("too_large")); return; }
       resolve(dataUrl);
     };
@@ -2709,6 +2712,8 @@ interface LobbyChatMessage {
   replyToId?: string;
   replyToText?: string;
   replyToSenderName?: string;
+  reactions?: Record<string, string[]>;
+  deleted?: boolean;
 }
 
 interface LawyerChatMessage {
@@ -2721,6 +2726,8 @@ interface LawyerChatMessage {
   replyToId?: string;
   replyToText?: string;
   replyToSenderName?: string;
+  reactions?: Record<string, string[]>;
+  deleted?: boolean;
 }
 
 interface ActivePetition {
@@ -4823,6 +4830,12 @@ export default function App() {
   const [petitionDialogOpen, setPetitionDialogOpen] = useState(false);
   const [petitionText, setPetitionText] = useState("");
   const [activePetition, setActivePetition] = useState<ActivePetition | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [chatContextMenu, setChatContextMenu] = useState<{
+    x: number; y: number;
+    messageId: string; isOwn: boolean; chatType: "lobby" | "lawyer";
+    text: string; senderName: string;
+  } | null>(null);
   const lobbyImageInputRef = useRef<HTMLInputElement>(null);
   const lawyerImageInputRef = useRef<HTMLInputElement>(null);
   const [protestCooldownEndsAt, setProtestCooldownEndsAt] = useState(0);
@@ -4894,6 +4907,8 @@ export default function App() {
   const lawyerChatScrollRef = useRef<HTMLDivElement>(null);
   const lobbyEmojiCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lawyerEmojiCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTapRef = useRef<{ messageId: string; time: number } | null>(null);
   const imageCropDragStateRef = useRef<{
     dragging: boolean;
     pointerId: number;
@@ -9127,6 +9142,22 @@ export default function App() {
       },
     );
 
+    socket.on("lobby_chat_reaction", ({ messageId, reactions }: { messageId: string; reactions: Record<string, string[]> }) => {
+      setLobbyChatMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, reactions } : m));
+    });
+
+    socket.on("lobby_chat_deleted", ({ messageId }: { messageId: string }) => {
+      setLobbyChatMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, deleted: true, text: "", imageUrl: undefined } : m));
+    });
+
+    socket.on("lawyer_chat_reaction", ({ messageId, reactions }: { messageId: string; reactions: Record<string, string[]> }) => {
+      setLawyerChatMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, reactions } : m));
+    });
+
+    socket.on("lawyer_chat_deleted", ({ messageId }: { messageId: string }) => {
+      setLawyerChatMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, deleted: true, text: "", imageUrl: undefined } : m));
+    });
+
     socket.on(
       "reconnect_available",
       ({
@@ -9382,6 +9413,10 @@ export default function App() {
       socket.off("influence_announcement");
       socket.off("protest_state_updated");
       socket.off("petition_state_updated");
+      socket.off("lobby_chat_reaction");
+      socket.off("lobby_chat_deleted");
+      socket.off("lawyer_chat_reaction");
+      socket.off("lawyer_chat_deleted");
       socket.off("reconnect_available");
       socket.off("rejoin_failed");
       socket.off("kicked");
@@ -10589,6 +10624,22 @@ export default function App() {
     setPetitionText("");
     setPetitionDialogOpen(false);
   }, [game, mySessionToken, socket, petitionText]);
+
+  const reactToMessage = useCallback((chatType: "lobby" | "lawyer", messageId: string, emoji: string) => {
+    if (!mySessionToken) return;
+    const code = chatType === "lobby" ? room?.code : game?.code;
+    if (!code) return;
+    socket.emit("react_chat_message", { code, sessionToken: mySessionToken, messageId, emoji, chatType });
+    setChatContextMenu(null);
+  }, [socket, room?.code, game?.code, mySessionToken]);
+
+  const deleteMessage = useCallback((chatType: "lobby" | "lawyer", messageId: string) => {
+    if (!mySessionToken) return;
+    const code = chatType === "lobby" ? room?.code : game?.code;
+    if (!code) return;
+    socket.emit("delete_chat_message", { code, sessionToken: mySessionToken, messageId, chatType });
+    setChatContextMenu(null);
+  }, [socket, room?.code, game?.code, mySessionToken]);
 
   const dismissActivePetition = useCallback(() => {
     if (!game || !mySessionToken) return;
@@ -17748,39 +17799,58 @@ export default function App() {
                         )}
                         {lobbyChatMessages.map((message) => {
                           const isOwn = message.senderId === myId;
+                          const reactionEntries = Object.entries(message.reactions ?? {}).filter(([, ids]) => ids.length > 0);
                           return (
-                            <div key={message.id} className={`flex items-end gap-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
-                              {!isOwn && (
-                                <div className="shrink-0 self-end mb-0.5">
-                                  <Avatar src={message.senderAvatar ?? null} name={message.senderName} size={28} staticIfAnimated />
-                                </div>
-                              )}
-                              <div className={`group relative flex flex-col max-w-[72%] ${isOwn ? "items-end" : "items-start"}`}>
+                            <div key={message.id} className={`flex items-end gap-1.5 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                              <div className="shrink-0 self-end mb-0.5">
+                                <Avatar src={isOwn ? (avatar ?? null) : (message.senderAvatar ?? null)} name={isOwn ? (playerName || "Я") : message.senderName} size={28} staticIfAnimated />
+                              </div>
+                              <div className={`group relative flex flex-col max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
                                 {!isOwn && (
                                   <span className="mb-0.5 ml-1 text-[11px] font-semibold text-zinc-400">{message.senderName}</span>
                                 )}
-                                <div className={`relative rounded-2xl px-3 py-2 text-sm leading-snug shadow-sm ${isOwn ? "rounded-br-sm bg-zinc-700 text-zinc-100" : "rounded-bl-sm bg-zinc-800 text-zinc-100"}`}>
-                                  {message.replyToSenderName && (
-                                    <div className="mb-1.5 rounded-lg border-l-2 border-red-500/60 bg-black/25 px-2 py-1 text-xs text-zinc-400">
+                                <div
+                                  className={`relative select-none rounded-2xl px-3 py-2 text-sm leading-snug shadow-sm ${isOwn ? "rounded-br-sm bg-zinc-700 text-zinc-100" : "rounded-bl-sm bg-zinc-800 text-zinc-100"} ${message.deleted ? "opacity-50 italic" : ""}`}
+                                  onContextMenu={(e) => { e.preventDefault(); setChatContextMenu({ x: e.clientX, y: e.clientY, messageId: message.id, isOwn, chatType: "lobby", text: message.text, senderName: message.senderName }); }}
+                                  onTouchStart={(e) => {
+                                    const touch = e.touches[0];
+                                    longPressTimerRef.current = setTimeout(() => { setChatContextMenu({ x: touch.clientX, y: touch.clientY - 60, messageId: message.id, isOwn, chatType: "lobby", text: message.text, senderName: message.senderName }); }, 500);
+                                    const now = Date.now();
+                                    if (lastTapRef.current?.messageId === message.id && now - lastTapRef.current.time < 350) {
+                                      reactToMessage("lobby", message.id, "❤️");
+                                      lastTapRef.current = null;
+                                    } else {
+                                      lastTapRef.current = { messageId: message.id, time: now };
+                                    }
+                                  }}
+                                  onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                >
+                                  {!message.deleted && message.replyToSenderName && (
+                                    <div className="mb-1.5 rounded-lg border-l-2 border-zinc-400/50 bg-black/20 px-2 py-1 text-xs text-zinc-400">
                                       <span className="font-semibold text-zinc-300">{message.replyToSenderName}:</span> {message.replyToText}
                                     </div>
                                   )}
-                                  {message.imageUrl && (
-                                    <div className="mb-1 max-w-[200px]">
-                                      <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[180px] object-contain" />
+                                  {!message.deleted && message.imageUrl && (
+                                    <div className="mb-1 max-w-[200px] cursor-pointer" onClick={() => setLightboxImage(message.imageUrl!)}>
+                                      <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[180px] object-contain hover:opacity-90 transition-opacity" />
                                     </div>
                                   )}
-                                  {message.text.trim() && (
+                                  {message.deleted ? (
+                                    <span className="text-zinc-500 text-xs">Сообщение удалено</span>
+                                  ) : message.text.trim() ? (
                                     <span className="whitespace-pre-wrap break-all">{message.text.trim()}</span>
-                                  )}
+                                  ) : null}
                                   <span className="ml-2 inline-block align-bottom text-[10px] text-zinc-400 whitespace-nowrap">{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setLobbyReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
-                                  className="absolute -top-2 right-0 hidden group-hover:flex h-6 w-6 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-sm text-zinc-400 hover:text-zinc-100 shadow-sm z-10"
-                                  title="Ответить"
-                                >↩</button>
+                                {reactionEntries.length > 0 && (
+                                  <div className={`flex flex-wrap gap-1 mt-0.5 ${isOwn ? "justify-end mr-1" : "ml-1"}`}>
+                                    {reactionEntries.map(([emoji, ids]) => (
+                                      <button key={emoji} type="button" onClick={() => reactToMessage("lobby", message.id, emoji)} className={`flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs ${ids.includes(myId ?? "") ? "border-red-500/50 bg-red-500/15 text-red-200" : "border-zinc-700 bg-zinc-800 text-zinc-300"} hover:brightness-110`}>
+                                        <span>{emoji}</span><span>{ids.length}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -17829,7 +17899,7 @@ export default function App() {
                                 lobbyEmojiCloseTimerRef.current = setTimeout(() => setLobbyEmojiPickerOpen(false), 180);
                               }}
                             >
-                              <div className={`flex flex-wrap gap-1 max-h-[110px] overflow-y-auto ${HIDE_SCROLLBAR_CLASS}`}>
+                              <div className="flex flex-wrap gap-1 max-h-[110px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.7)_rgba(39,39,42,0.5)] [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-800/60 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600">
                                 {CHAT_EMOJIS.map((e) => (
                                   <button key={e} type="button" onClick={() => { setLobbyChatInput((v) => v + e); setLobbyEmojiPickerOpen(false); }} className="text-xl leading-none p-0.5 hover:bg-zinc-800 rounded">{e}</button>
                                 ))}
@@ -18429,7 +18499,7 @@ export default function App() {
                       isCardAnnouncement
                         ? "max-w-[min(90vw,760px)] sm:px-8 sm:py-5"
                         : isPetitionAnnouncement
-                          ? "max-w-[min(76vw,480px)] sm:px-7 sm:py-5"
+                          ? "max-w-[min(82vw,540px)] sm:px-8 sm:py-5"
                           : "max-w-[min(92vw,980px)] sm:px-7 sm:py-5"
                     }`}
                   >
@@ -18509,7 +18579,7 @@ export default function App() {
                 </div>
 
                 <div className="min-w-[260px] space-y-2 max-sm:-mt-2 sm:space-y-3 xl:min-w-[320px] xl:space-y-4">
-                  <div className="overflow-hidden min-h-[2.5rem]">
+                  <div className="min-h-[2rem]">
                     <AnimatePresence mode="wait">
                       <motion.div
                         key={currentStage}
@@ -18517,7 +18587,7 @@ export default function App() {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="text-sm font-medium xl:text-base break-words [overflow-wrap:anywhere]"
+                        className={`font-medium break-words [overflow-wrap:anywhere] ${currentStage.length > 30 ? "text-xs xl:text-sm" : "text-sm xl:text-base"}`}
                       >
                         Этап: {currentStage}
                       </motion.div>
@@ -18734,39 +18804,58 @@ export default function App() {
                         )}
                         {lawyerChatMessages.map((message) => {
                           const isOwn = message.senderId === myId;
+                          const reactionEntries = Object.entries(message.reactions ?? {}).filter(([, ids]) => ids.length > 0);
                           return (
-                            <div key={message.id} className={`flex items-end gap-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
-                              {!isOwn && (
-                                <div className="shrink-0 self-end mb-0.5">
-                                  <Avatar src={null} name={message.senderName} size={26} />
-                                </div>
-                              )}
-                              <div className={`group relative flex flex-col max-w-[76%] ${isOwn ? "items-end" : "items-start"}`}>
+                            <div key={message.id} className={`flex items-end gap-1.5 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                              <div className="shrink-0 self-end mb-0.5">
+                                <Avatar src={isOwn ? (avatar ?? null) : null} name={isOwn ? (playerName || "Я") : message.senderName} size={26} />
+                              </div>
+                              <div className={`group relative flex flex-col max-w-[74%] ${isOwn ? "items-end" : "items-start"}`}>
                                 {!isOwn && (
                                   <span className="mb-0.5 ml-1 text-[11px] font-semibold text-zinc-400">{message.senderName}</span>
                                 )}
-                                <div className={`relative rounded-2xl px-3 py-2 text-sm leading-snug shadow-sm ${isOwn ? "rounded-br-sm bg-zinc-700 text-zinc-100" : "rounded-bl-sm bg-zinc-800 text-zinc-100"}`}>
-                                  {message.replyToSenderName && (
-                                    <div className="mb-1.5 rounded-lg border-l-2 border-red-500/60 bg-black/25 px-2 py-1 text-xs text-zinc-400">
+                                <div
+                                  className={`relative select-none rounded-2xl px-3 py-2 text-sm leading-snug shadow-sm ${isOwn ? "rounded-br-sm bg-zinc-700 text-zinc-100" : "rounded-bl-sm bg-zinc-800 text-zinc-100"} ${message.deleted ? "opacity-50 italic" : ""}`}
+                                  onContextMenu={(e) => { e.preventDefault(); setChatContextMenu({ x: e.clientX, y: e.clientY, messageId: message.id, isOwn, chatType: "lawyer", text: message.text, senderName: message.senderName }); }}
+                                  onTouchStart={(e) => {
+                                    const touch = e.touches[0];
+                                    longPressTimerRef.current = setTimeout(() => { setChatContextMenu({ x: touch.clientX, y: touch.clientY - 60, messageId: message.id, isOwn, chatType: "lawyer", text: message.text, senderName: message.senderName }); }, 500);
+                                    const now = Date.now();
+                                    if (lastTapRef.current?.messageId === message.id && now - lastTapRef.current.time < 350) {
+                                      reactToMessage("lawyer", message.id, "❤️");
+                                      lastTapRef.current = null;
+                                    } else {
+                                      lastTapRef.current = { messageId: message.id, time: now };
+                                    }
+                                  }}
+                                  onTouchEnd={() => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); }}
+                                >
+                                  {!message.deleted && message.replyToSenderName && (
+                                    <div className="mb-1.5 rounded-lg border-l-2 border-zinc-400/50 bg-black/20 px-2 py-1 text-xs text-zinc-400">
                                       <span className="font-semibold text-zinc-300">{message.replyToSenderName}:</span> {message.replyToText}
                                     </div>
                                   )}
-                                  {message.imageUrl && (
-                                    <div className="mb-1 max-w-[180px]">
-                                      <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[150px] object-contain" />
+                                  {!message.deleted && message.imageUrl && (
+                                    <div className="mb-1 max-w-[180px] cursor-pointer" onClick={() => setLightboxImage(message.imageUrl!)}>
+                                      <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[150px] object-contain hover:opacity-90 transition-opacity" />
                                     </div>
                                   )}
-                                  {message.text.trim() && (
+                                  {message.deleted ? (
+                                    <span className="text-zinc-500 text-xs">Сообщение удалено</span>
+                                  ) : message.text.trim() ? (
                                     <span className="whitespace-pre-wrap break-all">{message.text.trim()}</span>
-                                  )}
+                                  ) : null}
                                   <span className="ml-2 inline-block align-bottom text-[10px] text-zinc-400 whitespace-nowrap">{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setLawyerReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
-                                  className="absolute -top-2 right-0 hidden group-hover:flex h-6 w-6 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-sm text-zinc-400 hover:text-zinc-100 shadow-sm z-10"
-                                  title="Ответить"
-                                >↩</button>
+                                {reactionEntries.length > 0 && (
+                                  <div className={`flex flex-wrap gap-1 mt-0.5 ${isOwn ? "justify-end mr-1" : "ml-1"}`}>
+                                    {reactionEntries.map(([emoji, ids]) => (
+                                      <button key={emoji} type="button" onClick={() => reactToMessage("lawyer", message.id, emoji)} className={`flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs ${ids.includes(myId ?? "") ? "border-red-500/50 bg-red-500/15 text-red-200" : "border-zinc-700 bg-zinc-800 text-zinc-300"} hover:brightness-110`}>
+                                        <span>{emoji}</span><span>{ids.length}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -18815,7 +18904,7 @@ export default function App() {
                                 lawyerEmojiCloseTimerRef.current = setTimeout(() => setLawyerEmojiPickerOpen(false), 180);
                               }}
                             >
-                              <div className={`flex flex-wrap gap-1 max-h-[110px] overflow-y-auto ${HIDE_SCROLLBAR_CLASS}`}>
+                              <div className="flex flex-wrap gap-1 max-h-[110px] overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(82,82,91,0.7)_rgba(39,39,42,0.5)] [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-zinc-800/60 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600">
                                 {CHAT_EMOJIS.map((e) => (
                                   <button key={e} type="button" onClick={() => { setLawyerChatInput((v) => v + e); setLawyerEmojiPickerOpen(false); }} className="text-xl leading-none p-0.5 hover:bg-zinc-800 rounded">{e}</button>
                                 ))}
@@ -19096,8 +19185,8 @@ export default function App() {
                           </div>
                         )}
                         {activePetition && !hasActiveProtest && (
-                          <div className="rounded-xl border border-amber-500/35 bg-zinc-900/90 p-3.5 space-y-2.5 shadow-[inset_0_1px_0_rgba(251,191,36,0.12)]">
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200/90">
+                          <div className="rounded-xl border border-red-500/35 bg-zinc-900/90 p-3.5 space-y-2.5 shadow-[inset_0_1px_0_rgba(248,113,113,0.12)]">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-red-200/90">
                               Активное ходатайство
                             </div>
                             <div className="text-xs text-zinc-300 leading-relaxed break-words [overflow-wrap:anywhere]">
@@ -19561,14 +19650,100 @@ export default function App() {
                 />
                 <span className="absolute bottom-2 right-3 text-xs text-zinc-500 pointer-events-none">{petitionText.length}/90</span>
               </div>
-              <div className="flex justify-center">
-                <Button className="h-11 px-10 text-base bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0" onClick={submitPetition} disabled={!petitionText.trim()}>
-                  Отправить
-                </Button>
-              </div>
+              <Button className="w-full h-12 text-base bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0" onClick={submitPetition} disabled={!petitionText.trim()}>
+                Отправить
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Image lightbox */}
+        <AnimatePresence>
+          {lightboxImage && (
+            <motion.div
+              key="lightbox"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[400] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+              onClick={() => setLightboxImage(null)}
+            >
+              <img
+                src={lightboxImage}
+                alt=""
+                className="max-w-[92vw] max-h-[88vh] rounded-xl object-contain shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="absolute top-4 right-4 h-10 w-10 rounded-full bg-zinc-800/80 text-zinc-200 flex items-center justify-center hover:bg-zinc-700 text-xl"
+              >✕</button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Chat context menu */}
+        <AnimatePresence>
+          {chatContextMenu && (
+            <>
+              <div className="fixed inset-0 z-[350]" onClick={() => setChatContextMenu(null)} />
+              <motion.div
+                key="ctx-menu"
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.92 }}
+                transition={{ duration: 0.12 }}
+                className="fixed z-[360] rounded-2xl border border-zinc-700 bg-zinc-900 shadow-[0_16px_48px_rgba(0,0,0,0.7)] overflow-hidden min-w-[180px]"
+                style={{
+                  left: Math.min(chatContextMenu.x, (typeof window !== "undefined" ? window.innerWidth : 400) - 196),
+                  top: Math.min(chatContextMenu.y, (typeof window !== "undefined" ? window.innerHeight : 600) - 240),
+                }}
+              >
+                {/* Reactions strip */}
+                <div className="flex items-center gap-1 px-2.5 py-2 border-b border-zinc-800">
+                  {["❤️","👍","😂","😮","🔥","👎"].map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => reactToMessage(chatContextMenu.chatType, chatContextMenu.messageId, emoji)}
+                      className="text-xl leading-none p-1 rounded-lg hover:bg-zinc-800 transition-colors"
+                    >{emoji}</button>
+                  ))}
+                </div>
+                {/* Actions */}
+                <div className="py-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (chatContextMenu.chatType === "lobby") {
+                        setLobbyReplyTo({ id: chatContextMenu.messageId, text: chatContextMenu.text.slice(0, 80), senderName: chatContextMenu.senderName });
+                      } else {
+                        setLawyerReplyTo({ id: chatContextMenu.messageId, text: chatContextMenu.text.slice(0, 80), senderName: chatContextMenu.senderName });
+                      }
+                      setChatContextMenu(null);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-zinc-200 hover:bg-zinc-800"
+                  >↩ Ответить</button>
+                  {!chatContextMenu.isOwn && chatContextMenu.text && (
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(chatContextMenu.text).catch(() => {}); setChatContextMenu(null); }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-zinc-200 hover:bg-zinc-800"
+                    >⎘ Скопировать</button>
+                  )}
+                  {chatContextMenu.isOwn && (
+                    <button
+                      type="button"
+                      onClick={() => deleteMessage(chatContextMenu.chatType, chatContextMenu.messageId)}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-300 hover:bg-zinc-800"
+                    >✕ Удалить</button>
+                  )}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </motion.div>
     );
   }
