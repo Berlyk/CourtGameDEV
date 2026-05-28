@@ -2932,7 +2932,7 @@ export function setupSocket(httpServer: HttpServer) {
           return;
         }
 
-        const normalizedText = (text ?? "").trim().slice(0, 100);
+        const normalizedText = (text ?? "").trim().slice(0, 90);
         if (!normalizedText) {
           socket.emit("error", { message: "Текст ходатайства не может быть пустым." });
           return;

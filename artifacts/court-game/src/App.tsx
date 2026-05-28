@@ -461,7 +461,7 @@ const SHOP_PAYMENT_INLINE_LOGOS: Record<string, string> = {
   universalCrypto: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Универсальный крипто"><defs><radialGradient id="uc-bg" cx="20%" cy="8%" r="120%"><stop offset="0%" stop-color="rgba(248,113,113,0.22)"/><stop offset="52%" stop-color="rgba(30,41,59,0.2)"/><stop offset="100%" stop-color="rgba(2,6,23,0.82)"/></radialGradient><linearGradient id="uc-net" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#7dd3fc" stop-opacity="0.38"/><stop offset="100%" stop-color="#34d399" stop-opacity="0.34"/></linearGradient><linearGradient id="uc-sol" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient></defs><rect width="640" height="220" rx="28" fill="transparent"/><ellipse cx="320" cy="110" rx="148" ry="78" fill="url(#uc-bg)" opacity="0.55"/><circle cx="320" cy="110" r="74" fill="none" stroke="url(#uc-net)" stroke-width="5"/><ellipse cx="320" cy="110" rx="74" ry="29" fill="none" stroke="#93c5fd" stroke-opacity="0.48" stroke-width="3"/><ellipse cx="320" cy="110" rx="74" ry="49" fill="none" stroke="#6ee7b7" stroke-opacity="0.3" stroke-width="2.6"/><path d="M246 110h148" fill="none" stroke="#cbd5e1" stroke-opacity="0.36" stroke-width="2.6"/><path d="M320 36v148" fill="none" stroke="#cbd5e1" stroke-opacity="0.32" stroke-width="2.6"/><circle cx="232" cy="110" r="25" fill="#f7931a"/><text x="232" y="117" text-anchor="middle" fill="#ffffff" font-size="26" font-weight="800" font-family="Arial Black,Segoe UI,Arial,sans-serif">B</text><line x1="225" y1="94" x2="225" y2="126" stroke="#fff" stroke-width="3" stroke-linecap="round"/><line x1="239" y1="94" x2="239" y2="126" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="320" cy="110" r="25" fill="#0f172a" stroke="url(#uc-sol)" stroke-width="3.6"/><g transform="translate(299 95)"><rect x="0" y="0" width="42" height="6.6" rx="3.3" fill="url(#uc-sol)" transform="skewX(-18)"/><rect x="0" y="11" width="42" height="6.6" rx="3.3" fill="url(#uc-sol)" transform="skewX(-18)"/><rect x="0" y="22" width="42" height="6.6" rx="3.3" fill="url(#uc-sol)" transform="skewX(-18)"/></g><circle cx="408" cy="110" r="25" fill="#26a17b"/><rect x="391" y="95" width="34" height="6.8" rx="3.4" fill="#fff"/><rect x="404" y="101" width="8.5" height="21" rx="4.2" fill="#fff"/><ellipse cx="408" cy="110" rx="16" ry="5.2" fill="none" stroke="#fff" stroke-width="4.6"/></svg>`),
   usdtTrc20: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="USDT TRC20"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(80 45)"><circle cx="65" cy="65" r="58" fill="#25a77a"/><rect x="26" y="38" width="78" height="14" rx="6" fill="#fff"/><rect x="58" y="52" width="14" height="47" rx="6" fill="#fff"/><ellipse cx="65" cy="66" rx="30" ry="11" fill="none" stroke="#fff" stroke-width="9"/></g><text x="200" y="102" fill="#eafbf5" font-size="66" font-weight="700" font-family="Inter,Segoe UI,Arial,sans-serif">USDT</text><text x="200" y="156" fill="#9ee5c9" font-size="40" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">TRC20</text></svg>`),
   ethereum: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="Ethereum"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(290 18)"><polygon points="30,0 72,68 30,88 -12,68" fill="#8f8bf7"/><polygon points="30,96 72,76 30,184 -12,76" fill="#6d65dd"/><polygon points="30,86 72,70 30,92 -12,70" fill="#b3adff"/></g><text x="320" y="207" text-anchor="middle" fill="#d8d5ff" font-size="36" font-weight="600" font-family="Inter,Segoe UI,Arial,sans-serif">Ethereum</text></svg>`),
-  ton: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="TON"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(90 36)"><circle cx="75" cy="75" r="66" fill="#40b7ff"/><path d="M75 30l33 24-33 50-33-50z" fill="none" stroke="#072032" stroke-width="9" stroke-linejoin="round"/></g><text x="250" y="125" fill="#8ad2ff" font-size="84" font-weight="800" font-family="Arial Black,Segoe UI,Arial,sans-serif">TON</text></svg>`),
+  ton: buildShopPaymentLogoDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-label="TON"><rect width="640" height="220" rx="28" fill="transparent"/><g transform="translate(40 18)"><circle cx="92" cy="92" r="84" fill="#0098EA"/><path d="M52 80 L92 18 L132 80 Z" fill="white" opacity="0.95"/><path d="M52 80 L92 175 L92 80 Z" fill="rgba(255,255,255,0.6)"/><path d="M132 80 L92 175 L92 80 Z" fill="rgba(255,255,255,0.88)"/></g><text x="252" y="130" fill="#0098EA" font-size="80" font-weight="900" font-family="Arial Black,Segoe UI,Arial,sans-serif">TON</text></svg>`),
 };
 
 const SHOP_PAYMENT_SECTIONS: Array<{
@@ -787,22 +787,18 @@ function renderShopPaymentLogo(method: ShopPaymentMethod): React.ReactNode {
     case "TON":
       return (
         <svg viewBox="0 0 640 220" aria-hidden="true" className={commonClass}>
-          <g transform="translate(90 36)">
-            <circle cx="75" cy="75" r="66" fill="#40b7ff" />
-            <path
-              d="M75 30l33 24-33 50-33-50z"
-              fill="none"
-              stroke="#072032"
-              strokeWidth="9"
-              strokeLinejoin="round"
-            />
+          <g transform="translate(40 18)">
+            <circle cx="92" cy="92" r="84" fill="#0098EA" />
+            <path d="M52 80 L92 18 L132 80 Z" fill="white" opacity={0.95} />
+            <path d="M52 80 L92 175 L92 80 Z" fill="rgba(255,255,255,0.6)" />
+            <path d="M132 80 L92 175 L92 80 Z" fill="rgba(255,255,255,0.88)" />
           </g>
           <text
-            x="250"
-            y="125"
-            fill="#8ad2ff"
-            fontSize="84"
-            fontWeight="800"
+            x="252"
+            y="130"
+            fill="#0098EA"
+            fontSize="80"
+            fontWeight="900"
             fontFamily="Arial Black, Segoe UI, Arial, sans-serif"
           >
             TON
@@ -4896,6 +4892,8 @@ export default function App() {
   const profileBirthDateRef = useRef<HTMLInputElement>(null);
   const lobbyChatScrollRef = useRef<HTMLDivElement>(null);
   const lawyerChatScrollRef = useRef<HTMLDivElement>(null);
+  const lobbyEmojiCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lawyerEmojiCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imageCropDragStateRef = useRef<{
     dragging: boolean;
     pointerId: number;
@@ -13458,7 +13456,7 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        <div className="md:hidden fixed inset-x-0 top-0 z-[230] border-b border-zinc-800 bg-zinc-950/96 shadow-[0_10px_34px_rgba(0,0,0,0.55)]">
+        <div className={`md:hidden fixed inset-x-0 top-0 ${mobileMenuOpen ? "z-[260]" : "z-[230]"} border-b border-zinc-800 bg-zinc-950/96 shadow-[0_10px_34px_rgba(0,0,0,0.55)]`}>
           <div className="mx-auto flex h-16 w-full max-w-none items-center justify-between px-4">
             <div className="inline-flex min-w-0 items-center gap-2.5">
               <img
@@ -17737,65 +17735,59 @@ export default function App() {
                   title="Чат лобби"
                   icon={<MessageSquare className="w-5 h-5" />}
                 >
-                  <div className="space-y-3">
+                  <div className={`flex flex-col gap-2 ${hasCrowdedLobby ? "h-[480px] md:h-[580px]" : "h-[420px] md:h-[480px]"}`}>
                     <div
                       ref={lobbyChatScrollRef}
-                      className={`rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS} ${
-                        hasCrowdedLobby ? "h-[420px] md:h-[520px]" : "h-[360px] md:h-[420px]"
-                      }`}
+                      className={`flex-1 min-h-0 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
-                      <div className="space-y-2">
+                      <div className="flex flex-col gap-1.5 pb-1">
                         {lobbyChatMessages.length === 0 && (
-                          <div className="text-sm text-zinc-500">
+                          <div className="text-sm text-zinc-500 text-center py-4">
                             Сообщений пока нет.
                           </div>
                         )}
-                        {lobbyChatMessages.map((message) => (
-                          <div
-                            key={message.id}
-                            className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-3"
-                          >
-                            <div className="flex items-start gap-3 min-w-0">
-                              <Avatar
-                                src={message.senderAvatar ?? null}
-                                name={message.senderName}
-                                size={30}
-                                staticIfAnimated
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-sm font-semibold text-zinc-100">{message.senderName}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setLobbyReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
-                                    className="text-zinc-500 hover:text-zinc-200 text-base px-2 py-0.5 rounded hover:bg-zinc-800"
-                                    title="Ответить"
-                                  >
-                                    ↩
-                                  </button>
+                        {lobbyChatMessages.map((message) => {
+                          const isOwn = message.senderId === myId;
+                          return (
+                            <div key={message.id} className={`flex items-end gap-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                              {!isOwn && (
+                                <div className="shrink-0 self-end mb-0.5">
+                                  <Avatar src={message.senderAvatar ?? null} name={message.senderName} size={28} staticIfAnimated />
                                 </div>
-                                {message.replyToSenderName && (
-                                  <div className="mt-1 rounded-lg border-l-2 border-zinc-600 bg-zinc-800/60 px-2 py-1 text-xs text-zinc-400 truncate">
-                                    <span className="font-semibold text-zinc-300">{message.replyToSenderName}:</span> {message.replyToText}
-                                  </div>
+                              )}
+                              <div className={`group relative flex flex-col max-w-[72%] ${isOwn ? "items-end" : "items-start"}`}>
+                                {!isOwn && (
+                                  <span className="mb-0.5 ml-1 text-[11px] font-semibold text-zinc-400">{message.senderName}</span>
                                 )}
-                                {message.imageUrl && (
-                                  <div className="mt-2 max-w-[240px]">
-                                    <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[200px] object-contain" />
-                                  </div>
-                                )}
-                                {message.text.trim() && (
-                                  <div className="mt-1 text-zinc-200 text-sm whitespace-pre-wrap break-all overflow-hidden">
-                                    {message.text.trim()}
-                                  </div>
-                                )}
+                                <div className={`relative rounded-2xl px-3 py-2 text-sm leading-snug shadow-sm ${isOwn ? "rounded-br-sm bg-zinc-700 text-zinc-100" : "rounded-bl-sm bg-zinc-800 text-zinc-100"}`}>
+                                  {message.replyToSenderName && (
+                                    <div className="mb-1.5 rounded-lg border-l-2 border-red-500/60 bg-black/25 px-2 py-1 text-xs text-zinc-400">
+                                      <span className="font-semibold text-zinc-300">{message.replyToSenderName}:</span> {message.replyToText}
+                                    </div>
+                                  )}
+                                  {message.imageUrl && (
+                                    <div className="mb-1 max-w-[200px]">
+                                      <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[180px] object-contain" />
+                                    </div>
+                                  )}
+                                  {message.text.trim() && (
+                                    <span className="whitespace-pre-wrap break-all">{message.text.trim()}</span>
+                                  )}
+                                  <span className="ml-2 inline-block align-bottom text-[10px] text-zinc-400 whitespace-nowrap">{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setLobbyReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
+                                  className="absolute -top-2 right-0 hidden group-hover:flex h-6 w-6 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-sm text-zinc-400 hover:text-zinc-100 shadow-sm z-10"
+                                  title="Ответить"
+                                >↩</button>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="shrink-0 space-y-1.5">
                       {lobbyReplyTo && (
                         <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-xs text-zinc-400">
                           <span className="flex-1 truncate"><span className="font-semibold text-zinc-300">{lobbyReplyTo.senderName}:</span> {lobbyReplyTo.text}</span>
@@ -17812,8 +17804,13 @@ export default function App() {
                       <div className="flex gap-2">
                         <div
                           className="relative shrink-0"
-                          onMouseEnter={() => setLobbyEmojiPickerOpen(true)}
-                          onMouseLeave={() => setLobbyEmojiPickerOpen(false)}
+                          onMouseEnter={() => {
+                            if (lobbyEmojiCloseTimerRef.current) clearTimeout(lobbyEmojiCloseTimerRef.current);
+                            setLobbyEmojiPickerOpen(true);
+                          }}
+                          onMouseLeave={() => {
+                            lobbyEmojiCloseTimerRef.current = setTimeout(() => setLobbyEmojiPickerOpen(false), 180);
+                          }}
                         >
                           <button
                             type="button"
@@ -17822,8 +17819,17 @@ export default function App() {
                             title="Эмодзи"
                           >😊</button>
                           {lobbyEmojiPickerOpen && (
-                            <div className="absolute bottom-full left-0 mb-1 z-50 rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl p-2" style={{ width: 220 }}>
-                              <div className="flex flex-wrap gap-1 max-h-[110px] overflow-y-auto">
+                            <div
+                              className={`absolute bottom-full left-0 mb-1 z-50 rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl p-2 ${HIDE_SCROLLBAR_CLASS}`}
+                              style={{ width: 220 }}
+                              onMouseEnter={() => {
+                                if (lobbyEmojiCloseTimerRef.current) clearTimeout(lobbyEmojiCloseTimerRef.current);
+                              }}
+                              onMouseLeave={() => {
+                                lobbyEmojiCloseTimerRef.current = setTimeout(() => setLobbyEmojiPickerOpen(false), 180);
+                              }}
+                            >
+                              <div className={`flex flex-wrap gap-1 max-h-[110px] overflow-y-auto ${HIDE_SCROLLBAR_CLASS}`}>
                                 {CHAT_EMOJIS.map((e) => (
                                   <button key={e} type="button" onClick={() => { setLobbyChatInput((v) => v + e); setLobbyEmojiPickerOpen(false); }} className="text-xl leading-none p-0.5 hover:bg-zinc-800 rounded">{e}</button>
                                 ))}
@@ -18392,9 +18398,9 @@ export default function App() {
                 <div className="w-full max-w-3xl text-center">
                   <div className="inline-flex max-w-full flex-col items-center rounded-2xl border border-zinc-700/70 bg-zinc-950/88 px-8 py-5 shadow-[0_18px_64px_rgba(0,0,0,0.7)]">
                     <motion.div
-                      animate={{ textShadow: ["0 0 18px rgba(251,191,36,0.35)","0 0 34px rgba(251,191,36,0.85)","0 0 20px rgba(251,191,36,0.45)"] }}
+                      animate={{ textShadow: ["0 0 18px rgba(239,68,68,0.35)","0 0 34px rgba(239,68,68,0.85)","0 0 20px rgba(239,68,68,0.45)"] }}
                       transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
-                      className="text-[clamp(2.1rem,7vw,4.9rem)] font-black tracking-[0.04em] whitespace-nowrap leading-none text-amber-400 uppercase"
+                      className="text-[clamp(2.1rem,7vw,4.9rem)] font-black tracking-[0.04em] whitespace-nowrap leading-none text-red-400 uppercase"
                     >
                       ХОДАТАЙСТВО!
                     </motion.div>
@@ -18422,7 +18428,9 @@ export default function App() {
                     className={`inline-flex flex-col items-center rounded-2xl border border-zinc-700/70 bg-zinc-950/88 px-5 py-4 shadow-[0_18px_64px_rgba(0,0,0,0.7)] ${
                       isCardAnnouncement
                         ? "max-w-[min(90vw,760px)] sm:px-8 sm:py-5"
-                        : "max-w-[min(92vw,980px)] sm:px-7 sm:py-5"
+                        : isPetitionAnnouncement
+                          ? "max-w-[min(76vw,480px)] sm:px-7 sm:py-5"
+                          : "max-w-[min(92vw,980px)] sm:px-7 sm:py-5"
                     }`}
                   >
                     {isCardAnnouncement && (
@@ -18437,7 +18445,7 @@ export default function App() {
                           : isProtestAcceptedAnnouncement || isPetitionAcceptedAnnouncement
                             ? ["0 0 18px rgba(16,185,129,0.35)","0 0 34px rgba(16,185,129,0.85)","0 0 20px rgba(16,185,129,0.45)"]
                             : isPetitionAnnouncement
-                              ? ["0 0 18px rgba(251,191,36,0.35)","0 0 34px rgba(251,191,36,0.75)","0 0 20px rgba(251,191,36,0.45)"]
+                              ? ["0 0 18px rgba(239,68,68,0.35)","0 0 34px rgba(239,68,68,0.75)","0 0 20px rgba(239,68,68,0.45)"]
                               : ["0 0 18px rgba(239,68,68,0.35)","0 0 34px rgba(239,68,68,0.85)","0 0 20px rgba(239,68,68,0.45)"],
                       }}
                       transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
@@ -18447,7 +18455,7 @@ export default function App() {
                           : isProtestAcceptedAnnouncement || isPetitionAcceptedAnnouncement
                             ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-emerald-400"
                             : isPetitionAnnouncement
-                              ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-amber-400"
+                              ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[1.1] text-red-400"
                               : "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-red-500"
                       }`}
                     >
@@ -18501,13 +18509,13 @@ export default function App() {
                 </div>
 
                 <div className="min-w-[260px] space-y-2 max-sm:-mt-2 sm:space-y-3 xl:min-w-[320px] xl:space-y-4">
-                  <div className="overflow-hidden">
+                  <div className="overflow-hidden min-h-[2.5rem]">
                     <AnimatePresence mode="wait">
                       <motion.div
                         key={currentStage}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
                         className="text-sm font-medium xl:text-base break-words [overflow-wrap:anywhere]"
                       >
@@ -18718,50 +18726,51 @@ export default function App() {
                       ref={lawyerChatScrollRef}
                       className={`${lawyerChatHeightClass} min-h-0 flex-1 basis-0 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`}
                     >
-                      <div className="space-y-2 min-w-0">
+                      <div className="flex flex-col gap-1.5 pb-1 min-w-0">
                         {lawyerChatMessages.length === 0 && (
-                          <div className="text-sm text-zinc-500">
+                          <div className="text-sm text-zinc-500 text-center py-4">
                             Пока нет сообщений.
                           </div>
                         )}
-                        {lawyerChatMessages.map((message) => (
-                          <div
-                            key={message.id}
-                            className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-3"
-                          >
-                            <div className="flex items-start gap-2.5 min-w-0">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-sm font-semibold text-zinc-100">{message.senderName}</span>
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <span className="text-[11px] text-zinc-500">{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setLawyerReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
-                                      className="text-zinc-500 hover:text-zinc-200 text-base px-1.5 py-0.5 rounded hover:bg-zinc-800"
-                                      title="Ответить"
-                                    >↩</button>
-                                  </div>
+                        {lawyerChatMessages.map((message) => {
+                          const isOwn = message.senderId === myId;
+                          return (
+                            <div key={message.id} className={`flex items-end gap-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                              {!isOwn && (
+                                <div className="shrink-0 self-end mb-0.5">
+                                  <Avatar src={null} name={message.senderName} size={26} />
                                 </div>
-                                {message.replyToSenderName && (
-                                  <div className="mt-1 rounded-lg border-l-2 border-zinc-600 bg-zinc-800/60 px-2 py-1 text-xs text-zinc-400 truncate">
-                                    <span className="font-semibold text-zinc-300">{message.replyToSenderName}:</span> {message.replyToText}
-                                  </div>
+                              )}
+                              <div className={`group relative flex flex-col max-w-[76%] ${isOwn ? "items-end" : "items-start"}`}>
+                                {!isOwn && (
+                                  <span className="mb-0.5 ml-1 text-[11px] font-semibold text-zinc-400">{message.senderName}</span>
                                 )}
-                                {message.imageUrl && (
-                                  <div className="mt-2 max-w-[200px]">
-                                    <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[160px] object-contain" />
-                                  </div>
-                                )}
-                                {message.text.trim() && (
-                                  <div className="mt-1 text-zinc-200 text-sm whitespace-pre-wrap break-all overflow-hidden">
-                                    {message.text.trim()}
-                                  </div>
-                                )}
+                                <div className={`relative rounded-2xl px-3 py-2 text-sm leading-snug shadow-sm ${isOwn ? "rounded-br-sm bg-zinc-700 text-zinc-100" : "rounded-bl-sm bg-zinc-800 text-zinc-100"}`}>
+                                  {message.replyToSenderName && (
+                                    <div className="mb-1.5 rounded-lg border-l-2 border-red-500/60 bg-black/25 px-2 py-1 text-xs text-zinc-400">
+                                      <span className="font-semibold text-zinc-300">{message.replyToSenderName}:</span> {message.replyToText}
+                                    </div>
+                                  )}
+                                  {message.imageUrl && (
+                                    <div className="mb-1 max-w-[180px]">
+                                      <img src={message.imageUrl} alt="" className="rounded-lg max-w-full max-h-[150px] object-contain" />
+                                    </div>
+                                  )}
+                                  {message.text.trim() && (
+                                    <span className="whitespace-pre-wrap break-all">{message.text.trim()}</span>
+                                  )}
+                                  <span className="ml-2 inline-block align-bottom text-[10px] text-zinc-400 whitespace-nowrap">{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setLawyerReplyTo({ id: message.id, text: message.text.trim().slice(0, 80), senderName: message.senderName })}
+                                  className="absolute -top-2 right-0 hidden group-hover:flex h-6 w-6 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-sm text-zinc-400 hover:text-zinc-100 shadow-sm z-10"
+                                  title="Ответить"
+                                >↩</button>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                     <div className="shrink-0 space-y-1.5">
@@ -18781,8 +18790,13 @@ export default function App() {
                       <div className="flex gap-2">
                         <div
                           className="relative shrink-0"
-                          onMouseEnter={() => setLawyerEmojiPickerOpen(true)}
-                          onMouseLeave={() => setLawyerEmojiPickerOpen(false)}
+                          onMouseEnter={() => {
+                            if (lawyerEmojiCloseTimerRef.current) clearTimeout(lawyerEmojiCloseTimerRef.current);
+                            setLawyerEmojiPickerOpen(true);
+                          }}
+                          onMouseLeave={() => {
+                            lawyerEmojiCloseTimerRef.current = setTimeout(() => setLawyerEmojiPickerOpen(false), 180);
+                          }}
                         >
                           <button
                             type="button"
@@ -18791,8 +18805,17 @@ export default function App() {
                             title="Эмодзи"
                           >😊</button>
                           {lawyerEmojiPickerOpen && (
-                            <div className="absolute bottom-full left-0 mb-1 z-50 rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl p-2" style={{ width: 220 }}>
-                              <div className="flex flex-wrap gap-1 max-h-[110px] overflow-y-auto">
+                            <div
+                              className={`absolute bottom-full left-0 mb-1 z-50 rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl p-2 ${HIDE_SCROLLBAR_CLASS}`}
+                              style={{ width: 220 }}
+                              onMouseEnter={() => {
+                                if (lawyerEmojiCloseTimerRef.current) clearTimeout(lawyerEmojiCloseTimerRef.current);
+                              }}
+                              onMouseLeave={() => {
+                                lawyerEmojiCloseTimerRef.current = setTimeout(() => setLawyerEmojiPickerOpen(false), 180);
+                              }}
+                            >
+                              <div className={`flex flex-wrap gap-1 max-h-[110px] overflow-y-auto ${HIDE_SCROLLBAR_CLASS}`}>
                                 {CHAT_EMOJIS.map((e) => (
                                   <button key={e} type="button" onClick={() => { setLawyerChatInput((v) => v + e); setLawyerEmojiPickerOpen(false); }} className="text-xl leading-none p-0.5 hover:bg-zinc-800 rounded">{e}</button>
                                 ))}
@@ -19532,17 +19555,14 @@ export default function App() {
               <div className="relative">
                 <textarea
                   value={petitionText}
-                  onChange={(e) => setPetitionText(e.target.value.slice(0, 100))}
+                  onChange={(e) => setPetitionText(e.target.value.slice(0, 90))}
                   placeholder="Текст ходатайства..."
-                  className={`w-full h-[100px] resize-none rounded-xl border border-zinc-700 bg-zinc-900 p-3 pb-6 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:ring-1 focus:ring-amber-500/60 ${HIDE_SCROLLBAR_CLASS}`}
+                  className={`w-full h-[100px] resize-none rounded-xl border border-zinc-700 bg-zinc-900 p-3 pb-6 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:ring-1 focus:ring-red-500/60 ${HIDE_SCROLLBAR_CLASS}`}
                 />
-                <span className="absolute bottom-2 right-3 text-xs text-zinc-500 pointer-events-none">{petitionText.length}/100</span>
+                <span className="absolute bottom-2 right-3 text-xs text-zinc-500 pointer-events-none">{petitionText.length}/90</span>
               </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100" onClick={() => { setPetitionDialogOpen(false); setPetitionText(""); }}>
-                  Отмена
-                </Button>
-                <Button className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0" onClick={submitPetition} disabled={!petitionText.trim()}>
+              <div className="flex justify-center">
+                <Button className="h-11 px-10 text-base bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0" onClick={submitPetition} disabled={!petitionText.trim()}>
                   Отправить
                 </Button>
               </div>
