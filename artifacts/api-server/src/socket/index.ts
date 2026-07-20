@@ -363,6 +363,46 @@ function canRoleRevealFactsAtStage(roleKey: string | undefined, stageName: strin
   return isRoleSpeechStage(roleKey, stageName, roleTitle);
 }
 
+// Voice mode: derives who currently "has the floor" (mic auto-enabled) from the same
+// stage-ownership rules used for fact-reveal permission, rather than a separate concept.
+// - Judge always has the floor (moderates the room).
+// - Whoever raised the active protest gets the floor to state their objection.
+// - Cross-examination / witness-interrogation / preparation stages are open floor for
+//   every connected non-observer participant (back-and-forth dialogue).
+// - Opening/closing speech stages grant the floor only to that stage's speech-owner role.
+function computeVoiceFloorPlayerIds(room: any): string[] {
+  if (!room?.game || !room.voiceModeEnabled) return [];
+  const stageName = getCurrentStageName(room.game.stages, room.game.stageIndex);
+  const players: any[] = room.game.players ?? [];
+  const floor = new Set<string>();
+
+  const judge = players.find((p) => normalizeRoleKey(p.roleKey, p.roleTitle) === "judge");
+  if (judge) floor.add(judge.id);
+
+  const protestActorId = room.game.activeProtest?.actorId;
+  if (protestActorId) floor.add(protestActorId);
+
+  if (
+    isCrossExaminationStage(stageName) ||
+    isWitnessInterrogationStage(stageName) ||
+    isPreparationStage(stageName)
+  ) {
+    for (const p of players) {
+      const role = normalizeRoleKey(p.roleKey, p.roleTitle);
+      if (role && role !== "observer") floor.add(p.id);
+    }
+  } else {
+    const owner = resolveSpeechOwnerRole(stageName);
+    if (owner) {
+      for (const p of players) {
+        if (normalizeRoleKey(p.roleKey, p.roleTitle) === owner) floor.add(p.id);
+      }
+    }
+  }
+
+  return Array.from(floor);
+}
+
 function canPlayerRevealFactNow(room: any, playerId: string): boolean {
   if (!room?.game) return false;
 
@@ -659,6 +699,7 @@ function getRoomState(room: any, playerId: string) {
       isHostJudge: room.isHostJudge,
       usePreferredRoles: !!room.usePreferredRoles,
       allowWitnesses: room.allowWitnesses !== false,
+      voiceModeEnabled: !!room.voiceModeEnabled,
       maxObservers: typeof room.maxObservers === "number" ? room.maxObservers : 6,
       openingSpeechTimerSec:
         typeof room.openingSpeechTimerSec === "number" ? room.openingSpeechTimerSec : null,
@@ -693,6 +734,8 @@ function getRoomState(room: any, playerId: string) {
     usedCards: room.game.usedCards,
     activeProtest: room.game.activeProtest ?? null,
     activePetition: room.game.activePetition ?? null,
+    voiceModeEnabled: !!room.voiceModeEnabled,
+    voiceFloorSpeakerIds: computeVoiceFloorPlayerIds(room),
     finished: room.game.finished,
     verdict: room.game.verdict,
     verdictEvaluation: room.game.verdictEvaluation,
@@ -962,6 +1005,14 @@ export function setupSocket(httpServer: HttpServer) {
     const targetRoom = room ?? getRoom(roomCode);
     io.to(roomCode).emit("protest_state_updated", {
       activeProtest: targetRoom?.game?.activeProtest ?? null,
+    });
+  };
+
+  const emitVoiceFloor = (roomCode: string, room?: any) => {
+    const targetRoom = room ?? getRoom(roomCode);
+    if (!targetRoom?.voiceModeEnabled) return;
+    io.to(roomCode).emit("voice_floor_updated", {
+      speakerIds: computeVoiceFloorPlayerIds(targetRoom),
     });
   };
 
@@ -1841,6 +1892,7 @@ export function setupSocket(httpServer: HttpServer) {
             stages: updatedRoom.game.stages,
           });
           emitPublicMatches(io);
+          emitVoiceFloor(roomCode, updatedRoom);
           persistRoom(roomCode);
           return;
         }
@@ -2069,6 +2121,7 @@ export function setupSocket(httpServer: HttpServer) {
         }
       });
       emitPublicMatches(io);
+      emitVoiceFloor(roomCode, updatedRoom);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Не удалось начать игру.";
         socket.emit("error", { message: message || "Не удалось начать игру." });
@@ -2151,6 +2204,7 @@ export function setupSocket(httpServer: HttpServer) {
           visibility?: "public" | "private";
           password?: string | null;
           allowWitnesses?: boolean;
+          voiceModeEnabled?: boolean;
           maxObservers?: number;
           openingSpeechTimerSec?: number | null;
           closingSpeechTimerSec?: number | null;
@@ -2966,6 +3020,7 @@ export function setupSocket(httpServer: HttpServer) {
           room.game.protestUsageByPlayer = usageMap;
         }
         emitProtestState(roomCode, room);
+        emitVoiceFloor(roomCode, room);
       },
     );
 
@@ -3010,6 +3065,7 @@ export function setupSocket(httpServer: HttpServer) {
 
         room.game.activeProtest = null;
         emitProtestState(roomCode, room);
+        emitVoiceFloor(roomCode, room);
 
         io.to(roomCode).emit("influence_announcement", {
           id: crypto.randomUUID(),
@@ -3123,6 +3179,52 @@ export function setupSocket(httpServer: HttpServer) {
         });
       },
     );
+
+    // Voice mode: WebRTC mesh signaling relay. The server never touches media, it only
+    // introduces peers to each other (voice_join/voice_peers/voice_peer_joined) and relays
+    // opaque SDP/ICE payloads between two sockets confirmed to be in the same room
+    // (voice_signal). Who currently has the mic is decided separately by voice_floor_updated.
+    socket.on(
+      "voice_join",
+      ({ code, sessionToken }: { code: string; sessionToken?: string }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room?.voiceModeEnabled) return;
+
+        const actorId = resolveActorId({ socketId: socket.id, roomCode, room, sessionToken });
+        if (!actorId) return;
+
+        const players: any[] = room.game?.players ?? room.players ?? [];
+        const me = players.find((p) => p.id === actorId);
+        if (!me) return;
+
+        const peers = players
+          .filter(
+            (p) =>
+              p.id !== actorId &&
+              typeof p.socketId === "string" &&
+              p.socketId &&
+              io.sockets.sockets.has(p.socketId),
+          )
+          .map((p) => ({ playerId: p.id, socketId: p.socketId }));
+
+        socket.emit("voice_peers", { peers });
+        socket.to(roomCode).emit("voice_peer_joined", { playerId: actorId, socketId: socket.id });
+      },
+    );
+
+    socket.on("voice_signal", ({ to, data }: { to: string; data: unknown }) => {
+      if (typeof to !== "string" || !to) return;
+      const mapping = socketToRoom.get(socket.id);
+      const targetMapping = socketToRoom.get(to);
+      if (!mapping || !targetMapping || mapping.roomCode !== targetMapping.roomCode) return;
+      io.to(to).emit("voice_signal", { from: socket.id, data });
+    });
+
+    socket.on("voice_leave", ({ code }: { code: string }) => {
+      const roomCode = normalizeRoomCode(code);
+      socket.to(roomCode).emit("voice_peer_left", { socketId: socket.id });
+    });
 
     socket.on(
       "trigger_judge_silence",
@@ -3488,6 +3590,7 @@ export function setupSocket(httpServer: HttpServer) {
       io.to(roomCode).emit("stage_updated", { stageIndex: updatedRoom.game!.stageIndex });
       emitPublicMatches(io);
       emitFactRevealPermissions(io, updatedRoom);
+      emitVoiceFloor(roomCode, updatedRoom);
     });
 
     socket.on("prev_stage", ({ code, sessionToken }: { code: string; sessionToken?: string }) => {
@@ -3514,6 +3617,7 @@ export function setupSocket(httpServer: HttpServer) {
       io.to(roomCode).emit("stage_updated", { stageIndex: updatedRoom.game!.stageIndex });
       emitPublicMatches(io);
       emitFactRevealPermissions(io, updatedRoom);
+      emitVoiceFloor(roomCode, updatedRoom);
     });
 
     socket.on("set_verdict", ({ code, verdict, sessionToken }: { code: string; verdict: string; sessionToken?: string }) => {
@@ -3576,6 +3680,7 @@ export function setupSocket(httpServer: HttpServer) {
       if (!info) return;
 
       socketToRoom.delete(socketId);
+      io.to(info.roomCode).emit("voice_peer_left", { socketId });
 
       const room = getRoom(info.roomCode);
       if (!room) return;

@@ -36,7 +36,18 @@ const CLOSING_SPEECH_ORDER: Array<{ key: string; label: string }> = [
   { key: "defenseLawyer", label: "Финальная речь адвоката ответчика" },
 ];
 
-function buildStagesForGame(assignedRoleKeys: string[], hasWitnesses: boolean): string[] {
+export const WITNESS_STAGE_PLAINTIFF = "Перекрестный допрос: свидетель истца";
+export const WITNESS_STAGE_DEFENDANT = "Перекрестный допрос: свидетель ответчика";
+
+export interface WitnessSidesPresent {
+  plaintiff: boolean;
+  defendant: boolean;
+}
+
+function buildStagesForGame(
+  assignedRoleKeys: string[],
+  witnessSides: WitnessSidesPresent,
+): string[] {
   const roleSet = new Set(assignedRoleKeys);
   const stages: string[] = ["Подготовка"];
 
@@ -44,7 +55,8 @@ function buildStagesForGame(assignedRoleKeys: string[], hasWitnesses: boolean): 
     if (roleSet.has(key)) stages.push(label);
   }
 
-  if (hasWitnesses) stages.push("Допрос свидетелей");
+  if (witnessSides.plaintiff) stages.push(WITNESS_STAGE_PLAINTIFF);
+  if (witnessSides.defendant) stages.push(WITNESS_STAGE_DEFENDANT);
 
   for (const { key, label } of CROSS_EXAM_ORDER) {
     if (roleSet.has(key)) stages.push(label);
@@ -56,6 +68,28 @@ function buildStagesForGame(assignedRoleKeys: string[], hasWitnesses: boolean): 
 
   stages.push("Решение судьи");
   return stages;
+}
+
+// Inserts a witness cross-exam stage right after the game's current stage. If one or more
+// witness stages were already inserted there (e.g. the other side joined first), the new
+// stage is appended after that run so both stay adjacent, in join order.
+function insertWitnessStage(room: Room, stageLabel: string): void {
+  if (!room.game) return;
+  const stages = room.game.stages;
+  if (stages.includes(stageLabel)) return;
+
+  let insertAt = room.game.stageIndex + 1;
+  while (
+    insertAt < stages.length &&
+    (stages[insertAt] === WITNESS_STAGE_PLAINTIFF || stages[insertAt] === WITNESS_STAGE_DEFENDANT)
+  ) {
+    insertAt += 1;
+  }
+
+  stages.splice(insertAt, 0, stageLabel);
+  if (room.game.stageIndex >= insertAt) {
+    room.game.stageIndex += 1;
+  }
 }
 
 export interface PlayerCard {
@@ -170,6 +204,7 @@ export interface Room {
   venueLabel?: string;
   venueUrl?: string;
   allowWitnesses: boolean;
+  voiceModeEnabled: boolean;
   maxObservers: number;
   openingSpeechTimerSec: number | null;
   closingSpeechTimerSec: number | null;
@@ -219,6 +254,7 @@ export interface CreateRoomOptions {
   venueUrl?: string;
   usePreferredRoles?: boolean;
   allowWitnesses?: boolean;
+  voiceModeEnabled?: boolean;
   maxObservers?: number;
   openingSpeechTimerSec?: number | null;
   closingSpeechTimerSec?: number | null;
@@ -257,14 +293,17 @@ const MATCH_TTL_MS = 2.5 * 60 * 60 * 1000;
 const MAX_WITNESS_PLAYERS = 2;
 const MAX_OBSERVERS_LIMIT = 6;
 
+export function getWitnessSide(player: Player): "plaintiff" | "defendant" | null {
+  const title = (player.roleTitle ?? "").toLowerCase();
+  if (title.includes("истца")) return "plaintiff";
+  if (title.includes("ответчика")) return "defendant";
+  return null;
+}
+
 function getWitnessRoleTitle(room: Room): string {
   const witnesses = room.players.filter((player) => player.roleKey === "witness");
-  const plaintiffWitnesses = witnesses.filter((player) =>
-    (player.roleTitle ?? "").toLowerCase().includes("истца"),
-  ).length;
-  const defendantWitnesses = witnesses.filter((player) =>
-    (player.roleTitle ?? "").toLowerCase().includes("ответчика"),
-  ).length;
+  const plaintiffWitnesses = witnesses.filter((w) => getWitnessSide(w) === "plaintiff").length;
+  const defendantWitnesses = witnesses.filter((w) => getWitnessSide(w) === "defendant").length;
   return plaintiffWitnesses <= defendantWitnesses
     ? "Свидетель истца"
     : "Свидетель ответчика";
@@ -632,6 +671,7 @@ export function restoreRoomsFromSnapshots(snapshots: unknown[]): number {
         typeof snapshot.venueLabel === "string" ? snapshot.venueLabel : undefined,
       venueUrl: typeof snapshot.venueUrl === "string" ? snapshot.venueUrl : undefined,
       allowWitnesses: snapshot.allowWitnesses !== false,
+      voiceModeEnabled: !!snapshot.voiceModeEnabled,
       maxObservers: normalizeObserverLimit(snapshot.maxObservers),
       openingSpeechTimerSec: normalizeSpeechTimerSeconds(snapshot.openingSpeechTimerSec),
       closingSpeechTimerSec: normalizeSpeechTimerSeconds(snapshot.closingSpeechTimerSec),
@@ -668,6 +708,8 @@ export function restoreRoomsFromSnapshots(snapshots: unknown[]): number {
           : [],
         usedCards: Array.isArray(snapshot.game.usedCards) ? snapshot.game.usedCards : [],
         activeProtest: snapshot.game.activeProtest ?? null,
+        activePetition: snapshot.game.activePetition ?? null,
+        petitionQueue: Array.isArray(snapshot.game.petitionQueue) ? snapshot.game.petitionQueue : [],
         finished: !!snapshot.game.finished,
         verdict: typeof snapshot.game.verdict === "string" ? snapshot.game.verdict : "",
         verdictEvaluation:
@@ -768,6 +810,7 @@ export function createRoom(code: string, player: Player, options?: CreateRoomOpt
   const venueLabel = normalizeVenueLabel(options?.venueLabel);
   const venueUrl = normalizeVenueUrl(options?.venueUrl);
   const allowWitnesses = options?.allowWitnesses !== false;
+  const voiceModeEnabled = !!options?.voiceModeEnabled;
   const maxObservers = normalizeObserverLimit(options?.maxObservers);
   const openingSpeechTimerSec = normalizeSpeechTimerSeconds(options?.openingSpeechTimerSec);
   const closingSpeechTimerSec = normalizeSpeechTimerSeconds(options?.closingSpeechTimerSec);
@@ -790,6 +833,7 @@ export function createRoom(code: string, player: Player, options?: CreateRoomOpt
     venueLabel,
     venueUrl,
     allowWitnesses,
+    voiceModeEnabled,
     maxObservers,
     openingSpeechTimerSec,
     closingSpeechTimerSec,
@@ -872,6 +916,7 @@ export function updateRoomManagement(
     visibility?: "public" | "private";
     password?: string | null;
     allowWitnesses?: boolean;
+    voiceModeEnabled?: boolean;
     maxObservers?: number;
     openingSpeechTimerSec?: number | null;
     closingSpeechTimerSec?: number | null;
@@ -946,6 +991,10 @@ export function updateRoomManagement(
 
   if (patch.allowWitnesses !== undefined) {
     room.allowWitnesses = !!patch.allowWitnesses;
+  }
+
+  if (patch.voiceModeEnabled !== undefined) {
+    room.voiceModeEnabled = !!patch.voiceModeEnabled;
   }
 
   if (patch.maxObservers !== undefined) {
@@ -1257,18 +1306,9 @@ export function joinRunningGameAsWitness(code: string, player: Player): Room | n
   room.game.players.push({ ...witnessPlayer, facts: [], cards: [] });
 
   if (supportRole === "witness") {
-    const WITNESS_STAGE = "Допрос свидетелей";
-    const hasStage = room.game.stages.includes(WITNESS_STAGE);
-    if (!hasStage) {
-      const firstCrossIdx = room.game.stages.findIndex((s) =>
-        s.toLowerCase().includes("перекрест"),
-      );
-      const insertAt = firstCrossIdx >= 0 ? firstCrossIdx : room.game.stages.length - 1;
-      room.game.stages.splice(insertAt, 0, WITNESS_STAGE);
-      if (room.game.stageIndex >= insertAt) {
-        room.game.stageIndex += 1;
-      }
-    }
+    const side = getWitnessSide(witnessPlayer);
+    if (side === "plaintiff") insertWitnessStage(room, WITNESS_STAGE_PLAINTIFF);
+    else if (side === "defendant") insertWitnessStage(room, WITNESS_STAGE_DEFENDANT);
   }
 
   return room;
@@ -1952,8 +1992,11 @@ export function startGame(
   });
 
   const assignedRoleKeysForStages = [...roleByPlayerId.values()].filter((r) => r !== "judge");
-  const hasWitnessesInRoom = lobbyWitnesses.length > 0;
-  const stages = buildStagesForGame(assignedRoleKeysForStages, hasWitnessesInRoom);
+  const witnessSidesInRoom: WitnessSidesPresent = {
+    plaintiff: lobbyWitnesses.some((w) => getWitnessSide(w) === "plaintiff"),
+    defendant: lobbyWitnesses.some((w) => getWitnessSide(w) === "defendant"),
+  };
+  const stages = buildStagesForGame(assignedRoleKeysForStages, witnessSidesInRoom);
 
   const assignedPlayers: Player[] = mainPlayers.map((player) => {
     const roleKey = roleByPlayerId.get(player.id) ?? "plaintiff";

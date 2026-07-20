@@ -46,6 +46,7 @@ import {
   Users,
   ImageIcon,
   Mic2,
+  MicOff,
   BrainCircuit,
   Swords,
   Gem,
@@ -108,6 +109,18 @@ const DEFAULT_GAME_STAGES = [
   "Финальная речь ответчика",
   "Решение судьи",
 ];
+
+// Stage names are plain strings like "Перекрестный допрос: адвокат ответчика".
+// Splits off the role/subject part after the colon (if any) so the UI can show
+// the phase name prominently and the role as a smaller secondary badge, instead
+// of one long line that has to shrink or wrap awkwardly.
+function splitStageLabel(stage: string): { phase: string; subject: string | null } {
+  const idx = stage.indexOf(":");
+  if (idx === -1) return { phase: stage, subject: null };
+  const phase = stage.slice(0, idx).trim();
+  const subject = stage.slice(idx + 1).trim();
+  return { phase, subject: subject || null };
+}
 
 const CHAT_EMOJIS = ["😀","😂","😍","🥰","😎","😢","😡","👍","👎","❤️","🔥","🎉","🤔","😮","😴","🙏","💪","👀","✅","❌","⚖️","📜","🔨","💡","🤝","👏","🫡","😤","🥳","💀"];
 
@@ -3022,6 +3035,8 @@ interface GameState {
   usedCards: UsedCard[];
   activeProtest: ActiveProtest | null;
   activePetition: ActivePetition | null;
+  voiceModeEnabled?: boolean;
+  voiceFloorSpeakerIds?: string[];
   finished: boolean;
   verdict: string;
   verdictEvaluation: string;
@@ -3049,6 +3064,7 @@ interface RoomState {
   isHostJudge?: boolean;
   usePreferredRoles?: boolean;
   allowWitnesses?: boolean;
+  voiceModeEnabled?: boolean;
   maxObservers?: number;
   openingSpeechTimerSec?: number | null;
   closingSpeechTimerSec?: number | null;
@@ -4715,6 +4731,7 @@ export default function App() {
   const [observerListDialogOpen, setObserverListDialogOpen] = useState(false);
   const [roomManageOpen, setRoomManageOpen] = useState(false);
   const [manageAllowWitnesses, setManageAllowWitnesses] = useState(true);
+  const [manageVoiceModeEnabled, setManageVoiceModeEnabled] = useState(false);
   const [manageMaxObservers, setManageMaxObservers] = useState(6);
   const [manageOpeningTimerEnabled, setManageOpeningTimerEnabled] = useState(false);
   const [manageOpeningTimerSec, setManageOpeningTimerSec] = useState(60);
@@ -4790,6 +4807,7 @@ export default function App() {
   const createPackCasesRef = useRef<UserPackCaseDraft[]>(createPackCases);
   const [createPackActiveCaseId, setCreatePackActiveCaseId] = useState<string | null>(null);
   const [createRoomPrivate, setCreateRoomPrivate] = useState(false);
+  const [createRoomVoiceMode, setCreateRoomVoiceMode] = useState(false);
   const [createVoiceUrl, setCreateVoiceUrl] = useState("");
   const [createRoomPassword, setCreateRoomPassword] = useState("");
   const [createRoomPasswordVisible, setCreateRoomPasswordVisible] = useState(false);
@@ -5037,6 +5055,15 @@ export default function App() {
   >("main");
   const myIdRef = useRef<string | null>(null);
   const myProfileRef = useRef<PublicUserProfile | null>(null);
+  // Voice mode: local join state, current speaking floor, and WebRTC mesh plumbing.
+  const [voiceJoined, setVoiceJoined] = useState(false);
+  const [voiceConnecting, setVoiceConnecting] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceFloorIds, setVoiceFloorIds] = useState<string[]>([]);
+  const [voiceRemoteStreams, setVoiceRemoteStreams] = useState<Record<string, MediaStream>>({});
+  const localVoiceStreamRef = useRef<MediaStream | null>(null);
+  const voicePeerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const voiceRoomCodeRef = useRef<string | null>(null);
   const knownUserIdByPlayerIdRef = useRef<Record<string, string>>({});
   const influenceAnnouncementTimerRef = useRef<number | null>(null);
   const roomActionTimeoutRef = useRef<number | null>(null);
@@ -7919,6 +7946,7 @@ export default function App() {
   useEffect(() => {
     if (!room) return;
     setManageAllowWitnesses(room.allowWitnesses !== false);
+    setManageVoiceModeEnabled(!!room.voiceModeEnabled);
     setManageMaxObservers(
       Math.max(0, Math.min(6, Number.isFinite(room.maxObservers ?? NaN) ? Number(room.maxObservers) : 6)),
     );
@@ -9502,6 +9530,7 @@ export default function App() {
         roomName?: string;
         venueUrl?: string;
         password?: string;
+        voiceModeEnabled?: boolean;
       };
     } = {
       playerName: name,
@@ -9516,6 +9545,7 @@ export default function App() {
           createRoomPrivate && createRoomPassword.trim()
             ? createRoomPassword.trim()
             : undefined,
+        voiceModeEnabled: createRoomVoiceMode,
       },
     };
     if (!authToken && sharedAvatar) {
@@ -9538,6 +9568,7 @@ export default function App() {
     selectedCreatePackLocked,
     selectedCreatePack,
     createRoomPrivate,
+    createRoomVoiceMode,
     createRoomName,
     createVoiceUrl,
     createRoomPassword,
@@ -10648,6 +10679,178 @@ export default function App() {
       sessionToken: mySessionToken,
     });
   }, [game, mySessionToken, socket]);
+
+  // Voice mode: WebRTC mesh. The server only relays signaling (see voice_join/voice_signal
+  // on the backend) and tells everyone who currently has the floor (voice_floor_updated) —
+  // each client independently mutes/unmutes its own outgoing track based on that.
+  const closeVoicePeerConnection = useCallback((socketId: string) => {
+    const pc = voicePeerConnectionsRef.current.get(socketId);
+    if (pc) {
+      pc.close();
+      voicePeerConnectionsRef.current.delete(socketId);
+    }
+    setVoiceRemoteStreams((prev) => {
+      if (!(socketId in prev)) return prev;
+      const next = { ...prev };
+      delete next[socketId];
+      return next;
+    });
+  }, []);
+
+  const createVoicePeerConnection = useCallback(
+    (remoteSocketId: string) => {
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      });
+      const localStream = localVoiceStreamRef.current;
+      if (localStream) {
+        localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+      }
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit("voice_signal", {
+            to: remoteSocketId,
+            data: { type: "candidate", candidate: event.candidate.toJSON() },
+          });
+        }
+      };
+      pc.ontrack = (event) => {
+        const [stream] = event.streams;
+        if (stream) {
+          setVoiceRemoteStreams((prev) => ({ ...prev, [remoteSocketId]: stream }));
+        }
+      };
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+          closeVoicePeerConnection(remoteSocketId);
+        }
+      };
+      voicePeerConnectionsRef.current.set(remoteSocketId, pc);
+      return pc;
+    },
+    [socket, closeVoicePeerConnection],
+  );
+
+  const stopVoiceMode = useCallback(() => {
+    if (voiceRoomCodeRef.current) {
+      socket.emit("voice_leave", { code: voiceRoomCodeRef.current });
+    }
+    voicePeerConnectionsRef.current.forEach((pc) => pc.close());
+    voicePeerConnectionsRef.current.clear();
+    localVoiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    localVoiceStreamRef.current = null;
+    voiceRoomCodeRef.current = null;
+    setVoiceRemoteStreams({});
+    setVoiceJoined(false);
+    setVoiceFloorIds([]);
+  }, [socket]);
+
+  const startVoiceMode = useCallback(async () => {
+    if (!game || !mySessionToken || voiceJoined || voiceConnecting) return;
+    setVoiceError(null);
+    setVoiceConnecting(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getAudioTracks().forEach((track) => {
+        track.enabled = voiceFloorIds.includes(myIdRef.current ?? "");
+      });
+      localVoiceStreamRef.current = stream;
+      voiceRoomCodeRef.current = game.code;
+      socket.emit("voice_join", { code: game.code, sessionToken: mySessionToken });
+      setVoiceJoined(true);
+    } catch {
+      setVoiceError("Нет доступа к микрофону. Разрешите доступ в настройках браузера.");
+    } finally {
+      setVoiceConnecting(false);
+    }
+  }, [game, mySessionToken, socket, voiceJoined, voiceConnecting, voiceFloorIds]);
+
+  useEffect(() => {
+    const handleVoicePeers = ({ peers }: { peers: { playerId: string; socketId: string }[] }) => {
+      peers.forEach(({ socketId }) => {
+        if (voicePeerConnectionsRef.current.has(socketId)) return;
+        const pc = createVoicePeerConnection(socketId);
+        pc.createOffer()
+          .then((offer) => pc.setLocalDescription(offer).then(() => offer))
+          .then((offer) => {
+            socket.emit("voice_signal", { to: socketId, data: { type: "offer", sdp: offer } });
+          })
+          .catch(() => {});
+      });
+    };
+
+    const handleSignal = async ({ from, data }: { from: string; data: any }) => {
+      if (!from || !data) return;
+      let pc = voicePeerConnectionsRef.current.get(from);
+      try {
+        if (data.type === "offer") {
+          if (!pc) pc = createVoicePeerConnection(from);
+          await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit("voice_signal", { to: from, data: { type: "answer", sdp: answer } });
+        } else if (data.type === "answer" && pc) {
+          await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        } else if (data.type === "candidate" && pc && data.candidate) {
+          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+      } catch {
+        // Stale/out-of-order signaling message (peer already reconnected or left) — ignore.
+      }
+    };
+
+    const handlePeerLeft = ({ socketId }: { socketId: string }) => {
+      closeVoicePeerConnection(socketId);
+    };
+
+    const handleFloorUpdated = ({ speakerIds }: { speakerIds: string[] }) => {
+      setVoiceFloorIds(speakerIds);
+      const canSpeak = speakerIds.includes(myIdRef.current ?? "");
+      localVoiceStreamRef.current?.getAudioTracks().forEach((track) => {
+        track.enabled = canSpeak;
+      });
+    };
+
+    socket.on("voice_peers", handleVoicePeers);
+    socket.on("voice_signal", handleSignal);
+    socket.on("voice_peer_left", handlePeerLeft);
+    socket.on("voice_floor_updated", handleFloorUpdated);
+
+    return () => {
+      socket.off("voice_peers", handleVoicePeers);
+      socket.off("voice_signal", handleSignal);
+      socket.off("voice_peer_left", handlePeerLeft);
+      socket.off("voice_floor_updated", handleFloorUpdated);
+    };
+  }, [socket, createVoicePeerConnection, closeVoicePeerConnection]);
+
+  useEffect(() => {
+    if ((screen !== "game" || !game?.voiceModeEnabled) && voiceJoined) {
+      stopVoiceMode();
+    }
+  }, [screen, game?.voiceModeEnabled, voiceJoined, stopVoiceMode]);
+
+  // Applies the floor snapshot that arrives embedded in room_joined/game_started/rejoin
+  // payloads (covers initial load and reconnects); live in-game changes arrive separately
+  // via the voice_floor_updated socket event handled above.
+  useEffect(() => {
+    const speakerIds = game?.voiceFloorSpeakerIds;
+    if (!speakerIds) return;
+    setVoiceFloorIds(speakerIds);
+    const canSpeak = speakerIds.includes(myIdRef.current ?? "");
+    localVoiceStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = canSpeak;
+    });
+  }, [game?.voiceFloorSpeakerIds]);
+
+  useEffect(() => {
+    return () => {
+      voicePeerConnectionsRef.current.forEach((pc) => pc.close());
+      voicePeerConnectionsRef.current.clear();
+      localVoiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+      localVoiceStreamRef.current = null;
+    };
+  }, []);
 
   const triggerJudgeSilence = useCallback(() => {
     if (!game || !mySessionToken) return;
@@ -15815,6 +16018,25 @@ export default function App() {
                         </div>
                       </div>
                     )}
+                    <div className="lg:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/70 p-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium text-zinc-100">
+                            <span className="inline-flex items-center gap-1.5">
+                              <Mic2 className="h-3.5 w-3.5 text-zinc-400" />
+                              Голосовой режим
+                            </span>
+                          </div>
+                          <div className="text-xs text-zinc-500">
+                            Микрофон включается автоматически только на своём ходу.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={createRoomVoiceMode}
+                          onCheckedChange={(checked) => setCreateRoomVoiceMode(checked)}
+                        />
+                      </div>
+                    </div>
                   </div>
                   <Button
                     onClick={() => {
@@ -17305,6 +17527,28 @@ export default function App() {
                     <div className="rounded-xl border border-zinc-800 bg-zinc-950/55 px-3 py-2.5">
                       <div className="flex items-center justify-between gap-3">
                         <div>
+                          <div className="text-sm font-medium text-zinc-100">
+                            <span className="inline-flex items-center gap-1.5">
+                              <Mic2 className="h-3.5 w-3.5 text-zinc-400" />
+                              Голосовой режим
+                            </span>
+                          </div>
+                          <div className="text-xs text-zinc-500">
+                            Микрофон — только на своём ходу.
+                          </div>
+                        </div>
+                        <Switch
+                          checked={manageVoiceModeEnabled}
+                          onCheckedChange={(checked) => {
+                            setManageVoiceModeEnabled(checked);
+                            updateRoomManagementSettings({ voiceModeEnabled: checked });
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-950/55 px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
                           <div className="text-sm font-medium text-zinc-100">Наблюдатели</div>
                           <div className="text-xs text-zinc-500">Максимум в комнате</div>
                         </div>
@@ -18044,6 +18288,7 @@ export default function App() {
     const gameStages =
       game.stages && game.stages.length > 0 ? game.stages : DEFAULT_GAME_STAGES;
     const currentStage = gameStages[game.stageIndex] ?? gameStages[0];
+    const { phase: currentStagePhase, subject: currentStageSubject } = splitStageLabel(currentStage);
     const stageProgress = ((game.stageIndex + 1) / gameStages.length) * 100;
     const isHost = myId === game.hostId;
     const isJudge = game.me.roleKey === "judge";
@@ -18499,7 +18744,7 @@ export default function App() {
                       isCardAnnouncement
                         ? "max-w-[min(90vw,760px)] sm:px-8 sm:py-5"
                         : isPetitionAnnouncement
-                          ? "max-w-[min(82vw,540px)] sm:px-8 sm:py-5"
+                          ? "max-w-[min(94vw,860px)] sm:px-8 sm:py-5"
                           : "max-w-[min(92vw,980px)] sm:px-7 sm:py-5"
                     }`}
                   >
@@ -18519,13 +18764,13 @@ export default function App() {
                               : ["0 0 18px rgba(239,68,68,0.35)","0 0 34px rgba(239,68,68,0.85)","0 0 20px rgba(239,68,68,0.45)"],
                       }}
                       transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
-                      className={`max-w-full break-words [text-wrap:balance] font-black uppercase ${
+                      className={`max-w-full break-normal [overflow-wrap:normal] [text-wrap:balance] font-black uppercase ${
                         isCardAnnouncement
                           ? "text-[clamp(1.55rem,4.2vw,2.7rem)] tracking-[0.018em] leading-[0.98] text-rose-300"
-                          : isProtestAcceptedAnnouncement || isPetitionAcceptedAnnouncement
-                            ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-emerald-400"
-                            : isPetitionAnnouncement
-                              ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[1.1] text-red-400"
+                          : isPetitionAnnouncement
+                            ? `text-[clamp(1.5rem,5.4vw,3.4rem)] tracking-[0.015em] leading-[1.12] ${isPetitionAcceptedAnnouncement ? "text-emerald-400" : "text-red-400"}`
+                            : isProtestAcceptedAnnouncement
+                              ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-emerald-400"
                               : "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-red-500"
                       }`}
                     >
@@ -18562,7 +18807,7 @@ export default function App() {
                   </Button>
                 </div>
               )}
-              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+              <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-6">
                 <div className="relative w-full max-w-3xl space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-zinc-400">
@@ -18578,21 +18823,29 @@ export default function App() {
                   </h1>
                 </div>
 
-                <div className="min-w-[260px] space-y-2 max-sm:-mt-2 sm:space-y-3 xl:min-w-[320px] xl:space-y-4">
-                  <div className="min-h-[2rem]">
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={currentStage}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className={`font-medium break-words [overflow-wrap:anywhere] ${currentStage.length > 30 ? "text-xs xl:text-sm" : "text-sm xl:text-base"}`}
-                      >
-                        Этап: {currentStage}
-                      </motion.div>
-                    </AnimatePresence>
-                  </div>
+                <div className="w-full space-y-2 max-sm:-mt-2 sm:space-y-3 xl:w-[340px] xl:flex-shrink-0 xl:space-y-4">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={currentStage}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-1.5"
+                    >
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                        Этап {game.stageIndex + 1} из {gameStages.length}
+                      </div>
+                      <div className="font-semibold leading-snug text-zinc-100 text-sm xl:text-base break-words [text-wrap:balance]">
+                        {currentStagePhase}
+                      </div>
+                      {currentStageSubject && (
+                        <div className="inline-flex max-w-full items-center rounded-full border border-zinc-700 bg-zinc-900/80 px-2.5 py-0.5 text-xs text-zinc-300 break-words">
+                          {currentStageSubject}
+                        </div>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
                   <Progress
                     value={stageProgress}
                     className="h-3 bg-zinc-800 [&>div]:bg-red-600 [&>div]:transition-all [&>div]:duration-500 xl:h-4"
@@ -18629,10 +18882,71 @@ export default function App() {
                       Выйти
                     </Button>
                   </div>
+                  {game.voiceModeEnabled && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2.5">
+                      {!voiceJoined ? (
+                        <>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-zinc-100">Голосовой режим включён</div>
+                            <div className="text-xs text-zinc-500">Микрофон дадут автоматически на вашем ходу.</div>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="shrink-0 rounded-xl bg-red-600 text-white border-0 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500"
+                            onClick={() => void startVoiceMode()}
+                            disabled={voiceConnecting}
+                          >
+                            <Mic2 className="h-4 w-4" />
+                            {voiceConnecting ? "Подключение…" : "Включить микрофон"}
+                          </Button>
+                        </>
+                      ) : (
+                        <div className="flex w-full items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {voiceFloorIds.includes(myId ?? "") ? (
+                              <motion.span
+                                animate={{ opacity: [0.6, 1, 0.6] }}
+                                transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+                                className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-400"
+                              >
+                                <Mic2 className="h-4 w-4" /> Микрофон включён — говорите
+                              </motion.span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-sm text-zinc-500">
+                                <MicOff className="h-4 w-4" /> Микрофон выключен
+                              </span>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                            onClick={stopVoiceMode}
+                          >
+                            Отключить
+                          </Button>
+                        </div>
+                      )}
+                      {voiceError && (
+                        <div className="w-full text-xs text-red-400">{voiceError}</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
+          {Object.entries(voiceRemoteStreams).map(([socketId, stream]) => (
+            <audio
+              key={socketId}
+              autoPlay
+              ref={(el) => {
+                if (el && el.srcObject !== stream) {
+                  el.srcObject = stream;
+                }
+              }}
+            />
+          ))}
 
           <div className="grid items-start xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.9fr)] gap-6">
             <InfoBlock title="Ваша роль" icon={<Shield className="w-5 h-5" />}>
@@ -18736,6 +19050,22 @@ export default function App() {
                             )}
                         </div>
                         <div className="relative z-10 ml-2 shrink-0 flex items-center gap-2">
+                          {game.voiceModeEnabled && (
+                            voiceFloorIds.includes(p.id) ? (
+                              <motion.span
+                                animate={{ opacity: [0.6, 1, 0.6] }}
+                                transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+                                className="inline-flex items-center"
+                                title="Может говорить сейчас"
+                              >
+                                <Mic2 className="h-4 w-4 text-emerald-400" />
+                              </motion.span>
+                            ) : (
+                              <span className="inline-flex items-center" title="Микрофон выключен">
+                                <MicOff className="h-4 w-4 text-zinc-600" />
+                              </span>
+                            )
+                          )}
                           {(p.warningCount ?? 0) > 0 && (
                             <Badge className="bg-red-950/70 text-red-300 border border-red-700/70">
                               {p.warningCount}/3
@@ -19636,22 +19966,34 @@ export default function App() {
         {renderMaintenanceOverlay()}
         <ScreenTransitionLoader open={safeGlobalBlockingLoading} />
         <Dialog open={petitionDialogOpen} onOpenChange={(o) => { setPetitionDialogOpen(o); if (!o) setPetitionText(""); }}>
-          <DialogContent className="max-w-md border-zinc-800 bg-zinc-950 text-zinc-100">
+          <DialogContent className="max-w-lg rounded-2xl border border-red-500/25 bg-zinc-950 text-zinc-100 shadow-[0_20px_70px_rgba(0,0,0,0.65)]">
             <DialogHeader>
-              <DialogTitle>Ходатайство</DialogTitle>
+              <DialogTitle className="flex items-center gap-2.5 text-lg">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-red-500/40 bg-red-500/10 text-red-300">
+                  <Gavel className="h-4.5 w-4.5" />
+                </span>
+                Заявить ходатайство
+              </DialogTitle>
+              <DialogDescription className="text-sm text-zinc-400">
+                Текст увидят все участники процесса. Судья примет или отклонит ходатайство.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <div className="relative">
                 <textarea
                   value={petitionText}
                   onChange={(e) => setPetitionText(e.target.value.slice(0, 90))}
-                  placeholder="Текст ходатайства..."
-                  className={`w-full h-[100px] resize-none rounded-xl border border-zinc-700 bg-zinc-900 p-3 pb-6 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:ring-1 focus:ring-red-500/60 ${HIDE_SCROLLBAR_CLASS}`}
+                  placeholder="Например: прошу приобщить улику к делу..."
+                  className={`w-full h-[112px] resize-none rounded-xl border border-zinc-700 bg-zinc-900/80 p-3.5 pb-6 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none transition-colors focus:border-red-500/50 focus:ring-1 focus:ring-red-500/60 ${HIDE_SCROLLBAR_CLASS}`}
                 />
-                <span className="absolute bottom-2 right-3 text-xs text-zinc-500 pointer-events-none">{petitionText.length}/90</span>
+                <span className="absolute bottom-2.5 right-3.5 rounded-full bg-zinc-950/80 px-1.5 text-[11px] text-zinc-500 pointer-events-none">{petitionText.length}/90</span>
               </div>
-              <Button className="w-full h-12 text-base bg-zinc-100 text-zinc-950 hover:bg-zinc-200 border-0" onClick={submitPetition} disabled={!petitionText.trim()}>
-                Отправить
+              <Button
+                className="w-full h-12 rounded-xl text-base font-semibold bg-red-600 text-white border-0 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500"
+                onClick={submitPetition}
+                disabled={!petitionText.trim()}
+              >
+                Подать ходатайство
               </Button>
             </div>
           </DialogContent>
