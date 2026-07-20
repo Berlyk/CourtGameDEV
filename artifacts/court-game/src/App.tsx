@@ -2791,6 +2791,7 @@ interface PublicMatchInfo {
   requiresPassword: boolean;
   hostSubscriptionTier?: SubscriptionTier;
   isPromoted?: boolean;
+  voiceModeEnabled?: boolean;
 }
 
 const MAX_LIVE_LOBBY_CHAT_MESSAGES = 120;
@@ -4732,7 +4733,6 @@ export default function App() {
   const [roomManageOpen, setRoomManageOpen] = useState(false);
   const [manageAllowWitnesses, setManageAllowWitnesses] = useState(true);
   const [manageVoiceModeEnabled, setManageVoiceModeEnabled] = useState(false);
-  const [manageMaxObservers, setManageMaxObservers] = useState(6);
   const [manageOpeningTimerEnabled, setManageOpeningTimerEnabled] = useState(false);
   const [manageOpeningTimerSec, setManageOpeningTimerSec] = useState(60);
   const [manageClosingTimerEnabled, setManageClosingTimerEnabled] = useState(false);
@@ -5060,10 +5060,31 @@ export default function App() {
   const [voiceConnecting, setVoiceConnecting] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceFloorIds, setVoiceFloorIds] = useState<string[]>([]);
+  const [voiceSelfMuted, setVoiceSelfMuted] = useState(true);
+  const [voiceMutedPeerIds, setVoiceMutedPeerIds] = useState<Record<string, boolean>>({});
   const [voiceRemoteStreams, setVoiceRemoteStreams] = useState<Record<string, MediaStream>>({});
+  const [voicePromptOpen, setVoicePromptOpen] = useState(false);
+  const [voiceMics, setVoiceMics] = useState<MediaDeviceInfo[]>([]);
+  const [voiceSpeakers, setVoiceSpeakers] = useState<MediaDeviceInfo[]>([]);
+  const [voiceMicId, setVoiceMicId] = useState<string>(() => {
+    try {
+      return localStorage.getItem("court_voice_mic_id") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [voiceSpeakerId, setVoiceSpeakerId] = useState<string>(() => {
+    try {
+      return localStorage.getItem("court_voice_speaker_id") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [roleInfoTab, setRoleInfoTab] = useState<"role" | "voice">("role");
   const localVoiceStreamRef = useRef<MediaStream | null>(null);
   const voicePeerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const voiceRoomCodeRef = useRef<string | null>(null);
+  const voicePromptShownForCodeRef = useRef<string | null>(null);
   const knownUserIdByPlayerIdRef = useRef<Record<string, string>>({});
   const influenceAnnouncementTimerRef = useRef<number | null>(null);
   const roomActionTimeoutRef = useRef<number | null>(null);
@@ -7947,9 +7968,6 @@ export default function App() {
     if (!room) return;
     setManageAllowWitnesses(room.allowWitnesses !== false);
     setManageVoiceModeEnabled(!!room.voiceModeEnabled);
-    setManageMaxObservers(
-      Math.max(0, Math.min(6, Number.isFinite(room.maxObservers ?? NaN) ? Number(room.maxObservers) : 6)),
-    );
     const openingSec = typeof room.openingSpeechTimerSec === "number" ? room.openingSpeechTimerSec : 60;
     const closingSec = typeof room.closingSpeechTimerSec === "number" ? room.closingSpeechTimerSec : 60;
     setManageOpeningTimerEnabled(typeof room.openingSpeechTimerSec === "number");
@@ -10682,7 +10700,67 @@ export default function App() {
 
   // Voice mode: WebRTC mesh. The server only relays signaling (see voice_join/voice_signal
   // on the backend) and tells everyone who currently has the floor (voice_floor_updated) —
-  // each client independently mutes/unmutes its own outgoing track based on that.
+  // each client independently mutes/unmutes its own outgoing track based on that, combined
+  // with a manual self-mute the player controls themselves.
+  const syncLocalTrackEnabled = useCallback(() => {
+    const track = localVoiceStreamRef.current?.getAudioTracks()[0];
+    if (!track) return;
+    const hasFloor = voiceFloorIds.includes(myIdRef.current ?? "");
+    track.enabled = hasFloor && !voiceSelfMuted;
+  }, [voiceFloorIds, voiceSelfMuted]);
+
+  useEffect(() => {
+    syncLocalTrackEnabled();
+  }, [syncLocalTrackEnabled]);
+
+  const refreshVoiceDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const list = await navigator.mediaDevices.enumerateDevices();
+      setVoiceMics(list.filter((d) => d.kind === "audioinput"));
+      setVoiceSpeakers(list.filter((d) => d.kind === "audiooutput"));
+    } catch {
+      // Device enumeration is best-effort — dropdowns just stay empty.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (screen === "profile") {
+      void refreshVoiceDevices();
+    }
+  }, [screen, refreshVoiceDevices]);
+
+  const requestVoiceStream = useCallback(async (deviceId?: string): Promise<MediaStream | null> => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setVoiceError(
+        typeof window !== "undefined" && window.isSecureContext === false
+          ? "Голосовой режим работает только по HTTPS."
+          : "Этот браузер не поддерживает голосовой чат.",
+      );
+      return null;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+      });
+      setVoiceError(null);
+      return stream;
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : "";
+      const message =
+        name === "NotAllowedError" || name === "PermissionDeniedError"
+          ? "Доступ к микрофону запрещён. Разрешите доступ в настройках браузера и попробуйте снова."
+          : name === "NotFoundError" || name === "DevicesNotFoundError"
+            ? "Микрофон не найден. Подключите микрофон и попробуйте снова."
+            : name === "NotReadableError" || name === "TrackStartError"
+              ? "Микрофон занят другим приложением."
+              : "Не удалось получить доступ к микрофону.";
+      console.error("[voice] getUserMedia failed:", name || err);
+      setVoiceError(message);
+      return null;
+    }
+  }, []);
+
   const closeVoicePeerConnection = useCallback((socketId: string) => {
     const pc = voicePeerConnectionsRef.current.get(socketId);
     if (pc) {
@@ -10741,29 +10819,84 @@ export default function App() {
     localVoiceStreamRef.current = null;
     voiceRoomCodeRef.current = null;
     setVoiceRemoteStreams({});
+    setVoiceMutedPeerIds({});
     setVoiceJoined(false);
     setVoiceFloorIds([]);
   }, [socket]);
 
-  const startVoiceMode = useCallback(async () => {
-    if (!game || !mySessionToken || voiceJoined || voiceConnecting) return;
-    setVoiceError(null);
+  // Opens the pre-join dialog and immediately requests mic access so the browser's native
+  // permission prompt appears right away and the device dropdowns get real labels.
+  const openVoicePrompt = useCallback(async () => {
+    setVoicePromptOpen(true);
     setVoiceConnecting(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getAudioTracks().forEach((track) => {
-        track.enabled = voiceFloorIds.includes(myIdRef.current ?? "");
-      });
+    const stream = await requestVoiceStream(voiceMicId || undefined);
+    setVoiceConnecting(false);
+    if (stream) {
+      localVoiceStreamRef.current?.getTracks().forEach((track) => track.stop());
       localVoiceStreamRef.current = stream;
-      voiceRoomCodeRef.current = game.code;
-      socket.emit("voice_join", { code: game.code, sessionToken: mySessionToken });
-      setVoiceJoined(true);
-    } catch {
-      setVoiceError("Нет доступа к микрофону. Разрешите доступ в настройках браузера.");
-    } finally {
-      setVoiceConnecting(false);
+      syncLocalTrackEnabled();
+      void refreshVoiceDevices();
     }
-  }, [game, mySessionToken, socket, voiceJoined, voiceConnecting, voiceFloorIds]);
+  }, [requestVoiceStream, voiceMicId, refreshVoiceDevices, syncLocalTrackEnabled]);
+
+  const changeVoiceMic = useCallback(
+    async (deviceId: string) => {
+      setVoiceMicId(deviceId);
+      setVoiceConnecting(true);
+      const stream = await requestVoiceStream(deviceId || undefined);
+      setVoiceConnecting(false);
+      if (!stream) return;
+      localVoiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+      localVoiceStreamRef.current = stream;
+      syncLocalTrackEnabled();
+      const newTrack = stream.getAudioTracks()[0];
+      voicePeerConnectionsRef.current.forEach((pc) => {
+        const sender = pc.getSenders().find((s) => s.track?.kind === "audio");
+        if (sender && newTrack) void sender.replaceTrack(newTrack);
+      });
+    },
+    [requestVoiceStream, syncLocalTrackEnabled],
+  );
+
+  const dismissVoicePrompt = useCallback(() => {
+    if (!voiceJoined) {
+      localVoiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+      localVoiceStreamRef.current = null;
+    }
+    setVoicePromptOpen(false);
+  }, [voiceJoined]);
+
+  const confirmVoiceJoin = useCallback(() => {
+    if (!game || !mySessionToken || !localVoiceStreamRef.current) return;
+    voiceRoomCodeRef.current = game.code;
+    syncLocalTrackEnabled();
+    socket.emit("voice_join", { code: game.code, sessionToken: mySessionToken });
+    setVoiceJoined(true);
+    setVoicePromptOpen(false);
+  }, [game, mySessionToken, socket, syncLocalTrackEnabled]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("court_voice_mic_id", voiceMicId);
+    } catch {
+      // localStorage may be unavailable (private mode) — device choice just won't persist.
+    }
+  }, [voiceMicId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("court_voice_speaker_id", voiceSpeakerId);
+    } catch {
+      // ignore
+    }
+  }, [voiceSpeakerId]);
+
+  // Broadcasts my self-mute toggle so other players see it too (floor-holder icon should
+  // read differently for "speaking" vs "has the floor but chose to stay muted").
+  useEffect(() => {
+    if (!voiceJoined || !game || !mySessionToken) return;
+    socket.emit("voice_self_mute", { code: game.code, sessionToken: mySessionToken, muted: voiceSelfMuted });
+  }, [voiceSelfMuted, voiceJoined, game, mySessionToken, socket]);
 
   useEffect(() => {
     const handleVoicePeers = ({ peers }: { peers: { playerId: string; socketId: string }[] }) => {
@@ -10805,28 +10938,49 @@ export default function App() {
 
     const handleFloorUpdated = ({ speakerIds }: { speakerIds: string[] }) => {
       setVoiceFloorIds(speakerIds);
-      const canSpeak = speakerIds.includes(myIdRef.current ?? "");
-      localVoiceStreamRef.current?.getAudioTracks().forEach((track) => {
-        track.enabled = canSpeak;
-      });
+    };
+
+    const handleSelfMuteUpdated = ({ playerId, muted }: { playerId: string; muted: boolean }) => {
+      setVoiceMutedPeerIds((prev) => ({ ...prev, [playerId]: muted }));
     };
 
     socket.on("voice_peers", handleVoicePeers);
     socket.on("voice_signal", handleSignal);
     socket.on("voice_peer_left", handlePeerLeft);
     socket.on("voice_floor_updated", handleFloorUpdated);
+    socket.on("voice_self_mute_updated", handleSelfMuteUpdated);
 
     return () => {
       socket.off("voice_peers", handleVoicePeers);
       socket.off("voice_signal", handleSignal);
       socket.off("voice_peer_left", handlePeerLeft);
       socket.off("voice_floor_updated", handleFloorUpdated);
+      socket.off("voice_self_mute_updated", handleSelfMuteUpdated);
     };
   }, [socket, createVoicePeerConnection, closeVoicePeerConnection]);
+
+  // Auto-opens the consent/device dialog the moment a voice-enabled match is entered,
+  // once per match code, instead of requiring the player to hunt for a button first.
+  useEffect(() => {
+    if (
+      screen === "game" &&
+      game?.voiceModeEnabled &&
+      game.code &&
+      !voiceJoined &&
+      !voicePromptOpen &&
+      voicePromptShownForCodeRef.current !== game.code
+    ) {
+      voicePromptShownForCodeRef.current = game.code;
+      void openVoicePrompt();
+    }
+  }, [screen, game?.voiceModeEnabled, game?.code, voiceJoined, voicePromptOpen, openVoicePrompt]);
 
   useEffect(() => {
     if ((screen !== "game" || !game?.voiceModeEnabled) && voiceJoined) {
       stopVoiceMode();
+    }
+    if (screen !== "game" || !game?.voiceModeEnabled) {
+      voicePromptShownForCodeRef.current = null;
     }
   }, [screen, game?.voiceModeEnabled, voiceJoined, stopVoiceMode]);
 
@@ -10837,10 +10991,6 @@ export default function App() {
     const speakerIds = game?.voiceFloorSpeakerIds;
     if (!speakerIds) return;
     setVoiceFloorIds(speakerIds);
-    const canSpeak = speakerIds.includes(myIdRef.current ?? "");
-    localVoiceStreamRef.current?.getAudioTracks().forEach((track) => {
-      track.enabled = canSpeak;
-    });
   }, [game?.voiceFloorSpeakerIds]);
 
   useEffect(() => {
@@ -12621,6 +12771,59 @@ export default function App() {
                       >
                         Сменить почту
                       </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4 md:p-5">
+                    <div className="text-lg font-semibold">Устройства</div>
+                    <div className="text-sm text-zinc-500 mt-1">
+                      Микрофон и динамики для голосового режима в матчах.
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-zinc-400">Микрофон</label>
+                        <Select
+                          value={voiceMicId || "__default__"}
+                          onValueChange={(v) => {
+                            setVoiceMicId(v === "__default__" ? "" : v);
+                            void refreshVoiceDevices();
+                          }}
+                        >
+                          <SelectTrigger className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 focus:ring-red-500/40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
+                            <SelectItem value="__default__">Системный микрофон</SelectItem>
+                            {voiceMics.map((d) => (
+                              <SelectItem key={d.deviceId} value={d.deviceId}>
+                                {d.label || "Микрофон"}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-zinc-400">Динамики</label>
+                        <Select
+                          value={voiceSpeakerId || "__default__"}
+                          onValueChange={(v) => setVoiceSpeakerId(v === "__default__" ? "" : v)}
+                        >
+                          <SelectTrigger className="h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 focus:ring-red-500/40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="border-zinc-800 bg-zinc-950 text-zinc-100">
+                            <SelectItem value="__default__">Системные динамики</SelectItem>
+                            {voiceSpeakers.map((d) => (
+                              <SelectItem key={d.deviceId} value={d.deviceId}>
+                                {d.label || "Динамики"}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs text-zinc-600">
+                      Если названия устройств не отображаются, разрешите доступ к микрофону в матче с голосовым режимом хотя бы раз.
                     </div>
                   </div>
                 </div>
@@ -14807,6 +15010,12 @@ export default function App() {
                                     <Badge className="bg-zinc-800 text-zinc-200 border border-zinc-700">
                                       {roomTypeLabel}
                                     </Badge>
+                                    {match.voiceModeEnabled && (
+                                      <Badge className="bg-red-950/60 text-red-200 border border-red-700/60 gap-1">
+                                        <Mic2 className="w-3.5 h-3.5" />
+                                        Голос
+                                      </Badge>
+                                    )}
                                     {showLockBadge && (
                                       <Badge className="bg-zinc-800 text-zinc-100 border border-zinc-700 gap-1">
                                         <Lock className="w-3.5 h-3.5" />
@@ -16025,15 +16234,25 @@ export default function App() {
                             <span className="inline-flex items-center gap-1.5">
                               <Mic2 className="h-3.5 w-3.5 text-zinc-400" />
                               Голосовой режим
+                              {!authToken && <Lock className="h-3.5 w-3.5 text-zinc-400" />}
                             </span>
                           </div>
                           <div className="text-xs text-zinc-500">
-                            Микрофон включается автоматически только на своём ходу.
+                            {authToken
+                              ? "Микрофон включается автоматически только на своём ходу."
+                              : "Доступно только с аккаунтом."}
                           </div>
                         </div>
                         <Switch
-                          checked={createRoomVoiceMode}
-                          onCheckedChange={(checked) => setCreateRoomVoiceMode(checked)}
+                          checked={createRoomVoiceMode && !!authToken}
+                          onCheckedChange={(checked) => {
+                            if (checked && !authToken) {
+                              setError("Голосовой режим доступен только авторизованным пользователям.");
+                              setTimeout(() => setError(""), 3000);
+                              return;
+                            }
+                            setCreateRoomVoiceMode(checked);
+                          }}
                         />
                       </div>
                     </div>
@@ -17531,46 +17750,25 @@ export default function App() {
                             <span className="inline-flex items-center gap-1.5">
                               <Mic2 className="h-3.5 w-3.5 text-zinc-400" />
                               Голосовой режим
+                              {!authToken && <Lock className="h-3.5 w-3.5 text-zinc-400" />}
                             </span>
                           </div>
                           <div className="text-xs text-zinc-500">
-                            Микрофон — только на своём ходу.
+                            {authToken ? "Микрофон — только на своём ходу." : "Доступно только с аккаунтом."}
                           </div>
                         </div>
                         <Switch
-                          checked={manageVoiceModeEnabled}
+                          checked={manageVoiceModeEnabled && !!authToken}
                           onCheckedChange={(checked) => {
+                            if (checked && !authToken) {
+                              setError("Голосовой режим доступен только авторизованным пользователям.");
+                              setTimeout(() => setError(""), 3000);
+                              return;
+                            }
                             setManageVoiceModeEnabled(checked);
                             updateRoomManagementSettings({ voiceModeEnabled: checked });
                           }}
                         />
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-950/55 px-3 py-2.5">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-medium text-zinc-100">Наблюдатели</div>
-                          <div className="text-xs text-zinc-500">Максимум в комнате</div>
-                        </div>
-                        <Select
-                          value={String(manageMaxObservers)}
-                          onValueChange={(value) => {
-                            const parsed = Math.max(0, Math.min(6, Number(value) || 0));
-                            setManageMaxObservers(parsed);
-                            updateRoomManagementSettings({ maxObservers: parsed });
-                          }}
-                        >
-                          <SelectTrigger className="h-10 w-24 rounded-xl border-zinc-700 bg-zinc-950 text-zinc-100 focus:ring-red-500/40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[460] border-zinc-800 bg-zinc-950 text-zinc-100">
-                            {[0, 1, 2, 3, 4, 5, 6].map((value) => (
-                              <SelectItem key={`obs-limit-${value}`} value={String(value)}>
-                                {value}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                       </div>
                     </div>
                   </div>
@@ -18744,7 +18942,7 @@ export default function App() {
                       isCardAnnouncement
                         ? "max-w-[min(90vw,760px)] sm:px-8 sm:py-5"
                         : isPetitionAnnouncement
-                          ? "max-w-[min(94vw,860px)] sm:px-8 sm:py-5"
+                          ? "max-w-[min(88vw,560px)] sm:px-6 sm:py-4"
                           : "max-w-[min(92vw,980px)] sm:px-7 sm:py-5"
                     }`}
                   >
@@ -18764,14 +18962,14 @@ export default function App() {
                               : ["0 0 18px rgba(239,68,68,0.35)","0 0 34px rgba(239,68,68,0.85)","0 0 20px rgba(239,68,68,0.45)"],
                       }}
                       transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut" }}
-                      className={`max-w-full break-normal [overflow-wrap:normal] [text-wrap:balance] font-black uppercase ${
+                      className={`max-w-full break-normal [overflow-wrap:normal] font-black uppercase ${
                         isCardAnnouncement
-                          ? "text-[clamp(1.55rem,4.2vw,2.7rem)] tracking-[0.018em] leading-[0.98] text-rose-300"
+                          ? "[text-wrap:balance] text-[clamp(1.55rem,4.2vw,2.7rem)] tracking-[0.018em] leading-[0.98] text-rose-300"
                           : isPetitionAnnouncement
-                            ? `text-[clamp(1.5rem,5.4vw,3.4rem)] tracking-[0.015em] leading-[1.12] ${isPetitionAcceptedAnnouncement ? "text-emerald-400" : "text-red-400"}`
+                            ? `text-[clamp(1.3rem,4.2vw,2.5rem)] tracking-[0.015em] leading-[1.15] ${isPetitionAcceptedAnnouncement ? "text-emerald-400" : "text-red-400"}`
                             : isProtestAcceptedAnnouncement
-                              ? "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-emerald-400"
-                              : "text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-red-500"
+                              ? "[text-wrap:balance] text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-emerald-400"
+                              : "[text-wrap:balance] text-[clamp(1.9rem,6.1vw,4.6rem)] tracking-[0.02em] leading-[0.92] text-red-500"
                       }`}
                     >
                       {influenceAnnouncement.title}
@@ -18882,56 +19080,6 @@ export default function App() {
                       Выйти
                     </Button>
                   </div>
-                  {game.voiceModeEnabled && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2.5">
-                      {!voiceJoined ? (
-                        <>
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium text-zinc-100">Голосовой режим включён</div>
-                            <div className="text-xs text-zinc-500">Микрофон дадут автоматически на вашем ходу.</div>
-                          </div>
-                          <Button
-                            size="sm"
-                            className="shrink-0 rounded-xl bg-red-600 text-white border-0 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500"
-                            onClick={() => void startVoiceMode()}
-                            disabled={voiceConnecting}
-                          >
-                            <Mic2 className="h-4 w-4" />
-                            {voiceConnecting ? "Подключение…" : "Включить микрофон"}
-                          </Button>
-                        </>
-                      ) : (
-                        <div className="flex w-full items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            {voiceFloorIds.includes(myId ?? "") ? (
-                              <motion.span
-                                animate={{ opacity: [0.6, 1, 0.6] }}
-                                transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
-                                className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-400"
-                              >
-                                <Mic2 className="h-4 w-4" /> Микрофон включён — говорите
-                              </motion.span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 text-sm text-zinc-500">
-                                <MicOff className="h-4 w-4" /> Микрофон выключен
-                              </span>
-                            )}
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="shrink-0 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
-                            onClick={stopVoiceMode}
-                          >
-                            Отключить
-                          </Button>
-                        </div>
-                      )}
-                      {voiceError && (
-                        <div className="w-full text-xs text-red-400">{voiceError}</div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             </CardContent>
@@ -18941,15 +19089,131 @@ export default function App() {
               key={socketId}
               autoPlay
               ref={(el) => {
-                if (el && el.srcObject !== stream) {
+                if (!el) return;
+                if (el.srcObject !== stream) {
                   el.srcObject = stream;
+                }
+                const sinkEl = el as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
+                if (voiceSpeakerId && typeof sinkEl.setSinkId === "function") {
+                  sinkEl.setSinkId(voiceSpeakerId).catch(() => {});
                 }
               }}
             />
           ))}
 
           <div className="grid items-start xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.9fr)] gap-6">
-            <InfoBlock title="Ваша роль" icon={<Shield className="w-5 h-5" />}>
+            <InfoBlock
+              title={roleInfoTab === "voice" ? "Настройки голоса" : "Ваша роль"}
+              icon={roleInfoTab === "voice" ? <Mic2 className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
+              action={
+                game.voiceModeEnabled ? (
+                  <button
+                    type="button"
+                    onClick={() => setRoleInfoTab((prev) => (prev === "role" ? "voice" : "role"))}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                    title={roleInfoTab === "role" ? "Настройки голоса" : "Ваша роль"}
+                  >
+                    {roleInfoTab === "role" ? <Mic2 className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
+                  </button>
+                ) : null
+              }
+            >
+              {roleInfoTab === "voice" && game.voiceModeEnabled ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2.5">
+                    <div className="min-w-0">
+                      {!voiceJoined ? (
+                        <>
+                          <div className="text-sm font-medium text-zinc-100">Голос не подключён</div>
+                          <div className="text-xs text-zinc-500">Микрофон и динамики не используются.</div>
+                        </>
+                      ) : voiceFloorIds.includes(myId ?? "") ? (
+                        voiceSelfMuted ? (
+                          <motion.div
+                            animate={{ opacity: [0.6, 1, 0.6] }}
+                            transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-400"
+                          >
+                            <MicOff className="h-4 w-4" /> Ваша очередь — включите звук
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            animate={{ opacity: [0.6, 1, 0.6] }}
+                            transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-red-500"
+                          >
+                            <Mic2 className="h-4 w-4" /> Микрофон включён — говорите
+                          </motion.div>
+                        )
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5 text-sm text-zinc-500">
+                          <MicOff className="h-4 w-4" /> Не ваша очередь
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={voiceJoined ? "outline" : undefined}
+                      className={
+                        voiceJoined
+                          ? "shrink-0 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                          : "shrink-0 rounded-xl bg-red-600 text-white border-0 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500"
+                      }
+                      onClick={() => (voiceJoined ? stopVoiceMode() : void openVoicePrompt())}
+                      disabled={voiceConnecting}
+                    >
+                      {voiceJoined ? "Отключить" : voiceConnecting ? "Подключение…" : "Подключиться"}
+                    </Button>
+                  </div>
+                  {voiceJoined && (
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2.5">
+                      <div className="text-sm font-medium text-zinc-100">Замутить себя</div>
+                      <Switch checked={voiceSelfMuted} onCheckedChange={setVoiceSelfMuted} />
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-400">Микрофон</label>
+                    <Select
+                      value={voiceMicId || "__default__"}
+                      onValueChange={(v) => void changeVoiceMic(v === "__default__" ? "" : v)}
+                    >
+                      <SelectTrigger className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 focus:ring-red-500/40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="z-[460] border-zinc-800 bg-zinc-950 text-zinc-100">
+                        <SelectItem value="__default__">Системный микрофон</SelectItem>
+                        {voiceMics.map((d) => (
+                          <SelectItem key={d.deviceId} value={d.deviceId}>
+                            {d.label || "Микрофон"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-400">Динамики</label>
+                    <Select
+                      value={voiceSpeakerId || "__default__"}
+                      onValueChange={(v) => setVoiceSpeakerId(v === "__default__" ? "" : v)}
+                    >
+                      <SelectTrigger className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 focus:ring-red-500/40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="z-[460] border-zinc-800 bg-zinc-950 text-zinc-100">
+                        <SelectItem value="__default__">Системные динамики</SelectItem>
+                        {voiceSpeakers.map((d) => (
+                          <SelectItem key={d.deviceId} value={d.deviceId}>
+                            {d.label || "Динамики"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {voiceError && (
+                    <div className="text-xs text-red-400">{voiceError}</div>
+                  )}
+                </div>
+              ) : (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <Avatar src={game.me.avatar ?? avatar} name={game.me.name} size={56} />
@@ -19051,20 +19315,40 @@ export default function App() {
                         </div>
                         <div className="relative z-10 ml-2 shrink-0 flex items-center gap-2">
                           {game.voiceModeEnabled && (
-                            voiceFloorIds.includes(p.id) ? (
-                              <motion.span
-                                animate={{ opacity: [0.6, 1, 0.6] }}
-                                transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
-                                className="inline-flex items-center"
-                                title="Может говорить сейчас"
-                              >
-                                <Mic2 className="h-4 w-4 text-emerald-400" />
-                              </motion.span>
-                            ) : (
-                              <span className="inline-flex items-center" title="Микрофон выключен">
-                                <MicOff className="h-4 w-4 text-zinc-600" />
-                              </span>
-                            )
+                            (() => {
+                              const hasFloor = voiceFloorIds.includes(p.id);
+                              const isSelfMuted =
+                                p.id === myId ? voiceSelfMuted : !!voiceMutedPeerIds[p.id];
+                              if (!hasFloor) {
+                                return (
+                                  <span className="inline-flex items-center" title="Микрофон выключен">
+                                    <MicOff className="h-4 w-4 text-zinc-600" />
+                                  </span>
+                                );
+                              }
+                              if (isSelfMuted) {
+                                return (
+                                  <motion.span
+                                    animate={{ opacity: [0.6, 1, 0.6] }}
+                                    transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+                                    className="inline-flex items-center"
+                                    title="Очередь говорить, но микрофон приглушён"
+                                  >
+                                    <MicOff className="h-4 w-4 text-amber-400" />
+                                  </motion.span>
+                                );
+                              }
+                              return (
+                                <motion.span
+                                  animate={{ opacity: [0.6, 1, 0.6] }}
+                                  transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+                                  className="inline-flex items-center"
+                                  title="Говорит сейчас"
+                                >
+                                  <Mic2 className="h-4 w-4 text-red-500" />
+                                </motion.span>
+                              );
+                            })()
                           )}
                           {(p.warningCount ?? 0) > 0 && (
                             <Badge className="bg-red-950/70 text-red-300 border border-red-700/70">
@@ -19084,6 +19368,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              )}
             </InfoBlock>
 
             <InfoBlock title="Улики дела" icon={<Eye className="w-5 h-5" />}>
@@ -19965,6 +20250,98 @@ export default function App() {
         {renderBanOverlay()}
         {renderMaintenanceOverlay()}
         <ScreenTransitionLoader open={safeGlobalBlockingLoading} />
+        <Dialog open={voicePromptOpen} onOpenChange={(o) => { if (!o) dismissVoicePrompt(); }}>
+          <DialogContent className="max-w-lg rounded-2xl border border-red-500/25 bg-zinc-950 text-zinc-100 shadow-[0_20px_70px_rgba(0,0,0,0.65)]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2.5 text-lg">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-red-500/40 bg-red-500/10 text-red-300">
+                  <Mic2 className="h-4.5 w-4.5" />
+                </span>
+                Голосовой режим
+              </DialogTitle>
+              <DialogDescription className="text-sm text-zinc-400">
+                В этом матче микрофон включается автоматически, только когда наступает ваша очередь говорить, и выключается всё остальное время — перебить других игроков нельзя. Проверьте устройства перед входом.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-400">Микрофон</label>
+                <Select
+                  value={voiceMicId || "__default__"}
+                  onValueChange={(v) => void changeVoiceMic(v === "__default__" ? "" : v)}
+                >
+                  <SelectTrigger className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 focus:ring-red-500/40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[460] border-zinc-800 bg-zinc-950 text-zinc-100">
+                    <SelectItem value="__default__">Системный микрофон</SelectItem>
+                    {voiceMics.map((d) => (
+                      <SelectItem key={d.deviceId} value={d.deviceId}>
+                        {d.label || "Микрофон"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-400">Динамики</label>
+                <Select
+                  value={voiceSpeakerId || "__default__"}
+                  onValueChange={(v) => setVoiceSpeakerId(v === "__default__" ? "" : v)}
+                >
+                  <SelectTrigger className="h-10 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-100 focus:ring-red-500/40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[460] border-zinc-800 bg-zinc-950 text-zinc-100">
+                    <SelectItem value="__default__">Системные динамики</SelectItem>
+                    {voiceSpeakers.map((d) => (
+                      <SelectItem key={d.deviceId} value={d.deviceId}>
+                        {d.label || "Динамики"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {voiceError && (
+                <div className="space-y-2 rounded-xl border border-red-900/50 bg-red-950/20 px-3 py-2.5">
+                  <div className="text-xs text-red-400">{voiceError}</div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-lg border-red-700/60 bg-transparent text-red-300 hover:bg-red-950/40"
+                    onClick={() => void openVoicePrompt()}
+                    disabled={voiceConnecting}
+                  >
+                    Повторить запрос доступа
+                  </Button>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2.5">
+                <div>
+                  <div className="text-sm font-medium text-zinc-100">Войти замученным</div>
+                  <div className="text-xs text-zinc-500">Микрофон не включится, пока сами не включите звук.</div>
+                </div>
+                <Switch checked={voiceSelfMuted} onCheckedChange={setVoiceSelfMuted} />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                  onClick={dismissVoicePrompt}
+                >
+                  Без микрофона
+                </Button>
+                <Button
+                  className="flex-1 rounded-xl bg-red-600 text-white border-0 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500"
+                  onClick={confirmVoiceJoin}
+                  disabled={voiceConnecting || !localVoiceStreamRef.current}
+                >
+                  {voiceConnecting ? "Подключение…" : "Продолжить"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
         <Dialog open={petitionDialogOpen} onOpenChange={(o) => { setPetitionDialogOpen(o); if (!o) setPetitionText(""); }}>
           <DialogContent className="max-w-lg rounded-2xl border border-red-500/25 bg-zinc-950 text-zinc-100 shadow-[0_20px_70px_rgba(0,0,0,0.65)]">
             <DialogHeader>

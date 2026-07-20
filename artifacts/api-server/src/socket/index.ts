@@ -1556,6 +1556,12 @@ export function setupSocket(httpServer: HttpServer) {
               message: "Приватные комнаты доступны только в подписке «Арбитр».",
             });
           }
+          if (nextOptions.voiceModeEnabled && !authUser) {
+            nextOptions.voiceModeEnabled = false;
+            socket.emit("error", {
+              message: "Голосовой режим доступен только авторизованным пользователям.",
+            });
+          }
           if (
             nextOptions.usePreferredRoles &&
             !hasCapability(subscriptionTier, "canLetPlayersChooseRoles")
@@ -1715,6 +1721,12 @@ export function setupSocket(httpServer: HttpServer) {
 
         if (!room) {
           socket.emit("error", { message: "\u041a\u043e\u043c\u043d\u0430\u0442\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u043a\u043e\u0434." });
+          return;
+        }
+        if (room.voiceModeEnabled && !authUser) {
+          socket.emit("error", {
+            message: "\u041a\u043e\u043c\u043d\u0430\u0442\u044b \u0441 \u0433\u043e\u043b\u043e\u0441\u043e\u0432\u044b\u043c \u0440\u0435\u0436\u0438\u043c\u043e\u043c \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0432\u0442\u043e\u0440\u0438\u0437\u043e\u0432\u0430\u043d\u043d\u044b\u043c \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f\u043c. \u0412\u043e\u0439\u0434\u0438\u0442\u0435 \u0432 \u0430\u043a\u043a\u0430\u0443\u043d\u0442.",
+          });
           return;
         }
         if (!authUser && !effectiveName) {
@@ -2232,6 +2244,12 @@ export function setupSocket(httpServer: HttpServer) {
         if (patch?.visibility === "private" && !hasCapability(actorTier, "canCreatePrivateRooms")) {
           socket.emit("error", {
             message: "Приватные комнаты доступны только в подписке «Арбитр».",
+          });
+          return;
+        }
+        if (patch?.voiceModeEnabled && !actor?.userId) {
+          socket.emit("error", {
+            message: "Голосовой режим доступен только авторизованным пользователям.",
           });
           return;
         }
@@ -3225,6 +3243,18 @@ export function setupSocket(httpServer: HttpServer) {
       const roomCode = normalizeRoomCode(code);
       socket.to(roomCode).emit("voice_peer_left", { socketId: socket.id });
     });
+
+    socket.on(
+      "voice_self_mute",
+      ({ code, sessionToken, muted }: { code: string; sessionToken?: string; muted: boolean }) => {
+        const roomCode = normalizeRoomCode(code);
+        const room = getRoom(roomCode);
+        if (!room?.voiceModeEnabled) return;
+        const actorId = resolveActorId({ socketId: socket.id, roomCode, room, sessionToken });
+        if (!actorId) return;
+        socket.to(roomCode).emit("voice_self_mute_updated", { playerId: actorId, muted: !!muted });
+      },
+    );
 
     socket.on(
       "trigger_judge_silence",

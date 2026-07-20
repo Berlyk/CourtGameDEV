@@ -242,6 +242,7 @@ export interface PublicMatchInfo {
   requiresPassword: boolean;
   hostSubscriptionTier: SubscriptionTier;
   isPromoted: boolean;
+  voiceModeEnabled: boolean;
 }
 
 export interface CreateRoomOptions {
@@ -321,8 +322,7 @@ function getSupportRoleForJoin(room: Room): "witness" | "observer" {
 
 function canAddSupportRole(room: Room, supportRole: "witness" | "observer"): boolean {
   if (supportRole === "observer") {
-    const observers = room.players.filter((player) => player.roleKey === "observer").length;
-    return observers < room.maxObservers;
+    return true;
   }
   if (!room.allowWitnesses && room.modeKey !== "quick_flex") return false;
   const witnesses = room.players.filter((player) => player.roleKey === "witness").length;
@@ -1645,6 +1645,7 @@ export function listPublicMatches(): PublicMatchInfo[] {
         requiresPassword: !!room.password,
         hostSubscriptionTier: room.hostSubscriptionTier ?? "free",
         isPromoted: !!room.isPromoted,
+        voiceModeEnabled: !!room.voiceModeEnabled,
         __visiblePlayersCount: visiblePlayersCount,
       };
     })
