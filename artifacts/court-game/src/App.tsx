@@ -5064,6 +5064,8 @@ export default function App() {
   const [voiceMutedPeerIds, setVoiceMutedPeerIds] = useState<Record<string, boolean>>({});
   const [voiceRemoteStreams, setVoiceRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [voicePromptOpen, setVoicePromptOpen] = useState(false);
+  const [voicePromptContext, setVoicePromptContext] = useState<"room" | "game" | "host" | null>(null);
+  const [voiceDeviceReady, setVoiceDeviceReady] = useState(false);
   const [voiceMics, setVoiceMics] = useState<MediaDeviceInfo[]>([]);
   const [voiceSpeakers, setVoiceSpeakers] = useState<MediaDeviceInfo[]>([]);
   const [voiceMicId, setVoiceMicId] = useState<string>(() => {
@@ -5085,6 +5087,8 @@ export default function App() {
   const voicePeerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const voiceRoomCodeRef = useRef<string | null>(null);
   const voicePromptShownForCodeRef = useRef<string | null>(null);
+  const voicePromptResolverRef = useRef<((ready: boolean) => void) | null>(null);
+  const returnHomeWithSessionRef = useRef<() => void>(() => {});
   const knownUserIdByPlayerIdRef = useRef<Record<string, string>>({});
   const influenceAnnouncementTimerRef = useRef<number | null>(null);
   const roomActionTimeoutRef = useRef<number | null>(null);
@@ -10732,9 +10736,12 @@ export default function App() {
 
   const requestVoiceStream = useCallback(async (deviceId?: string): Promise<MediaStream | null> => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      const isInsecure = typeof window !== "undefined" && window.isSecureContext === false;
+      const host = typeof window !== "undefined" ? window.location.protocol + "//" + window.location.host : "";
+      console.error("[voice] mediaDevices unavailable", { isSecureContext: typeof window !== "undefined" ? window.isSecureContext : undefined, host });
       setVoiceError(
-        typeof window !== "undefined" && window.isSecureContext === false
-          ? "Голосовой режим работает только по HTTPS."
+        isInsecure
+          ? `Голосовой режим работает только по HTTPS, а страница открыта как ${host}.`
           : "Этот браузер не поддерживает голосовой чат.",
       );
       return null;
@@ -10824,20 +10831,32 @@ export default function App() {
     setVoiceFloorIds([]);
   }, [socket]);
 
-  // Opens the pre-join dialog and immediately requests mic access so the browser's native
-  // permission prompt appears right away and the device dropdowns get real labels.
-  const openVoicePrompt = useCallback(async () => {
-    setVoicePromptOpen(true);
-    setVoiceConnecting(true);
-    const stream = await requestVoiceStream(voiceMicId || undefined);
-    setVoiceConnecting(false);
-    if (stream) {
-      localVoiceStreamRef.current?.getTracks().forEach((track) => track.stop());
-      localVoiceStreamRef.current = stream;
-      syncLocalTrackEnabled();
-      void refreshVoiceDevices();
-    }
-  }, [requestVoiceStream, voiceMicId, refreshVoiceDevices, syncLocalTrackEnabled]);
+  // Opens the mandatory device/consent dialog and immediately requests mic access so the
+  // browser's native permission prompt appears right away and the device dropdowns get real
+  // labels. Returns a promise that resolves true once the player completes setup, false if
+  // they back out — callers that gate something on it (e.g. the host enabling voice mode)
+  // await this instead of just firing the dialog and hoping.
+  const openVoicePrompt = useCallback(
+    (context: "room" | "game" | "host"): Promise<boolean> => {
+      return new Promise((resolve) => {
+        voicePromptResolverRef.current = resolve;
+        setVoicePromptContext(context);
+        setVoicePromptOpen(true);
+        setVoiceConnecting(true);
+        void (async () => {
+          const stream = await requestVoiceStream(voiceMicId || undefined);
+          setVoiceConnecting(false);
+          if (stream) {
+            localVoiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+            localVoiceStreamRef.current = stream;
+            syncLocalTrackEnabled();
+            void refreshVoiceDevices();
+          }
+        })();
+      });
+    },
+    [requestVoiceStream, voiceMicId, refreshVoiceDevices, syncLocalTrackEnabled],
+  );
 
   const changeVoiceMic = useCallback(
     async (deviceId: string) => {
@@ -10858,22 +10877,47 @@ export default function App() {
     [requestVoiceStream, syncLocalTrackEnabled],
   );
 
-  const dismissVoicePrompt = useCallback(() => {
+  // Voice-mode rooms have no "skip" option: if the player won't finish device setup for a
+  // required (room/game) prompt, they're taken out of the room entirely rather than let in
+  // half-configured. A "host" prompt (enabling the setting) just declines without ejecting
+  // anyone, since no one has committed to the room yet.
+  const cancelVoicePrompt = useCallback(() => {
+    const resolve = voicePromptResolverRef.current;
+    voicePromptResolverRef.current = null;
+    const context = voicePromptContext;
+    setVoicePromptOpen(false);
     if (!voiceJoined) {
       localVoiceStreamRef.current?.getTracks().forEach((track) => track.stop());
       localVoiceStreamRef.current = null;
     }
-    setVoicePromptOpen(false);
-  }, [voiceJoined]);
+    resolve?.(false);
+    if (context === "room" || context === "game") {
+      returnHomeWithSessionRef.current();
+    }
+  }, [voiceJoined, voicePromptContext]);
 
-  const confirmVoiceJoin = useCallback(() => {
-    if (!game || !mySessionToken || !localVoiceStreamRef.current) return;
-    voiceRoomCodeRef.current = game.code;
+  const confirmVoicePrompt = useCallback(() => {
+    if (!localVoiceStreamRef.current) return;
     syncLocalTrackEnabled();
-    socket.emit("voice_join", { code: game.code, sessionToken: mySessionToken });
-    setVoiceJoined(true);
+    setVoiceDeviceReady(true);
     setVoicePromptOpen(false);
-  }, [game, mySessionToken, socket, syncLocalTrackEnabled]);
+    const resolve = voicePromptResolverRef.current;
+    voicePromptResolverRef.current = null;
+    resolve?.(true);
+  }, [syncLocalTrackEnabled]);
+
+  // Once devices are ready, actually joins the WebRTC mesh for whichever room/match is
+  // current — separate from the dialog so it also fires on its own once setup already
+  // happened at room entry and the player later moves into the started match.
+  useEffect(() => {
+    if (!voiceDeviceReady || voiceJoined) return;
+    const code = game?.code ?? room?.code;
+    const voiceEnabled = game?.voiceModeEnabled ?? room?.voiceModeEnabled;
+    if (!code || !voiceEnabled || !mySessionToken || !localVoiceStreamRef.current) return;
+    voiceRoomCodeRef.current = code;
+    socket.emit("voice_join", { code, sessionToken: mySessionToken });
+    setVoiceJoined(true);
+  }, [voiceDeviceReady, voiceJoined, game?.code, game?.voiceModeEnabled, room?.code, room?.voiceModeEnabled, mySessionToken, socket]);
 
   useEffect(() => {
     try {
@@ -10959,30 +11003,47 @@ export default function App() {
     };
   }, [socket, createVoicePeerConnection, closeVoicePeerConnection]);
 
-  // Auto-opens the consent/device dialog the moment a voice-enabled match is entered,
-  // once per match code, instead of requiring the player to hunt for a button first.
+  // Mandatory setup happens at ROOM entry (lobby), not match start — voice-mode rooms
+  // require every player to be ready to talk before they're really "in". A second trigger
+  // covers landing straight into a running match (e.g. reconnect) without going through the
+  // lobby first.
+  useEffect(() => {
+    if (
+      screen === "room" &&
+      room?.voiceModeEnabled &&
+      room.code &&
+      !voiceDeviceReady &&
+      !voicePromptOpen &&
+      voicePromptShownForCodeRef.current !== room.code
+    ) {
+      voicePromptShownForCodeRef.current = room.code;
+      void openVoicePrompt("room");
+    }
+  }, [screen, room?.voiceModeEnabled, room?.code, voiceDeviceReady, voicePromptOpen, openVoicePrompt]);
+
   useEffect(() => {
     if (
       screen === "game" &&
       game?.voiceModeEnabled &&
       game.code &&
-      !voiceJoined &&
+      !voiceDeviceReady &&
       !voicePromptOpen &&
       voicePromptShownForCodeRef.current !== game.code
     ) {
       voicePromptShownForCodeRef.current = game.code;
-      void openVoicePrompt();
+      void openVoicePrompt("game");
     }
-  }, [screen, game?.voiceModeEnabled, game?.code, voiceJoined, voicePromptOpen, openVoicePrompt]);
+  }, [screen, game?.voiceModeEnabled, game?.code, voiceDeviceReady, voicePromptOpen, openVoicePrompt]);
 
   useEffect(() => {
-    if ((screen !== "game" || !game?.voiceModeEnabled) && voiceJoined) {
-      stopVoiceMode();
-    }
-    if (screen !== "game" || !game?.voiceModeEnabled) {
+    const stillRelevant =
+      (screen === "room" && !!room?.voiceModeEnabled) || (screen === "game" && !!game?.voiceModeEnabled);
+    if (!stillRelevant) {
+      if (voiceJoined) stopVoiceMode();
+      setVoiceDeviceReady(false);
       voicePromptShownForCodeRef.current = null;
     }
-  }, [screen, game?.voiceModeEnabled, voiceJoined, stopVoiceMode]);
+  }, [screen, room?.voiceModeEnabled, game?.voiceModeEnabled, voiceJoined, stopVoiceMode]);
 
   // Applies the floor snapshot that arrives embedded in room_joined/game_started/rejoin
   // payloads (covers initial load and reconnects); live in-game changes arrive separately
@@ -11107,6 +11168,10 @@ export default function App() {
       void syncRankResultAfterMatch(previousRank);
     }
   }, [authToken, clearReconnectWindow, game, socket, syncRankResultAfterMatch, clearRoomActionPending]);
+
+  useEffect(() => {
+    returnHomeWithSessionRef.current = returnHomeWithSession;
+  }, [returnHomeWithSession]);
 
   const finalExit = useCallback(() => {
     const previousRank = myProfileRef.current?.rank;
@@ -16246,12 +16311,18 @@ export default function App() {
                         <Switch
                           checked={createRoomVoiceMode && !!authToken}
                           onCheckedChange={(checked) => {
-                            if (checked && !authToken) {
+                            if (!checked) {
+                              setCreateRoomVoiceMode(false);
+                              return;
+                            }
+                            if (!authToken) {
                               setError("Голосовой режим доступен только авторизованным пользователям.");
                               setTimeout(() => setError(""), 3000);
                               return;
                             }
-                            setCreateRoomVoiceMode(checked);
+                            void openVoicePrompt("host").then((ready) => {
+                              if (ready) setCreateRoomVoiceMode(true);
+                            });
                           }}
                         />
                       </div>
@@ -17760,13 +17831,21 @@ export default function App() {
                         <Switch
                           checked={manageVoiceModeEnabled && !!authToken}
                           onCheckedChange={(checked) => {
-                            if (checked && !authToken) {
+                            if (!checked) {
+                              setManageVoiceModeEnabled(false);
+                              updateRoomManagementSettings({ voiceModeEnabled: false });
+                              return;
+                            }
+                            if (!authToken) {
                               setError("Голосовой режим доступен только авторизованным пользователям.");
                               setTimeout(() => setError(""), 3000);
                               return;
                             }
-                            setManageVoiceModeEnabled(checked);
-                            updateRoomManagementSettings({ voiceModeEnabled: checked });
+                            void openVoicePrompt("host").then((ready) => {
+                              if (!ready) return;
+                              setManageVoiceModeEnabled(true);
+                              updateRoomManagementSettings({ voiceModeEnabled: true });
+                            });
                           }}
                         />
                       </div>
@@ -19110,10 +19189,13 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setRoleInfoTab((prev) => (prev === "role" ? "voice" : "role"))}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
                     title={roleInfoTab === "role" ? "Настройки голоса" : "Ваша роль"}
                   >
-                    {roleInfoTab === "role" ? <Mic2 className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
+                    {roleInfoTab === "role" ? <Mic2 className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
+                    <span className="hidden text-xs font-medium sm:inline">
+                      {roleInfoTab === "role" ? "Голос" : "Роль"}
+                    </span>
                   </button>
                 ) : null
               }
@@ -19159,7 +19241,7 @@ export default function App() {
                           ? "shrink-0 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
                           : "shrink-0 rounded-xl bg-red-600 text-white border-0 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500"
                       }
-                      onClick={() => (voiceJoined ? stopVoiceMode() : void openVoicePrompt())}
+                      onClick={() => (voiceJoined ? stopVoiceMode() : void openVoicePrompt("game"))}
                       disabled={voiceConnecting}
                     >
                       {voiceJoined ? "Отключить" : voiceConnecting ? "Подключение…" : "Подключиться"}
@@ -20250,17 +20332,17 @@ export default function App() {
         {renderBanOverlay()}
         {renderMaintenanceOverlay()}
         <ScreenTransitionLoader open={safeGlobalBlockingLoading} />
-        <Dialog open={voicePromptOpen} onOpenChange={(o) => { if (!o) dismissVoicePrompt(); }}>
-          <DialogContent className="max-w-lg rounded-2xl border border-red-500/25 bg-zinc-950 text-zinc-100 shadow-[0_20px_70px_rgba(0,0,0,0.65)]">
+        <Dialog open={voicePromptOpen} onOpenChange={(o) => { if (!o) cancelVoicePrompt(); }}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-red-500/25 bg-zinc-950 text-zinc-100 shadow-[0_20px_70px_rgba(0,0,0,0.65)]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2.5 text-lg">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-red-500/40 bg-red-500/10 text-red-300">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-500/40 bg-red-500/10 text-red-300">
                   <Mic2 className="h-4.5 w-4.5" />
                 </span>
                 Голосовой режим
               </DialogTitle>
               <DialogDescription className="text-sm text-zinc-400">
-                В этом матче микрофон включается автоматически, только когда наступает ваша очередь говорить, и выключается всё остальное время — перебить других игроков нельзя. Проверьте устройства перед входом.
+                Микрофон включается только на вашей очереди говорить, перебивать нельзя. Комнаты с голосом требуют настроенные устройства.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -20309,7 +20391,7 @@ export default function App() {
                     size="sm"
                     variant="outline"
                     className="rounded-lg border-red-700/60 bg-transparent text-red-300 hover:bg-red-950/40"
-                    onClick={() => void openVoicePrompt()}
+                    onClick={() => void openVoicePrompt(voicePromptContext ?? "room")}
                     disabled={voiceConnecting}
                   >
                     Повторить запрос доступа
@@ -20323,17 +20405,17 @@ export default function App() {
                 </div>
                 <Switch checked={voiceSelfMuted} onCheckedChange={setVoiceSelfMuted} />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
                 <Button
                   variant="outline"
-                  className="flex-1 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
-                  onClick={dismissVoicePrompt}
+                  className="flex-1 h-11 rounded-xl border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                  onClick={cancelVoicePrompt}
                 >
-                  Без микрофона
+                  {voicePromptContext === "host" ? "Отмена" : "Выйти из комнаты"}
                 </Button>
                 <Button
-                  className="flex-1 rounded-xl bg-red-600 text-white border-0 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500"
-                  onClick={confirmVoiceJoin}
+                  className="flex-1 h-11 rounded-xl bg-red-600 text-white border-0 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500"
+                  onClick={confirmVoicePrompt}
                   disabled={voiceConnecting || !localVoiceStreamRef.current}
                 >
                   {voiceConnecting ? "Подключение…" : "Продолжить"}
